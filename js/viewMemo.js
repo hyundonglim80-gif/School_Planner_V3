@@ -15,16 +15,16 @@ window.renderMemoView = async function(container) {
     <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); max-width:800px; margin:0 auto;">
       <div style="display:flex; gap:8px; margin-bottom:20px;">
         <input type="text" id="memo-input-text" placeholder="새 할 일 추가 (엔터 입력)..." 
-               style="flex:1; padding:10px; border:2px solid #e2e8f0; border-radius:8px; font-size:0.95rem; outline:none;"
+               style="flex:1; padding:10px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.5rem; outline:none;"
                onkeypress="if(event.key === 'Enter') addMemoItem()">
         <button onclick="addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">추가</button>
       </div>
       
       <div class="section-title">진행 중인 업무 (${activeMemos.length})</div>
-      <div id="active-memo-list">${activeMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:0.9rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => generateMemoHTML(item, i, activeMemos.length, false)).join('')}</div>
+      <div id="active-memo-list">${activeMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => generateMemoHTML(item, i, activeMemos.length, false)).join('')}</div>
 
       <div class="section-title" style="margin-top:30px;">완료된 업무 (${completedMemos.length})</div>
-      <div>${completedMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:0.9rem;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
+      <div>${completedMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
     </div>
   `;
   container.innerHTML = html;
@@ -36,10 +36,10 @@ window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
     <div class="memo-item">
       <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
         <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color);">
-        <span style="font-size:0.95rem; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
+        <span style="font-size:1.5rem; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
       </label>
       <div class="memo-controls">
-        <button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.2rem; cursor:pointer; margin-left:8px;">&times;</button>
+        <button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.5rem; cursor:pointer; margin-left:8px;">&times;</button>
       </div>
     </div>
   `;
