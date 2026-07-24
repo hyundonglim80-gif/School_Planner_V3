@@ -1,6 +1,6 @@
 // js/viewMemo.js
 
-function renderMemoView(container) {
+window.renderMemoView = function(container) {  
   let activeMemos = memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
   let completedMemos = memoItems.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
@@ -23,7 +23,7 @@ function renderMemoView(container) {
   container.innerHTML = html;
 }
 
-function generateMemoHTML(item, index, totalLength, isCompleted) {
+window.generateMemoHTML = function(item, index, totalLength, isCompleted) {    
   return `
     <div class="memo-item">
       <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
@@ -41,7 +41,7 @@ function generateMemoHTML(item, index, totalLength, isCompleted) {
   `;
 }
 
-function addMemoItem() {
+window.addMemoItem = function() {      
   const input = document.getElementById("memo-input-text");
   if (!input || !input.value.trim()) return;
   const activeMemos = memoItems.filter(m => !m.completed);
@@ -50,7 +50,7 @@ function addMemoItem() {
   render();
 }
 
-function toggleMemoItem(id) {
+window.toggleMemoItem = function(id) {      
   const item = memoItems.find(m => m.id === id);
   if (item) {
     item.completed = !item.completed;
@@ -59,9 +59,9 @@ function toggleMemoItem(id) {
   }
 }
 
-function deleteMemoItem(id) { memoItems = memoItems.filter(m => m.id !== id); render(); }
+window.deleteMemoItem = function(id) { memoItems = memoItems.filter(m => m.id !== id); render(); }
 
-function moveMemo(id, direction) {
+window.moveMemo = function(id, direction) {
   let activeMemos = memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
   const currentIndex = activeMemos.findIndex(m => m.id === id);
   if (currentIndex < 0) return;
