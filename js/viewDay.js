@@ -25,11 +25,11 @@ window.renderDayViewer = async function(container) {
     html += `
         <div class="period-card">
           <div class="period-card-header">
-            <span style="font-weight:700; font-size:1.05rem;">⏰ ${p}교시</span>
+            <span style="font-weight:700; font-size:1.5rem;">⏰ ${p}교시</span>
             ${pObj.subject ? `<span class="badge-tag">${pObj.subject}</span>` : '<span style="color:#94a3b8; font-size:0.85rem;">수업 없음</span>'}
           </div>
-          <div style="font-size:0.9rem; margin-bottom:6px; color:#d97706; font-weight:600;">🎒 준비물: ${pObj.supplies || '없음'}</div>
-          <div style="font-size:0.9rem; color:#334155;">📝 메모: ${pObj.memo || '-'}</div>
+          <div style="font-size:1.5rem; margin-bottom:6px; color:#d97706; font-weight:600;">🎒 준비물: ${pObj.supplies || '없음'}</div>
+          <div style="font-size:1.5rem; color:#334155;">📝 메모: ${pObj.memo || '-'}</div>
         </div>
     `;
   }
@@ -49,7 +49,7 @@ window.renderDayEditor = async function(container) {
   let html = `
     <div class="day-viewer-container">
       <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb;">
-        <h3 style="font-size: 0.95rem; color: #1e40af; margin-bottom: 8px;">📅 오늘의 전체 일정</h3>
+        <h3 style="font-size: 1.5rem; color: #1e40af; margin-bottom: 8px;">📅 오늘의 전체 일정</h3>
         <div id="day-editor-event" class="editable-cell" contenteditable="true" style="background:#f8fafc; border:1px solid #cbd5e1; min-height: 40px; font-size: 0.9rem; padding: 6px;">${eventText}</div>
       </div>
 
