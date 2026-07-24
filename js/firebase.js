@@ -73,4 +73,58 @@ window.dbAPI = {
       console.error("메모 삭제 실패:", error);
     }
   }
+
+  loadMemos: async function() {
+    try {
+      const snapshot = await window.db.collection('tasks').orderBy('createdAt').get();
+      const memos = [];
+      snapshot.forEach(doc => memos.push({ firestoreId: doc.id, ...doc.data() }));
+      return memos;
+    } catch (error) { console.error("메모 불러오기 실패:", error); return []; }
+  },
+  addMemo: async function(memoData) { try { await window.db.collection('tasks').add(memoData); } catch (error) { console.error(error); } },
+  updateMemo: async function(id, data) { try { await window.db.collection('tasks').doc(id).update(data); } catch (error) { console.error(error); } },
+  deleteMemo: async function(id) { try { await window.db.collection('tasks').doc(id).delete(); } catch (error) { console.error(error); } },
+
+  // --- 🔥 [신규] 하루치 데이터 (일정 + 교시별 수업) 저장 및 불러오기 ---
+
+  // 1. 특정 날짜(YYYY-MM-DD)의 일정 및 수업 데이터 조회
+  loadDayData: async function(dateStr) {
+    try {
+      const eventDoc = await window.db.collection('events').doc(dateStr).get();
+      const scheduleDoc = await window.db.collection('schedules').doc(dateStr).get();
+
+      return {
+        eventText: eventDoc.exists ? eventDoc.data().eventText : '',
+        periods: scheduleDoc.exists ? scheduleDoc.data().periods : {}
+      };
+    } catch (error) {
+      console.error("일자 데이터 불러오기 실패:", error);
+      return { eventText: '', periods: {} };
+    }
+  },
+
+  // 2. 특정 날짜의 하루 전체 일정 저장 (events 컬렉션)
+  saveEvent: async function(dateStr, eventText) {
+    try {
+      await window.db.collection('events').doc(dateStr).set({
+        eventText: eventText,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (error) {
+      console.error("일정 저장 실패:", error);
+    }
+  },
+
+  // 3. 특정 날짜의 교시별 수업 정보 저장 (schedules 컬렉션)
+  saveSchedule: async function(dateStr, periodsData) {
+    try {
+      await window.db.collection('schedules').doc(dateStr).set({
+        periods: periodsData,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (error) {
+      console.error("수업 저장 실패:", error);
+    }
+  }
 };
