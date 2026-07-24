@@ -28,7 +28,7 @@ window.renderWeekViewer = async function(container) {
 
     html += `
       <tr>
-        <td rowspan="3" style="width: 60px; font-weight: bold; background: #f8fafc; border: 1px solid #cbd5e1; vertical-align: middle;">
+        <td rowspan="3" style="width: 50px; font-weight: bold; background: #f8fafc; border: 1px solid #cbd5e1; vertical-align: middle;">
           ${d.day}<br><span style="font-size:0.75rem; color:#64748b;">${d.dateDisplay}</span>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
@@ -36,7 +36,7 @@ window.renderWeekViewer = async function(container) {
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; vertical-align: middle;">수업</td>
-        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; border: 1px solid #cbd5e1;">${p}교시</td>`).join('')}
+        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 10%; border: 1px solid #cbd5e1;">${p}교시</td>`).join('')}
       </tr>
       <tr>
         ${[1, 2, 3, 4, 5, 6].map(p => {
