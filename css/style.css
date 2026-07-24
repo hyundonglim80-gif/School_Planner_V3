@@ -93,3 +93,20 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .move-btn { border: none; background: #f1f5f9; border-radius: 4px; cursor: pointer; padding: 4px 6px; font-size: 0.7rem; color: #475569; }
 .move-btn:hover { background: #e2e8f0; }
 .section-title { font-size: 0.95rem; font-weight: 700; color: #475569; margin: 15px 0 8px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; }
+
+/* 📱 스마트폰 화면용 최적화 (화면 폭 768px 이하일 때만 작동) */
+@media screen and (max-width: 768px) {
+  /* 표 안의 글씨를 약간 작게 조정 */
+  table { font-size: 0.8rem; }
+  th, td { padding: 4px; }
+  
+  /* 양옆 빈 여백을 줄여서 화면을 넓게 씀 */
+  .main-container { padding: 8px; }
+  
+  /* 상단 제목 글자 크기 축소 */
+  .title-group h1 { font-size: 1rem; }
+  .current-range { font-size: 0.95rem; }
+  
+  /* 버튼 크기 축소 */
+  .btn-scope, .btn-mode { padding: 4px 8px; font-size: 0.75rem; }
+}
