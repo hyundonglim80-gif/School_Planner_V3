@@ -14,8 +14,9 @@ window.renderDayViewer = async function(container) {
   let html = `
     <div class="day-viewer-container">
       <div class="daily-event-banner">
-        <h3>📌 2026-07-20 전체 일정</h3>
-        <ul class="daily-event-list"><li>${eventText}</li></ul>
+        <h3 style="font-size: 1.5rem;">📌 2026-07-20 전체 일정</h3>
+        
+        <ul class="daily-event-list"><li style="font-size: 1.5rem;">${eventText}</li></ul>
       </div>
       <div class="period-card-list">
   `;
