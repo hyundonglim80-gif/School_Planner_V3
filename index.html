@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>업무 및 수업 계획표</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="header-top">
+      <div class="title-group">
+        <h1>🗓️ 업무 및 수업 계획표</h1>
+      </div>
+      <div class="control-panel">
+        <div class="btn-group">
+          <button class="btn-scope" onclick="setScope('memo')">📝 메모</button>
+          <button class="btn-scope" onclick="setScope('year')">년</button>
+          <button class="btn-scope" onclick="setScope('month')">월</button>
+          <button class="btn-scope active" onclick="setScope('week')">주</button>
+          <button class="btn-scope" onclick="setScope('day')">일</button>
+        </div>
+        <div class="mode-group">
+          <button class="btn-mode active-viewer" id="btn-mode-viewer" onclick="setMode('viewer')">👁️ 뷰어</button>
+          <button class="btn-mode" id="btn-mode-editor" onclick="setMode('editor')">✏️ 수정</button>
+        </div>
+      </div>
+    </div>
+    <div class="header-bottom">
+      <div class="nav-bar">
+        <button class="nav-btn" onclick="moveDate(-1)">&lt; 이전</button>
+        <span class="current-range" id="date-range-text">2026년 7월 3주차 (07.20 ~ 07.24)</span>
+        <button class="nav-btn" onclick="moveDate(1)">다음 &gt;</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container" id="main-view"></main>
+
+  <script src="js/data.js"></script>
+  <script src="js/viewWeek.js"></script>
+  <script src="js/viewDay.js"></script>
+  <script src="js/viewMonth.js"></script>
+  <script src="js/viewYear.js"></script>
+  <script src="js/viewMemo.js"></script>
+  <script src="js/app.js"></script> </body>
+</html>
