@@ -1,9 +1,14 @@
 // js/viewDay.js
 
-// 일간 뷰어 모드 (상단 일정 독립 + 준비물 포함)
-window.renderWeekViewer = function(container)  {
+// 1. window 객체에 명시적으로 등록하여 참조 오류 방지
+window.renderDayViewer = function(container) {
+  // 데이터가 로드되지 않았을 경우 튕기지 않도록 방어 코드 추가
+  if (!mockJulyWeekData || mockJulyWeekData.length === 0) return;
+
   const todayData = mockJulyWeekData[0];
-  const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
+  
+  // 2. p.event가 비어있을 경우(undefined) 에러가 나지 않도록 (p.event || '') 처리
+  const events = todayData.periods.map(p => p.event || '').filter(e => e.trim() !== '');
   const eventListHtml = events.length > 0 ? events.map(e => `<li>${e}</li>`).join('') : '<li>일정 없음</li>';
 
   let html = `
@@ -29,12 +34,15 @@ window.renderWeekViewer = function(container)  {
   });
   html += `</div></div>`;
   container.innerHTML = html;
-}
+};
 
-// 일간 에디터 모드 (상단 일정 입력란 독립 + 준비물 열 추가)
-window.renderDayEditor = function(container)  {
+// 1. window 객체에 명시적으로 등록
+window.renderDayEditor = function(container) {
+  if (!mockJulyWeekData || mockJulyWeekData.length === 0) return;
+
   const todayData = mockJulyWeekData[0];
-  const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
+  // 2. p.event 방어 코드 추가
+  const events = todayData.periods.map(p => p.event || '').filter(e => e.trim() !== '');
   const eventText = events.join(', ');
 
   let html = `
@@ -75,4 +83,4 @@ window.renderDayEditor = function(container)  {
     </div>
   `;
   container.innerHTML = html;
-}
+};
