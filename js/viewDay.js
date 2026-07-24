@@ -1,5 +1,6 @@
 // js/viewDay.js
 
+// 일간 뷰어 모드 (상단 일정 독립 + 준비물 포함)
 function renderDayViewer(container) {
   const todayData = mockJulyWeekData[0];
   const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
@@ -30,6 +31,7 @@ function renderDayViewer(container) {
   container.innerHTML = html;
 }
 
+// 일간 에디터 모드 (상단 일정 입력란 독립 + 준비물 열 추가)
 function renderDayEditor(container) {
   const todayData = mockJulyWeekData[0];
   const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
@@ -39,8 +41,9 @@ function renderDayEditor(container) {
     <div class="day-viewer-container">
       <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb;">
         <h3 style="font-size: 0.95rem; color: #1e40af; margin-bottom: 8px;">📅 오늘의 전체 일정</h3>
-        <div class="editable-cell" contenteditable="true" style="background:#f8fafc; border:1px solid #cbd5e1; min-height: 40px; font-size: 0.9rem;">${eventText}</div>
+        <div class="editable-cell" contenteditable="true" style="background:#f8fafc; border:1px solid #cbd5e1; min-height: 40px; font-size: 0.9rem; padding: 6px;">${eventText}</div>
       </div>
+
       <div class="table-container">
         <table style="text-align: center;">
           <thead>
@@ -64,6 +67,12 @@ function renderDayEditor(container) {
             </tr>
     `;
   });
-  html += `</tbody></table></div></div>`;
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
   container.innerHTML = html;
 }
