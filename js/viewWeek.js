@@ -1,6 +1,6 @@
 // js/viewWeek.js
 
-function renderWeekViewer(container) {
+window.renderWeekViewer = function(container) {
   let html = `
     <div class="clean-viewer-board">
       <table style="min-width: 800px; text-align: center; border-collapse: collapse;">
@@ -38,7 +38,7 @@ function renderWeekViewer(container) {
   container.innerHTML = html;
 }
 
-function renderWeekEditor(container) {
+window.renderWeekEditor = function(container) {
   let html = `
     <div class="table-container">
       <table style="min-width: 800px; text-align: center; border-collapse: collapse;">
