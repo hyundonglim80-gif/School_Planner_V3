@@ -85,7 +85,8 @@ window.renderDayEditor = async function(container) {
 // 3. 🔥 [저장 버튼 클릭 시 실행] 수정 모드의 표 내용을 읽어서 Firestore에 저장
 window.saveDayDataFromEditor = async function() {
   const eventEl = document.getElementById("day-editor-event");
-  const eventText = eventEl ? eventEl.innerText.trim() : '';
+  // 빈 값이나 브라우저 호환성을 고려한 안전한 텍스트 추출
+  const eventText = eventEl ? (eventEl.innerText || eventEl.textContent || '').trim() : '';
 
   // 1) 일정 저장
   await window.dbAPI.saveEvent(CURRENT_DAY_STR, eventText);
@@ -96,9 +97,16 @@ window.saveDayDataFromEditor = async function() {
   
   rows.forEach(row => {
     const p = row.getAttribute("data-period");
-    const subject = row.querySelector(".cell-subject").innerText.trim();
-    const supplies = row.querySelector(".cell-supplies").innerText.trim();
-    const memo = row.querySelector(".cell-memo").innerText.trim();
+    
+    // 요소를 먼저 찾은 뒤
+    const subjectEl = row.querySelector(".cell-subject");
+    const suppliesEl = row.querySelector(".cell-supplies");
+    const memoEl = row.querySelector(".cell-memo");
+
+    // 안전하게 텍스트를 읽어오도록 수정
+    const subject = subjectEl ? (subjectEl.innerText || subjectEl.textContent || '').trim() : '';
+    const supplies = suppliesEl ? (suppliesEl.innerText || suppliesEl.textContent || '').trim() : '';
+    const memo = memoEl ? (memoEl.innerText || memoEl.textContent || '').trim() : '';
 
     periodsData[p] = { subject, supplies, memo };
   });
