@@ -29,10 +29,10 @@ window.renderWeekViewer = async function(container) {
     html += `
       <tr>
         <td rowspan="3" style="width: 50px; font-weight: bold; background: #f8fafc; border: 1px solid #cbd5e1; vertical-align: middle;">
-          ${d.day}<br><span style="font-size:0.75rem; color:#64748b;">${d.dateDisplay}</span>
+          ${d.day}<br><span style="font-size:1.5rem; color:#64748b;">${d.dateDisplay}</span>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: 0.85rem; color: #0369a1; background: #f0f9ff; border: 1px solid #cbd5e1;">${eventText}</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: 1.5rem; color: #0369a1; background: #f0f9ff; border: 1px solid #cbd5e1;">${eventText}</td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; vertical-align: middle;">수업</td>
