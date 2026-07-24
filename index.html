@@ -25,6 +25,11 @@
           <button class="btn-mode active-viewer" id="btn-mode-viewer" onclick="setMode('viewer')">👁️ 뷰어</button>
           <button class="btn-mode" id="btn-mode-editor" onclick="setMode('editor')">✏️ 수정</button>
         </div>
+        
+        <button id="btn-save-data" onclick="saveCurrentViewData()" 
+                style="display:none; background:#16a34a; color:#fff; border:none; padding:5px 14px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+          💾 저장
+        </button>
       </div>
     </div>
     <div class="header-bottom">
