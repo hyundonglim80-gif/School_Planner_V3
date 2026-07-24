@@ -121,6 +121,16 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   /* 👇 모바일에서는 주간 보기 표의 최소 너비를 확 줄여줍니다 (예: 600px) */
   table { min-width: 500px !important; }
   .clean-viewer-board table { min-width: 500px !important; }
+
+  /* 👇 모바일에서 년 보기를 한 줄에 3개씩 배치하도록 추가 👇 */
+  .year-grid {
+    grid-template-columns: repeat(3, 1fr) !important; /* 무조건 1:1:1 비율로 3칸 분할 */
+    gap: 6px; /* 모바일에서는 카드 사이의 간격을 조금 좁혀줍니다 */
+  }
+  
+  .mini-month {
+    padding: 8px; /* 카드가 작아지므로 안쪽 여백도 살짝 줄여줍니다 */
+  }
 }
 
 /* 📝 여러 줄 입력 시 줄바꿈(Enter) 형식 그대로 유지하기 */
