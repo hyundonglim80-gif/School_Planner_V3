@@ -54,7 +54,17 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .badge-tag { display: inline-block; padding: 3px 6px; background-color: var(--tag-bg); color: var(--tag-color); border-radius: 4px; font-size: 0.75rem; font-weight: 700; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
 /* 주간 뷰어 (엑셀 스타일) */
-.clean-viewer-board { background: #ffffff; border: 2px solid #cbd5e1; border-radius: 6px; overflow: auto; max-height: calc(100vh - 130px); }
+/* 주간 뷰어 (엑셀 스타일 - 가로 스크롤 강화) */
+.clean-viewer-board { 
+  background: #ffffff; 
+  border: 2px solid #cbd5e1; 
+  border-radius: 6px; 
+  max-height: calc(100vh - 130px); 
+  /* 모바일 가로 스크롤 적용 */
+  overflow-x: auto; 
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; 
+}
 .clean-viewer-board table { border-collapse: collapse; min-width: 900px; }
 .clean-viewer-board thead th { background: #f8fafc; color: #0f172a; padding: 12px; font-size: 0.9rem; border: 1px solid #cbd5e1; }
 .clean-viewer-board th, .clean-viewer-board td { border: 1px solid #cbd5e1; }
