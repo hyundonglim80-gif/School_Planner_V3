@@ -29,15 +29,17 @@ if (typeof firebase !== 'undefined') {
 };
 
 // Firestore 데이터베이스 조작 함수 모음 (전역에서 사용할 수 있게 window.dbAPI로 묶습니다)
+// Firestore 데이터베이스 조작 함수 모음 (메모장 + 주간계획표 통합)
 window.dbAPI = {
-  // 1. 메모 불러오기 (Read)
+
+  // ==========================================
+  // 📝 1. 메모장 기능 (기존 기능 100% 유지)
+  // ==========================================
   loadMemos: async function() {
     try {
-      // 'tasks' 컬렉션에 있는 데이터들을 생성 시간(createdAt) 순으로 가져옵니다.
       const snapshot = await window.db.collection('tasks').orderBy('createdAt').get();
       const memos = [];
       snapshot.forEach(doc => {
-        // 데이터와 함께 문서의 고유 ID(doc.id)도 같이 저장합니다.
         memos.push({ firestoreId: doc.id, ...doc.data() });
       });
       return memos;
@@ -47,7 +49,6 @@ window.dbAPI = {
     }
   },
 
-  // 2. 새 메모 추가하기 (Create)
   addMemo: async function(memoData) {
     try {
       await window.db.collection('tasks').add(memoData);
@@ -56,7 +57,6 @@ window.dbAPI = {
     }
   },
 
-  // 3. 메모 상태 수정하기 (Update - 완료 처리 및 순서 변경용)
   updateMemo: async function(firestoreId, updateData) {
     try {
       await window.db.collection('tasks').doc(firestoreId).update(updateData);
@@ -65,30 +65,17 @@ window.dbAPI = {
     }
   },
 
-  // 4. 메모 삭제하기 (Delete)
   deleteMemo: async function(firestoreId) {
     try {
       await window.db.collection('tasks').doc(firestoreId).delete();
     } catch (error) {
       console.error("메모 삭제 실패:", error);
     }
-  }
-
-  loadMemos: async function() {
-    try {
-      const snapshot = await window.db.collection('tasks').orderBy('createdAt').get();
-      const memos = [];
-      snapshot.forEach(doc => memos.push({ firestoreId: doc.id, ...doc.data() }));
-      return memos;
-    } catch (error) { console.error("메모 불러오기 실패:", error); return []; }
   },
-  addMemo: async function(memoData) { try { await window.db.collection('tasks').add(memoData); } catch (error) { console.error(error); } },
-  updateMemo: async function(id, data) { try { await window.db.collection('tasks').doc(id).update(data); } catch (error) { console.error(error); } },
-  deleteMemo: async function(id) { try { await window.db.collection('tasks').doc(id).delete(); } catch (error) { console.error(error); } },
 
-  // --- 🔥 [신규] 하루치 데이터 (일정 + 교시별 수업) 저장 및 불러오기 ---
-
-  // 1. 특정 날짜(YYYY-MM-DD)의 일정 및 수업 데이터 조회
+  // ==========================================
+  // 📅 2. 하루치 데이터 (일정 + 교시별 수업) 기능 (새로 추가)
+  // ==========================================
   loadDayData: async function(dateStr) {
     try {
       const eventDoc = await window.db.collection('events').doc(dateStr).get();
@@ -104,7 +91,6 @@ window.dbAPI = {
     }
   },
 
-  // 2. 특정 날짜의 하루 전체 일정 저장 (events 컬렉션)
   saveEvent: async function(dateStr, eventText) {
     try {
       await window.db.collection('events').doc(dateStr).set({
@@ -116,7 +102,6 @@ window.dbAPI = {
     }
   },
 
-  // 3. 특정 날짜의 교시별 수업 정보 저장 (schedules 컬렉션)
   saveSchedule: async function(dateStr, periodsData) {
     try {
       await window.db.collection('schedules').doc(dateStr).set({
@@ -127,4 +112,5 @@ window.dbAPI = {
       console.error("수업 저장 실패:", error);
     }
   }
+
 };
