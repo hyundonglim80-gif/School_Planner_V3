@@ -1,7 +1,7 @@
 // js/viewDay.js
 
 // 일간 뷰어 모드 (상단 일정 독립 + 준비물 포함)
-window.renderDayViewer(container) {
+window.renderWeekViewer = function(container)  {
   const todayData = mockJulyWeekData[0];
   const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
   const eventListHtml = events.length > 0 ? events.map(e => `<li>${e}</li>`).join('') : '<li>일정 없음</li>';
@@ -32,7 +32,7 @@ window.renderDayViewer(container) {
 }
 
 // 일간 에디터 모드 (상단 일정 입력란 독립 + 준비물 열 추가)
-window.renderDayEditor(container) {
+window.renderDayEditor = function(container)  {
   const todayData = mockJulyWeekData[0];
   const events = todayData.periods.map(p => p.event).filter(e => e.trim() !== '');
   const eventText = events.join(', ');
