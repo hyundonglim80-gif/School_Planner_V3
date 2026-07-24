@@ -15,7 +15,9 @@ const firebaseConfig = {
 };
 
 // Firebase 초기화
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+firebase.initializeApp(firebaseConfig);
 
-export { db, doc, getDoc, setDoc };
+// Firestore 데이터베이스 객체를 전역(window)에 등록
+window.db = firebase.firestore();
+
+console.log("🔥 Firebase Firestore가 성공적으로 연결되었습니다.");
