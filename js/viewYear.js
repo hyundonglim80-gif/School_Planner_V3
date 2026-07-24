@@ -62,14 +62,14 @@ window.renderYearViewer = async function(container) {
       }).join('');
     } else {
       // 해당 월에 등록된 일정이 없을 경우
-      eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.8rem; padding-top:10px;">일정 없음</div>`;
+      eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:1.5rem; padding-top:10px;">일정 없음</div>`;
     }
 
     // 각 월별 달력 카드 그리기
     html += `
       <div class="mini-month" style="display:flex; flex-direction:column; gap:8px; text-align:left; background:#fff; padding:12px; border:1px solid var(--border-color); border-radius:8px;">
-        <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; font-size:1.1rem; text-align:center;">${mObj.label}</h3>
-        <div style="font-size:0.85rem; line-height:1.4;">
+        <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; font-size:1.5rem; text-align:center;">${mObj.label}</h3>
+        <div style="font-size:1.5rem; line-height:1.4;">
           ${eventListHtml}
         </div>
       </div>`;
