@@ -78,7 +78,15 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
 .period-card-list { display: flex; flex-direction: column; gap: 10px; }
 .period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 12px 14px; }
-.period-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; }
+.period-card-header { 
+  display: flex; 
+  justify-content: flex-start; /* 👈 왼쪽부터 차례대로 정렬 */
+  gap: 8px;                    /* 👈 1교시와 과목 배지 사이 간격 (원하는 만큼 조절 가능) */
+  align-items: center; 
+  margin-bottom: 8px; 
+  border-bottom: 1px dashed #e2e8f0; 
+  padding-bottom: 6px; 
+}
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
 .cal-header { font-weight: 700; text-align: center; padding: 8px; background: #f1f5f9; border-radius: 4px; font-size: 1.5rem; }
 .cal-day { min-height: 85px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; font-size: 1.5rem; background: #fff; }
