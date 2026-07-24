@@ -110,3 +110,8 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   /* 버튼 크기 축소 */
   .btn-scope, .btn-mode { padding: 4px 8px; font-size: 0.75rem; }
 }
+
+/* 📝 여러 줄 입력 시 줄바꿈(Enter) 형식 그대로 유지하기 */
+td, .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
+  white-space: pre-wrap;
+}
