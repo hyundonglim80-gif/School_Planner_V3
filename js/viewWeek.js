@@ -16,7 +16,7 @@ window.renderWeekViewer = async function(container) {
 
   let html = `
     <div class="clean-viewer-board">
-      <table style="min-width: 800px; text-align: center; border-collapse: collapse;">
+      <table style="min-width: 600px; text-align: center; border-collapse: collapse;">
         <tbody>
   `;
 
