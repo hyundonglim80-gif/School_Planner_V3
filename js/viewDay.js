@@ -1,6 +1,6 @@
 // js/viewDay.js
 
-const CURRENT_DAY_STR = "2026-07-20"; // 임시 기준 날짜 (나중에 날짜 이동 버튼과 연동)
+const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
 // 1. 일간 뷰어 모드
 window.renderDayViewer = async function(container) {
