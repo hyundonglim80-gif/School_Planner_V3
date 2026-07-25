@@ -6,7 +6,7 @@
 const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
 // ==========================================================================
-// 👁️ 1. 일간 뷰어 모드 (상단 전체 일정 + 1~6교시 카드 목록)
+// 👁️ 1. 일간 뷰어 모드 (상단 전체 일정 가로 분할 + 1~6교시 카드 목록)
 // ==========================================================================
 window.renderDayViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드 데이터를 불러오는 중...</p>`;
@@ -21,11 +21,9 @@ window.renderDayViewer = async function(container) {
 
   let html = `
     <div class="day-viewer-container">
-      <div class="daily-event-banner">
-        <h3 style="font-size: var(--day-title-font-size);">📌 ${dateStr} 전체 일정</h3>
-        <ul class="daily-event-list">
-          <li style="font-size: var(--day-content-font-size);">${eventText}</li>
-        </ul>
+      <div class="day-event-card" style="display: flex; align-items: flex-start; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="width: 80px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 일정</div>
+        <div style="font-size: 1.05rem; color: #334155; white-space: pre-wrap; line-height: 1.5; flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">${eventText}</div>
       </div>
       
       <div class="period-card-list">
@@ -74,7 +72,7 @@ window.renderDayEditor = async function(container) {
 
   let html = `
     <div class="day-viewer-container">
-      <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb;">
+      <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb; padding-bottom: 10px;">
         <h3 style="font-size: var(--day-title-font-size); color: #1e40af; margin-bottom: 8px;">📅 오늘의 전체 일정</h3>
         <div id="day-editor-event" class="editable-cell" contenteditable="true" style="background:#f8fafc; border:1px solid #cbd5e1; min-height: 40px; font-size: var(--day-content-font-size); padding: 6px;">${eventText}</div>
       </div>
