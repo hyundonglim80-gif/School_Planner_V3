@@ -9,7 +9,7 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
-window.currentDate = new Date(2026, 6, 20); // 2026년 7월 20일 (월은 0부터 시작하므로 6=7월)
+window.currentDate = new Date(); // 💡 접속한 기기의 현재(오늘) 날짜를 기준일로 설정
 
 /**
  * 🛠️ Date 객체를 "YYYY-MM-DD" 포맷 문자열로 변환하는 전역 공통 함수
