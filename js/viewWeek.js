@@ -1,13 +1,23 @@
 // js/viewWeek.js
 
-// 이번 주 월~금 날짜 정보 (DB에서 조회하고 저장할 때 쓸 기준 키 값)
-const WEEK_DATES = [
-  { day: "월", dateStr: "2026-07-20", dateDisplay: "07/20" },
-  { day: "화", dateStr: "2026-07-21", dateDisplay: "07/21" },
-  { day: "수", dateStr: "2026-07-22", dateDisplay: "07/22" },
-  { day: "목", dateStr: "2026-07-23", dateDisplay: "07/23" },
-  { day: "금", dateStr: "2026-07-24", dateDisplay: "07/24" }
-];
+window.getWeekDates = function() {
+  const dates = [];
+  const tempDate = new Date(window.currentDate);
+  const day = tempDate.getDay();
+  const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
+  tempDate.setDate(diffToMon); // 이번 주 월요일로 맞춤
+
+  const dayNames = ["월", "화", "수", "목", "금"];
+  for (let i = 0; i < 5; i++) {
+    dates.push({
+      day: dayNames[i],
+      dateStr: window.formatDate(tempDate),
+      dateDisplay: `${String(tempDate.getMonth()+1).padStart(2,'0')}/${String(tempDate.getDate()).padStart(2,'0')}`
+    });
+    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
+  }
+  return dates;
+};
 
 // 1. 주간 뷰어 모드 (가짜 데이터 대신 DB에서 진짜 데이터를 불러옵니다)
 window.renderWeekViewer = async function(container) {
