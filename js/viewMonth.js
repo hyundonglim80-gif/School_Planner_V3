@@ -6,6 +6,13 @@
 window.renderMonthViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중입니다...</p>`;
 
+  // 💡 DB 로드 지연 시 방어 코드
+  if (!window.db) {
+    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
+    container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
+    return;
+  }
+
   let html = `<div class="calendar-grid">`;
   const days = ['월','화','수','목','금'];
   days.forEach(d => html += `<div class="cal-header">${d}</div>`);
@@ -24,18 +31,34 @@ window.renderMonthViewer = async function(container) {
     html += `<div class="cal-day" style="background:#f8fafc;"></div>`;
   }
 
-  // 1일부터 마지막 날까지 데이터 호출
+  // 1일부터 마지막 날까지 이벤트 데이터 호출
   const dayPromises = [];
   for(let i=1; i<=lastDate; i++) {
     const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-    dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ day: i, data })));
+    dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ day: i, data, dateStr })));
+  }
+  const monthData = await Promise.all(dayPromises);
+
+  // 💡 월간 뷰 날짜 옆에 표시할 '시간표(schedules)' 데이터를 통째로 로드
+  let scheduleMap = {};
+  try {
+    const snap = await window.db.collection('schedules').get();
+    snap.forEach(doc => {
+      scheduleMap[doc.id] = doc.data().periods || {};
+    });
+  } catch(e) {
+    console.error("시간표 로딩 에러:", e);
   }
 
-  const monthData = await Promise.all(dayPromises);
-  const realTodayStr = window.formatDate(new Date()); 
+  // 안전한 날짜 포맷 변환 (에러 방지)
+  const realToday = new Date();
+  const realTodayStr = typeof window.formatDate === 'function' 
+      ? window.formatDate(realToday) 
+      : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
 
   monthData.forEach(item => {
     const d = item.day;
+    const dateStr = item.dateStr;
     const eventText = item.data.eventText || '';
     
     const dateObj = new Date(y, m, d);
@@ -44,7 +67,30 @@ window.renderMonthViewer = async function(container) {
     // 주말(토, 일) 제외
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return;
 
-    let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155;";
+    // 💡 1~6교시 시간표(수업) 여부를 체크하여 문자열 생성 (수업1, 수업2, X ...)
+    const dayPeriods = scheduleMap[dateStr] || {};
+    let periodLabels = [];
+    let hasClass = false;
+
+    for (let p = 1; p <= 6; p++) {
+      const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
+      if (subject && subject.trim() !== '') {
+        periodLabels.push(subject.trim());
+        hasClass = true;
+      } else {
+        periodLabels.push('X'); // 수업이 없으면 X 표시
+      }
+    }
+
+    // 수업이 하루라도 등록되어 있으면 텍스트 조립
+    let scheduleHtml = '';
+    if (hasClass) {
+      // 숫자 옆에 적절한 간격과 초록색 글씨로 표시되도록 스타일 지정
+      scheduleHtml = `<span style="font-size:0.8rem; color:#059669; font-weight:600; margin-left:8px; word-break:keep-all;">수업(${periodLabels.join(',')})</span>`;
+    }
+
+    // 날짜와 시간표 텍스트가 나란히 수평 정렬되도록 display: flex 추가
+    let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:flex-start;";
 
     let eventHtml = '';
     if(eventText) {
@@ -52,12 +98,11 @@ window.renderMonthViewer = async function(container) {
     }
 
     // 오늘 날짜 체크 후 강조 클래스 적용
-    const currentCellDateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isToday = (currentCellDateStr === realTodayStr);
+    const isToday = (dateStr === realTodayStr);
     const todayClass = isToday ? 'month-today-cell' : '';
 
     html += `<div class="cal-day ${todayClass}">
-      <div style="${dayStyle}">${d}</div>
+      <div style="${dayStyle}">${d} ${scheduleHtml}</div>
       ${eventHtml}
     </div>`;
   });
