@@ -255,6 +255,7 @@ window.executeBatchOperations = async function(operations) {
 };
 
 // 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트(빈칸 포함, 년/월/일/요일 분할)
+// 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트(빈칸 포함, 년/월/일/요일 분할)
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -275,17 +276,25 @@ window.getTargetDateList = function() {
       });
     }
   } else {
-    // 년 보기: 해당 연도 3월 1일부터 다음 해 2월 말일까지 (학교 학사 기준)
+    // ✅ 년 보기 수정: 해당 연도 3월 1일부터 다음 해 2월 말일까지 (학교 학사 기준 완벽 매칭)
     const startYear = y;
-    for (let m = 2; m <= 13; m++) { 
+    
+    // 3(월)부터 14(내년 2월)까지 반복
+    for (let m = 3; m <= 14; m++) { 
       let targetY = startYear;
       let targetM = m;
-      if (m > 11) {
+      
+      // 13, 14가 들어오면 연도를 +1 하고, 월을 1월, 2월로 변환
+      if (m > 12) {
         targetY = startYear + 1;
         targetM = m - 12;
       }
+      
+      // 해당 월의 마지막 날짜 구하기
       const lastDate = new Date(targetY, targetM, 0).getDate();
+      
       for (let d = 1; d <= lastDate; d++) {
+        // 자바스크립트 Date 객체는 월이 0부터 시작하므로 targetM - 1 처리
         const dateObj = new Date(targetY, targetM - 1, d);
         dates.push({
           dateStr: window.formatDate(dateObj),
