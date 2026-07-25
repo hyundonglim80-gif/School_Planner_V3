@@ -5,7 +5,7 @@ window.getWeekDates = function() {
   const tempDate = new Date(window.currentDate);
   const day = tempDate.getDay();
   const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
-  tempDate.setDate(diffToMon); // 이번 주 월요일로 맞춤
+  tempDate.setDate(diffToMon); 
 
   const dayNames = ["월", "화", "수", "목", "금"];
   for (let i = 0; i < 5; i++) {
@@ -14,7 +14,7 @@ window.getWeekDates = function() {
       dateStr: window.formatDate(tempDate),
       dateDisplay: `${String(tempDate.getMonth()+1).padStart(2,'0')}/${String(tempDate.getDate()).padStart(2,'0')}`
     });
-    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
+    tempDate.setDate(tempDate.getDate() + 1); 
   }
   return dates;
 };
@@ -29,15 +29,21 @@ window.renderWeekViewer = async function(container) {
         <tbody>
   `;
 
-  // 💡 아래 부분이 window.getWeekDates() 로 정상적으로 교체되었습니다!
+  const realTodayStr = window.formatDate(new Date()); // 💡 진짜 오늘 날짜 구하기
+
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '-';
     const periods = dayData.periods || {};
 
+    // 💡 오늘 날짜인지 확인하여 스타일 결정
+    const isToday = (d.dateStr === realTodayStr);
+    const dateCellBg = isToday ? '#eff6ff' : '#f8fafc';
+    const dateCellBorder = isToday ? '3px solid #2563eb' : '1px solid #cbd5e1';
+
     html += `
       <tr>
-        <td rowspan="3" style="width: 50px; font-weight: bold; background: #f8fafc; border: 1px solid #cbd5e1; vertical-align: middle;">
+        <td rowspan="3" style="width: 50px; font-weight: bold; background: ${dateCellBg}; border:${dateCellBorder}; vertical-align: middle;">
           ${d.day}<br><span style="font-size:1.5rem; color:#64748b;">${d.dateDisplay}</span>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
@@ -73,15 +79,21 @@ window.renderWeekEditor = async function(container) {
         <tbody>
   `;
 
-  // 💡 아래 부분도 window.getWeekDates() 로 정상적으로 교체되었습니다!
+  const realTodayStr = window.formatDate(new Date()); // 💡 진짜 오늘 날짜 구하기
+
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '';
     const periods = dayData.periods || {};
 
+    // 💡 오늘 날짜인지 확인하여 스타일 결정
+    const isToday = (d.dateStr === realTodayStr);
+    const dateCellBg = isToday ? '#eff6ff' : '#f8fafc';
+    const dateCellBorder = isToday ? '3px solid #2563eb' : '1px solid #cbd5e1';
+
     html += `
       <tr data-week-date="${d.dateStr}">
-        <td rowspan="3" style="width: 60px; font-weight: bold; background: #f8fafc; border: 1px solid #cbd5e1; vertical-align: middle;">
+        <td rowspan="3" style="width: 60px; font-weight: bold; background: ${dateCellBg}; border:${dateCellBorder}; vertical-align: middle;">
           ${d.day}<br><span style="font-size:1.5rem; color:#64748b;">${d.dateDisplay}</span>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
@@ -107,7 +119,6 @@ window.renderWeekEditor = async function(container) {
 
 // 3. [저장 버튼 실행]
 window.saveWeekDataFromEditor = async function() {
-  // 💡 아래 부분도 window.getWeekDates() 로 정상적으로 교체되었습니다!
   for (const d of window.getWeekDates()) {
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
