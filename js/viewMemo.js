@@ -1,11 +1,9 @@
 // js/viewMemo.js
 
-// 1. 메모 화면 그리기 (비동기 처리: async 추가)
+// 1. 메모 화면 그리기
 window.renderMemoView = async function(container) {
-  // 데이터를 불러오는 동안 보여줄 로딩 메시지
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold;">⏳ 클라우드에서 메모를 불러오는 중입니다...</p>`;
 
-  // 🔥 Firebase에서 진짜 메모 데이터 가져오기
   window.memoItems = await window.dbAPI.loadMemos();
 
   let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
@@ -21,24 +19,24 @@ window.renderMemoView = async function(container) {
       </div>
       
       <div class="section-title">진행 중인 업무 (${activeMemos.length})</div>
-      <div id="active-memo-list">${activeMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => generateMemoHTML(item, i, activeMemos.length, false)).join('')}</div>
+      <div id="active-memo-list">${activeMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => generateMemoHTML(item, i, activeMemos.length, false)).join('')}</div>
 
       <div class="section-title" style="margin-top:30px;">완료된 업무 (${completedMemos.length})</div>
-      <div>${completedMemos.length===0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
+      <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
     </div>
   `;
   container.innerHTML = html;
 };
 
-// HTML 생성 도우미 함수 (Firestore ID 기준 적용)
+// HTML 생성 도우미 함수 (Firestore ID 기준 적용 및 우측 정렬 강제 적용)
 window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
+  // 완료된 항목에만 우측 끝에 배치될 삭제 버튼 생성
   const deleteBtnHtml = isCompleted 
     ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` 
     : ``;
 
   return `
     <div class="memo-item" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-      
       <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex: 1; padding-right: 10px;">
         <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0;">
         <span style="font-size:1.5rem; word-break: keep-all; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
@@ -49,7 +47,6 @@ window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
       </div>
     </div>
   `;
-};
 };
 
 // 2. 파이어베이스에 새 메모 추가
@@ -64,11 +61,11 @@ window.addMemoItem = async function() {
     createdAt: Date.now()
   };
 
-  input.value = "저장 중..."; // 저장 중 시각적 피드백
+  input.value = "저장 중..."; 
   input.disabled = true;
 
-  await window.dbAPI.addMemo(newMemo); // DB에 저장
-  window.render(); // 화면 다시 그리기
+  await window.dbAPI.addMemo(newMemo); 
+  window.render(); 
 };
 
 // 3. 파이어베이스의 메모 상태(완료/미완료) 변경
