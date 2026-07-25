@@ -60,7 +60,8 @@ window.renderWeekViewer = async function(container) {
       <tr>
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
-          return `<td style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 8px;">
+          /* 💡 height를 auto로 변경하여 빈 칸일 때는 1줄 높이, 내용이 생기면 가변적으로 늘어납니다 */
+          return `<td style="vertical-align: top; height: auto; text-align: left; padding: 6px 8px;">
               ${pObj.subject ? `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>` : ''}
               ${pObj.memo ? `<div class="clean-cell-memo">${pObj.memo}</div>` : ''}
             </td>`;
