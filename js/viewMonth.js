@@ -103,7 +103,8 @@ window.renderMonthViewer = async function(container) {
     const todayClass = isToday ? 'month-today-cell' : '';
 
     html += `<div class="cal-day ${todayClass}">
-      <div style="${dayStyle}">${d} ${scheduleHtml}</div>${eventHtml}
+      <div style="${dayStyle}">${d} ${scheduleHtml}</div>
+      ${eventHtml}
     </div>`;
   });
 
@@ -187,15 +188,15 @@ window.renderMonthEditor = async function(container) {
     }
     const classText = periodList.join(',');
 
-    // 💡 쓸데없는 높이 증가를 막기 위해 구조 단순화 및 vertical-align: top 지정
+    // 💡 전역 CSS 덮어쓰기: height:auto !important; 및 min-height:1.5em; 지정으로 한 줄 크기 강제 설정
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td style="text-align:center; padding:10px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:top;">
+        <td style="text-align:center; padding:10px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:top; width:120px;">
           ${m+1}/${dayNum} (${dayOfWeek})
         </td>
         <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top; background:#f0f9ff;">
-          <div class="editable-cell month-class-cell" contenteditable="true" style="padding:8px 10px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; outline:none;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
-          <div class="editable-cell month-event-cell" contenteditable="true" style="padding:8px 10px; font-size:1.05rem; color:#0369a1; white-space:pre-wrap; outline:none;">${eventText}</div>
+          <div class="editable-cell month-class-cell" contenteditable="true" style="padding:6px 10px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; outline:none; height:auto !important; min-height:1.5em; line-height:1.5;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
+          <div class="editable-cell month-event-cell" contenteditable="true" style="padding:6px 10px; font-size:1.05rem; color:#0369a1; white-space:pre-wrap; outline:none; height:auto !important; min-height:1.5em; line-height:1.5;">${eventText}</div>
         </td>
       </tr>
     `;
