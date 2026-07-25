@@ -112,7 +112,8 @@ window.renderWeekEditor = async function(container) {
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 8px; white-space: pre-wrap;">${cellText}</td>`;
+          /* 💡 height를 auto로 변경하여 타이핑/줄바꿈 시 가변적으로 늘어납니다 */
+          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: auto; text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
         }).join('')}
       </tr>
     `;
