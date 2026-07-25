@@ -103,8 +103,7 @@ window.renderMonthViewer = async function(container) {
     const todayClass = isToday ? 'month-today-cell' : '';
 
     html += `<div class="cal-day ${todayClass}">
-      <div style="${dayStyle}">${d} ${scheduleHtml}</div>
-      ${eventHtml}
+      <div style="${dayStyle}">${d} ${scheduleHtml}</div>${eventHtml}
     </div>`;
   });
 
@@ -113,7 +112,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (월간 평일 세로 목록 스프레드시트 편집 - 가변 높이 적용)
+// ✏️ 2. 월간 에디터 모드 (월간 평일 세로 목록 스프레드시트 편집)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -158,12 +157,12 @@ window.renderMonthEditor = async function(container) {
     </div>
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
-      <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년 ${m+1}월 일정 편집 시트</h3>
+      <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년${m+1}월 일정/수업 편집 시트</h3>
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜</th>
-            <th style="padding:10px; border:1px solid #cbd5e1;">📌 일정 내용 (직접 수정/입력/삭제)</th>
+            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜(요일)</th>
+            <th style="padding:10px; border:1px solid #cbd5e1;">📌 내용 (위칸: 1~6교시 수업 / 아래칸: 주요 일정)</th>
           </tr>
         </thead>
         <tbody>
@@ -179,13 +178,27 @@ window.renderMonthEditor = async function(container) {
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
 
     const eventText = item.data.eventText || '';
+    const periods = item.data.periods || {};
 
+    // 1~6교시 과목을 쉼표(,)로 연결하여 문자열 생성
+    let periodList = [];
+    for(let p=1; p<=6; p++) {
+      periodList.push(periods[p] && periods[p].subject ? periods[p].subject : 'X');
+    }
+    const classText = periodList.join(',');
+
+    // 💡 날짜 우측 칸을 윗칸(수업), 아랫칸(일정)으로 위아래 분할 레이아웃
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td style="text-align:center; padding:6px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:middle;">
+        <td style="text-align:center; padding:10px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:middle;">
           ${m+1}/${dayNum} (${dayOfWeek})
         </td>
-        <td class="editable-cell month-event-cell" contenteditable="true" style="padding:6px 8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; height:auto; vertical-align:top;">${eventText}</td>
+        <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top;">
+          <div style="display:flex; flex-direction:column; height:100%;">
+            <div class="editable-cell month-class-cell" contenteditable="true" style="padding:8px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; min-height:40px;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
+            <div class="editable-cell month-event-cell" contenteditable="true" style="padding:8px; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; min-height:40px;">${eventText}</div>
+          </div>
+        </td>
       </tr>
     `;
   });
@@ -195,14 +208,35 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수
+// 💾 3. 월간 편집 저장 처리 함수 (수업 및 일정 각각 클라우드 저장)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
+    const classCell = row.querySelector(".month-class-cell");
     const eventCell = row.querySelector(".month-event-cell");
+    
+    // 1) 일정(events) 저장
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
     await window.dbAPI.saveEvent(dateStr, eventText);
+
+    // 2) 수업(schedules) 저장
+    if (classCell) {
+      const classRaw = (classCell.innerText || classCell.textContent || "").trim();
+      const subjects = classRaw.split(',').map(s => s.trim());
+      
+      const periodsData = {};
+      for (let p = 1; p <= 6; p++) {
+        const subj = subjects[p - 1] || 'X';
+        // 'X'가 아닌 실제 과목명이 들어왔을 때 저장
+        periodsData[p] = {
+          subject: (subj.toUpperCase() === 'X' || subj === '') ? '' : subj,
+          supplies: '',
+          memo: ''
+        };
+      }
+      await window.dbAPI.saveSchedule(dateStr, periodsData);
+    }
   }
 };
