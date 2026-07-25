@@ -198,9 +198,8 @@ window.renderYearEditor = async function(container) {
         <tbody id="year-editor-tbody">
   `;
 
-  if (allEvents.length === 0) {
-    // 💡 현재 선택된 연도를 반영한 기본 날짜 생성 (예: 2026-03-03 등)
-    const defaultDate = `${currentYear}-03-03`;
+if (allEvents.length === 0) {
+    const defaultDate = window.formatDate(window.currentDate);
     html += `
       <tr class="year-event-row">
         <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
@@ -232,15 +231,11 @@ window.renderYearEditor = async function(container) {
   container.innerHTML = html;
 };
 
-// ➕ 동적 연간 일정 행 추가 함수 (수정)
+// ➕ 동적 연간 일정 행 추가 함수
 window.addYearEventRow = function() {
   const tbody = document.getElementById('year-editor-tbody');
   if (!tbody) return;
-  
-  // 💡 행 추가 시에도 현재 선택된 연도를 반영하도록 개선
-  const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
-  const defaultDate = `${currentYear}-03-03`;
-  
+  const defaultDate = window.formatDate(window.currentDate);
   const tr = document.createElement('tr');
   tr.className = 'year-event-row';
   tr.innerHTML = `
