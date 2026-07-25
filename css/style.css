@@ -28,7 +28,7 @@
 
   /* 📌 4. 주(Week) 보기 전용 레이아웃 설정 */
   --week-table-min-width: 500px;  /* 주간 보기 표 최소 가로 너비 */
-  --week-cell-height: 60px;       /* 1~6교시 칸 최소 세로 높이 */
+  --week-cell-height: auto;       /* 1~6교시 칸 최소 세로 높이 */
   --week-date-font-size: 1.5rem;  /* 요일 밑 날짜 글자 크기 */
   --week-event-font-size: 1.5rem; /* 주간 상단 일정 글자 크기 */
 
