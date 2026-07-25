@@ -38,7 +38,11 @@ window.renderYearViewer = async function(container) {
   const realToday = new Date();
   const currentYearStr = String(realToday.getFullYear());
   const currentMonthMatch = `-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
-  const realTodayStr = window.formatDate(realToday);
+  
+  // ✅ 수정: window.formatDate가 없을 경우를 대비한 안전 장치 추가
+  const realTodayStr = typeof window.formatDate === 'function' 
+      ? window.formatDate(realToday) 
+      : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
 
   months.forEach(mObj => {
     const monthEvents = allEvents.filter(e => e.dateStr.includes(mObj.match));
@@ -199,7 +203,8 @@ window.renderYearEditor = async function(container) {
   `;
 
 if (allEvents.length === 0) {
-    const defaultDate = window.formatDate(window.currentDate);
+    // ✅ 수정: 미리 구해둔 currentYear를 활용하여 안전하게 기본 날짜 문자열 생성
+    const defaultDate = `${currentYear}-03-03`; 
     html += `
       <tr class="year-event-row">
         <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
@@ -232,10 +237,15 @@ if (allEvents.length === 0) {
 };
 
 // ➕ 동적 연간 일정 행 추가 함수
+// ➕ 동적 연간 일정 행 추가 함수
 window.addYearEventRow = function() {
   const tbody = document.getElementById('year-editor-tbody');
   if (!tbody) return;
-  const defaultDate = window.formatDate(window.currentDate);
+  
+  // ✅ 수정: window.currentDate 유무를 확인하고 안전하게 연도 추출 후 문자열 조합
+  const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
+  const defaultDate = `${currentYear}-03-03`;
+  
   const tr = document.createElement('tr');
   tr.className = 'year-event-row';
   tr.innerHTML = `
