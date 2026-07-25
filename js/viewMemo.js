@@ -32,23 +32,24 @@ window.renderMemoView = async function(container) {
 
 // HTML 생성 도우미 함수 (Firestore ID 기준 적용)
 window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
-  // 💡 완료된 업무(isCompleted가 true)일 때만 쓰레기통(🗑️) 삭제 버튼을 생성합니다.
   const deleteBtnHtml = isCompleted 
     ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` 
     : ``;
 
   return `
-    <div class="memo-item">
-      <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
-        <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color);">
-        <span style="font-size:1.5rem; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
+    <div class="memo-item" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      
+      <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex: 1; padding-right: 10px;">
+        <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0;">
+        <span style="font-size:1.5rem; word-break: keep-all; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
       </label>
       
-      <div class="memo-controls" style="margin-left: auto;">
+      <div class="memo-controls" style="display: flex; justify-content: flex-end;">
         ${deleteBtnHtml}
       </div>
     </div>
   `;
+};
 };
 
 // 2. 파이어베이스에 새 메모 추가
