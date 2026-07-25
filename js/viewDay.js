@@ -15,6 +15,8 @@ window.renderDayViewer = async function(container) {
   // 🔥 Firestore에서 해당 일자 데이터 가져오기
   const dayData = await window.dbAPI.loadDayData(dateStr);
   const eventText = dayData.eventText || '일정 없음';
+  
+  // 💡 변수명을 periods로 통일
   const periods = dayData.periods || {};
 
   let html = `
@@ -29,32 +31,31 @@ window.renderDayViewer = async function(container) {
       <div class="period-card-list">
   `;
 
-  // ... 상단 생략 ...
-    for (let p = 1; p <= 6; p++) {
-      const pData = dayPeriods[p] || {};
-      const subject = pData.subject || '';
-      const supplies = pData.supplies || '';
-      const memo = pData.memo || '';
+  for (let p = 1; p <= 6; p++) {
+    // 💡 에러 원인 수정: dayPeriods -> periods
+    const pData = periods[p] || {};
+    const subject = pData.subject || '';
+    const supplies = pData.supplies || '';
+    const memo = pData.memo || '';
 
-      // 💡 1. 내용이 있는지 확인하여 있을 때만 HTML 문자열을 만듭니다. (.trim()으로 공백 제거 후 확인)
-      const suppliesHtml = supplies.trim() !== '' 
-          ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` 
-          : '';
-          
-      const memoHtml = memo.trim() !== '' 
-          ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` 
-          : '';
+    // 💡 1. 내용이 있는지 확인하여 있을 때만 HTML 문자열을 만듭니다. (.trim()으로 공백 제거 후 확인)
+    const suppliesHtml = supplies.trim() !== '' 
+        ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` 
+        : '';
+        
+    const memoHtml = memo.trim() !== '' 
+        ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` 
+        : '';
 
-      // 💡 2. 조립된 HTML 변수만 렌더링에 포함시킵니다.
-      html += `
-        <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
-          <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
-          ${suppliesHtml}
-          ${memoHtml}
-        </div>
-      `;
-    }
-// ... 하단 생략 ...
+    // 💡 2. 조립된 HTML 변수만 렌더링에 포함시킵니다.
+    html += `
+      <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
+        <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
+        ${suppliesHtml}
+        ${memoHtml}
+      </div>
+    `;
+  }
 
   html += `</div></div>`;
   container.innerHTML = html;
