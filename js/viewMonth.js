@@ -67,7 +67,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (월간 평일 세로 목록 스프레드시트 편집)
+// ✏️ 2. 월간 에디터 모드 (월간 평일 세로 목록 스프레드시트 편집 - 가변 높이 적용)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
