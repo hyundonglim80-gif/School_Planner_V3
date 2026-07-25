@@ -21,8 +21,11 @@ window.renderMemoView = async function(container) {
       <div class="section-title">진행 중인 업무 (${activeMemos.length})</div>
       <div id="active-memo-list">${activeMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => generateMemoHTML(item, i, activeMemos.length, false)).join('')}</div>
 
-      <div class="section-title" style="margin-top:30px;">완료된 업무 (${completedMemos.length})</div>
-      <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
+      <div class="section-title" style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">
+        <span>완료된 업무 (${completedMemos.length})</span>
+        ${completedMemos.length > 0 ? `<button onclick="clearCompletedMemos()" style="background:#ef4444; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:1.2rem; cursor:pointer;">🗑️ 전체 비우기</button>` : ''}
+      </div>
+      <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem; margin-top:20px;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => generateMemoHTML(item, i, completedMemos.length, true)).join('')}</div>
     </div>
   `;
   container.innerHTML = html;
@@ -82,6 +85,21 @@ window.toggleMemoItem = async function(firestoreId, currentStatus) {
 window.deleteMemoItem = async function(firestoreId) {
   if(confirm("이 메모를 완전히 삭제하시겠습니까?")) {
     await window.dbAPI.deleteMemo(firestoreId);
+    window.render();
+  }
+};
+
+// 5. 완료된 메모 전체 삭제 (휴지통 비우기)
+window.clearCompletedMemos = async function() {
+  // 완료된 항목들만 모아서 가져오기
+  const completedMemos = window.memoItems.filter(m => m.completed);
+  if (completedMemos.length === 0) return;
+  
+  if(confirm(`완료된 업무 ${completedMemos.length}개를 모두 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
+    // 모든 삭제 요청을 동시에 처리하여 속도 최적화 (Promise.all)
+    await Promise.all(completedMemos.map(memo => window.dbAPI.deleteMemo(memo.firestoreId)));
+    
+    // 삭제 완료 후 화면 새로고침
     window.render();
   }
 };
