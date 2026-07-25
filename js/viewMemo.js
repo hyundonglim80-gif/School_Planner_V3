@@ -6,9 +6,9 @@ window.renderMemoView = async function(container) {
 
   window.memoItems = await window.dbAPI.loadMemos();
 
-  // 💡 진행 중인 업무는 order(순서) 기준으로 오름차순 정렬
+  // 진행 중인 업무 (순서 오름차순 정렬)
   let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
-  // 💡 완료된 업무는 최근에 체크(completedAt)한 것이 위로 오도록 내림차순 정렬
+  // 완료된 업무 (최근 완료순 정렬)
   let completedMemos = window.memoItems.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
   let html = `
@@ -33,39 +33,98 @@ window.renderMemoView = async function(container) {
   container.innerHTML = html;
 };
 
-// HTML 생성 도우미 함수
+// HTML 생성 도우미 함수 (드래그 앤 드롭 속성 추가)
 window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
+  // 완료된 항목 삭제 버튼
   const deleteBtnHtml = isCompleted 
-    ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;" title="삭제">🗑️</button>` 
+    ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` 
     : ``;
 
-  // 💡 진행 중인 업무에만 순서를 바꿀 수 있는 위/아래 이동 버튼 추가
-  let orderControlsHtml = '';
+  // 💡 드래그 앤 드롭을 위한 세 줄 아이콘(≡) 핸들 생성 (진행 중인 업무에만 표시)
+  let dragHandleHtml = '';
+  let dragAttributes = '';
+  
   if (!isCompleted) {
-    const upBtn = index > 0 
-        ? `<button onclick="moveMemoOrder('${item.firestoreId}', -1)" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; padding:2px;" title="위로 이동">🔼</button>` 
-        : `<span style="width:1.5rem; display:inline-block;"></span>`;
-    const downBtn = index < totalLength - 1 
-        ? `<button onclick="moveMemoOrder('${item.firestoreId}', 1)" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; padding:2px;" title="아래로 이동">🔽</button>` 
-        : `<span style="width:1.5rem; display:inline-block;"></span>`;
-    
-    orderControlsHtml = `<div style="display:flex; gap:2px; margin-right:12px;">${upBtn}${downBtn}</div>`;
+    // 💡 HTML5 표준 Drag & Drop 이벤트 연결
+    dragAttributes = `draggable="true" ondragstart="handleDragStart(event, '${item.firestoreId}')" ondragover="handleDragOver(event)" ondrop="handleDrop(event, '${item.firestoreId}')"`;
+    dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
   }
 
   return `
-    <div class="memo-item" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-      <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex: 1; padding-right: 10px;">
+    <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex: 1; padding-right: 10px; margin: 0;">
+        ${dragHandleHtml}
         <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0;">
         <span style="font-size:1.5rem; word-break: keep-all; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
       </label>
       
-      <div class="memo-controls" style="display: flex; justify-content: flex-end; align-items: center;">
-        ${orderControlsHtml}
+      <div class="memo-controls" style="display: flex; justify-content: flex-end;">
         ${deleteBtnHtml}
       </div>
     </div>
   `;
 };
+
+// ==========================================
+// 🚀 [신규] 드래그 앤 드롭(Drag & Drop) 처리 함수 모음
+// ==========================================
+
+// 현재 드래그 중인 메모의 ID를 저장하는 전역 변수
+let draggedMemoId = null;
+
+// 1) 드래그를 시작할 때
+window.handleDragStart = function(event, id) {
+  draggedMemoId = id;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', id); // 호환성을 위한 더미 데이터
+};
+
+// 2) 드래그한 항목이 다른 항목 위를 지나갈 때 (Drop 허용 설정)
+window.handleDragOver = function(event) {
+  event.preventDefault(); // 기본 이벤트를 막아야 Drop이 가능합니다.
+  event.dataTransfer.dropEffect = 'move';
+};
+
+// 3) 드래그한 항목을 특정 위치에 놓았을 때(Drop)
+window.handleDrop = async function(event, targetId) {
+  event.preventDefault();
+  
+  // 드래그된 항목이 없거나 자기 자신 위에 놓은 경우 무시
+  if (!draggedMemoId || draggedMemoId === targetId) return;
+
+  // 진행 중인 메모만 가져오기
+  let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
+  
+  const draggedIndex = activeMemos.findIndex(m => m.firestoreId === draggedMemoId);
+  const targetIndex = activeMemos.findIndex(m => m.firestoreId === targetId);
+
+  if (draggedIndex === -1 || targetIndex === -1) return;
+
+  // 💡 배열 내에서 요소의 위치 변경 (드래그된 항목을 뽑아서 타겟 위치에 끼워넣기)
+  const [draggedItem] = activeMemos.splice(draggedIndex, 1);
+  activeMemos.splice(targetIndex, 0, draggedItem);
+
+  // 💡 새롭게 정렬된 순서대로 order 값을 0, 1, 2... 순으로 일괄 재부여
+  activeMemos.forEach((memo, index) => {
+    memo.order = index;
+  });
+
+  // 변경된 순서를 사용자 화면에 즉시 렌더링
+  window.render();
+
+  // 클라우드 데이터베이스에 변경된 순서(order) 일괄 업데이트
+  try {
+    await Promise.all(activeMemos.map(memo => 
+      window.dbAPI.updateMemo(memo.firestoreId, { order: memo.order })
+    ));
+  } catch (error) {
+    console.error("순서 저장 중 오류 발생:", error);
+  }
+
+  draggedMemoId = null; // 초기화
+};
+// ==========================================
+
 
 // 2. 파이어베이스에 새 메모 추가
 window.addMemoItem = async function() {
@@ -75,8 +134,7 @@ window.addMemoItem = async function() {
   const newMemo = {
     text: input.value.trim(),
     completed: false,
-    // 💡 핵심: 마이너스(-) 시간을 사용하여 무조건 최신 메모가 가장 작은 값을 가져 최상단에 오게 만듭니다.
-    order: -Date.now(), 
+    order: -Date.now(), // 💡 새 메모는 마이너스 값으로 무조건 최상단에 배치
     createdAt: Date.now()
   };
 
@@ -97,7 +155,7 @@ window.toggleMemoItem = async function(firestoreId, currentStatus) {
   window.render();
 };
 
-// 4. 파이어베이스에서 메모 하나 삭제
+// 4. 파이어베이스에서 메모 삭제
 window.deleteMemoItem = async function(firestoreId) {
   if(confirm("이 메모를 완전히 삭제하시겠습니까?")) {
     await window.dbAPI.deleteMemo(firestoreId);
@@ -114,38 +172,4 @@ window.clearCompletedMemos = async function() {
     await Promise.all(completedMemos.map(memo => window.dbAPI.deleteMemo(memo.firestoreId)));
     window.render();
   }
-};
-
-// 💡 6. [새 기능] 활성화된 메모의 순서를 위/아래로 이동
-window.moveMemoOrder = async function(firestoreId, direction) {
-  // 현재 진행 중인 메모만 정렬해서 가져옵니다.
-  let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
-  
-  const currentIndex = activeMemos.findIndex(m => m.firestoreId === firestoreId);
-  if (currentIndex === -1) return;
-  
-  const targetIndex = currentIndex + direction;
-  if (targetIndex < 0 || targetIndex >= activeMemos.length) return;
-
-  const currentMemo = activeMemos[currentIndex];
-  const targetMemo = activeMemos[targetIndex];
-
-  // 두 메모의 순서(order) 값을 서로 교환합니다.
-  let tempOrder = currentMemo.order;
-  currentMemo.order = targetMemo.order;
-  targetMemo.order = tempOrder;
-
-  // 만약 순서 값이 우연히 같다면 강제로 차이를 둡니다.
-  if (currentMemo.order === targetMemo.order) {
-      currentMemo.order += direction; 
-  }
-
-  // 화면을 즉시 갱신하여 사용자가 바로 변경된 순서를 보게 합니다.
-  window.render();
-
-  // 클라우드 데이터베이스에 변경된 순서값을 저장합니다.
-  await Promise.all([
-    window.dbAPI.updateMemo(currentMemo.firestoreId, { order: currentMemo.order }),
-    window.dbAPI.updateMemo(targetMemo.firestoreId, { order: targetMemo.order })
-  ]);
 };
