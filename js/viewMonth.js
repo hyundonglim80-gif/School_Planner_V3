@@ -162,7 +162,7 @@ window.renderMonthEditor = async function(container) {
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜(요일)</th>
+            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜<br>(요일)</th>
             <th style="padding:10px; border:1px solid #cbd5e1;">📌 내용 (위칸: 1~6교시 수업 / 아래칸: 주요 일정)</th>
           </tr>
         </thead>
