@@ -7,18 +7,15 @@ window.renderMonthViewer = async function(container) {
   const days = ['일','월','화','수','목','금','토'];
   days.forEach(d => html += `<div class="cal-header" style="font-size:1.2rem;">${d}</div>`);
 
-  // 동적으로 이번 달 1일의 요일과 마지막 날짜 구하기
   const y = window.currentDate.getFullYear();
   const m = window.currentDate.getMonth();
-  const firstDay = new Date(y, m, 1).getDay(); // 1일의 요일 (0:일 ~ 6:토)
-  const lastDate = new Date(y, m + 1, 0).getDate(); // 이번 달의 마지막 날짜
+  const firstDay = new Date(y, m, 1).getDay(); 
+  const lastDate = new Date(y, m + 1, 0).getDate(); 
 
-  // 시작 요일 앞의 빈 칸 채우기
   for(let i=0; i<firstDay; i++) {
     html += `<div class="cal-day" style="background:#f8fafc;"></div>`;
   }
 
-  // 1일부터 마지막 날짜까지 데이터 불러오기
   const dayPromises = [];
   for(let i=1; i<=lastDate; i++) {
     const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
@@ -28,7 +25,8 @@ window.renderMonthViewer = async function(container) {
   const monthData = await Promise.all(dayPromises);
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 달력 칸 그리기
+  const realTodayStr = window.formatDate(new Date()); // 💡 진짜 오늘 날짜 구하기
+
   monthData.forEach(item => {
     const d = item.day;
     const eventText = item.data.eventText || '';
@@ -47,8 +45,14 @@ window.renderMonthViewer = async function(container) {
        eventHtml = `<div class="cal-event" style="white-space: pre-wrap; font-size:0.95rem; padding:4px; margin-top:2px;">${eventText}</div>`;
     }
 
-    // 💡 날짜(요일)을 첫 번째 줄에 출력, 그 아래 줄바꿈 후 일정 표시
-    html += `<div class="cal-day">
+    // 💡 오늘 날짜인지 확인하여 박스 테두리 스타일 결정
+    const currentCellDateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = (currentCellDateStr === realTodayStr);
+    const boxStyle = isToday 
+        ? 'border: 3px solid #2563eb; background-color: #eff6ff; box-sizing: border-box;' 
+        : 'border: 1px solid #e2e8f0; background: #fff;';
+
+    html += `<div class="cal-day" style="${boxStyle}">
       <div style="${dayStyle}">${d}일(${dayOfWeek})</div>
       ${eventHtml}
     </div>`;
