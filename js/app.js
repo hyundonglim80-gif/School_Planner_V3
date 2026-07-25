@@ -187,8 +187,13 @@ window.moveDate = function(dir) {
   window.render();
 };
 
-// 최초 앱 실행
-window.render();
+// ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 실행
+window.addEventListener('DOMContentLoaded', () => {
+  // DB 연동 시간을 조금 더 벌어주기 위해 약간의 지연(100ms) 후 렌더링
+  setTimeout(() => {
+    window.render();
+  }, 100);
+});
 
 
 // ==========================================================================
