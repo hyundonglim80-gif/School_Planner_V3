@@ -60,7 +60,7 @@ window.renderYearViewer = async function(container) {
             : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
         return `<div style="${eventStyle}">
-                  <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek}) ${isTodayEvent ? '🎯 오늘' : ''}</div>
+                  <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                   <div style="color:#334155; white-space:pre-wrap; word-break:break-all; margin-top:2px; font-size:var(--year-event-font-size);">${e.text}</div>
                 </div>`;
       }).join('');
@@ -85,7 +85,7 @@ window.renderYearViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 연간 에디터 모드 (행 추가/삭제 지원 연간 일정 관리 표)
+// ✏️ 2. 연간 에디터 모드 (행 추가/삭제 지원 연간 일정 관리 표 + 백업 패널)
 // ==========================================================================
 window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
@@ -105,7 +105,26 @@ window.renderYearEditor = async function(container) {
 
   allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
+  // 💡 데이터 백업 및 대량 등록 (CSV) 패널 추가
   let html = `
+    <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
+      <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <span style="font-weight:bold; color:#0369a1;">[일정 관리]</span>
+        <button onclick="downloadEventsCSV()" style="padding:6px 12px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
+        <button onclick="document.getElementById('upload-events-file').click()" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
+        <input type="file" id="upload-events-file" accept=".csv" style="display:none;" onchange="uploadEventsCSV(this)">
+
+        <span style="font-weight:bold; color:#15803d; margin-left:16px;">[시간표 관리]</span>
+        <button onclick="downloadSchedulesCSV()" style="padding:6px 12px; background:#10b981; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
+        <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
+        <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
+      </div>
+      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
+        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
+      </p>
+    </div>
+
     <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 연간 일정 관리 시트</h3>
