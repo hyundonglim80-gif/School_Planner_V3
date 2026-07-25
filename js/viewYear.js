@@ -95,6 +95,14 @@ window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
 
   let allEvents = [];
+  
+  // ✅ 수정: window.db가 아직 로드되지 않았을 때 프로그램이 죽지 않도록 방어
+  if (!window.db) {
+    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
+    container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
+    return; // 여기서 함수 실행을 멈춤
+  }
+
   try {
     const snapshot = await window.db.collection('events').get();
     snapshot.forEach(doc => {
