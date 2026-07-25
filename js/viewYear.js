@@ -30,21 +30,30 @@ window.renderYearViewer = async function(container) {
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 학년도 기준 월 (3월 ~ 다음 해 2월)
+  // 💡 현재 선택된 학년도 (window.currentDate 기준)
+  const targetYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
+  const nextYear = targetYear + 1;
+
+  // 💡 학년도 기준 월 (3월 ~ 다음 해 2월) 매칭 패턴을 YYYY-MM- 형식으로 명확히 지정하여 다른 연도 일정 혼입 방지
   const months = [
-    { label: "3월", match: "-03-" }, { label: "4월", match: "-04-" },
-    { label: "5월", match: "-05-" }, { label: "6월", match: "-06-" },
-    { label: "7월", match: "-07-" }, { label: "8월", match: "-08-" },
-    { label: "9월", match: "-09-" }, { label: "10월", match: "-10-" },
-    { label: "11월", match: "-11-" }, { label: "12월", match: "-12-" },
-    { label: "1월", match: "-01-" }, { label: "2월", match: "-02-" }
+    { label: "3월", match: `${targetYear}-03-` },
+    { label: "4월", match: `${targetYear}-04-` },
+    { label: "5월", match: `${targetYear}-05-` },
+    { label: "6월", match: `${targetYear}-06-` },
+    { label: "7월", match: `${targetYear}-07-` },
+    { label: "8월", match: `${targetYear}-08-` },
+    { label: "9월", match: `${targetYear}-09-` },
+    { label: "10월", match: `${targetYear}-10-` },
+    { label: "11월", match: `${targetYear}-11-` },
+    { label: "12월", match: `${targetYear}-12-` },
+    { label: "1월", match: `${nextYear}-01-` },
+    { label: "2월", match: `${nextYear}-02-` }
   ];
 
   let html = `<div class="year-grid">`;
 
   const realToday = new Date();
-  const currentYearStr = String(realToday.getFullYear());
-  const currentMonthMatch = `-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
+  const realTodayMonthMatch = `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
   
   // 💡 안전한 날짜 포맷 변환
   const realTodayStr = typeof window.formatDate === 'function' 
@@ -52,7 +61,8 @@ window.renderYearViewer = async function(container) {
       : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
 
   months.forEach(mObj => {
-    const monthEvents = allEvents.filter(e => e.dateStr.includes(mObj.match));
+    // 💡 선택된 연도와 월(YYYY-MM-)에 정확히 일치하는 일정만 필터링!
+    const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
 
     let eventListHtml = '';
     if (monthEvents.length > 0) {
@@ -79,7 +89,7 @@ window.renderYearViewer = async function(container) {
       eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
     }
 
-    const isCurrentMonthCard = (mObj.match === currentMonthMatch && String(window.currentDate.getFullYear()) === currentYearStr);
+    const isCurrentMonthCard = (mObj.match === realTodayMonthMatch);
     const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
 
     html += `
@@ -123,7 +133,12 @@ window.renderYearEditor = async function(container) {
     console.error("연간 데이터 로딩 에러:", error);
   }
 
-  allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  // 💡 선택된 학년도(3월 1일 ~ 다음 해 2월 29일) 범위의 일정만 필터링
+  const startDateStr = `${currentYear}-03-01`;
+  const endDateStr = `${currentYear + 1}-02-29`;
+  const yearEvents = allEvents.filter(e => e.dateStr >= startDateStr && e.dateStr <= endDateStr);
+
+  yearEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
   let html = `
     <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
@@ -146,7 +161,7 @@ window.renderYearEditor = async function(container) {
 
     <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 ${currentYear}년 연간 일정 관리 시트</h3>
+        <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 ${currentYear}학년도 연간 일정 관리 시트</h3>
         <button onclick="addYearEventRow()" style="padding:8px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">➕ 일정 행 추가</button>
       </div>
       <table style="width:100%; border-collapse:collapse; text-align:left;">
@@ -160,7 +175,7 @@ window.renderYearEditor = async function(container) {
         <tbody id="year-editor-tbody">
   `;
 
-  if (allEvents.length === 0) {
+  if (yearEvents.length === 0) {
     const defaultDate = `${currentYear}-03-03`;
     html += `
       <tr class="year-event-row">
@@ -174,7 +189,7 @@ window.renderYearEditor = async function(container) {
       </tr>
     `;
   } else {
-    allEvents.forEach(e => {
+    yearEvents.forEach(e => {
       html += `
         <tr class="year-event-row">
           <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
