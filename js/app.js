@@ -86,6 +86,14 @@ function updateButtonUI() {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
   const saveBtn = document.getElementById('btn-save-data');
+  
+  // 💡 [새로 추가된 부분] 뷰어/수정 버튼을 감싸고 있는 그룹을 찾습니다.
+  const modeGroup = document.querySelector('.mode-group');
+
+  // 💡 메모 화면일 때는 버튼 그룹을 숨기고, 다른 화면일 때는 다시 보이게(flex) 합니다.
+  if (modeGroup) {
+    modeGroup.style.display = currentScope === 'memo' ? 'none' : 'flex';
+  }
 
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
