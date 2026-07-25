@@ -69,7 +69,7 @@ window.renderDayEditor = async function(container) {
         <table style="text-align: center;">
           <thead>
             <tr>
-              <th style="width: 60px;">교시</th>
+              <th style="width: 60px;"></th>
               <th style="width: 120px;">수업</th>
               <th style="width: 25%;">🎒 준비물</th>
               <th>📝 메모</th>
