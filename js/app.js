@@ -120,12 +120,11 @@ function updateButtonUI() {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
-  // 👇 [여기서부터 새로 추가할 코드] 메모 화면에서는 <이전 / 다음> 버튼 숨기기
+  // 💡 메모 화면에서는 <이전 / 다음> 버튼 숨기기
   const navBtns = document.querySelectorAll('.nav-btn');
   navBtns.forEach(btn => {
     btn.style.display = (currentScope === 'memo') ? 'none' : '';
   });
-  // 👆 [여기까지 추가 완료]
 
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
@@ -190,3 +189,182 @@ window.moveDate = function(dir) {
 
 // 최초 앱 실행
 window.render();
+
+
+// ==========================================================================
+// 💾 [신규 기능: 데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
+// ==========================================================================
+
+// 1. CSV 파일 생성 및 다운로드 (한글 깨짐 방지 BOM 포함)
+window.downloadCSVFile = function(filename, csvData) {
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+};
+
+// 2. CSV 문자열 이스케이프 처리 (내용에 쉼표나 엔터가 있을 때 보호)
+window.escapeCSV = function(str) {
+  if (!str) return '';
+  let s = String(str).replace(/"/g, '""');
+  if (s.includes(',') || s.includes('\n') || s.includes('"')) {
+    s = `"${s}"`;
+  }
+  return s;
+};
+
+// 3. 강력한 CSV 파서 (엔터, 쉼표가 포함된 복잡한 셀도 완벽 분리)
+window.parseCSV = function(str) {
+  const arr = [];
+  let quote = false;
+  let col = 0, row = 0;
+  for (let c = 0; c < str.length; c++) {
+    let cc = str[c], nc = str[c+1];
+    arr[row] = arr[row] || [];
+    arr[row][col] = arr[row][col] || '';
+    if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+    if (cc == '"') { quote = !quote; continue; }
+    if (cc == ',' && !quote) { ++col; continue; }
+    if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+    if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+    if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+    arr[row][col] += cc;
+  }
+  return arr;
+};
+
+// 4. Firestore 500개 제한 돌파를 위한 분할 일괄 처리(Chunk Batch)
+window.executeBatchOperations = async function(operations) {
+  const chunkSize = 400; 
+  for (let i = 0; i < operations.length; i += chunkSize) {
+    const chunk = operations.slice(i, i + chunkSize);
+    const batch = window.db.batch();
+    chunk.forEach(op => {
+      if (op.type === 'delete') batch.delete(op.ref);
+      else if (op.type === 'set') batch.set(op.ref, op.data);
+    });
+    await batch.commit();
+  }
+};
+
+// ---------------------------------------------------------
+// 📥 [일정(Events)] 다운로드 및 업로드
+// ---------------------------------------------------------
+window.downloadEventsCSV = async function() {
+  const snapshot = await window.db.collection('events').get();
+  let csv = "날짜,일정\n";
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if(data.eventText) {
+      csv += `${doc.id},${window.escapeCSV(data.eventText)}\n`;
+    }
+  });
+  window.downloadCSVFile("학사일정_백업.csv", csv);
+};
+
+window.uploadEventsCSV = async function(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(!confirm("⚠️ [경고] 업로드하는 파일 내용이 '원본'이 됩니다!\n기존의 모든 일정은 삭제되고 파일 내용으로 100% 교체됩니다.\n진행하시겠습니까?")) {
+    input.value = ''; return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text = e.target.result;
+    const rows = window.parseCSV(text);
+    const operations = [];
+
+    // 1) 기존 모든 일정 삭제 예약
+    const snapshot = await window.db.collection('events').get();
+    snapshot.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
+
+    // 2) 파일 데이터 바탕으로 새 일정 추가 예약 (헤더 제외)
+    for(let i=1; i<rows.length; i++) {
+      const row = rows[i];
+      if(row.length >= 2 && row[0].trim()) {
+        const dateStr = row[0].trim();
+        const eventText = row[1].trim();
+        if(dateStr) {
+          const ref = window.db.collection('events').doc(dateStr);
+          operations.push({ type: 'set', ref: ref, data: { eventText: eventText, updatedAt: Date.now() } });
+        }
+      }
+    }
+
+    await window.executeBatchOperations(operations);
+    alert("✅ 파일 기준 일정 동기화가 완료되었습니다!");
+    window.render();
+  };
+  reader.readAsText(file);
+  input.value = '';
+};
+
+// ---------------------------------------------------------
+// 📥 [시간표(Schedules)] 다운로드 및 업로드
+// ---------------------------------------------------------
+window.downloadSchedulesCSV = async function() {
+  const snapshot = await window.db.collection('schedules').get();
+  let csv = "날짜,교시,과목,메모,준비물\n";
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    if(data.periods) {
+      for(let p=1; p<=6; p++) {
+         const pData = data.periods[p];
+         if(pData && (pData.subject || pData.memo || pData.supplies)) {
+           csv += `${doc.id},${p},${window.escapeCSV(pData.subject)},${window.escapeCSV(pData.memo)},${window.escapeCSV(pData.supplies)}\n`;
+         }
+      }
+    }
+  });
+  window.downloadCSVFile("시간표_백업.csv", csv);
+};
+
+window.uploadSchedulesCSV = async function(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(!confirm("⚠️ [경고] 업로드하는 파일 내용이 '원본'이 됩니다!\n기존의 모든 시간표는 삭제되고 파일 내용으로 100% 교체됩니다.\n진행하시겠습니까?")) {
+    input.value = ''; return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const text = e.target.result;
+    const rows = window.parseCSV(text);
+    const operations = [];
+    const schedulesByDate = {};
+
+    // 1) CSV 파싱 및 날짜별로 그룹화
+    for(let i=1; i<rows.length; i++) {
+      const row = rows[i];
+      if(row.length >= 5 && row[0].trim()) {
+        const dateStr = row[0].trim();
+        const p = row[1].trim();
+        const subject = row[2].trim();
+        const memo = row[3].trim();
+        const supplies = row[4].trim();
+
+        if(!schedulesByDate[dateStr]) schedulesByDate[dateStr] = {};
+        schedulesByDate[dateStr][p] = { subject, memo, supplies };
+      }
+    }
+
+    // 2) 기존 모든 시간표 삭제 예약
+    const snapshot = await window.db.collection('schedules').get();
+    snapshot.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
+
+    // 3) 새 시간표 추가 예약
+    Object.keys(schedulesByDate).forEach(dateStr => {
+      const ref = window.db.collection('schedules').doc(dateStr);
+      operations.push({ type: 'set', ref: ref, data: { periods: schedulesByDate[dateStr], updatedAt: Date.now() } });
+    });
+
+    await window.executeBatchOperations(operations);
+    alert("✅ 파일 기준 시간표 동기화가 완료되었습니다!");
+    window.render();
+  };
+  reader.readAsText(file);
+  input.value = '';
+};
