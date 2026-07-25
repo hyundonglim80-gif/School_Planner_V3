@@ -6,7 +6,9 @@ window.renderMemoView = async function(container) {
 
   window.memoItems = await window.dbAPI.loadMemos();
 
+  // 💡 진행 중인 업무는 order(순서) 기준으로 오름차순 정렬
   let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
+  // 💡 완료된 업무는 최근에 체크(completedAt)한 것이 위로 오도록 내림차순 정렬
   let completedMemos = window.memoItems.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
   let html = `
@@ -31,12 +33,24 @@ window.renderMemoView = async function(container) {
   container.innerHTML = html;
 };
 
-// HTML 생성 도우미 함수 (Firestore ID 기준 적용 및 우측 정렬 강제 적용)
+// HTML 생성 도우미 함수
 window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
-  // 완료된 항목에만 우측 끝에 배치될 삭제 버튼 생성
   const deleteBtnHtml = isCompleted 
-    ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` 
+    ? `<button onclick="deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;" title="삭제">🗑️</button>` 
     : ``;
+
+  // 💡 진행 중인 업무에만 순서를 바꿀 수 있는 위/아래 이동 버튼 추가
+  let orderControlsHtml = '';
+  if (!isCompleted) {
+    const upBtn = index > 0 
+        ? `<button onclick="moveMemoOrder('${item.firestoreId}', -1)" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; padding:2px;" title="위로 이동">🔼</button>` 
+        : `<span style="width:1.5rem; display:inline-block;"></span>`;
+    const downBtn = index < totalLength - 1 
+        ? `<button onclick="moveMemoOrder('${item.firestoreId}', 1)" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; padding:2px;" title="아래로 이동">🔽</button>` 
+        : `<span style="width:1.5rem; display:inline-block;"></span>`;
+    
+    orderControlsHtml = `<div style="display:flex; gap:2px; margin-right:12px;">${upBtn}${downBtn}</div>`;
+  }
 
   return `
     <div class="memo-item" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -45,7 +59,8 @@ window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
         <span style="font-size:1.5rem; word-break: keep-all; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
       </label>
       
-      <div class="memo-controls" style="display: flex; justify-content: flex-end;">
+      <div class="memo-controls" style="display: flex; justify-content: flex-end; align-items: center;">
+        ${orderControlsHtml}
         ${deleteBtnHtml}
       </div>
     </div>
@@ -60,7 +75,8 @@ window.addMemoItem = async function() {
   const newMemo = {
     text: input.value.trim(),
     completed: false,
-    order: window.memoItems.length,
+    // 💡 핵심: 마이너스(-) 시간을 사용하여 무조건 최신 메모가 가장 작은 값을 가져 최상단에 오게 만듭니다.
+    order: -Date.now(), 
     createdAt: Date.now()
   };
 
@@ -81,7 +97,7 @@ window.toggleMemoItem = async function(firestoreId, currentStatus) {
   window.render();
 };
 
-// 4. 파이어베이스에서 메모 삭제
+// 4. 파이어베이스에서 메모 하나 삭제
 window.deleteMemoItem = async function(firestoreId) {
   if(confirm("이 메모를 완전히 삭제하시겠습니까?")) {
     await window.dbAPI.deleteMemo(firestoreId);
@@ -91,15 +107,45 @@ window.deleteMemoItem = async function(firestoreId) {
 
 // 5. 완료된 메모 전체 삭제 (휴지통 비우기)
 window.clearCompletedMemos = async function() {
-  // 완료된 항목들만 모아서 가져오기
   const completedMemos = window.memoItems.filter(m => m.completed);
   if (completedMemos.length === 0) return;
   
   if(confirm(`완료된 업무 ${completedMemos.length}개를 모두 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
-    // 모든 삭제 요청을 동시에 처리하여 속도 최적화 (Promise.all)
     await Promise.all(completedMemos.map(memo => window.dbAPI.deleteMemo(memo.firestoreId)));
-    
-    // 삭제 완료 후 화면 새로고침
     window.render();
   }
+};
+
+// 💡 6. [새 기능] 활성화된 메모의 순서를 위/아래로 이동
+window.moveMemoOrder = async function(firestoreId, direction) {
+  // 현재 진행 중인 메모만 정렬해서 가져옵니다.
+  let activeMemos = window.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
+  
+  const currentIndex = activeMemos.findIndex(m => m.firestoreId === firestoreId);
+  if (currentIndex === -1) return;
+  
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= activeMemos.length) return;
+
+  const currentMemo = activeMemos[currentIndex];
+  const targetMemo = activeMemos[targetIndex];
+
+  // 두 메모의 순서(order) 값을 서로 교환합니다.
+  let tempOrder = currentMemo.order;
+  currentMemo.order = targetMemo.order;
+  targetMemo.order = tempOrder;
+
+  // 만약 순서 값이 우연히 같다면 강제로 차이를 둡니다.
+  if (currentMemo.order === targetMemo.order) {
+      currentMemo.order += direction; 
+  }
+
+  // 화면을 즉시 갱신하여 사용자가 바로 변경된 순서를 보게 합니다.
+  window.render();
+
+  // 클라우드 데이터베이스에 변경된 순서값을 저장합니다.
+  await Promise.all([
+    window.dbAPI.updateMemo(currentMemo.firestoreId, { order: currentMemo.order }),
+    window.dbAPI.updateMemo(targetMemo.firestoreId, { order: targetMemo.order })
+  ]);
 };
