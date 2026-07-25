@@ -45,7 +45,7 @@ window.renderMonthViewer = async function(container) {
 
     let eventHtml = '';
     if(eventText) {
-       eventHtml = `<div class="cal-event" style="white-space: pre-wrap; font-size:0.95rem; padding:4px; margin-top:2px;">${eventText}</div>`;
+      eventHtml = `<div class="cal-event" style="white-space: pre-wrap; font-size:0.95rem; padding:4px; margin-top:2px; min-height: 30px;">${eventText}</div>`;
     }
 
     const currentCellDateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
