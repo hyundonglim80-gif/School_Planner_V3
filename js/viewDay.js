@@ -1,7 +1,7 @@
 // js/viewDay.js
 
 /**
- * 💡 현재 선택된 날짜 문자열(YYYY-MM-DD)을 구하는 동적 도우미 함수
+ * 💡 현재 선택된 날짜 문자열(YYYY-MM-DD)을 구하는 동적 도우미 함수오
  */
 const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
@@ -73,7 +73,7 @@ window.renderDayEditor = async function(container) {
   let html = `
     <div class="day-viewer-container">
       <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb; padding-bottom: 10px;">
-        <h3 style="font-size: var(--day-title-font-size); color: #1e40af; margin-bottom: 8px;">📅 오늘의 전체 일정</h3>
+        <h3 style="font-size: var(--day-title-font-size); color: #1e40af; margin-bottom: 8px;">📅 오늘 일정</h3>
         <div id="day-editor-event" class="editable-cell" contenteditable="true" style="background:#f8fafc; border:1px solid #cbd5e1; min-height: 40px; font-size: var(--day-content-font-size); padding: 6px;">${eventText}</div>
       </div>
 
