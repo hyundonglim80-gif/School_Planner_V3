@@ -1,11 +1,14 @@
 // js/viewWeek.js
 
+/**
+ * 💡 현재 선택된 날짜 기준으로 이번 주 [월, 화, 수, 목, 금] 날짜 배열 자동 생성
+ */
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
   const day = tempDate.getDay();
   const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
-  tempDate.setDate(diffToMon); 
+  tempDate.setDate(diffToMon); // 월요일로 맞춤
 
   const dayNames = ["월", "화", "수", "목", "금"];
   for (let i = 0; i < 5; i++) {
@@ -14,49 +17,50 @@ window.getWeekDates = function() {
       dateStr: window.formatDate(tempDate),
       dateDisplay: `${String(tempDate.getMonth()+1).padStart(2,'0')}/${String(tempDate.getDate()).padStart(2,'0')}`
     });
-    tempDate.setDate(tempDate.getDate() + 1); 
+    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
   }
   return dates;
 };
 
-// 1. 주간 뷰어 모드 
+// ==========================================================================
+// 👁️ 1. 주간 뷰어 모드 (오늘 날짜 강조 + 클라우드 수업/메모 조회)
+// ==========================================================================
 window.renderWeekViewer = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b;">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
 
   let html = `
     <div class="clean-viewer-board">
-      <table style="min-width: 500px; text-align: center; border-collapse: collapse;">
+      <table>
         <tbody>
   `;
 
-  const realTodayStr = window.formatDate(new Date()); // 💡 진짜 오늘 날짜 구하기
+  const realTodayStr = window.formatDate(new Date()); // 오늘 날짜 감지
 
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '-';
     const periods = dayData.periods || {};
 
-    // 💡 오늘 날짜인지 확인하여 스타일 결정
+    // 오늘 날짜 셀 테두리 및 배경 강조 처리
     const isToday = (d.dateStr === realTodayStr);
-    const dateCellBg = isToday ? '#eff6ff' : '#f8fafc';
-    const dateCellBorder = isToday ? '3px solid #2563eb' : '1px solid #cbd5e1';
+    const todayClass = isToday ? 'week-today-cell' : '';
 
     html += `
       <tr>
-        <td rowspan="3" style="width: 50px; font-weight: bold; background: ${dateCellBg}; border:${dateCellBorder}; vertical-align: middle;">
-          ${d.day}<br><span style="font-size:1.5rem; color:#64748b;">${d.dateDisplay}</span>
+        <td rowspan="3" class="${todayClass}" style="width: 60px; font-weight: bold; vertical-align: middle; text-align: center;">
+          ${d.day}<br><span style="font-size:var(--week-date-font-size); color:#64748b;">${d.dateDisplay}</span>
         </td>
-        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: 1.5rem; color: #0369a1; background: #f0f9ff; border: 1px solid #cbd5e1;">${eventText}</td>
+        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
       </tr>
       <tr>
-        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; vertical-align: middle;">수업</td>
-        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 10%; border: 1px solid #cbd5e1;">${p}교시</td>`).join('')}
+        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
+        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
       </tr>
       <tr>
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
-          return `<td style="vertical-align: top; height: 60px; text-align: left; padding: 8px; border: 1px solid #cbd5e1;">
+          return `<td style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 8px;">
               ${pObj.subject ? `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>` : ''}
               ${pObj.memo ? `<div class="clean-cell-memo">${pObj.memo}</div>` : ''}
             </td>`;
@@ -69,45 +73,45 @@ window.renderWeekViewer = async function(container) {
   container.innerHTML = html;
 };
 
-// 2. 주간 에디터 모드
+// ==========================================================================
+// ✏️ 2. 주간 에디터 모드 (스프레드시트 형태 직접 입력)
+// ==========================================================================
 window.renderWeekEditor = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b;">⏳ 편집 화면을 준비 중...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
 
   let html = `
     <div class="table-container">
-      <table style="min-width: 800px; text-align: center; border-collapse: collapse;">
+      <table>
         <tbody>
   `;
 
-  const realTodayStr = window.formatDate(new Date()); // 💡 진짜 오늘 날짜 구하기
+  const realTodayStr = window.formatDate(new Date());
 
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '';
     const periods = dayData.periods || {};
 
-    // 💡 오늘 날짜인지 확인하여 스타일 결정
     const isToday = (d.dateStr === realTodayStr);
-    const dateCellBg = isToday ? '#eff6ff' : '#f8fafc';
-    const dateCellBorder = isToday ? '3px solid #2563eb' : '1px solid #cbd5e1';
+    const todayClass = isToday ? 'week-today-cell' : '';
 
     html += `
       <tr data-week-date="${d.dateStr}">
-        <td rowspan="3" style="width: 60px; font-weight: bold; background: ${dateCellBg}; border:${dateCellBorder}; vertical-align: middle;">
-          ${d.day}<br><span style="font-size:1.5rem; color:#64748b;">${d.dateDisplay}</span>
+        <td rowspan="3" class="${todayClass}" style="width: 60px; font-weight: bold; vertical-align: middle; text-align: center;">
+          ${d.day}<br><span style="font-size:var(--week-date-font-size); color:#64748b;">${d.dateDisplay}</span>
         </td>
-        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; border: 1px solid #cbd5e1; vertical-align: middle;">일정</td>
-        <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: 1.5rem; color: #0369a1; background: #f0f9ff; border: 1px solid #cbd5e1;">${eventText}</td>
+        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
+        <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
       </tr>
       <tr>
-        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; vertical-align: middle;">수업</td>
-        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; border: 1px solid #cbd5e1;">${p}교시</td>`).join('')}
+        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
+        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
       </tr>
       <tr data-week-schedule-date="${d.dateStr}">
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: 60px; text-align: left; padding: 8px; border: 1px solid #cbd5e1; white-space: pre-wrap;">${cellText}</td>`;
+          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 8px; white-space: pre-wrap;">${cellText}</td>`;
         }).join('')}
       </tr>
     `;
@@ -117,9 +121,12 @@ window.renderWeekEditor = async function(container) {
   container.innerHTML = html;
 };
 
-// 3. [저장 버튼 실행]
+// ==========================================================================
+// 💾 3. 주간 일괄 저장 처리 함수
+// ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
+    // 1) 날짜별 일정 저장
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
       const eventCell = eventRow.querySelector('.week-event-cell');
@@ -127,6 +134,7 @@ window.saveWeekDataFromEditor = async function() {
       await window.dbAPI.saveEvent(d.dateStr, eventText);
     }
 
+    // 2) 날짜별 교시 수업/메모 저장
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     if (scheduleRow) {
       const periodsData = {};
@@ -139,6 +147,7 @@ window.saveWeekDataFromEditor = async function() {
         let subject = '';
         let memo = text;
 
+        // [국어] 내용 형태 입력 시 자동 과목 분리 로직
         const match = text.match(/^\[(.*?)\]\s*(.*)$/);
         if (match) {
           subject = match[1];
