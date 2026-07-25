@@ -55,7 +55,7 @@ window.renderMonthViewer = async function(container) {
        eventHtml = `<div class="cal-event" style="white-space: pre-wrap; font-size:0.95rem; padding:4px; margin-top:2px;">${eventText}</div>`;
     }
 
-    // 오늘 날짜인지 확인하여 테두리 강조
+// 오늘 날짜인지 확인하여 테두리 강조
     const currentCellDateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const isToday = (currentCellDateStr === realTodayStr);
     const boxStyle = isToday 
@@ -63,7 +63,7 @@ window.renderMonthViewer = async function(container) {
         : 'border: 1px solid #e2e8f0; background: #fff;';
 
     html += `<div class="cal-day" style="${boxStyle}">
-      <div style="${dayStyle}">${d}일(${dayOfWeek})</div>
+            <div style="${dayStyle}">${d}</div>
       ${eventHtml}
     </div>`;
   });
