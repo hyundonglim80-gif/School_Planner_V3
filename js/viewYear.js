@@ -1,7 +1,10 @@
 // js/viewYear.js
 
+// ==========================================================================
+// 👁️ 1. 연간 뷰어 모드 (12개 월별 학사일정 그리드 + 이번 달 카드 강조)
+// ==========================================================================
 window.renderYearViewer = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:1.2rem;">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중입니다...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중입니다...</p>`;
 
   let allEvents = [];
   try {
@@ -20,6 +23,7 @@ window.renderYearViewer = async function(container) {
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
+  // 학년도 기준 월 (3월 ~ 다음 해 2월)
   const months = [
     { label: "3월", match: "-03-" }, { label: "4월", match: "-04-" },
     { label: "5월", match: "-05-" }, { label: "6월", match: "-06-" },
@@ -57,7 +61,7 @@ window.renderYearViewer = async function(container) {
 
         return `<div style="${eventStyle}">
                   <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek}) ${isTodayEvent ? '🎯 오늘' : ''}</div>
-                  <div style="color:#334155; white-space:pre-wrap; word-break:break-all; margin-top:2px;">${e.text}</div>
+                  <div style="color:#334155; white-space:pre-wrap; word-break:break-all; margin-top:2px; font-size:var(--year-event-font-size);">${e.text}</div>
                 </div>`;
       }).join('');
     } else {
@@ -65,14 +69,12 @@ window.renderYearViewer = async function(container) {
     }
 
     const isCurrentMonthCard = (mObj.match === currentMonthMatch && String(window.currentDate.getFullYear()) === currentYearStr);
-    const cardStyle = isCurrentMonthCard 
-        ? 'border: 3px solid #2563eb; background-color: #f8fafc; box-shadow: 0 4px 6px rgba(37,99,235,0.1);' 
-        : 'border: 1px solid var(--border-color); background: #fff;';
+    const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
 
     html += `
-      <div class="mini-month" style="display:flex; flex-direction:column; gap:8px; text-align:left; padding:12px; border-radius:8px; ${cardStyle}">
-        <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; font-size:1.1rem; text-align:center;">${mObj.label}</h3>
-        <div style="font-size:0.95rem; line-height:1.4;">
+      <div class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
+        <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
+        <div style="line-height:1.4;">
           ${eventListHtml}
         </div>
       </div>`;
@@ -82,8 +84,11 @@ window.renderYearViewer = async function(container) {
   container.innerHTML = html;
 };
 
+// ==========================================================================
+// ✏️ 2. 연간 에디터 모드 (행 추가/삭제 지원 연간 일정 관리 표)
+// ==========================================================================
 window.renderYearEditor = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:1.2rem;">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
 
   let allEvents = [];
   try {
@@ -103,15 +108,15 @@ window.renderYearEditor = async function(container) {
   let html = `
     <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h3 style="color:#1e293b; font-size:1.3rem;">📋 연간 일정 관리 시트</h3>
+        <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 연간 일정 관리 시트</h3>
         <button onclick="addYearEventRow()" style="padding:8px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">➕ 일정 행 추가</button>
       </div>
-      <table style="width:100%; min-width:600px; border-collapse:collapse; text-align:left;">
+      <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:180px; padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">날짜</th>
-            <th style="padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">📌 행사/일정 내용</th>
-            <th style="width:80px; padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">삭제</th>
+            <th style="width:180px; padding:10px; border:1px solid #cbd5e1;">날짜</th>
+            <th style="padding:10px; border:1px solid #cbd5e1;">📌 행사/일정 내용</th>
+            <th style="width:80px; padding:10px; border:1px solid #cbd5e1;">삭제</th>
           </tr>
         </thead>
         <tbody id="year-editor-tbody">
@@ -124,7 +129,7 @@ window.renderYearEditor = async function(container) {
         <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
           <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
         </td>
-        <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
+        <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
         <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
           <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
         </td>
@@ -137,7 +142,7 @@ window.renderYearEditor = async function(container) {
           <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
             <input type="date" class="year-date-input" value="${e.dateStr}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
           </td>
-          <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;">${e.text}</td>
+          <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;">${e.text}</td>
           <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
             <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
           </td>
@@ -150,6 +155,7 @@ window.renderYearEditor = async function(container) {
   container.innerHTML = html;
 };
 
+// ➕ 동적 연간 일정 행 추가 함수
 window.addYearEventRow = function() {
   const tbody = document.getElementById('year-editor-tbody');
   if (!tbody) return;
@@ -160,7 +166,7 @@ window.addYearEventRow = function() {
     <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
       <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
     </td>
-    <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
+    <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
     <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
       <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
     </td>
@@ -168,6 +174,9 @@ window.addYearEventRow = function() {
   tbody.appendChild(tr);
 };
 
+// ==========================================================================
+// 💾 3. 연간 편집 저장 처리 함수
+// ==========================================================================
 window.saveYearDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr.year-event-row");
   for (const row of rows) {
