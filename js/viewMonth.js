@@ -111,10 +111,10 @@ window.renderMonthEditor = async function(container) {
 
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td style="text-align:center; padding:10px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold;">
+        <td style="text-align:center; padding:6px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:middle;">
           ${m+1}/${dayNum} (${dayOfWeek})
         </td>
-        <td class="editable-cell month-event-cell" contenteditable="true" style="padding:10px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;">${eventText}</td>
+        <td class="editable-cell month-event-cell" contenteditable="true" style="padding:6px 8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; height:auto; vertical-align:top;">${eventText}</td>
       </tr>
     `;
   });
