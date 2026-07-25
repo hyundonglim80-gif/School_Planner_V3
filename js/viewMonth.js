@@ -103,7 +103,8 @@ window.renderMonthViewer = async function(container) {
     const todayClass = isToday ? 'month-today-cell' : '';
 
     html += `<div class="cal-day ${todayClass}">
-      <div style="${dayStyle}">${d} ${scheduleHtml}</div>${eventHtml}
+      <div style="${dayStyle}">${d} ${scheduleHtml}</div>
+      ${eventHtml}
     </div>`;
   });
 
@@ -157,7 +158,7 @@ window.renderMonthEditor = async function(container) {
     </div>
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
-      <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년${m+1}월 일정/수업 편집 시트</h3>
+      <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년 ${m+1}월 일정/수업 편집 시트</h3>
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
@@ -187,16 +188,16 @@ window.renderMonthEditor = async function(container) {
     }
     const classText = periodList.join(',');
 
-    // 💡 날짜 우측 칸을 윗칸(수업), 아랫칸(일정)으로 위아래 분할 레이아웃
+    // 💡 날짜 우측 칸을 윗칸(수업), 아랫칸(일정)으로 위아래 분할 레이아웃 적용 + 불필요한 높이 제거
     html += `
       <tr data-month-date="${item.dateStr}">
         <td style="text-align:center; padding:10px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:middle;">
           ${m+1}/${dayNum} (${dayOfWeek})
         </td>
         <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top;">
-          <div style="display:flex; flex-direction:column; height:100%;">
-            <div class="editable-cell month-class-cell" contenteditable="true" style="padding:8px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; min-height:40px;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
-            <div class="editable-cell month-event-cell" contenteditable="true" style="padding:8px; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; min-height:40px;">${eventText}</div>
+          <div style="display:flex; flex-direction:column;">
+            <div class="editable-cell month-class-cell" contenteditable="true" style="padding:8px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; min-height:24px; outline:none;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
+            <div class="editable-cell month-event-cell" contenteditable="true" style="padding:8px; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; min-height:24px; outline:none;">${eventText}</div>
           </div>
         </td>
       </tr>
