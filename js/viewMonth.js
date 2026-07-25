@@ -82,15 +82,14 @@ window.renderMonthViewer = async function(container) {
       }
     }
 
-    // 수업이 하루라도 등록되어 있으면 텍스트 조립
+    // 💡 수업 정보 박스(배지) HTML 생성
     let scheduleHtml = '';
     if (hasClass) {
-      // 숫자 옆에 적절한 간격과 초록색 글씨로 표시되도록 스타일 지정
-      scheduleHtml = `<span style="font-size:0.8rem; color:#059669; font-weight:600; margin-left:8px; word-break:keep-all;">수업(${periodLabels.join(',')})</span>`;
+      scheduleHtml = `<span style="font-size:0.75rem; color:#047857; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:4px; padding:2px 6px; margin-left:6px; font-weight:600; display:inline-block; line-height:1.2; word-break:keep-all;">수업(${periodLabels.join(',')})</span>`;
     }
 
-    // 날짜와 시간표 텍스트가 나란히 수평 정렬되도록 display: flex 추가
-    let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:flex-start;";
+    // 날짜와 박스가 나란히 중앙 정렬되도록 display: flex; align-items: center; 적용
+    let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:center;";
 
     let eventHtml = '';
     if(eventText) {
