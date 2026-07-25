@@ -120,6 +120,13 @@ function updateButtonUI() {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
+  // 👇 [여기서부터 새로 추가할 코드] 메모 화면에서는 <이전 / 다음> 버튼 숨기기
+  const navBtns = document.querySelectorAll('.nav-btn');
+  navBtns.forEach(btn => {
+    btn.style.display = (currentScope === 'memo') ? 'none' : '';
+  });
+  // 👆 [여기까지 추가 완료]
+
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
     editorBtn.className = currentMode === 'editor' ? 'btn-mode active-editor' : 'btn-mode';
