@@ -3,6 +3,18 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
+// 🌟 1. 기준이 되는 현재 날짜 설정 (시작 날짜: 2026년 7월 20일)
+// (나중에는 new Date() 로 변경하면 오늘 날짜가 기본으로 뜹니다!)
+window.currentDate = new Date(2026, 6, 20); // 자바스크립트에서 7월은 '6'으로 표기합니다.
+
+// 날짜를 "YYYY-MM-DD" 형태로 변환하는 도우미 함수
+window.formatDate = function(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 window.render = function() {
   const container = document.getElementById("main-view");
   if (!container) return;
@@ -11,28 +23,48 @@ window.render = function() {
   updateTitle();
   updateButtonUI();
 
-  if (currentScope === 'week') { 
-    currentMode === 'editor' ? renderWeekEditor(container) : renderWeekViewer(container); 
-  } else if (currentScope === 'month') { 
-    currentMode === 'editor' ? renderMonthEditor(container) : renderMonthViewer(container); 
-  } else if (currentScope === 'year') { 
-    currentMode === 'editor' ? renderYearEditor(container) : renderYearViewer(container); 
-  } else if (currentScope === 'day') { 
-    currentMode === 'editor' ? renderDayEditor(container) : renderDayViewer(container); 
-  } else if (currentScope === 'memo') { 
-    renderMemoView(container); 
-  }
+  if (currentScope === 'week') { currentMode === 'editor' ? renderWeekEditor(container) : renderWeekViewer(container); }
+  else if (currentScope === 'month') { currentMode === 'editor' ? renderMonthEditor(container) : renderMonthViewer(container); }
+  else if (currentScope === 'year') { currentMode === 'editor' ? renderYearEditor(container) : renderYearViewer(container); }
+  else if (currentScope === 'day') { currentMode === 'editor' ? renderDayEditor(container) : renderDayViewer(container); }
+  else if (currentScope === 'memo') { renderMemoView(container); }
 };
 
+// 🌟 2. 날짜에 맞춰 상단 제목표시줄(Title) 자동 변경
 function updateTitle() {
   const titleEl = document.getElementById("date-range-text");
   if (!titleEl) return;
 
-  if (currentScope === 'week') titleEl.textContent = "2026년 7월 3주차 (07.20 ~ 07.24)";
-  else if (currentScope === 'month') titleEl.textContent = "2026년 7월";
-  else if (currentScope === 'year') titleEl.textContent = "2026학년도";
-  else if (currentScope === 'day') titleEl.textContent = "2026년 7월 20일 (월요일)";
-  else if (currentScope === 'memo') titleEl.textContent = "📋 업무 및 수업 체크리스트";
+  const y = window.currentDate.getFullYear();
+  const m = window.currentDate.getMonth() + 1;
+  const d = window.currentDate.getDate();
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayName = days[window.currentDate.getDay()];
+
+  if (currentScope === 'day') { 
+    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
+  } else if (currentScope === 'week') {
+    // 월요일과 금요일 날짜 계산
+    const temp = new Date(window.currentDate);
+    const day = temp.getDay();
+    const diffToMon = temp.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(temp.setDate(diffToMon));
+    const fri = new Date(mon);
+    fri.setDate(mon.getDate() + 4);
+    
+    const mStr1 = String(mon.getMonth()+1).padStart(2,'0');
+    const dStr1 = String(mon.getDate()).padStart(2,'0');
+    const mStr2 = String(fri.getMonth()+1).padStart(2,'0');
+    const dStr2 = String(fri.getDate()).padStart(2,'0');
+
+    titleEl.textContent = `${y}년 ${m}월 (${mStr1}.${dStr1} ~ ${mStr2}.${dStr2})`;
+  } else if (currentScope === 'month') { 
+    titleEl.textContent = `${y}년 ${m}월`;
+  } else if (currentScope === 'year') { 
+    titleEl.textContent = `${y}학년도`;
+  } else if (currentScope === 'memo') { 
+    titleEl.textContent = "📋 업무 및 수업 체크리스트";
+  }
 }
 
 window.setScope = function(scope) {
@@ -65,7 +97,6 @@ function updateButtonUI() {
     editorBtn.className = currentMode === 'editor' ? 'btn-mode active-editor' : 'btn-mode';
   }
 
-  // 💾 수정 모드이고 메모장이 아닐 때만 저장 버튼 노출
   if (saveBtn) {
     if (currentMode === 'editor' && currentScope !== 'memo') {
       saveBtn.style.display = 'inline-block';
@@ -75,7 +106,6 @@ function updateButtonUI() {
   }
 }
 
-// 💾 [저장 버튼 클릭 시 실행되는 함수]
 window.saveCurrentViewData = async function() {
   const saveBtn = document.getElementById('btn-save-data');
   if (saveBtn) {
@@ -96,12 +126,21 @@ window.saveCurrentViewData = async function() {
     saveBtn.disabled = false;
   }
   
-  // 저장 완료 후 뷰어 모드로 자동 전환하여 결과 확인
   window.setMode('viewer');
 };
 
+// 🌟 3. 이전/다음 버튼 누를 때 날짜 계산 로직
 window.moveDate = function(dir) {
-  console.log("Date moved by", dir);
+  if (currentScope === 'day') {
+    window.currentDate.setDate(window.currentDate.getDate() + dir); // 하루 이동
+  } else if (currentScope === 'week') {
+    window.currentDate.setDate(window.currentDate.getDate() + (dir * 7)); // 7일 이동
+  } else if (currentScope === 'month') {
+    window.currentDate.setMonth(window.currentDate.getMonth() + dir); // 한 달 이동
+  } else if (currentScope === 'year') {
+    window.currentDate.setFullYear(window.currentDate.getFullYear() + dir); // 1년 이동
+  }
+  window.render(); // 날짜 계산 후 화면 새로고침
 };
 
 window.render();
