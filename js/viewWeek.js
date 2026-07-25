@@ -19,9 +19,8 @@ window.getWeekDates = function() {
   return dates;
 };
 
-// 1. 주간 뷰어 모드 (가짜 데이터 대신 DB에서 진짜 데이터를 불러옵니다)
+// 1. 주간 뷰어 모드 
 window.renderWeekViewer = async function(container) {
-  // 로딩 메시지
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b;">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
 
   let html = `
@@ -30,7 +29,7 @@ window.renderWeekViewer = async function(container) {
         <tbody>
   `;
 
-  // 💡 수정됨: WEEK_DATES 대신 window.getWeekDates() 함수를 호출합니다!
+  // 💡 아래 부분이 window.getWeekDates() 로 정상적으로 교체되었습니다!
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '-';
@@ -66,7 +65,6 @@ window.renderWeekViewer = async function(container) {
 
 // 2. 주간 에디터 모드
 window.renderWeekEditor = async function(container) {
-  // 로딩 메시지
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b;">⏳ 편집 화면을 준비 중...</p>`;
 
   let html = `
@@ -75,7 +73,7 @@ window.renderWeekEditor = async function(container) {
         <tbody>
   `;
 
-  // 💡 수정됨: WEEK_DATES 대신 window.getWeekDates() 함수를 호출합니다!
+  // 💡 아래 부분도 window.getWeekDates() 로 정상적으로 교체되었습니다!
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '';
@@ -107,9 +105,9 @@ window.renderWeekEditor = async function(container) {
   container.innerHTML = html;
 };
 
-// 3. [저장 버튼 실행] 주간 단위 데이터를 읽어 Firestore에 일괄 저장하는 함수
+// 3. [저장 버튼 실행]
 window.saveWeekDataFromEditor = async function() {
-  // 💡 수정됨: WEEK_DATES 대신 window.getWeekDates() 함수를 호출합니다!
+  // 💡 아래 부분도 window.getWeekDates() 로 정상적으로 교체되었습니다!
   for (const d of window.getWeekDates()) {
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
