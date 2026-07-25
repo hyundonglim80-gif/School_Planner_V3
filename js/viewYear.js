@@ -31,7 +31,6 @@ window.renderYearViewer = async function(container) {
 
   let html = `<div class="year-grid">`;
 
-  // 💡 진짜 오늘 날짜 구하기 (년, 월 매칭용)
   const realToday = new Date();
   const currentYearStr = String(realToday.getFullYear());
   const currentMonthMatch = `-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
@@ -51,7 +50,6 @@ window.renderYearViewer = async function(container) {
         const dateObj = new Date(year, month, dayNum);
         const dayOfWeek = dayNames[dateObj.getDay()];
         
-        // 💡 오늘 일정은 파란색 배지처럼 강조
         const isTodayEvent = (e.dateStr === realTodayStr);
         const eventStyle = isTodayEvent 
             ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
@@ -66,7 +64,6 @@ window.renderYearViewer = async function(container) {
       eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
     }
 
-    // 💡 이번 달 카드 전체 테두리 강조 (현재 연도와 달이 일치할 때만)
     const isCurrentMonthCard = (mObj.match === currentMonthMatch && String(window.currentDate.getFullYear()) === currentYearStr);
     const cardStyle = isCurrentMonthCard 
         ? 'border: 3px solid #2563eb; background-color: #f8fafc; box-shadow: 0 4px 6px rgba(37,99,235,0.1);' 
@@ -85,12 +82,104 @@ window.renderYearViewer = async function(container) {
   container.innerHTML = html;
 };
 
-window.renderYearEditor = function(container) {
-  container.innerHTML = `
-    <div style="text-align:center; padding:50px; background:#fff; border-radius:8px; border:1px solid #cbd5e1;">
-      <h3 style="color:#1e293b; margin-bottom:10px; font-size:1.5rem;">연간 일정 수정 안내</h3>
-      <p style="color:#64748b; font-size:1.2rem; line-height:1.5;">연간 세부 일정과 행사 내용은 <b>'주' 또는 '일' 보기</b> 화면에서<br>상단 일정칸에 입력하시면 연간 보기에 자동 반영됩니다.</p>
-      <button onclick="setMode('viewer')" style="margin-top:20px; padding:10px 20px; font-size:1.2rem; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">👁️ 뷰어 모드로 돌아가기</button>
-    </div>
+window.renderYearEditor = async function(container) {
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:1.2rem;">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
+
+  let allEvents = [];
+  try {
+    const snapshot = await window.db.collection('events').get();
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.eventText && data.eventText.trim() !== '') {
+        allEvents.push({ dateStr: doc.id, text: data.eventText });
+      }
+    });
+  } catch (error) {
+    console.error("연간 데이터 로딩 에러:", error);
+  }
+
+  allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+  let html = `
+    <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="color:#1e293b; font-size:1.3rem;">📋 연간 일정 관리 시트</h3>
+        <button onclick="addYearEventRow()" style="padding:8px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">➕ 일정 행 추가</button>
+      </div>
+      <table style="width:100%; min-width:600px; border-collapse:collapse; text-align:left;">
+        <thead>
+          <tr style="background:#f1f5f9; text-align:center;">
+            <th style="width:180px; padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">날짜</th>
+            <th style="padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">📌 행사/일정 내용</th>
+            <th style="width:80px; padding:10px; border:1px solid #cbd5e1; font-size:1.1rem;">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="year-editor-tbody">
   `;
+
+  if (allEvents.length === 0) {
+    const defaultDate = window.formatDate(window.currentDate);
+    html += `
+      <tr class="year-event-row">
+        <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
+          <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
+        </td>
+        <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
+        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
+          <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
+        </td>
+      </tr>
+    `;
+  } else {
+    allEvents.forEach(e => {
+      html += `
+        <tr class="year-event-row">
+          <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
+            <input type="date" class="year-date-input" value="${e.dateStr}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
+          </td>
+          <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;">${e.text}</td>
+          <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
+            <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+};
+
+window.addYearEventRow = function() {
+  const tbody = document.getElementById('year-editor-tbody');
+  if (!tbody) return;
+  const defaultDate = window.formatDate(window.currentDate);
+  const tr = document.createElement('tr');
+  tr.className = 'year-event-row';
+  tr.innerHTML = `
+    <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
+      <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
+    </td>
+    <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
+    <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
+      <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+};
+
+window.saveYearDataFromEditor = async function() {
+  const rows = document.querySelectorAll("tr.year-event-row");
+  for (const row of rows) {
+    const dateInput = row.querySelector(".year-date-input");
+    const eventCell = row.querySelector(".year-event-cell");
+    
+    if (dateInput) {
+      const dateStr = dateInput.value;
+      const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
+      if (dateStr) {
+        await window.dbAPI.saveEvent(dateStr, eventText);
+      }
+    }
+  }
 };
