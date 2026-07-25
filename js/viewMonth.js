@@ -41,7 +41,7 @@ window.renderMonthViewer = async function(container) {
     
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return;
 
-    let dayStyle = "font-weight:700; font-size:1.1rem; margin-bottom:4px; color:#334155;";
+    let dayStyle = "font-weight:700; font-size:1.1rem; margin-bottom:4px; color:#334155; text-align: center;";
 
     let eventHtml = '';
     if(eventText) {
