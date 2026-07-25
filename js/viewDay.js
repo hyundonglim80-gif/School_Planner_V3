@@ -29,19 +29,32 @@ window.renderDayViewer = async function(container) {
       <div class="period-card-list">
   `;
 
-  for (let p = 1; p <= 6; p++) {
-    const pObj = periods[p] || {};
-    html += `
-        <div class="period-card">
-          <div class="period-card-header">
-            <span style="font-weight:700; font-size:var(--day-title-font-size);">⏰ ${p}교시</span>
-            ${pObj.subject ? `<span class="badge-tag">${pObj.subject}</span>` : `<span style="color:#94a3b8; font-size:var(--day-title-font-size);">수업 없음</span>`}
-          </div>
-          <div style="font-size:var(--day-content-font-size); margin-bottom:6px; color:#d97706; font-weight:600;">🎒 준비물: ${pObj.supplies || '없음'}</div>
-          <div style="font-size:var(--day-content-font-size); color:#334155;">📝 메모: ${pObj.memo || '-'}</div>
+  // ... 상단 생략 ...
+    for (let p = 1; p <= 6; p++) {
+      const pData = dayPeriods[p] || {};
+      const subject = pData.subject || '';
+      const supplies = pData.supplies || '';
+      const memo = pData.memo || '';
+
+      // 💡 1. 내용이 있는지 확인하여 있을 때만 HTML 문자열을 만듭니다. (.trim()으로 공백 제거 후 확인)
+      const suppliesHtml = supplies.trim() !== '' 
+          ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` 
+          : '';
+          
+      const memoHtml = memo.trim() !== '' 
+          ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` 
+          : '';
+
+      // 💡 2. 조립된 HTML 변수만 렌더링에 포함시킵니다.
+      html += `
+        <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
+          <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
+          ${suppliesHtml}
+          ${memoHtml}
         </div>
-    `;
-  }
+      `;
+    }
+// ... 하단 생략 ...
 
   html += `</div></div>`;
   container.innerHTML = html;
