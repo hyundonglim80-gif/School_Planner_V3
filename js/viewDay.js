@@ -69,7 +69,7 @@ window.renderDayEditor = async function(container) {
         <table style="text-align: center;">
           <thead>
             <tr>
-              <th style="width: 60px;"></th>
+              <th style="width: 60px;">교시</th>
               <th style="width: 120px;">수업</th>
               <th style="width: 25%;">🎒 준비물</th>
               <th>📝 메모</th>
@@ -82,7 +82,7 @@ window.renderDayEditor = async function(container) {
     const pObj = periods[p] || {};
     html += `
             <tr data-period="${p}">
-              <td class="period-cell">${p}교시</td>
+              <td class="period-cell">${p}</td>
               <td class="editable-cell cell-subject" contenteditable="true">${pObj.subject || ''}</td>
               <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;">${pObj.supplies || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;">${pObj.memo || ''}</td>
