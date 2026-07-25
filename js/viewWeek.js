@@ -60,11 +60,11 @@ window.renderWeekViewer = async function(container) {
       <tr>
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
-          /* 💡 height를 auto로 변경하여 빈 칸일 때는 1줄 높이, 내용이 생기면 가변적으로 늘어납니다 */
-          return `<td style="vertical-align: top; height: auto; text-align: left; padding: 6px 8px;">
-              ${pObj.subject ? `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>` : ''}
-              ${pObj.memo ? `<div class="clean-cell-memo">${pObj.memo}</div>` : ''}
-            </td>`;
+          // 💡 내용이 있을 때만 HTML을 생성하고, 태그 안쪽의 불필요한 줄바꿈/공백을 싹 제거합니다.
+          let content = '';
+          if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
+          if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
+          return `<td style="vertical-align: top; text-align: left; padding: 6px 8px;">${content}</td>`;
         }).join('')}
       </tr>
     `;
