@@ -6,6 +6,13 @@
 window.renderYearViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중입니다...</p>`;
 
+  // 💡 DB 로드 지연 시 방어 코드
+  if (!window.db) {
+    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
+    container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
+    return;
+  }
+
   let allEvents = [];
   try {
     const snapshot = await window.db.collection('events').get();
@@ -39,7 +46,7 @@ window.renderYearViewer = async function(container) {
   const currentYearStr = String(realToday.getFullYear());
   const currentMonthMatch = `-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
   
-  // ✅ 수정: window.formatDate가 없을 경우를 대비한 안전 장치 추가
+  // 💡 안전한 날짜 포맷 변환
   const realTodayStr = typeof window.formatDate === 'function' 
       ? window.formatDate(realToday) 
       : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
@@ -94,70 +101,13 @@ window.renderYearViewer = async function(container) {
 window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
 
-  let allEvents = [];
-  
-  // ✅ 수정: window.db가 아직 로드되지 않았을 때 프로그램이 죽지 않도록 방어
+  // 💡 DB 로드 지연 시 방어 코드
   if (!window.db) {
     console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
     container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
-    return; // 여기서 함수 실행을 멈춤
+    return;
   }
 
-  try {
-    const snapshot = await window.db.collection('events').get();
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.eventText && data.eventText.trim() !== '') {
-        allEvents.push({ dateStr: doc.id, text: data.eventText });
-      }
-    });
-  } catch (error) {
-    console.error("연간 데이터 로딩 에러:", error);
-  }
-
-  allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-
-  // 💡 데이터 백업 및 대량 등록 (CSV) 패널 추가
-  let html = `
-    <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
-      <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <span style="font-weight:bold; color:#0369a1;">[일정 관리]</span>
-        <button onclick="downloadEventsCSV()" style="padding:6px 12px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-events-file').click()" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-events-file" accept=".csv" style="display:none;" onchange="uploadEventsCSV(this)">
-
-        <span style="font-weight:bold; color:#15803d; margin-left:16px;">[시간표 관리]</span>
-        <button onclick="downloadSchedulesCSV()" style="padding:6px 12px; background:#10b981; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
-      </div>
-      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
-        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
-      </p>
-    </div>
-
-    <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 연간 일정 관리 시트</h3>
-        <button onclick="addYearEventRow()" style="padding:8px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">➕ 일정 행 추가</button>
-      </div>
-      <table style="width:100%; border-collapse:collapse; text-align:left;">
-        <thead>
-          <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:180px; padding:10px; border:1px solid #cbd5e1;">날짜</th>
-            <th style="padding:10px; border:1px solid #cbd5e1;">📌 행사/일정 내용</th>
-            <th style="width:80px; padding:10px; border:1px solid #cbd5e1;">삭제</th>
-          </tr>
-        </thead>
-        <tbody id="year-editor-tbody">
-  `;
-
-// [수정 후] 연간 에디터 모드 일부
-window.renderYearEditor = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
-
-  // 💡 현재 선택된 년도 값을 확실하게 가져오도록 보완
   const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
 
   let allEvents = [];
@@ -210,9 +160,8 @@ window.renderYearEditor = async function(container) {
         <tbody id="year-editor-tbody">
   `;
 
-if (allEvents.length === 0) {
-    // ✅ 수정: 미리 구해둔 currentYear를 활용하여 안전하게 기본 날짜 문자열 생성
-    const defaultDate = `${currentYear}-03-03`; 
+  if (allEvents.length === 0) {
+    const defaultDate = `${currentYear}-03-03`;
     html += `
       <tr class="year-event-row">
         <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
@@ -245,12 +194,10 @@ if (allEvents.length === 0) {
 };
 
 // ➕ 동적 연간 일정 행 추가 함수
-// ➕ 동적 연간 일정 행 추가 함수
 window.addYearEventRow = function() {
   const tbody = document.getElementById('year-editor-tbody');
   if (!tbody) return;
   
-  // ✅ 수정: window.currentDate 유무를 확인하고 안전하게 연도 추출 후 문자열 조합
   const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
   const defaultDate = `${currentYear}-03-03`;
   
