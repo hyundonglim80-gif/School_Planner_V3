@@ -3,11 +3,8 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
-// 🌟 1. 기준이 되는 현재 날짜 설정 (시작 날짜: 2026년 7월 20일)
-// (나중에는 new Date() 로 변경하면 오늘 날짜가 기본으로 뜹니다!)
-window.currentDate = new Date(2026, 6, 20); // 자바스크립트에서 7월은 '6'으로 표기합니다.
+window.currentDate = new Date(2026, 6, 20); 
 
-// 날짜를 "YYYY-MM-DD" 형태로 변환하는 도우미 함수
 window.formatDate = function(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -30,7 +27,6 @@ window.render = function() {
   else if (currentScope === 'memo') { renderMemoView(container); }
 };
 
-// 🌟 2. 날짜에 맞춰 상단 제목표시줄(Title) 자동 변경
 function updateTitle() {
   const titleEl = document.getElementById("date-range-text");
   if (!titleEl) return;
@@ -44,7 +40,6 @@ function updateTitle() {
   if (currentScope === 'day') { 
     titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
   } else if (currentScope === 'week') {
-    // 월요일과 금요일 날짜 계산
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
     const diffToMon = temp.getDate() - day + (day === 0 ? -6 : 1);
@@ -117,6 +112,10 @@ window.saveCurrentViewData = async function() {
     await window.saveDayDataFromEditor();
   } else if (currentScope === 'week' && window.saveWeekDataFromEditor) {
     await window.saveWeekDataFromEditor();
+  } else if (currentScope === 'month' && window.saveMonthDataFromEditor) {
+    await window.saveMonthDataFromEditor(); // 👈 새 기능: 월간 저장
+  } else if (currentScope === 'year' && window.saveYearDataFromEditor) {
+    await window.saveYearDataFromEditor();  // 👈 새 기능: 연간 저장
   }
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
@@ -129,18 +128,17 @@ window.saveCurrentViewData = async function() {
   window.setMode('viewer');
 };
 
-// 🌟 3. 이전/다음 버튼 누를 때 날짜 계산 로직
 window.moveDate = function(dir) {
   if (currentScope === 'day') {
-    window.currentDate.setDate(window.currentDate.getDate() + dir); // 하루 이동
+    window.currentDate.setDate(window.currentDate.getDate() + dir);
   } else if (currentScope === 'week') {
-    window.currentDate.setDate(window.currentDate.getDate() + (dir * 7)); // 7일 이동
+    window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
   } else if (currentScope === 'month') {
-    window.currentDate.setMonth(window.currentDate.getMonth() + dir); // 한 달 이동
+    window.currentDate.setMonth(window.currentDate.getMonth() + dir);
   } else if (currentScope === 'year') {
-    window.currentDate.setFullYear(window.currentDate.getFullYear() + dir); // 1년 이동
+    window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
   }
-  window.render(); // 날짜 계산 후 화면 새로고침
+  window.render();
 };
 
 window.render();
