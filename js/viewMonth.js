@@ -75,22 +75,18 @@ window.renderMonthViewer = async function(container) {
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '') {
-        // 수업이 있는 교시: 초록색 네모 박스
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:0.75rem; font-weight:700; min-width:24px; white-space:nowrap;">${subject.trim()}</div>`;
         hasClass = true;
       } else {
-        // 수업이 없는 교시: 연한 회색 X 네모 박스
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700; min-width:24px;">X</div>`;
       }
     }
 
-    // 수업이 하루라도 등록되어 있으면 6개의 박스를 묶어서 화면에 표시
     let scheduleHtml = '';
     if (hasClass) {
       scheduleHtml = `<div style="display:flex; margin-left:8px;">${boxesHtml}</div>`;
     }
 
-    // 날짜 숫자와 6개의 박스 묶음이 수평으로 나란히 배치되도록 설정
     let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:center;";
 
     let eventHtml = '';
@@ -98,13 +94,10 @@ window.renderMonthViewer = async function(container) {
        eventHtml = `<div class="cal-event" style="white-space: pre-wrap;">${eventText}</div>`;
     }
 
-    // 오늘 날짜 체크 후 강조 클래스 적용
     const isToday = (dateStr === realTodayStr);
     const todayClass = isToday ? 'month-today-cell' : '';
 
-    html += `<div class="cal-day ${todayClass}">
-      <div style="${dayStyle}">${d} ${scheduleHtml}</div>${eventHtml}
-    </div>`;
+    html += `<div class="cal-day ${todayClass}"><div style="${dayStyle}">${d} ${scheduleHtml}</div>${eventHtml}</div>`;
   });
 
   html += `</div>`;
@@ -112,7 +105,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (빈 공간 완벽 제거 및 세 줄짜리 날짜 표기 적용)
+// ✏️ 2. 월간 에디터 모드 (태그 내부 줄바꿈 및 공백 100% 밀착 제거 버전)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -136,7 +129,6 @@ window.renderMonthEditor = async function(container) {
   const monthData = await Promise.all(dayPromises);
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 💡 데이터 백업 및 대량 등록 (CSV) 패널
   let html = `
     <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
@@ -160,7 +152,7 @@ window.renderMonthEditor = async function(container) {
           <tr style="background:#f1f5f9; text-align:center;">
             <th style="width:90px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
             <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
-            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (빈 공간 없이 1줄 크기 자동조절)</th>
+            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
           </tr>
         </thead>
         <tbody>
@@ -184,29 +176,22 @@ window.renderMonthEditor = async function(container) {
     }
     const classText = periodList.join(',').trim();
 
-    // 🚨 여기서부터가 핵심입니다! <td> 태그 안에 띄어쓰기(엔터)를 일절 허용하지 않고 코드를 밀착시켰습니다.
-    // 💡 날짜 표시: 요일(제일 크게) -> 월 -> 일 순으로 3줄 표기
-    html += `
-      <tr data-month-date="${item.dateStr}">
-        <td rowspan="2" style="text-align:center; padding:12px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:90px;">
-          <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
-            <span style="font-size: 1.6rem; font-weight: 900; color: #1e40af;">${dayOfWeek}</span>
-            <span style="font-size: 1rem; font-weight: 600; color: #475569;">${m+1}월</span>
-            <span style="font-size: 1rem; font-weight: 600; color: #475569;">${dayNum}일</span>
-          </div>
-        </td>
-        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:60px;">
-          수업
-        </td>
-        <td class="editable-cell edit-class-cell" contenteditable="true" style="padding:8px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; vertical-align:top; line-height:1.4;" title="예: 국어,수학,X,과학,음악,X">${classText}</td>
-      </tr>
-      <tr data-month-sub="${item.dateStr}">
-        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:60px;">
-          일정
-        </td>
-        <td class="editable-cell edit-event-cell" contenteditable="true" style="padding:8px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>
-      </tr>
-    `;
+    // 💡 <td>...</td> 태그 내부의 소스코드 엔터/스페이스를 100% 밀착하여 불필요한 공백 생성 방지
+    html += `<tr data-month-date="${item.dateStr}">` +
+      `<td rowspan="2" style="text-align:center; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:90px; white-space:normal;">` +
+        `<div style="display:flex; flex-direction:column; align-items:center; gap:2px;">` +
+          `<span style="font-size:1.6rem; font-weight:900; color:#1e40af; line-height:1.1;">${dayOfWeek}</span>` +
+          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1.2;">${m+1}월</span>` +
+          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1.2;">${dayNum}일</span>` +
+        `</div>` +
+      `</td>` +
+      `<td style="text-align:center; padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; white-space:normal;">수업</td>` +
+      `<td class="editable-cell edit-class-cell" contenteditable="true" style="padding:6px 8px; border:1px solid #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; vertical-align:top; line-height:1.3; white-space:normal;" title="예: 국어,수학,X,과학,음악,X">${classText}</td>` +
+    `</tr>` +
+    `<tr data-month-sub="${item.dateStr}">` +
+      `<td style="text-align:center; padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; white-space:normal;">일정</td>` +
+      `<td class="editable-cell edit-event-cell" contenteditable="true" style="padding:6px 8px; border:1px solid #cbd5e1; font-size:1.05rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.3; white-space:pre-wrap;">${eventText}</td>` +
+    `</tr>`;
   });
 
   html += `</tbody></table></div>`;
