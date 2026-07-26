@@ -245,3 +245,31 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   }
   .mini-month { padding: 8px; }
 }
+
+/* ==========================================================================
+   🛠️ [추가] 월간 에디터 레이아웃 최적화 (세로 공백 제거 및 자동 높이)
+   ========================================================================== */
+.month-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.month-class-cell, .month-event-cell {
+  height: auto !important;       /* 고정 높이 절대 금지, 내용물 크기만큼만 늘어남 */
+  min-height: 40px !important;   /* 내용이 없을 때 최소 1줄(40px) 크기 보장 */
+  padding: 8px 12px !important;  /* 내부 여백 최적화 */
+  line-height: 1.5 !important;
+  outline: none;
+  word-break: break-all;
+}
+
+.month-class-cell {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-bottom: 1px dashed #cbd5e1 !important; /* 위아래 구분선 */
+}
+
+.month-event-cell {
+  background-color: #f0f9ff !important;
+  color: #0369a1 !important;
+}
