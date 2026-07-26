@@ -97,7 +97,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (1~6교시 개별 칸 분할 적용)
+// ✏️ 2. 월간 에디터 모드 (통합 CSV 버튼 + 1~6교시 헤더 제거)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -125,16 +125,13 @@ window.renderMonthEditor = async function(container) {
     <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <span style="font-weight:bold; color:#0369a1;">[일정 관리]</span>
-        <button onclick="downloadEventsCSV()" style="padding:6px 12px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-events-file').click()" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-events-file" accept=".csv" style="display:none;" onchange="uploadEventsCSV(this)">
-
-        <span style="font-weight:bold; color:#15803d; margin-left:16px;">[시간표 관리]</span>
-        <button onclick="downloadSchedulesCSV()" style="padding:6px 12px; background:#10b981; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
+        <button onclick="downloadCSV()" style="padding:6px 14px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📥 백업 다운로드 (CSV)</button>
+        <button onclick="document.getElementById('upload-csv-file').click()" style="padding:6px 14px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📤 업로드/동기화 (CSV)</button>
+        <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
       </div>
+      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
+        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
+      </p>
     </div>
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
@@ -142,12 +139,9 @@ window.renderMonthEditor = async function(container) {
       <table style="width:100%; border-collapse:collapse; text-align:center;">
         <thead>
           <tr style="background:#f1f5f9;">
-            <th rowspan="2" style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
-            <th rowspan="2" style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
+            <th style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
+            <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
             <th colspan="6" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
-          </tr>
-          <tr style="background:#f8fafc;">
-             ${[1, 2, 3, 4, 5, 6].map(p => `<th style="padding:4px; border:1px solid #cbd5e1; color:#334155; font-size:0.9rem; width:12%;">${p}교시</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -165,7 +159,6 @@ window.renderMonthEditor = async function(container) {
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 💡 첫 줄 일(강조) -> 둘째 줄 요일 2단 디자인 적용
     html += `<tr data-month-date="${item.dateStr}">` +
       `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
@@ -175,7 +168,6 @@ window.renderMonthEditor = async function(container) {
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
       
-      // 💡 1~6교시 6칸 분할 렌더링
       for(let p=1; p<=6; p++) {
          const subjText = periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
@@ -184,7 +176,6 @@ window.renderMonthEditor = async function(container) {
     html += `</tr>` +
     `<tr data-month-sub="${item.dateStr}">` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
-      // 💡 일정은 6칸을 합쳐서 넓게 쓸 수 있도록 colspan="6" 유지
       `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>` +
     `</tr>`;
   });
@@ -201,7 +192,6 @@ window.saveMonthDataFromEditor = async function() {
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
     
-    // 💡 6개의 수업 셀을 순회하며 데이터 수집
     const classCells = row.querySelectorAll(".edit-class-cell");
     const periodsData = {};
     
