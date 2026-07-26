@@ -15,7 +15,8 @@ window.getWeekDates = function() {
     dates.push({
       day: dayNames[i],
       dateStr: window.formatDate(tempDate),
-      dateDisplay: `${String(tempDate.getMonth()+1).padStart(2,'0')}/${String(tempDate.getDate()).padStart(2,'0')}`
+      // 💡 월 표기를 빼고 'O일' 형태로만 출력하도록 수정
+      dateDisplay: `${tempDate.getDate()}일`
     });
     tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
   }
