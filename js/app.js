@@ -197,7 +197,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ==========================================================================
-// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진 - 과목/준비물/메모 분할 버전)]
+// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진 - 1~6과목 / 1~6메모 / 1~6준비물 순서)]
 // ==========================================================================
 
 // 1. CSV 파일 생성 및 다운로드 (한글 깨짐 방지 BOM 포함)
@@ -261,7 +261,6 @@ window.getTargetDateList = function() {
   const y = window.currentDate.getFullYear();
 
   if (currentScope === 'month') {
-    // 월 보기: 해당 월의 1일부터 말일까지
     const m = window.currentDate.getMonth();
     const lastDate = new Date(y, m + 1, 0).getDate();
     for (let d = 1; d <= lastDate; d++) {
@@ -275,9 +274,7 @@ window.getTargetDateList = function() {
       });
     }
   } else {
-    // ✅ 년 보기 수정: 해당 연도 3월 1일부터 다음 해 2월 말일까지 (학교 학사 기준 완벽 매칭)
     const startYear = y;
-    
     for (let m = 3; m <= 14; m++) { 
       let targetY = startYear;
       let targetM = m;
@@ -288,7 +285,6 @@ window.getTargetDateList = function() {
       }
       
       const lastDate = new Date(targetY, targetM, 0).getDate();
-      
       for (let d = 1; d <= lastDate; d++) {
         const dateObj = new Date(targetY, targetM - 1, d);
         dates.push({
@@ -305,10 +301,9 @@ window.getTargetDateList = function() {
 };
 
 // ---------------------------------------------------------
-// 📥 통합 CSV 백업 다운로드 (과목 묶음 -> 준비물 묶음 -> 메모 묶음 순서)
+// 📥 통합 CSV 백업 다운로드 (과목 -> 메모 -> 준비물 순서)
 // ---------------------------------------------------------
 window.downloadCSV = async function() {
-  // 1. 클라우드에서 일정과 시간표 데이터 모두 불러오기
   const eventSnap = await window.db.collection('events').get();
   const scheduleSnap = await window.db.collection('schedules').get();
 
@@ -318,11 +313,11 @@ window.downloadCSV = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 2. 통합 CSV 문자열 생성 (요청하신 순서대로 헤더 배치)
+  // 💡 헤더 순서 변경 (메모가 준비물보다 앞서도록 배치)
   let csv = "년도,월,일,요일,일정," +
             "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
-            "1교시 준비물,2교시 준비물,3교시 준비물,4교시 준비물,5교시 준비물,6교시 준비물," +
-            "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모\n";
+            "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모," +
+            "1교시 준비물,2교시 준비물,3교시 준비물,4교시 준비물,5교시 준비물,6교시 준비물\n";
             
   const targetDates = window.getTargetDateList();
 
@@ -330,22 +325,20 @@ window.downloadCSV = async function() {
     const eventText = eventMap[item.dateStr] || '';
     const periods = scheduleMap[item.dateStr] || {};
     
-    // 기본 날짜 및 일정 추가
     let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
 
-    // 배열에 각각 나눠서 담기
     let subjects = [];
-    let supplies = [];
     let memos = [];
+    let supplies = [];
 
     for (let p = 1; p <= 6; p++) {
       subjects.push(window.escapeCSV(periods[p]?.subject || ''));
-      supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
       memos.push(window.escapeCSV(periods[p]?.memo || ''));
+      supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
     }
 
-    // 과목 6개 -> 준비물 6개 -> 메모 6개 순서대로 연결
-    rowStr += `,${subjects.join(',')},${supplies.join(',')},${memos.join(',')}`;
+    // 💡 과목 6개 -> 메모 6개 -> 준비물 6개 순서대로 연결
+    rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')}`;
 
     csv += rowStr + "\n";
   });
@@ -355,7 +348,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (변경된 엑셀 열 순서에 맞춰 파싱)
+// 📤 통합 CSV 업로드 및 동기화 (변경된 과목 -> 메모 -> 준비물 열 순서에 맞춰 파싱)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -370,21 +363,18 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
-    // 1. 기존 일정 및 시간표 데이터 일괄 삭제 준비
     const eSnap = await window.db.collection('events').get();
     eSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
     const sSnap = await window.db.collection('schedules').get();
     sSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
 
-    // 2. 통합 CSV 파싱 및 저장 준비
     // CSV 구조 인덱스 가이드:
     // 0~4: 년도, 월, 일, 요일, 일정
     // 5~10: 1~6교시 과목
-    // 11~16: 1~6교시 준비물
-    // 17~22: 1~6교시 메모
+    // 11~16: 1~6교시 메모
+    // 17~22: 1~6교시 준비물
     for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      // 최소 날짜 데이터가 들어갈 기본 열이 있는지 확인
       if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
         const y = row[0].trim();
         const m = String(row[1].trim()).padStart(2, '0');
@@ -394,35 +384,30 @@ window.uploadCSV = async function(input) {
         const eventText = (row[4] || '').trim();
         const periodsData = {};
         
-        // 반복문을 통해 인덱스를 맞추어 매핑
-        // 교시 p: 1 ~ 6
+        // 💡 교시(p) 1 ~ 6 파싱 (메모와 준비물 인덱스 위치 변경)
         for (let p = 1; p <= 6; p++) {
           periodsData[p] = {
             subject: (row[4 + p] || '').trim(),       // 과목: 인덱스 5, 6, 7, 8, 9, 10
-            supplies: (row[10 + p] || '').trim(),     // 준비물: 인덱스 11, 12, 13, 14, 15, 16
-            memo: (row[16 + p] || '').trim()          // 메모: 인덱스 17, 18, 19, 20, 21, 22
+            memo: (row[10 + p] || '').trim(),         // 메모: 인덱스 11, 12, 13, 14, 15, 16
+            supplies: (row[16 + p] || '').trim()      // 준비물: 인덱스 17, 18, 19, 20, 21, 22
           };
         }
 
-        // 일정이 있는 경우
         if (eventText) {
           const eRef = window.db.collection('events').doc(dateStr);
           operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         }
         
-        // 시간표 저장
         const sRef = window.db.collection('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
       }
     }
 
-    // 3. Firestore 배치 처리 실행
     await window.executeBatchOperations(operations);
     alert("✅ 일정 및 시간표 통합 데이터 동기화가 완료되었습니다!");
     window.render();
   };
   
-  // 엑셀 한글 깨짐 완벽 방지를 위한 euc-kr 지정
   reader.readAsText(file, 'euc-kr');
   input.value = '';
 };
