@@ -65,13 +65,15 @@ window.renderMonthViewer = async function(container) {
     let boxesHtml = '';
     let hasClass = false;
 
+    // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
-      if (subject && subject.trim() !== '') {
+      if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:0.75rem; font-weight:700; min-width:24px; white-space:nowrap;">${subject.trim()}</div>`;
         hasClass = true;
       } else {
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700; min-width:24px;">X</div>`;
+        // 내용이 없으면 X가 아니라 빈 박스로 처리
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700; min-width:24px;">&nbsp;</div>`;
       }
     }
 
@@ -97,7 +99,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (통합 CSV 버튼 + 1~6교시 헤더 제거)
+// ✏️ 2. 월간 에디터 모드 (통합 CSV 버튼 + 1~6교시 헤더 제거 + 'X' 제거)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -168,8 +170,9 @@ window.renderMonthEditor = async function(container) {
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
       
+      // 💡 에디터 칸에 출력 시 'X' 대신 빈 문자열 할당
       for(let p=1; p<=6; p++) {
-         const subjText = periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X';
+         const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
       }
       
@@ -195,6 +198,7 @@ window.saveMonthDataFromEditor = async function() {
     const classCells = row.querySelectorAll(".edit-class-cell");
     const periodsData = {};
     
+    // 💡 DB에 저장할 때도 'X' 대신 빈 문자열로 저장
     classCells.forEach(cell => {
        const p = cell.getAttribute("data-p");
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
