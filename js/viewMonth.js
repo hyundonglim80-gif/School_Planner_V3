@@ -97,7 +97,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (CSS 여백 제거 + 일/요일 2줄 디자인)
+// ✏️ 2. 월간 에디터 모드 (1~6교시 개별 칸 분할 적용)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -139,12 +139,15 @@ window.renderMonthEditor = async function(container) {
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년 ${m+1}월 일정/수업 편집 시트</h3>
-      <table style="width:100%; border-collapse:collapse; text-align:left;">
+      <table style="width:100%; border-collapse:collapse; text-align:center;">
         <thead>
-          <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
-            <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
-            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
+          <tr style="background:#f1f5f9;">
+            <th rowspan="2" style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
+            <th rowspan="2" style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
+            <th colspan="6" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
+          </tr>
+          <tr style="background:#f8fafc;">
+             ${[1, 2, 3, 4, 5, 6].map(p => `<th style="padding:4px; border:1px solid #cbd5e1; color:#334155; font-size:0.9rem; width:12%;">${p}교시</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -162,26 +165,27 @@ window.renderMonthEditor = async function(container) {
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    let periodList = [];
-    for(let p=1; p<=6; p++) {
-      periodList.push(periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X');
-    }
-    const classText = periodList.join(',').trim();
-
     // 💡 첫 줄 일(강조) -> 둘째 줄 요일 2단 디자인 적용
     html += `<tr data-month-date="${item.dateStr}">` +
-      `<td rowspan="2" style="text-align:center; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
+      `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
           `<span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${dayNum}</span>` +
           `<span style="font-size:1rem; font-weight:600; color:#475569; line-height:1;">${dayOfWeek}</span>` +
         `</div>` +
       `</td>` +
-      `<td style="text-align:center; padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>` +
-      `<td class="editable-cell edit-class-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#047857; background:#ecfdf5; vertical-align:top; line-height:1.4;" title="예: 국어,수학,X,과학,음악,X">${classText}</td>` +
-    `</tr>` +
+      `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
+      
+      // 💡 1~6교시 6칸 분할 렌더링
+      for(let p=1; p<=6; p++) {
+         const subjText = periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X';
+         html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
+      }
+      
+    html += `</tr>` +
     `<tr data-month-sub="${item.dateStr}">` +
-      `<td style="text-align:center; padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
-      `<td class="editable-cell edit-event-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>` +
+      `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
+      // 💡 일정은 6칸을 합쳐서 넓게 쓸 수 있도록 colspan="6" 유지
+      `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>` +
     `</tr>`;
   });
 
@@ -196,28 +200,26 @@ window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
-    const classCell = row.querySelector(".edit-class-cell");
     
-    const nextRow = row.nextElementSibling;
-    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
+    // 💡 6개의 수업 셀을 순회하며 데이터 수집
+    const classCells = row.querySelectorAll(".edit-class-cell");
+    const periodsData = {};
     
-    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-    await window.dbAPI.saveEvent(dateStr, eventText);
-
-    if (classCell) {
-      const classRaw = (classCell.innerText || classCell.textContent || "").trim();
-      const subjects = classRaw.split(',').map(s => s.trim());
-      
-      const periodsData = {};
-      for (let p = 1; p <= 6; p++) {
-        const subj = subjects[p - 1] || 'X';
-        periodsData[p] = {
-          subject: (subj.toUpperCase() === 'X' || subj === '') ? '' : subj,
+    classCells.forEach(cell => {
+       const p = cell.getAttribute("data-p");
+       const subjRaw = (cell.innerText || cell.textContent || "").trim();
+       periodsData[p] = {
+          subject: (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw,
           supplies: '',
           memo: ''
-        };
-      }
-      await window.dbAPI.saveSchedule(dateStr, periodsData);
-    }
+       };
+    });
+
+    const nextRow = row.nextElementSibling;
+    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
+    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
+    
+    await window.dbAPI.saveEvent(dateStr, eventText);
+    await window.dbAPI.saveSchedule(dateStr, periodsData);
   }
 };
