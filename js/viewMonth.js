@@ -75,24 +75,30 @@ window.renderMonthViewer = async function(container) {
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '') {
+        // 수업이 있는 교시: 초록색 네모 박스
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:0.75rem; font-weight:700; min-width:24px; white-space:nowrap;">${subject.trim()}</div>`;
         hasClass = true;
       } else {
+        // 수업이 없는 교시: 연한 회색 X 네모 박스
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700; min-width:24px;">X</div>`;
       }
     }
 
+    // 수업이 하루라도 등록되어 있으면 6개의 박스를 묶어서 화면에 표시
     let scheduleHtml = '';
     if (hasClass) {
       scheduleHtml = `<div style="display:flex; margin-left:8px;">${boxesHtml}</div>`;
     }
 
+    // 날짜 숫자와 6개의 박스 묶음이 수평으로 나란히 배치되도록 설정
     let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:center;";
+
     let eventHtml = '';
     if(eventText) {
        eventHtml = `<div class="cal-event" style="white-space: pre-wrap;">${eventText}</div>`;
     }
 
+    // 오늘 날짜 체크 후 강조 클래스 적용
     const isToday = (dateStr === realTodayStr);
     const todayClass = isToday ? 'month-today-cell' : '';
 
@@ -106,7 +112,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (월간 평일 세로 목록 스프레드시트 편집)
+// ✏️ 2. 월간 에디터 모드 (불필요한 공백 제거 및 자동 높이 조절)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -145,6 +151,9 @@ window.renderMonthEditor = async function(container) {
         <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
         <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
       </div>
+      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
+        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
+      </p>
     </div>
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
@@ -152,7 +161,7 @@ window.renderMonthEditor = async function(container) {
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:110px; padding:10px; border:1px solid #cbd5e1;">날짜(요일)</th>
+            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜<br>(요일)</th>
             <th style="padding:10px; border:1px solid #cbd5e1;">📌 내용 (위칸: 1~6교시 수업 / 아래칸: 주요 일정)</th>
           </tr>
         </thead>
@@ -168,26 +177,26 @@ window.renderMonthEditor = async function(container) {
 
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
 
-    const eventText = item.data.eventText || '';
+    // 💡 .trim()을 통해 보이지 않는 줄바꿈(엔터) 공백을 싹 제거합니다.
+    const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
     let periodList = [];
     for(let p=1; p<=6; p++) {
       periodList.push(periods[p] && periods[p].subject ? periods[p].subject : 'X');
     }
-    const classText = periodList.join(',');
+    const classText = periodList.join(',').trim();
 
-    // 💡 JS에서 복잡한 인라인 스타일 제거하고 style.css의 month-editor-wrapper 클래스에 위임
+    // 💡 기존 CSS의 방해를 피하기 위해 클래스 이름을 edit-class-box 와 edit-event-box 로 새롭게 바꿈!
+    // 💡 안쪽 여백(padding)을 극단적으로 줄이고, 블록을 쌓아 빈칸 낭비를 원천 차단
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td style="text-align:center; padding:12px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.05rem; vertical-align:top;">
+        <td style="text-align:center; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:top;">
           ${m+1}/${dayNum} (${dayOfWeek})
         </td>
-        <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top;">
-          <div class="month-editor-wrapper">
-            <div class="editable-cell month-class-cell" contenteditable="true" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
-            <div class="editable-cell month-event-cell" contenteditable="true">${eventText}</div>
-          </div>
+        <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top; background:#ffffff;">
+          <div class="edit-class-box" contenteditable="true" style="display:block; padding:6px 8px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; outline:none; min-height:1.5em; line-height:1.4; word-break:break-all;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
+          <div class="edit-event-box" contenteditable="true" style="display:block; padding:6px 8px; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; outline:none; min-height:1.5em; line-height:1.4; word-break:break-all;">${eventText}</div>
         </td>
       </tr>
     `;
@@ -198,14 +207,15 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (수업 및 일정 각각 클라우드 저장)
+// 💾 3. 월간 편집 저장 처리 함수 (클래스 이름 변경 반영)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
-    const classCell = row.querySelector(".month-class-cell");
-    const eventCell = row.querySelector(".month-event-cell");
+    // 💡 변경된 새 클래스 이름으로 요소를 찾음
+    const classCell = row.querySelector(".edit-class-box");
+    const eventCell = row.querySelector(".edit-event-box");
     
     // 1) 일정(events) 저장
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
@@ -219,6 +229,7 @@ window.saveMonthDataFromEditor = async function() {
       const periodsData = {};
       for (let p = 1; p <= 6; p++) {
         const subj = subjects[p - 1] || 'X';
+        // 'X'가 아닌 실제 과목명이 들어왔을 때 저장
         periodsData[p] = {
           subject: (subj.toUpperCase() === 'X' || subj === '') ? '' : subj,
           supplies: '',
