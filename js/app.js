@@ -309,7 +309,7 @@ window.getTargetDateList = function() {
 };
 
 // ---------------------------------------------------------
-// 📥 통합 CSV 백업 다운로드 (일정 + 시간표)
+// 📥 통합 CSV 백업 다운로드 (일정 + 시간표: 과목, 준비물, 메모 포함)
 // ---------------------------------------------------------
 window.downloadCSV = async function() {
   // 1. 클라우드에서 일정과 시간표 데이터 모두 불러오기
@@ -322,25 +322,33 @@ window.downloadCSV = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 2. 통합 CSV 문자열 생성 (1~6교시 분할)
-  let csv = "년도,월,일,요일,일정,1교시,2교시,3교시,4교시,5교시,6교시\n";
-  const targetDates = window.getTargetDateList(); // app.js의 헬퍼 함수 활용
+  // 2. 통합 CSV 문자열 생성 (1~6교시 각각 과목/준비물/메모 분할)
+  let csv = "년도,월,일,요일,일정," +
+            "1교시 과목,1교시 준비물,1교시 메모," +
+            "2교시 과목,2교시 준비물,2교시 메모," +
+            "3교시 과목,3교시 준비물,3교시 메모," +
+            "4교시 과목,4교시 준비물,4교시 메모," +
+            "5교시 과목,5교시 준비물,5교시 메모," +
+            "6교시 과목,6교시 준비물,6교시 메모\n";
+            
+  const targetDates = window.getTargetDateList();
 
   targetDates.forEach(item => {
     const eventText = eventMap[item.dateStr] || '';
     const periods = scheduleMap[item.dateStr] || {};
-    const p1 = periods[1]?.subject || '';
-    const p2 = periods[2]?.subject || '';
-    const p3 = periods[3]?.subject || '';
-    const p4 = periods[4]?.subject || '';
-    const p5 = periods[5]?.subject || '';
-    const p6 = periods[6]?.subject || '';
+    
+    // 기본 날짜 및 일정 추가
+    let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
 
-    // 기존 app.js에 있는 escapeCSV 함수를 사용해 안전하게 변환
-    csv += `${item.year},${item.month},${item.day},${item.dayOfWeek},` +
-           `${window.escapeCSV(eventText)},` +
-           `${window.escapeCSV(p1)},${window.escapeCSV(p2)},${window.escapeCSV(p3)},` +
-           `${window.escapeCSV(p4)},${window.escapeCSV(p5)},${window.escapeCSV(p6)}\n`;
+    // 1~6교시 과목, 준비물, 메모 순차적으로 추가
+    for (let p = 1; p <= 6; p++) {
+      const subject = periods[p]?.subject || '';
+      const supplies = periods[p]?.supplies || '';
+      const memo = periods[p]?.memo || '';
+      rowStr += `,${window.escapeCSV(subject)},${window.escapeCSV(supplies)},${window.escapeCSV(memo)}`;
+    }
+
+    csv += rowStr + "\n";
   });
 
   const titlePrefix = currentScope === 'month' ? `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월` : `${window.currentDate.getFullYear()}학년도`;
@@ -348,7 +356,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (일정 + 시간표 동시 처리)
+// 📤 통합 CSV 업로드 및 동기화 (일정 + 시간표: 과목, 준비물, 메모 동시 처리)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -360,7 +368,7 @@ window.uploadCSV = async function(input) {
   const reader = new FileReader();
   reader.onload = async function(e) {
     const text = e.target.result;
-    const rows = window.parseCSV(text); // 기존 app.js의 파서 활용
+    const rows = window.parseCSV(text);
     const operations = [];
 
     // 1. 기존 일정 및 시간표 데이터 일괄 삭제 준비
@@ -370,24 +378,30 @@ window.uploadCSV = async function(input) {
     sSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
 
     // 2. 통합 CSV 파싱 및 저장 준비
-    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 일정(4), 1교시(5)~6교시(10)
+    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 일정(4)
+    // 1교시(과목5, 준비물6, 메모7), 2교시(과목8, 준비물9, 메모10) ... 6교시(과목20, 준비물21, 메모22)
     for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if(row.length >= 11 && row[0].trim() && row[1].trim() && row[2].trim()) {
+      // 최소 날짜와 일정이 들어갈 기본 열(5개)이 있는지 확인
+      if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
         const y = row[0].trim();
         const m = String(row[1].trim()).padStart(2, '0');
         const d = String(row[2].trim()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         
         const eventText = (row[4] || '').trim();
-        const periodsData = {
-          1: { subject: (row[5] || '').trim(), memo: '', supplies: '' },
-          2: { subject: (row[6] || '').trim(), memo: '', supplies: '' },
-          3: { subject: (row[7] || '').trim(), memo: '', supplies: '' },
-          4: { subject: (row[8] || '').trim(), memo: '', supplies: '' },
-          5: { subject: (row[9] || '').trim(), memo: '', supplies: '' },
-          6: { subject: (row[10] || '').trim(), memo: '', supplies: '' }
-        };
+        const periodsData = {};
+        
+        // 반복문을 통해 1~6교시의 과목, 준비물, 메모 칸 매핑
+        let colIdx = 5;
+        for (let p = 1; p <= 6; p++) {
+          periodsData[p] = {
+            subject: (row[colIdx] || '').trim(),
+            supplies: (row[colIdx+1] || '').trim(),
+            memo: (row[colIdx+2] || '').trim()
+          };
+          colIdx += 3; // 다음 교시로 넘어가기 위해 인덱스 3 추가
+        }
 
         // 일정이 있는 경우
         if (eventText) {
