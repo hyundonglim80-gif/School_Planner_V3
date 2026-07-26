@@ -112,7 +112,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (rowspan=2 완벽 2단 테이블 구조 - 여백 0% 자동 높이)
+// ✏️ 2. 월간 에디터 모드 (빈 공간 완벽 제거 및 세 줄짜리 날짜 표기 적용)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -151,9 +151,6 @@ window.renderMonthEditor = async function(container) {
         <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
         <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
       </div>
-      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
-        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
-      </p>
     </div>
 
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
@@ -161,9 +158,9 @@ window.renderMonthEditor = async function(container) {
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:110px; padding:8px; border:1px solid #cbd5e1;">날짜(요일)</th>
-            <th style="width:70px; padding:8px; border:1px solid #cbd5e1;">구분</th>
-            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
+            <th style="width:90px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
+            <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
+            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (빈 공간 없이 1줄 크기 자동조절)</th>
           </tr>
         </thead>
         <tbody>
@@ -178,7 +175,6 @@ window.renderMonthEditor = async function(container) {
 
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
 
-    // 💡 저장된 텍스트의 앞뒤 빈 엔터/공백을 완벽히 정리
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
@@ -186,28 +182,29 @@ window.renderMonthEditor = async function(container) {
     for(let p=1; p<=6; p++) {
       periodList.push(periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X');
     }
-    const classText = periodList.join(',');
+    const classText = periodList.join(',').trim();
 
-    // 💡 날짜 하나당 2개의 독립된 tr을 쓰고 날짜 td는 rowspan="2" 처리!
+    // 🚨 여기서부터가 핵심입니다! <td> 태그 안에 띄어쓰기(엔터)를 일절 허용하지 않고 코드를 밀착시켰습니다.
+    // 💡 날짜 표시: 요일(제일 크게) -> 월 -> 일 순으로 3줄 표기
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td rowspan="2" style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.05rem; vertical-align:middle; width:110px;">
-          ${m+1}/${dayNum}<br>(${dayOfWeek})
+        <td rowspan="2" style="text-align:center; padding:12px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:90px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <span style="font-size: 1.6rem; font-weight: 900; color: #1e40af;">${dayOfWeek}</span>
+            <span style="font-size: 1rem; font-weight: 600; color: #475569;">${m+1}월</span>
+            <span style="font-size: 1rem; font-weight: 600; color: #475569;">${dayNum}일</span>
+          </div>
         </td>
-        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:70px;">
+        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:60px;">
           수업
         </td>
-        <td class="editable-cell edit-class-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; vertical-align:top;" title="예: 국어,수학,X,과학,음악,X">
-          ${classText}
-        </td>
+        <td class="editable-cell edit-class-cell" contenteditable="true" style="padding:8px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; vertical-align:top; line-height:1.4;" title="예: 국어,수학,X,과학,음악,X">${classText}</td>
       </tr>
       <tr data-month-sub="${item.dateStr}">
-        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:70px;">
+        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:60px;">
           일정
         </td>
-        <td class="editable-cell edit-event-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; vertical-align:top;">
-          ${eventText}
-        </td>
+        <td class="editable-cell edit-event-cell" contenteditable="true" style="padding:8px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>
       </tr>
     `;
   });
@@ -217,7 +214,7 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (rowspan=2 구조에 맞춰 저장)
+// 💾 3. 월간 편집 저장 처리 함수
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
