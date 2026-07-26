@@ -41,10 +41,10 @@
   /* 📌 6. 일(Day) 보기 전용 레이아웃 설정 */
   --day-title-font-size: 1.5rem;  /* 일간 보기 제목 글자 크기 */
   --day-content-font-size: 1.3rem;/* 일간 보기 내용 글자 크기 */
-
-  /* 📌 7. 연(Year) 보기 전용 레이아웃 설정 */
-  --year-month-title-size: 1.1rem;/* 연간 보기 월 카드 제목 크기 */
-  --year-event-font-size: 0.95rem;/* 연간 보기 일정 내용 글자 크기 */
+  
+  /* 💡 [추가] 일간 뷰어 '일정' 칸 최소 세로 높이 설정 */
+  /* 👉 원하는 높이로 숫자(px)를 조절하세요. (예: 60px, 80px, 100px 등) */
+  --day-event-min-height: 70px;  
 }
 
 /* ==========================================================================
@@ -162,6 +162,21 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
    ========================================================================== */
 /* 일 보기 카드 레이아웃 */
 .day-viewer-container { display: flex; flex-direction: column; gap: 14px; }
+
+/* 💡 [추가] 일간 뷰어 '일정' 카드 스타일 (CSS 변수 --day-event-min-height 적용) */
+.day-event-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #2563eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  min-height: var(--day-event-min-height); /* ⭐ 높이 컨트롤 타워 변수 연동 */
+}
+
 .daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
 .period-card-list { display: flex; flex-direction: column; gap: 10px; }
 .period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 12px 14px; }
