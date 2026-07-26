@@ -197,7 +197,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ==========================================================================
-// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진 - 1~6과목 / 1~6메모 / 1~6준비물 순서)]
+// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
 // ==========================================================================
 
 // 1. CSV 파일 생성 및 다운로드 (한글 깨짐 방지 BOM 포함)
@@ -313,7 +313,7 @@ window.downloadCSV = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 💡 헤더 순서 변경 (메모가 준비물보다 앞서도록 배치)
+  // 💡 헤더 순서 (메모가 준비물보다 앞서도록 배치)
   let csv = "년도,월,일,요일,일정," +
             "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
             "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모," +
@@ -348,12 +348,12 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (변경된 과목 -> 메모 -> 준비물 열 순서에 맞춰 파싱)
+// 📤 통합 CSV 업로드 및 동기화 (파일에 있는 날짜만 덮어쓰기 + 모바일 utf-8 대응)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
   if(!file) return;
-  if(!confirm("⚠️ [경고] 업로드하는 파일 내용으로 기존 클라우드 데이터를 덮어씁니다.\n진행하시겠습니까?")) {
+  if(!confirm("⚠️ [안내] 업로드하는 파일에 포함된 '해당 날짜'의 데이터만 수정됩니다.\n(파일에 없는 다른 달의 데이터는 그대로 안전하게 유지됩니다.)\n진행하시겠습니까?")) {
     input.value = ''; return;
   }
 
@@ -362,11 +362,6 @@ window.uploadCSV = async function(input) {
     const text = e.target.result;
     const rows = window.parseCSV(text);
     const operations = [];
-
-    const eSnap = await window.db.collection('events').get();
-    eSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
-    const sSnap = await window.db.collection('schedules').get();
-    sSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
 
     // CSV 구조 인덱스 가이드:
     // 0~4: 년도, 월, 일, 요일, 일정
@@ -384,7 +379,7 @@ window.uploadCSV = async function(input) {
         const eventText = (row[4] || '').trim();
         const periodsData = {};
         
-        // 💡 교시(p) 1 ~ 6 파싱 (메모와 준비물 인덱스 위치 변경)
+        // 💡 교시(p) 1 ~ 6 파싱 (메모와 준비물 인덱스 위치)
         for (let p = 1; p <= 6; p++) {
           periodsData[p] = {
             subject: (row[4 + p] || '').trim(),       // 과목: 인덱스 5, 6, 7, 8, 9, 10
@@ -393,10 +388,9 @@ window.uploadCSV = async function(input) {
           };
         }
 
-        if (eventText) {
-          const eRef = window.db.collection('events').doc(dateStr);
-          operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
-        }
+        // 해당 날짜만 덮어쓰기
+        const eRef = window.db.collection('events').doc(dateStr);
+        operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         
         const sRef = window.db.collection('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
@@ -404,11 +398,11 @@ window.uploadCSV = async function(input) {
     }
 
     await window.executeBatchOperations(operations);
-    alert("✅ 일정 및 시간표 통합 데이터 동기화가 완료되었습니다!");
+    alert("✅ 해당 파일의 데이터가 다른 달에 영향을 주지 않고 성공적으로 업데이트되었습니다!");
     window.render();
   };
   
-  // 💡 모바일 환경 호환을 위해 utf-8로 읽도록 수정된 부분
+  // 💡 모바일 환경(UTF-8) 호환
   reader.readAsText(file, 'utf-8');
   input.value = '';
 };
