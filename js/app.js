@@ -24,9 +24,6 @@ window.formatDate = function(date) {
 /**
  * 🖥️ 현재 scope와 mode에 따라 메인 화면을 새로 그리는 핵심 랜더링 함수
  */
-/**
- * 🖥️ 현재 scope와 mode에 따라 메인 화면을 새로 그리는 핵심 랜더링 함수
- */
 window.render = function() {
   const container = document.getElementById("main-view");
   if (!container) return;
@@ -258,7 +255,6 @@ window.executeBatchOperations = async function(operations) {
 };
 
 // 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트(빈칸 포함, 년/월/일/요일 분할)
-// 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트(빈칸 포함, 년/월/일/요일 분할)
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -313,142 +309,105 @@ window.getTargetDateList = function() {
 };
 
 // ---------------------------------------------------------
-// 📥 [일정(Events)] 전체 날짜 템플릿 다운로드 및 업로드
+// 📥 통합 CSV 백업 다운로드 (일정 + 시간표)
 // ---------------------------------------------------------
-window.downloadEventsCSV = async function() {
-  const snapshot = await window.db.collection('events').get();
+window.downloadCSV = async function() {
+  // 1. 클라우드에서 일정과 시간표 데이터 모두 불러오기
+  const eventSnap = await window.db.collection('events').get();
+  const scheduleSnap = await window.db.collection('schedules').get();
+
   const eventMap = {};
-  snapshot.forEach(doc => {
-    eventMap[doc.id] = doc.data().eventText || '';
-  });
+  eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
 
-  const targetDates = window.getTargetDateList();
-  let csv = "년도,월,일,요일,일정\n";
-  
-  targetDates.forEach(item => {
-    const text = eventMap[item.dateStr] || '';
-    csv += `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(text)}\n`;
-  });
-
-  const titlePrefix = currentScope === 'month' ? `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월` : `${window.currentDate.getFullYear()}학년도`;
-  window.downloadCSVFile(`${titlePrefix}_학사일정템플릿.csv`, csv);
-};
-
-window.uploadEventsCSV = async function(input) {
-  const file = input.files[0];
-  if(!file) return;
-  if(!confirm("⚠️ [경고] 업로드하는 파일 내용이 '원본'이 됩니다!\n기존 일정은 삭제되고 파일 내용으로 100% 교체됩니다.\n진행하시겠습니까?")) {
-    input.value = ''; return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    const text = e.target.result;
-    const rows = window.parseCSV(text);
-    const operations = [];
-
-    const snapshot = await window.db.collection('events').get();
-    snapshot.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
-
-    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 일정(4)
-    for(let i=1; i<rows.length; i++) {
-      const row = rows[i];
-      if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
-        const y = row[0].trim();
-        const m = String(row[1].trim()).padStart(2, '0');
-        const d = String(row[2].trim()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-        const eventText = row[4] ? row[4].trim() : '';
-
-        if(eventText) {
-          const ref = window.db.collection('events').doc(dateStr);
-          operations.push({ type: 'set', ref: ref, data: { eventText: eventText, updatedAt: Date.now() } });
-        }
-      }
-    }
-
-    await window.executeBatchOperations(operations);
-    alert("✅ 파일 기준 일정 동기화가 완료되었습니다!");
-    window.render();
-  };
-  
-  // 💡 엑셀 한글 깨짐 완벽 방지를 위한 euc-kr 강제 지정
-  reader.readAsText(file, 'euc-kr');
-  input.value = '';
-};
-
-// ---------------------------------------------------------
-// 📥 [시간표(Schedules)] 전체 날짜 템플릿 다운로드 및 업로드 (준비물 -> 메모 순서 준수)
-// ---------------------------------------------------------
-window.downloadSchedulesCSV = async function() {
-  const snapshot = await window.db.collection('schedules').get();
   const scheduleMap = {};
-  snapshot.forEach(doc => {
-    scheduleMap[doc.id] = doc.data().periods || {};
-  });
+  scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  const targetDates = window.getTargetDateList();
-  let csv = "년도,월,일,요일,교시,과목,준비물,메모\n";
+  // 2. 통합 CSV 문자열 생성 (1~6교시 분할)
+  let csv = "년도,월,일,요일,일정,1교시,2교시,3교시,4교시,5교시,6교시\n";
+  const targetDates = window.getTargetDateList(); // app.js의 헬퍼 함수 활용
 
   targetDates.forEach(item => {
-    const dayPeriods = scheduleMap[item.dateStr] || {};
-    for(let p=1; p<=6; p++) {
-      const pData = dayPeriods[p] || {};
-      csv += `${item.year},${item.month},${item.day},${item.dayOfWeek},${p},${window.escapeCSV(pData.subject)},${window.escapeCSV(pData.supplies)},${window.escapeCSV(pData.memo)}\n`;
-    }
+    const eventText = eventMap[item.dateStr] || '';
+    const periods = scheduleMap[item.dateStr] || {};
+    const p1 = periods[1]?.subject || '';
+    const p2 = periods[2]?.subject || '';
+    const p3 = periods[3]?.subject || '';
+    const p4 = periods[4]?.subject || '';
+    const p5 = periods[5]?.subject || '';
+    const p6 = periods[6]?.subject || '';
+
+    // 기존 app.js에 있는 escapeCSV 함수를 사용해 안전하게 변환
+    csv += `${item.year},${item.month},${item.day},${item.dayOfWeek},` +
+           `${window.escapeCSV(eventText)},` +
+           `${window.escapeCSV(p1)},${window.escapeCSV(p2)},${window.escapeCSV(p3)},` +
+           `${window.escapeCSV(p4)},${window.escapeCSV(p5)},${window.escapeCSV(p6)}\n`;
   });
 
   const titlePrefix = currentScope === 'month' ? `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월` : `${window.currentDate.getFullYear()}학년도`;
-  window.downloadCSVFile(`${titlePrefix}_시간표템플릿.csv`, csv);
+  window.downloadCSVFile(`${titlePrefix}_통합백업.csv`, csv);
 };
 
-window.uploadSchedulesCSV = async function(input) {
+// ---------------------------------------------------------
+// 📤 통합 CSV 업로드 및 동기화 (일정 + 시간표 동시 처리)
+// ---------------------------------------------------------
+window.uploadCSV = async function(input) {
   const file = input.files[0];
   if(!file) return;
-  if(!confirm("⚠️ [경고] 업로드하는 파일 내용이 '원본'이 됩니다!\n기존 시간표는 삭제되고 파일 내용으로 100% 교체됩니다.\n진행하시겠습니까?")) {
+  if(!confirm("⚠️ [경고] 업로드하는 파일 내용으로 기존 클라우드 데이터를 덮어씁니다.\n진행하시겠습니까?")) {
     input.value = ''; return;
   }
 
   const reader = new FileReader();
   reader.onload = async function(e) {
     const text = e.target.result;
-    const rows = window.parseCSV(text);
+    const rows = window.parseCSV(text); // 기존 app.js의 파서 활용
     const operations = [];
-    const schedulesByDate = {};
 
-    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 교시(4), 과목(5), 준비물(6), 메모(7)
-    for(let i=1; i<rows.length; i++) {
+    // 1. 기존 일정 및 시간표 데이터 일괄 삭제 준비
+    const eSnap = await window.db.collection('events').get();
+    eSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
+    const sSnap = await window.db.collection('schedules').get();
+    sSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
+
+    // 2. 통합 CSV 파싱 및 저장 준비
+    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 일정(4), 1교시(5)~6교시(10)
+    for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if(row.length >= 8 && row[0].trim() && row[1].trim() && row[2].trim()) {
+      if(row.length >= 11 && row[0].trim() && row[1].trim() && row[2].trim()) {
         const y = row[0].trim();
         const m = String(row[1].trim()).padStart(2, '0');
         const d = String(row[2].trim()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
-        const p = row[4].trim();
-        const subject = row[5].trim();
-        const supplies = row[6].trim(); // 준비물
-        const memo = row[7].trim();     // 메모
+        
+        const eventText = (row[4] || '').trim();
+        const periodsData = {
+          1: { subject: (row[5] || '').trim(), memo: '', supplies: '' },
+          2: { subject: (row[6] || '').trim(), memo: '', supplies: '' },
+          3: { subject: (row[7] || '').trim(), memo: '', supplies: '' },
+          4: { subject: (row[8] || '').trim(), memo: '', supplies: '' },
+          5: { subject: (row[9] || '').trim(), memo: '', supplies: '' },
+          6: { subject: (row[10] || '').trim(), memo: '', supplies: '' }
+        };
 
-        if(!schedulesByDate[dateStr]) schedulesByDate[dateStr] = {};
-        if(p) {
-          schedulesByDate[dateStr][p] = { subject, memo, supplies };
+        // 일정이 있는 경우
+        if (eventText) {
+          const eRef = window.db.collection('events').doc(dateStr);
+          operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         }
+        
+        // 시간표 저장
+        const sRef = window.db.collection('schedules').doc(dateStr);
+        operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
       }
     }
 
-    const snapshot = await window.db.collection('schedules').get();
-    snapshot.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
-
-    Object.keys(schedulesByDate).forEach(dateStr => {
-      const ref = window.db.collection('schedules').doc(dateStr);
-      operations.push({ type: 'set', ref: ref, data: { periods: schedulesByDate[dateStr], updatedAt: Date.now() } });
-    });
-
+    // 3. Firestore 배치 처리 실행
     await window.executeBatchOperations(operations);
-    alert("✅ 파일 기준 시간표 동기화가 완료되었습니다!");
+    alert("✅ 일정 및 시간표 통합 데이터 동기화가 완료되었습니다!");
     window.render();
   };
-
+  
+  // 엑셀 한글 깨짐 완벽 방지를 위한 euc-kr 지정
   reader.readAsText(file, 'euc-kr');
   input.value = '';
 };
