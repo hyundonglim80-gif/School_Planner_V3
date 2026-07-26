@@ -97,7 +97,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (CSS 여백 제거 + 요일/월/일 3줄 디자인)
+// ✏️ 2. 월간 에디터 모드 (CSS 여백 제거 + 일/요일 2줄 디자인)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -168,13 +168,12 @@ window.renderMonthEditor = async function(container) {
     }
     const classText = periodList.join(',').trim();
 
-    // 💡 요일(제일 큼) -> 월 -> 일 3단 디자인 적용 및 변수 앞뒤 100% 밀착
+    // 💡 첫 줄 일(강조) -> 둘째 줄 요일 2단 디자인 적용
     html += `<tr data-month-date="${item.dateStr}">` +
       `<td rowspan="2" style="text-align:center; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
-        `<div style="display:flex; flex-direction:column; align-items:center; gap:2px;">` +
-          `<span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${dayOfWeek}</span>` +
-          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1.2;">${m+1}월</span>` +
-          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1.2;">${dayNum}일</span>` +
+        `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
+          `<span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${dayNum}</span>` +
+          `<span style="font-size:1rem; font-weight:600; color:#475569; line-height:1;">${dayOfWeek}</span>` +
         `</div>` +
       `</td>` +
       `<td style="text-align:center; padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>` +
