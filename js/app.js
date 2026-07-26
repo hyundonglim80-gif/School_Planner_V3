@@ -197,7 +197,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ==========================================================================
-// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진 - 5가지 요구사항 반영 완벽본)]
+// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진 - 과목/준비물/메모 분할 버전)]
 // ==========================================================================
 
 // 1. CSV 파일 생성 및 다운로드 (한글 깨짐 방지 BOM 포함)
@@ -278,22 +278,18 @@ window.getTargetDateList = function() {
     // ✅ 년 보기 수정: 해당 연도 3월 1일부터 다음 해 2월 말일까지 (학교 학사 기준 완벽 매칭)
     const startYear = y;
     
-    // 3(월)부터 14(내년 2월)까지 반복
     for (let m = 3; m <= 14; m++) { 
       let targetY = startYear;
       let targetM = m;
       
-      // 13, 14가 들어오면 연도를 +1 하고, 월을 1월, 2월로 변환
       if (m > 12) {
         targetY = startYear + 1;
         targetM = m - 12;
       }
       
-      // 해당 월의 마지막 날짜 구하기
       const lastDate = new Date(targetY, targetM, 0).getDate();
       
       for (let d = 1; d <= lastDate; d++) {
-        // 자바스크립트 Date 객체는 월이 0부터 시작하므로 targetM - 1 처리
         const dateObj = new Date(targetY, targetM - 1, d);
         dates.push({
           dateStr: window.formatDate(dateObj),
@@ -309,7 +305,7 @@ window.getTargetDateList = function() {
 };
 
 // ---------------------------------------------------------
-// 📥 통합 CSV 백업 다운로드 (일정 + 시간표: 과목, 준비물, 메모 포함)
+// 📥 통합 CSV 백업 다운로드 (과목 묶음 -> 준비물 묶음 -> 메모 묶음 순서)
 // ---------------------------------------------------------
 window.downloadCSV = async function() {
   // 1. 클라우드에서 일정과 시간표 데이터 모두 불러오기
@@ -322,14 +318,11 @@ window.downloadCSV = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 2. 통합 CSV 문자열 생성 (1~6교시 각각 과목/준비물/메모 분할)
+  // 2. 통합 CSV 문자열 생성 (요청하신 순서대로 헤더 배치)
   let csv = "년도,월,일,요일,일정," +
-            "1교시 과목,1교시 준비물,1교시 메모," +
-            "2교시 과목,2교시 준비물,2교시 메모," +
-            "3교시 과목,3교시 준비물,3교시 메모," +
-            "4교시 과목,4교시 준비물,4교시 메모," +
-            "5교시 과목,5교시 준비물,5교시 메모," +
-            "6교시 과목,6교시 준비물,6교시 메모\n";
+            "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
+            "1교시 준비물,2교시 준비물,3교시 준비물,4교시 준비물,5교시 준비물,6교시 준비물," +
+            "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모\n";
             
   const targetDates = window.getTargetDateList();
 
@@ -340,13 +333,19 @@ window.downloadCSV = async function() {
     // 기본 날짜 및 일정 추가
     let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
 
-    // 1~6교시 과목, 준비물, 메모 순차적으로 추가
+    // 배열에 각각 나눠서 담기
+    let subjects = [];
+    let supplies = [];
+    let memos = [];
+
     for (let p = 1; p <= 6; p++) {
-      const subject = periods[p]?.subject || '';
-      const supplies = periods[p]?.supplies || '';
-      const memo = periods[p]?.memo || '';
-      rowStr += `,${window.escapeCSV(subject)},${window.escapeCSV(supplies)},${window.escapeCSV(memo)}`;
+      subjects.push(window.escapeCSV(periods[p]?.subject || ''));
+      supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
+      memos.push(window.escapeCSV(periods[p]?.memo || ''));
     }
+
+    // 과목 6개 -> 준비물 6개 -> 메모 6개 순서대로 연결
+    rowStr += `,${subjects.join(',')},${supplies.join(',')},${memos.join(',')}`;
 
     csv += rowStr + "\n";
   });
@@ -356,7 +355,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (일정 + 시간표: 과목, 준비물, 메모 동시 처리)
+// 📤 통합 CSV 업로드 및 동기화 (변경된 엑셀 열 순서에 맞춰 파싱)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -378,11 +377,14 @@ window.uploadCSV = async function(input) {
     sSnap.forEach(doc => operations.push({ type: 'delete', ref: doc.ref }));
 
     // 2. 통합 CSV 파싱 및 저장 준비
-    // CSV 구조: 년도(0), 월(1), 일(2), 요일(3), 일정(4)
-    // 1교시(과목5, 준비물6, 메모7), 2교시(과목8, 준비물9, 메모10) ... 6교시(과목20, 준비물21, 메모22)
+    // CSV 구조 인덱스 가이드:
+    // 0~4: 년도, 월, 일, 요일, 일정
+    // 5~10: 1~6교시 과목
+    // 11~16: 1~6교시 준비물
+    // 17~22: 1~6교시 메모
     for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      // 최소 날짜와 일정이 들어갈 기본 열(5개)이 있는지 확인
+      // 최소 날짜 데이터가 들어갈 기본 열이 있는지 확인
       if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
         const y = row[0].trim();
         const m = String(row[1].trim()).padStart(2, '0');
@@ -392,15 +394,14 @@ window.uploadCSV = async function(input) {
         const eventText = (row[4] || '').trim();
         const periodsData = {};
         
-        // 반복문을 통해 1~6교시의 과목, 준비물, 메모 칸 매핑
-        let colIdx = 5;
+        // 반복문을 통해 인덱스를 맞추어 매핑
+        // 교시 p: 1 ~ 6
         for (let p = 1; p <= 6; p++) {
           periodsData[p] = {
-            subject: (row[colIdx] || '').trim(),
-            supplies: (row[colIdx+1] || '').trim(),
-            memo: (row[colIdx+2] || '').trim()
+            subject: (row[4 + p] || '').trim(),       // 과목: 인덱스 5, 6, 7, 8, 9, 10
+            supplies: (row[10 + p] || '').trim(),     // 준비물: 인덱스 11, 12, 13, 14, 15, 16
+            memo: (row[16 + p] || '').trim()          // 메모: 인덱스 17, 18, 19, 20, 21, 22
           };
-          colIdx += 3; // 다음 교시로 넘어가기 위해 인덱스 3 추가
         }
 
         // 일정이 있는 경우
