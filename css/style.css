@@ -60,8 +60,9 @@ body {
 }
 
 /* 📝 여러 줄 입력 시 엔터(Enter) 줄바꿈 형식을 화면에 그대로 유지 */
-td, .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
+.editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
   white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* ==========================================================================
