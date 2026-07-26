@@ -408,6 +408,7 @@ window.uploadCSV = async function(input) {
     window.render();
   };
   
-  reader.readAsText(file, 'euc-kr');
+  // 💡 모바일 환경 호환을 위해 utf-8로 읽도록 수정된 부분
+  reader.readAsText(file, 'utf-8');
   input.value = '';
 };
