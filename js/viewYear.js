@@ -6,7 +6,6 @@
 window.renderYearViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중입니다...</p>`;
 
-  // 💡 DB 로드 지연 시 방어 코드
   if (!window.db) {
     console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
     container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
@@ -30,11 +29,9 @@ window.renderYearViewer = async function(container) {
 
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 💡 현재 선택된 학년도 (window.currentDate 기준)
   const targetYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
   const nextYear = targetYear + 1;
 
-  // 💡 학년도 기준 월 (3월 ~ 다음 해 2월) 매칭 패턴을 YYYY-MM- 형식으로 명확히 지정하여 다른 연도 일정 혼입 방지
   const months = [
     { label: "3월", match: `${targetYear}-03-` },
     { label: "4월", match: `${targetYear}-04-` },
@@ -55,13 +52,11 @@ window.renderYearViewer = async function(container) {
   const realToday = new Date();
   const realTodayMonthMatch = `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-`;
   
-  // 💡 안전한 날짜 포맷 변환
   const realTodayStr = typeof window.formatDate === 'function' 
       ? window.formatDate(realToday) 
       : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
 
   months.forEach(mObj => {
-    // 💡 선택된 연도와 월(YYYY-MM-)에 정확히 일치하는 일정만 필터링!
     const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
 
     let eventListHtml = '';
@@ -111,7 +106,6 @@ window.renderYearViewer = async function(container) {
 window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
 
-  // 💡 DB 로드 지연 시 방어 코드
   if (!window.db) {
     console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
     container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
@@ -133,7 +127,6 @@ window.renderYearEditor = async function(container) {
     console.error("연간 데이터 로딩 에러:", error);
   }
 
-  // 💡 선택된 학년도(3월 1일 ~ 다음 해 2월 29일) 범위의 일정만 필터링
   const startDateStr = `${currentYear}-03-01`;
   const endDateStr = `${currentYear + 1}-02-29`;
   const yearEvents = allEvents.filter(e => e.dateStr >= startDateStr && e.dateStr <= endDateStr);
