@@ -67,7 +67,7 @@ window.renderWeekViewer = async function(container) {
           let content = '';
           if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
           if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
-          return `<td style="vertical-align: top; text-align: left; padding: 6px 8px;">${content}</td>`;
+          return `<td style="vertical-align: top; text-align: left; padding: 6px 8px; height: var(--week-cell-height);">${content}</td>`;
         }).join('')}
       </tr>
     `;
@@ -118,7 +118,7 @@ window.renderWeekEditor = async function(container) {
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: auto; text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
+          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
         }).join('')}
       </tr>
     `;
