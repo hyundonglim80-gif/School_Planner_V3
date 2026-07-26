@@ -47,8 +47,11 @@ window.renderWeekViewer = async function(container) {
 
     html += `
       <tr>
-        <td rowspan="3" class="${todayClass}" style="width: 60px; font-weight: bold; vertical-align: middle; text-align: center;">
-          ${d.day}<br><span style="font-size:var(--week-date-font-size); color:#64748b;">${d.dateDisplay}</span>
+        <td rowspan="3" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+            <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
+            <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+          </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
         <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
@@ -60,7 +63,6 @@ window.renderWeekViewer = async function(container) {
       <tr>
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
-          // 💡 내용이 있을 때만 HTML을 생성하고, 태그 안쪽의 불필요한 줄바꿈/공백을 싹 제거합니다.
           let content = '';
           if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
           if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
@@ -98,8 +100,11 @@ window.renderWeekEditor = async function(container) {
 
     html += `
       <tr data-week-date="${d.dateStr}">
-        <td rowspan="3" class="${todayClass}" style="width: 60px; font-weight: bold; vertical-align: middle; text-align: center;">
-          ${d.day}<br><span style="font-size:var(--week-date-font-size); color:#64748b;">${d.dateDisplay}</span>
+        <td rowspan="3" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+            <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
+            <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+          </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
         <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
@@ -112,7 +117,6 @@ window.renderWeekEditor = async function(container) {
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-          /* 💡 height를 auto로 변경하여 타이핑/줄바꿈 시 가변적으로 늘어납니다 */
           return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: auto; text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
         }).join('')}
       </tr>
@@ -149,7 +153,6 @@ window.saveWeekDataFromEditor = async function() {
         let subject = '';
         let memo = text;
 
-        // [국어] 내용 형태 입력 시 자동 과목 분리 로직
         const match = text.match(/^\[(.*?)\]\s*(.*)$/);
         if (match) {
           subject = match[1];
