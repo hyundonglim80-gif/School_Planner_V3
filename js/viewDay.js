@@ -30,27 +30,26 @@ window.renderDayViewer = async function(container) {
   `;
 
   for (let p = 1; p <= 6; p++) {
-    // 💡 에러 원인 수정: dayPeriods -> periods
     const pData = periods[p] || {};
     const subject = pData.subject || '';
     const supplies = pData.supplies || '';
     const memo = pData.memo || '';
 
-    // 💡 1. 내용이 있는지 확인하여 있을 때만 HTML 문자열을 만듭니다. (.trim()으로 공백 제거 후 확인)
-    const suppliesHtml = supplies.trim() !== '' 
-        ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` 
-        : '';
-        
+    // 💡 1. 메모와 준비물 HTML 조립 (메모 먼저)
     const memoHtml = memo.trim() !== '' 
         ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` 
         : '';
+        
+    const suppliesHtml = supplies.trim() !== '' 
+        ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` 
+        : '';
 
-    // 💡 2. 조립된 HTML 변수만 렌더링에 포함시킵니다.
+    // 💡 2. 뷰어 카드 내 출력 순서 변경 (메모 -> 준비물 순서)
     html += `
       <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
         <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
-        ${suppliesHtml}
         ${memoHtml}
+        ${suppliesHtml}
       </div>
     `;
   }
@@ -70,6 +69,7 @@ window.renderDayEditor = async function(container) {
   const eventText = dayData.eventText || '';
   const periods = dayData.periods || {};
 
+  // 💡 테이블 헤더 순서 변경 (메모 -> 준비물)
   let html = `
     <div class="day-viewer-container">
       <div class="daily-event-banner" style="background:#ffffff; border: 1px solid var(--border-color); border-left: 5px solid #2563eb; padding-bottom: 10px;">
@@ -83,8 +83,8 @@ window.renderDayEditor = async function(container) {
             <tr>
               <th style="width: 60px;">교시</th>
               <th style="width: 120px;">수업</th>
-              <th style="width: 25%;">🎒 준비물</th>
               <th>📝 메모</th>
+              <th style="width: 25%;">🎒 준비물</th>
             </tr>
           </thead>
           <tbody>
@@ -92,12 +92,13 @@ window.renderDayEditor = async function(container) {
 
   for (let p = 1; p <= 6; p++) {
     const pObj = periods[p] || {};
+    // 💡 td 셀 출력 순서 변경 (메모 -> 준비물)
     html += `
             <tr data-period="${p}">
               <td class="period-cell">${p}</td>
               <td class="editable-cell cell-subject" contenteditable="true">${pObj.subject || ''}</td>
-              <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;">${pObj.supplies || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;">${pObj.memo || ''}</td>
+              <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;">${pObj.supplies || ''}</td>
             </tr>
     `;
   }
@@ -125,14 +126,14 @@ window.saveDayDataFromEditor = async function() {
     const p = row.getAttribute("data-period");
     
     const subjectEl = row.querySelector(".cell-subject");
-    const suppliesEl = row.querySelector(".cell-supplies");
     const memoEl = row.querySelector(".cell-memo");
+    const suppliesEl = row.querySelector(".cell-supplies");
 
     const subject = subjectEl ? (subjectEl.innerText || subjectEl.textContent || '').trim() : '';
-    const supplies = suppliesEl ? (suppliesEl.innerText || suppliesEl.textContent || '').trim() : '';
     const memo = memoEl ? (memoEl.innerText || memoEl.textContent || '').trim() : '';
+    const supplies = suppliesEl ? (suppliesEl.innerText || suppliesEl.textContent || '').trim() : '';
 
-    periodsData[p] = { subject, supplies, memo };
+    periodsData[p] = { subject, memo, supplies }; // 데이터 객체에도 순서 맞춤
   });
 
   await window.dbAPI.saveSchedule(dateStr, periodsData);
