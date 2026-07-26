@@ -101,7 +101,7 @@ window.renderYearViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 연간 에디터 모드 (행 추가/삭제 지원 연간 일정 관리 표 + 백업 패널)
+// ✏️ 2. 연간 에디터 모드 (월간 수정 레이아웃 + 통합 CSV + 월/일 표기)
 // ==========================================================================
 window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
@@ -113,131 +113,120 @@ window.renderYearEditor = async function(container) {
   }
 
   const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  let allEvents = [];
-  try {
-    const snapshot = await window.db.collection('events').get();
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.eventText && data.eventText.trim() !== '') {
-        allEvents.push({ dateStr: doc.id, text: data.eventText });
-      }
-    });
-  } catch (error) {
-    console.error("연간 데이터 로딩 에러:", error);
+  // 학년도 전체(3월 ~ 이듬해 2월) 날짜 생성 및 데이터 로딩
+  const dayPromises = [];
+
+  // 3월 ~ 12월 (현재 연도)
+  for (let month = 2; month <= 11; month++) {
+    const year = currentYear;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= lastDay; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ year, month: month + 1, day: d, dateStr, data })));
+    }
+  }
+  // 1월 ~ 2월 (다음 연도)
+  for (let month = 0; month <= 1; month++) {
+    const year = currentYear + 1;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= lastDay; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ year, month: month + 1, day: d, dateStr, data })));
+    }
   }
 
-  const startDateStr = `${currentYear}-03-01`;
-  const endDateStr = `${currentYear + 1}-02-29`;
-  const yearEvents = allEvents.filter(e => e.dateStr >= startDateStr && e.dateStr <= endDateStr);
-
-  yearEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  const yearData = await Promise.all(dayPromises);
 
   let html = `
     <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <span style="font-weight:bold; color:#0369a1;">[일정 관리]</span>
-        <button onclick="downloadEventsCSV()" style="padding:6px 12px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-events-file').click()" style="padding:6px 12px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-events-file" accept=".csv" style="display:none;" onchange="uploadEventsCSV(this)">
-
-        <span style="font-weight:bold; color:#15803d; margin-left:16px;">[시간표 관리]</span>
-        <button onclick="downloadSchedulesCSV()" style="padding:6px 12px; background:#10b981; color:#fff; border:none; border-radius:6px; cursor:pointer;">📥 다운로드</button>
-        <button onclick="document.getElementById('upload-schedules-file').click()" style="padding:6px 12px; background:#f59e0b; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 업로드(동기화)</button>
-        <input type="file" id="upload-schedules-file" accept=".csv" style="display:none;" onchange="uploadSchedulesCSV(this)">
+        <button onclick="downloadCSV()" style="padding:6px 14px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📥 백업 다운로드 (CSV)</button>
+        <button onclick="document.getElementById('upload-csv-file').click()" style="padding:6px 14px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📤 업로드/동기화 (CSV)</button>
+        <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
       </div>
       <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
         * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
       </p>
     </div>
 
-    <div class="table-container" style="background:#fff; padding:16px; border-radius:8px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h3 style="color:#1e293b; font-size:var(--font-header-title);">📋 ${currentYear}학년도 연간 일정 관리 시트</h3>
-        <button onclick="addYearEventRow()" style="padding:8px 14px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">➕ 일정 행 추가</button>
-      </div>
-      <table style="width:100%; border-collapse:collapse; text-align:left;">
+    <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
+      <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${currentYear}학년도 연간 일정/수업 편집 시트</h3>
+      <table style="width:100%; border-collapse:collapse; text-align:center;">
         <thead>
-          <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:180px; padding:10px; border:1px solid #cbd5e1;">날짜</th>
-            <th style="padding:10px; border:1px solid #cbd5e1;">📌 행사/일정 내용</th>
-            <th style="width:80px; padding:10px; border:1px solid #cbd5e1;">삭제</th>
+          <tr style="background:#f1f5f9;">
+            <th style="width:110px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
+            <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
+            <th colspan="6" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
           </tr>
         </thead>
-        <tbody id="year-editor-tbody">
+        <tbody>
   `;
 
-  if (yearEvents.length === 0) {
-    const defaultDate = `${currentYear}-03-03`;
-    html += `
-      <tr class="year-event-row">
-        <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
-          <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
-        </td>
-        <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
-        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
-          <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
-        </td>
-      </tr>
-    `;
-  } else {
-    yearEvents.forEach(e => {
-      html += `
-        <tr class="year-event-row">
-          <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
-            <input type="date" class="year-date-input" value="${e.dateStr}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
-          </td>
-          <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;">${e.text}</td>
-          <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
-            <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
-          </td>
-        </tr>
-      `;
-    });
-  }
+  yearData.forEach(item => {
+    const dateObj = new Date(item.year, item.month - 1, item.day);
+    const dayOfWeekNum = dateObj.getDay();
+    const dayOfWeek = dayNames[dayOfWeekNum];
+
+    if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
+
+    const eventText = (item.data.eventText || '').trim();
+    const periods = item.data.periods || {};
+
+    // 💡 연간 수정 날짜 표기: 월과 일을 함께 표시 (예: 3월 3일 / 화)
+    html += `<tr data-year-date="${item.dateStr}">` +
+      `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
+        `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
+          `<span style="font-size:1.2rem; font-weight:900; color:#1e40af; line-height:1.1;">${item.month}월 ${item.day}일</span>` +
+          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${dayOfWeek}</span>` +
+        `</div>` +
+      `</td>` +
+      `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
+
+      for (let p = 1; p <= 6; p++) {
+         const subjText = periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X';
+         html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
+      }
+
+    html += `</tr>` +
+    `<tr data-year-sub="${item.dateStr}">` +
+      `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
+      `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>` +
+    `</tr>`;
+  });
 
   html += `</tbody></table></div>`;
   container.innerHTML = html;
-};
-
-// ➕ 동적 연간 일정 행 추가 함수
-window.addYearEventRow = function() {
-  const tbody = document.getElementById('year-editor-tbody');
-  if (!tbody) return;
-  
-  const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
-  const defaultDate = `${currentYear}-03-03`;
-  
-  const tr = document.createElement('tr');
-  tr.className = 'year-event-row';
-  tr.innerHTML = `
-    <td style="padding:8px; border:1px solid #cbd5e1; text-align:center;">
-      <input type="date" class="year-date-input" value="${defaultDate}" style="padding:6px; font-size:1rem; border:1px solid #cbd5e1; border-radius:4px;">
-    </td>
-    <td class="editable-cell year-event-cell" contenteditable="true" style="padding:8px; border:1px solid #cbd5e1; color:#0369a1; background:#f0f9ff; white-space:pre-wrap;"></td>
-    <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">
-      <button onclick="this.closest('tr').remove()" style="background:#ef4444; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;">🗑️</button>
-    </td>
-  `;
-  tbody.appendChild(tr);
 };
 
 // ==========================================================================
 // 💾 3. 연간 편집 저장 처리 함수
 // ==========================================================================
 window.saveYearDataFromEditor = async function() {
-  const rows = document.querySelectorAll("tr.year-event-row");
+  const rows = document.querySelectorAll("tr[data-year-date]");
   for (const row of rows) {
-    const dateInput = row.querySelector(".year-date-input");
-    const eventCell = row.querySelector(".year-event-cell");
+    const dateStr = row.getAttribute("data-year-date");
     
-    if (dateInput) {
-      const dateStr = dateInput.value;
-      const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-      if (dateStr) {
-        await window.dbAPI.saveEvent(dateStr, eventText);
-      }
-    }
+    const classCells = row.querySelectorAll(".edit-class-cell");
+    const periodsData = {};
+    
+    classCells.forEach(cell => {
+       const p = cell.getAttribute("data-p");
+       const subjRaw = (cell.innerText || cell.textContent || "").trim();
+       periodsData[p] = {
+          subject: (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw,
+          supplies: '',
+          memo: ''
+       };
+    });
+
+    const nextRow = row.nextElementSibling;
+    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
+    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
+    
+    await window.dbAPI.saveEvent(dateStr, eventText);
+    await window.dbAPI.saveSchedule(dateStr, periodsData);
   }
 };
