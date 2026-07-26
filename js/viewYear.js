@@ -175,7 +175,7 @@ window.renderYearEditor = async function(container) {
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 💡 연간 수정 날짜 표기: 월과 일을 함께 표시 (예: 3월 3일 / 화)
+    // 연간 수정 날짜 표기: 월과 일을 함께 표시 (예: 3월 3일 / 화)
     html += `<tr data-year-date="${item.dateStr}">` +
       `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
@@ -185,8 +185,9 @@ window.renderYearEditor = async function(container) {
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
 
+      // 💡 'X' 대신 빈 문자열('') 할당
       for (let p = 1; p <= 6; p++) {
-         const subjText = periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X';
+         const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
       }
 
@@ -212,6 +213,7 @@ window.saveYearDataFromEditor = async function() {
     const classCells = row.querySelectorAll(".edit-class-cell");
     const periodsData = {};
     
+    // 💡 저장 시에도 빈 문자열로 저장
     classCells.forEach(cell => {
        const p = cell.getAttribute("data-p");
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
