@@ -112,7 +112,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (불필요한 공백 제거 및 자동 높이 조절)
+// ✏️ 2. 월간 에디터 모드 (rowspan=2 완벽 2단 테이블 구조 - 여백 0% 자동 높이)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
@@ -136,7 +136,7 @@ window.renderMonthEditor = async function(container) {
   const monthData = await Promise.all(dayPromises);
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 💡 데이터 백업 및 대량 등록 (CSV) 패널 추가
+  // 💡 데이터 백업 및 대량 등록 (CSV) 패널
   let html = `
     <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
@@ -161,8 +161,9 @@ window.renderMonthEditor = async function(container) {
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead>
           <tr style="background:#f1f5f9; text-align:center;">
-            <th style="width:120px; padding:10px; border:1px solid #cbd5e1;">날짜<br>(요일)</th>
-            <th style="padding:10px; border:1px solid #cbd5e1;">📌 내용 (위칸: 1~6교시 수업 / 아래칸: 주요 일정)</th>
+            <th style="width:110px; padding:8px; border:1px solid #cbd5e1;">날짜(요일)</th>
+            <th style="width:70px; padding:8px; border:1px solid #cbd5e1;">구분</th>
+            <th style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
           </tr>
         </thead>
         <tbody>
@@ -177,26 +178,35 @@ window.renderMonthEditor = async function(container) {
 
     if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
 
-    // 💡 .trim()을 통해 보이지 않는 줄바꿈(엔터) 공백을 싹 제거합니다.
+    // 💡 저장된 텍스트의 앞뒤 빈 엔터/공백을 완벽히 정리
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
     let periodList = [];
     for(let p=1; p<=6; p++) {
-      periodList.push(periods[p] && periods[p].subject ? periods[p].subject : 'X');
+      periodList.push(periods[p] && periods[p].subject ? periods[p].subject.trim() : 'X');
     }
-    const classText = periodList.join(',').trim();
+    const classText = periodList.join(',');
 
-    // 💡 기존 CSS의 방해를 피하기 위해 클래스 이름을 edit-class-box 와 edit-event-box 로 새롭게 바꿈!
-    // 💡 안쪽 여백(padding)을 극단적으로 줄이고, 블록을 쌓아 빈칸 낭비를 원천 차단
+    // 💡 날짜 하나당 2개의 독립된 tr을 쓰고 날짜 td는 rowspan="2" 처리!
     html += `
       <tr data-month-date="${item.dateStr}">
-        <td style="text-align:center; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.1rem; vertical-align:top;">
-          ${m+1}/${dayNum} (${dayOfWeek})
+        <td rowspan="2" style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; font-size:1.05rem; vertical-align:middle; width:110px;">
+          ${m+1}/${dayNum}<br>(${dayOfWeek})
         </td>
-        <td style="padding:0; border:1px solid #cbd5e1; vertical-align:top; background:#ffffff;">
-          <div class="edit-class-box" contenteditable="true" style="display:block; padding:6px 8px; border-bottom:1px dashed #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; outline:none; min-height:1.5em; line-height:1.4; word-break:break-all;" title="예: 국어,수학,X,과학,음악,X">${classText}</div>
-          <div class="edit-event-box" contenteditable="true" style="display:block; padding:6px 8px; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; outline:none; min-height:1.5em; line-height:1.4; word-break:break-all;">${eventText}</div>
+        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:70px;">
+          수업
+        </td>
+        <td class="editable-cell edit-class-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#047857; background:#ecfdf5; vertical-align:top;" title="예: 국어,수학,X,과학,음악,X">
+          ${classText}
+        </td>
+      </tr>
+      <tr data-month-sub="${item.dateStr}">
+        <td style="text-align:center; padding:6px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.95rem; vertical-align:middle; width:70px;">
+          일정
+        </td>
+        <td class="editable-cell edit-event-cell" contenteditable="true" style="padding:6px 10px; border:1px solid #cbd5e1; font-size:1.05rem; color:#0369a1; background:#f0f9ff; white-space:pre-wrap; vertical-align:top;">
+          ${eventText}
         </td>
       </tr>
     `;
@@ -207,15 +217,17 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (클래스 이름 변경 반영)
+// 💾 3. 월간 편집 저장 처리 함수 (rowspan=2 구조에 맞춰 저장)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
-    // 💡 변경된 새 클래스 이름으로 요소를 찾음
-    const classCell = row.querySelector(".edit-class-box");
-    const eventCell = row.querySelector(".edit-event-box");
+    const classCell = row.querySelector(".edit-class-cell");
+    
+    // 다음 행(sub row)에서 일정 셀 추출
+    const nextRow = row.nextElementSibling;
+    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
     
     // 1) 일정(events) 저장
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
@@ -229,7 +241,6 @@ window.saveMonthDataFromEditor = async function() {
       const periodsData = {};
       for (let p = 1; p <= 6; p++) {
         const subj = subjects[p - 1] || 'X';
-        // 'X'가 아닌 실제 과목명이 들어왔을 때 저장
         periodsData[p] = {
           subject: (subj.toUpperCase() === 'X' || subj === '') ? '' : subj,
           supplies: '',
