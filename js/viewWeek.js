@@ -129,17 +129,22 @@ window.renderWeekEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수
+// 💾 3. 주간 일괄 저장 처리 함수 (💡 휴일/행사 수업 자동 삭제 로직 추가)
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
+    let eventText = '';
+
     // 1) 날짜별 일정 저장
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
       const eventCell = eventRow.querySelector('.week-event-cell');
-      const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
+      eventText = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
       await window.dbAPI.saveEvent(d.dateStr, eventText);
     }
+
+    // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
+    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
     // 2) 날짜별 교시 수업/메모 저장
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
@@ -158,6 +163,11 @@ window.saveWeekDataFromEditor = async function() {
         if (match) {
           subject = match[1];
           memo = match[2];
+        }
+
+        // 🎯 휴일이나 행사일이면 수업 과목을 비움
+        if (isSkipDay) {
+          subject = '';
         }
 
         periodsData[p] = { subject, memo, supplies: '' };
