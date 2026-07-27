@@ -1,5 +1,17 @@
 // js/viewWeek.js
 
+// 💡 [전역 헬퍼] 특정 날짜(YYYY-MM-DD)의 '일 보기'로 즉시 이동하는 공통 함수
+if (!window.goToDay) {
+  window.goToDay = function(dateStr) {
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      window.setScope('day');
+    }
+  };
+}
+
 /**
  * 💡 현재 선택된 날짜 기준으로 이번 주 [월, 화, 수, 목, 금] 날짜 배열 자동 생성
  */
@@ -12,7 +24,6 @@ window.getWeekDates = function() {
   const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
   tempDate.setDate(diffToMon); 
 
-  // 💡 [신규] 주말 표시 여부에 따라 배열 길이를 7일(월~일) 또는 5일(월~금)로 조정
   const daysCount = window.showWeekend ? 7 : 5;
   const dayNames = ["월", "화", "수", "목", "금", "토", "일"];
   
@@ -22,7 +33,7 @@ window.getWeekDates = function() {
       dateStr: window.formatDate(tempDate),
       dateDisplay: `${tempDate.getDate()}일`
     });
-    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
+    tempDate.setDate(tempDate.getDate() + 1);
   }
   return dates;
 };
@@ -39,20 +50,20 @@ window.renderWeekViewer = async function(container) {
         <tbody>
   `;
 
-  const realTodayStr = window.formatDate(new Date()); // 오늘 날짜 감지
+  const realTodayStr = window.formatDate(new Date());
 
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     const eventText = dayData.eventText || '-';
     const periods = dayData.periods || {};
 
-    // 오늘 날짜 셀 테두리 및 배경 강조 처리
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
+    // 🎯 요일/날짜 셀 클릭 시 해당 날짜의 일 보기로 이동
     html += `
       <tr>
-        <td rowspan="3" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
+        <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
             <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
@@ -103,9 +114,10 @@ window.renderWeekEditor = async function(container) {
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
+    // 🎯 에디터 모드에서도 좌측 요일/날짜 셀 클릭 시 일 보기로 이동
     html += `
       <tr data-week-date="${d.dateStr}">
-        <td rowspan="3" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
+        <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
             <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
@@ -139,7 +151,6 @@ window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
     let eventText = '';
 
-    // 1) 날짜별 일정 저장
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
       const eventCell = eventRow.querySelector('.week-event-cell');
@@ -147,10 +158,8 @@ window.saveWeekDataFromEditor = async function() {
       await window.dbAPI.saveEvent(d.dateStr, eventText);
     }
 
-    // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
     const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
-    // 2) 날짜별 교시 수업/메모 저장
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     if (scheduleRow) {
       const periodsData = {};
@@ -169,7 +178,6 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
-        // 🎯 휴일이나 행사일이면 수업 과목을 비움
         if (isSkipDay) {
           subject = '';
         }
