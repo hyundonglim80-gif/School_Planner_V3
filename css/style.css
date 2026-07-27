@@ -347,3 +347,56 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   background: #f1f5f9;
   color: var(--primary-color);
 }
+
+/* ==========================================================================
+   🗓️ [기준시간표 모달 스타일]
+   ========================================================================== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 3000;
+  backdrop-filter: blur(2px);
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-content {
+  background: #fff; border-radius: 12px; width: 95%; max-width: 600px;
+  max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--border-color);
+  background: #f8fafc; border-radius: 12px 12px 0 0;
+}
+.modal-header h2 { font-size: 1.4rem; color: #1e293b; margin: 0; }
+.modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; transition: 0.2s; }
+.modal-close:hover { color: #ef4444; }
+.modal-body { padding: 20px; }
+.timetable-section { margin-bottom: 10px; }
+.timetable-section h3 { font-size: 1.2rem; color: #0f172a; margin-bottom: 10px; font-weight: bold; }
+.timetable-input-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 16px; }
+.timetable-input-table th, .timetable-input-table td {
+  border: 1px solid var(--border-color); padding: 4px; text-align: center;
+}
+.timetable-input-table th { background: #f1f5f9; font-weight: bold; color: #334155; padding: 8px; }
+.timetable-input-table input {
+  width: 100%; border: none; background: transparent; text-align: center; 
+  font-size: 1.1rem; outline: none; padding: 8px 4px; color: #1e40af; font-weight: 600;
+}
+.timetable-input-table input:focus { background: var(--edit-focus-bg); }
+#tt-semester-select, #apply-semester {
+  padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1.1rem; outline: none;
+}
+.btn-save-tt, .btn-apply-tt {
+  color: #fff; border: none; padding: 10px 16px;
+  border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1rem; width: 100%; transition: 0.2s;
+}
+.btn-save-tt { background: #1a73e8; }
+.btn-save-tt:hover { background: #1557b0; }
+.btn-apply-tt { background: #16a34a; }
+.btn-apply-tt:hover { background: #15803d; }
+.apply-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.apply-group input[type="date"] {
+  padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; flex: 1;
+}
+.apply-warning { font-size: 0.95rem; color: #ef4444; margin: 0; font-weight: 600; }
