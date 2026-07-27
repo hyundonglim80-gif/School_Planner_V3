@@ -109,6 +109,25 @@ window.handleEditSaveClick = function() {
 };
 
 /**
+ * 🔘 [신규] 드롭다운 메뉴 토글 및 외부 클릭 시 닫기
+ */
+window.toggleMoreMenu = function() {
+  const dropdown = document.getElementById('more-dropdown');
+  if (dropdown) dropdown.classList.toggle('hidden');
+};
+
+window.addEventListener('click', function(e) {
+  const btn = document.getElementById('btn-more-menu');
+  const dropdown = document.getElementById('more-dropdown');
+  if (btn && dropdown) {
+    // 버튼이나 드롭다운 내부를 클릭한 게 아니라면 드롭다운을 닫음
+    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  }
+});
+
+/**
  * 🔘 상단 버튼 활성화 상태 및 메모 화면 시 [뷰어/수정] 버튼 숨김 제어
  */
 function updateButtonUI() {
@@ -125,12 +144,10 @@ function updateButtonUI() {
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
 
-  // 💡 메모(memo) 화면일 때는 [뷰어/수정] 버튼 그룹 자체를 숨깁니다.
   if (modeGroup) {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
-  // 💡 메모 화면에서는 <이전 / 다음> 버튼 숨기기
   const navBtns = document.querySelectorAll('.nav-btn');
   navBtns.forEach(btn => {
     btn.style.display = (currentScope === 'memo') ? 'none' : '';
@@ -139,7 +156,6 @@ function updateButtonUI() {
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
-    // 💡 핵심 로직: 현재 모드에 따라 2번째 버튼의 텍스트와 디자인을 변경합니다!
     if (currentMode === 'viewer') {
       editorBtn.innerHTML = '✏️ 수정';
       editorBtn.className = 'btn-mode';
@@ -148,8 +164,21 @@ function updateButtonUI() {
       editorBtn.className = 'btn-mode save-mode';
     }
   }
-}
 
+  // 💡 [신규] 점 세개 버튼 표시 제어 (월/년 수정 모드일 때만 보임)
+  const moreBtn = document.getElementById('btn-more-menu');
+  if (moreBtn) {
+    if (currentMode === 'editor' && (currentScope === 'month' || currentScope === 'year')) {
+      moreBtn.style.display = 'inline-flex';
+    } else {
+      moreBtn.style.display = 'none';
+    }
+  }
+
+  // 화면이나 모드가 바뀔 때 열려있던 드롭다운은 무조건 닫기
+  const dropdown = document.getElementById('more-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+}
 /**
  * 💾 [저장] 버튼 클릭 시 현재 활성화된 Scope에 맞춰 Firestore 일괄 저장 실행
  */
