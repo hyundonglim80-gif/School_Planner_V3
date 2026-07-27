@@ -171,7 +171,6 @@ function updateButtonUI() {
     }
   }
 
-  // 🎯 검색 버튼 노출 제어
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
     if (currentMode === 'viewer' && currentScope !== 'memo') {
@@ -181,7 +180,6 @@ function updateButtonUI() {
     }
   }
 
-  // 점 세개 버튼 표시 제어
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
     if (currentMode === 'editor' && currentScope !== 'memo') {
@@ -194,7 +192,6 @@ function updateButtonUI() {
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 
-  // 주말 버튼 상태 및 표시 여부 업데이트
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
@@ -248,7 +245,6 @@ window.moveDate = function(dir) {
   window.render();
 };
 
-// 최초 렌더링 및 로그인 이벤트 연결
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -531,7 +527,7 @@ window.uploadCSV = async function(input) {
 };
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (페이지 양 끝단 감지 방식)
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
 // ==========================================================================
 (function() {
   let touchStartX = 0;
@@ -547,11 +543,8 @@ window.uploadCSV = async function(input) {
 
   function getHorizontalEdgeState() {
     const vv = window.visualViewport;
-    
     let scrollLeft = window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
-    if (vv && vv.offsetLeft) {
-      scrollLeft += vv.offsetLeft;
-    }
+    if (vv && vv.offsetLeft) scrollLeft += vv.offsetLeft;
 
     const totalWidth = Math.max(
       document.documentElement.scrollWidth,
@@ -622,14 +615,13 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (무한 칸 추가 & 3단 배열 레이아웃)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (UI/UX 개선 버전)
 // ==========================================================================
 
-// 각 항목별 색상 및 디자인 테마 정의
 const fieldMeta = {
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
-  'memo': { label: '메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
+  'memo': { label: '수업 메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
   'supplies': { label: '준비물', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' }
 };
 
@@ -641,7 +633,6 @@ window.openSearchModal = function() {
   const scopeNames = { 'year': '연간 데이터', 'month': '월간 데이터', 'week': '주간 데이터', 'day': '오늘 데이터' };
   document.getElementById('search-scope-label').innerText = scopeNames[currentScope] || '';
   
-  // 창을 열 때마다 기존에 추가했던 검색 칸을 초기화
   document.getElementById('active-search-fields').innerHTML = '';
 };
 
@@ -649,22 +640,14 @@ window.closeSearchModal = function() {
   document.getElementById('search-modal').classList.add('hidden');
 };
 
-// 🎯 3단 그리드에 맞춰지는 검색 항목 칸 동적 추가
+// 🎯 라벨과 토글을 제거하고 플레이스홀더를 활용한 깔끔한 UI 생성
 window.addSearchField = function(type) {
   const meta = fieldMeta[type];
   const uniqueId = Date.now() + Math.floor(Math.random() * 1000); 
   
-  // 💡 flex-basis 설정과 내부 패딩/여백을 좁게 수정하여 3개가 여유 있게 들어가게 세팅
   const html = `
-    <div id="field-row-${uniqueId}" data-type="${type}" style="display:flex; align-items:center; gap:6px; background:${meta.bg}; border:2px solid ${meta.border}; padding:8px; border-radius:8px; box-sizing:border-box;">
-      <span style="font-weight:900; color:${meta.color}; width:50px; text-align:center; font-size:0.9rem; line-height:1.1; word-break:keep-all;">${meta.label}</span>
-      <input type="text" class="search-input" placeholder="검색어 입력" style="flex:1; width:50px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:0.9rem;">
-      
-      <select class="search-logic" style="padding:6px 2px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer; font-size:0.85rem;">
-        <option value="AND">그리고</option>
-        <option value="OR">또는</option>
-      </select>
-      
+    <div id="field-row-${uniqueId}" data-type="${type}" style="display:flex; align-items:center; gap:6px; background:${meta.bg}; border:2px solid ${meta.border}; padding:6px 10px; border-radius:8px; box-sizing:border-box;">
+      <input type="text" class="search-input" placeholder="[${meta.label}] 검색어..." style="flex:1; min-width:80px; padding:6px; border:none; border-radius:4px; outline:none; font-size:0.95rem; font-weight:bold; color:${meta.color}; background:transparent;">
       <button onclick="removeSearchField('${uniqueId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.2rem; cursor:pointer; font-weight:bold; padding:0 2px;" title="항목 삭제">✖</button>
     </div>
   `;
@@ -687,7 +670,6 @@ window.goToDayAndCloseSearch = function(dateStr) {
   }
 };
 
-// 🚀 본격적인 다중 필터 검색 엔진
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -696,19 +678,17 @@ window.executeSearch = async function() {
     return;
   }
 
-  // 1. 활성화된 칸에서 입력값과 조건(AND/OR) 수집
   const searchConditions = [];
   let allKeywords = [];
   
   rows.forEach(row => {
     const type = row.getAttribute('data-type');
     const inputVal = row.querySelector('.search-input').value;
-    const logicVal = row.querySelector('.search-logic').value;
-    
     const keywords = inputVal.split(/[\s,]+/).filter(k => k.trim() !== '');
     
     if (keywords.length > 0) {
-      searchConditions.push({ type, keywords, logic: logicVal });
+      // 💡 한 칸 안에서 여러 단어를 검색하면 기본으로 'OR(또는)' 로직 적용
+      searchConditions.push({ type, keywords, logic: 'OR' });
       allKeywords.push(...keywords);
     }
   });
@@ -718,14 +698,12 @@ window.executeSearch = async function() {
     return;
   }
   
-  // 중복 키워드 제거 (하이라이팅용)
   allKeywords = [...new Set(allKeywords)];
 
   const resultList = document.getElementById('search-results-list');
   const countText = document.getElementById('search-results-count');
   resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 해당 화면 범위 내에서 검색 중입니다...</p>`;
 
-  // 2. 현재 화면(년, 월, 주, 일)에 해당하는 날짜 목록만 추출
   const targetDatesObj = window.getTargetDateList();
   const validDates = targetDatesObj.map(item => item.dateStr);
 
@@ -737,21 +715,19 @@ window.executeSearch = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 3. 텍스트 매칭 함수 (각 칸별 AND/OR 로직 적용)
   const checkMatch = (text, params) => {
     if (!text) return false;
     const lowerText = text.toLowerCase();
     
-    if (params.logic === 'AND') {
-      return params.keywords.every(k => lowerText.includes(k.toLowerCase()));
-    } else {
+    // params.logic은 'OR'로 세팅되어 있음
+    if (params.logic === 'OR') {
       return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
     }
+    return false;
   };
 
   const matchedResults = [];
 
-  // 4. '현재 화면에 떠있는 날짜(validDates)'만 순회하며 검사
   validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
@@ -777,12 +753,12 @@ window.executeSearch = async function() {
 
     let isMatch = true;
 
-    // 추가된 검색 칸의 조건을 모두 만족해야 함 (칸과 칸 사이는 AND)
+    // 💡 서로 다른 칸(블록) 사이의 조건은 무조건 'AND(그리고)' 로직 적용
     for (const cond of searchConditions) {
       const textToSearch = textMap[cond.type];
       if (!checkMatch(textToSearch, cond)) {
         isMatch = false;
-        break; // 하나라도 만족하지 않으면 즉시 중단
+        break; 
       }
     }
 
@@ -791,7 +767,6 @@ window.executeSearch = async function() {
     }
   });
 
-  // 5. 형광펜 하이라이팅 함수
   const highlight = (text) => {
     if (!text) return '';
     let res = text;
@@ -803,7 +778,6 @@ window.executeSearch = async function() {
     return res;
   };
 
-  // 6. 결과 출력
   countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
   resultList.innerHTML = '';
 
