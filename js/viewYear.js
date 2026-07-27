@@ -1,5 +1,17 @@
 // js/viewYear.js
 
+// 💡 [전역 헬퍼] 특정 날짜(YYYY-MM-DD)의 '일 보기'로 즉시 이동하는 공통 함수
+if (!window.goToDay) {
+  window.goToDay = function(dateStr) {
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      window.setScope('day');
+    }
+  };
+}
+
 // ==========================================================================
 // 👁️ 1. 연간 뷰어 모드 (12개 월별 학사일정 그리드 + 이번 달 카드 강조)
 // ==========================================================================
@@ -7,7 +19,7 @@ window.renderYearViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중입니다...</p>`;
 
   if (!window.db) {
-    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
+    console.warn("데이터베이스(window.db)가 아직 준비되지 않았증니다.");
     container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
     return;
   }
@@ -75,7 +87,8 @@ window.renderYearViewer = async function(container) {
             ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
             : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
-        return `<div style="${eventStyle}">
+        // 🎯 클릭 시 해당 날짜의 일 보기로 이동
+        return `<div onclick="window.goToDay('${e.dateStr}')" style="${eventStyle} cursor:pointer;" title="${e.dateStr} 일 보기로 이동">
                   <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                   <div style="color:#334155; white-space:pre-wrap; word-break:break-all; margin-top:2px; font-size:var(--year-event-font-size);">${e.text}</div>
                 </div>`;
@@ -107,7 +120,7 @@ window.renderYearEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 연간 일정 편집 시트를 불러오는 중입니다...</p>`;
 
   if (!window.db) {
-    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
+    console.warn("데이터베이스(window.db)가 아직 준비되지 않았증니다.");
     container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
     return;
   }
@@ -115,7 +128,6 @@ window.renderYearEditor = async function(container) {
   const currentYear = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 학년도 전체(3월 ~ 이듬해 2월) 날짜 생성 및 데이터 로딩
   const dayPromises = [];
 
   // 3월 ~ 12월 (현재 연도)
@@ -158,18 +170,19 @@ window.renderYearEditor = async function(container) {
     const dayOfWeekNum = dateObj.getDay();
     const dayOfWeek = dayNames[dayOfWeekNum];
 
-    // 🎯 [수정] 주말 숨기기 옵션일 때만 토(6)/일(0)요일을 제외합니다.
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 🎯 주말(토/일)일 경우 날짜 글자색을 붉은 계열로 강조 표시
     const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
-    const dateColor = isWeekend ? '#ef4444' : '#1e40af';
+    let dateColor = '#1e40af';
+    if (dayOfWeekNum === 0) dateColor = '#ef4444';
+    else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+    // 🎯 날짜 셀 클릭 시 해당 날짜의 일 보기로 이동
     html += `<tr data-year-date="${item.dateStr}">` +
-      `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
+      `<td rowspan="2" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
           `<span style="font-size:1.2rem; font-weight:900; color:${dateColor}; line-height:1.1;">${item.month}월 ${item.day}일</span>` +
           `<span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
@@ -177,7 +190,6 @@ window.renderYearEditor = async function(container) {
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
 
-      // 💡 'X' 대신 빈 문자열('') 할당
       for (let p = 1; p <= 6; p++) {
          const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
@@ -206,7 +218,6 @@ window.saveYearDataFromEditor = async function() {
     const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
     
-    // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
     const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
     const classCells = row.querySelectorAll(".edit-class-cell");
@@ -217,7 +228,6 @@ window.saveYearDataFromEditor = async function() {
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
        let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
 
-       // 🎯 휴일이나 행사일이면 수업 과목을 비움
        if (isSkipDay) {
          subjText = '';
        }
