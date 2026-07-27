@@ -171,7 +171,7 @@ function updateButtonUI() {
     }
   }
 
-  // 🎯 검색 버튼 노출 제어 (뷰어 모드이면서 메모 화면이 아닐 때 노출)
+  // 🎯 검색 버튼 노출 제어
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
     if (currentMode === 'viewer' && currentScope !== 'memo') {
@@ -181,7 +181,7 @@ function updateButtonUI() {
     }
   }
 
-  // 점 세개 버튼 표시 제어 
+  // 점 세개 버튼 표시 제어
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
     if (currentMode === 'editor' && currentScope !== 'memo') {
@@ -194,7 +194,7 @@ function updateButtonUI() {
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 
-  // 주말 버튼 상태 및 표시 여부 업데이트 (일 보기에서도 노출)
+  // 주말 버튼 상태 및 표시 여부 업데이트
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
@@ -622,7 +622,7 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (무한 칸 추가 & 칸별 AND/OR)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (무한 칸 추가 & 3단 배열 레이아웃)
 // ==========================================================================
 
 // 각 항목별 색상 및 디자인 테마 정의
@@ -638,7 +638,6 @@ window.openSearchModal = function() {
   document.getElementById('search-results-list').innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:20px;">항목 버튼을 눌러 조건을 추가하고 '데이터 찾기'를 눌러주세요.</p>`;
   document.getElementById('search-results-count').innerText = '';
   
-  // 현재 보고 있는 화면(Scope)을 파악하여 표시
   const scopeNames = { 'year': '연간 데이터', 'month': '월간 데이터', 'week': '주간 데이터', 'day': '오늘 데이터' };
   document.getElementById('search-scope-label').innerText = scopeNames[currentScope] || '';
   
@@ -650,28 +649,28 @@ window.closeSearchModal = function() {
   document.getElementById('search-modal').classList.add('hidden');
 };
 
-// 🎯 검색 항목 칸 동적 추가 함수 (같은 버튼을 눌러도 무한 생성됨)
+// 🎯 3단 그리드에 맞춰지는 검색 항목 칸 동적 추가
 window.addSearchField = function(type) {
   const meta = fieldMeta[type];
-  const uniqueId = Date.now() + Math.floor(Math.random() * 1000); // 💡 삭제 제어를 위한 고유 ID 부여
+  const uniqueId = Date.now() + Math.floor(Math.random() * 1000); 
   
+  // 💡 flex-basis 설정과 내부 패딩/여백을 좁게 수정하여 3개가 여유 있게 들어가게 세팅
   const html = `
-    <div id="field-row-${uniqueId}" data-type="${type}" style="display:flex; align-items:center; gap:8px; background:${meta.bg}; border:2px solid ${meta.border}; padding:10px; border-radius:8px;">
-      <span style="font-weight:900; color:${meta.color}; width:60px; text-align:center;">${meta.label}</span>
-      <input type="text" class="search-input" placeholder="키워드 입력 (띄어쓰기 구분)" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:1rem;">
+    <div id="field-row-${uniqueId}" data-type="${type}" style="display:flex; align-items:center; gap:6px; background:${meta.bg}; border:2px solid ${meta.border}; padding:8px; border-radius:8px; box-sizing:border-box;">
+      <span style="font-weight:900; color:${meta.color}; width:50px; text-align:center; font-size:0.9rem; line-height:1.1; word-break:keep-all;">${meta.label}</span>
+      <input type="text" class="search-input" placeholder="검색어 입력" style="flex:1; width:50px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:0.9rem;">
       
-      <select class="search-logic" style="padding:8px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer;">
+      <select class="search-logic" style="padding:6px 2px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer; font-size:0.85rem;">
         <option value="AND">그리고</option>
         <option value="OR">또는</option>
       </select>
       
-      <button onclick="removeSearchField('${uniqueId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; font-weight:bold; padding:0 5px;" title="항목 삭제">✖</button>
+      <button onclick="removeSearchField('${uniqueId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.2rem; cursor:pointer; font-weight:bold; padding:0 2px;" title="항목 삭제">✖</button>
     </div>
   `;
   document.getElementById('active-search-fields').insertAdjacentHTML('beforeend', html);
 };
 
-// 🎯 특정 검색 항목 칸 삭제 함수
 window.removeSearchField = function(uniqueId) {
   const row = document.getElementById(`field-row-${uniqueId}`);
   if (row) row.remove();
