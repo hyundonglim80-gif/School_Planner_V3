@@ -22,7 +22,18 @@
           <button class="btn-scope" onclick="setScope('day')">일</button>
         </div>
         
-        <div class="mode-group">
+        <div class="<div class="mode-group" style="position: relative;">
+          <button class="btn-mode active-viewer" id="btn-mode-viewer">👁️ 뷰어</button>
+          <button class="btn-mode" id="btn-mode-editor" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
+          
+          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;">⋮</button>
+          
+          <div id="more-dropdown" class="dropdown-menu hidden">
+            <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
+            <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
+          </div>
+          <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
+        </div>">
           <button class="btn-mode active-viewer" id="btn-mode-viewer">👁️ 뷰어</button>
           <button class="btn-mode" id="btn-mode-editor" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
         </div>
