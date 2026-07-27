@@ -368,8 +368,8 @@ window.getTargetDateList = function() {
 // 📥 통합 CSV 백업 다운로드
 // ---------------------------------------------------------
 window.downloadCSV = async function() {
-  const eventSnap = await window.db.collection('events').get();
-  const scheduleSnap = await window.db.collection('schedules').get();
+  const eventSnap = await window.getUserCol('events').get();
+  const scheduleSnap = await window.getUserCol('schedules').get();
 
   const eventMap = {};
   eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
@@ -462,10 +462,10 @@ window.uploadCSV = async function(input) {
           };
         }
 
-        const eRef = window.db.collection('events').doc(dateStr);
+        const eRef = window.getUserCol('events').doc(dateStr);
         operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         
-        const sRef = window.db.collection('schedules').doc(dateStr);
+        const sRef = window.getUserCol('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
       }
     }
