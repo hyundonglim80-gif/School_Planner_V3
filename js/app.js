@@ -615,14 +615,16 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (슬래시(/) 분리 기법 적용)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (일지 데이터까지 포함)
 // ==========================================================================
 
+// 💡 1. 일지(journal) 항목이 추가되었습니다.
 const fieldMeta = {
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
   'memo': { label: '수업 메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
-  'supplies': { label: '준비물', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' }
+  'supplies': { label: '준비물', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' },
+  'journal': { label: '일지', color: '#be185d', bg: '#fdf2f8', border: '#f472b6' } 
 };
 
 window.openSearchModal = function() {
@@ -684,7 +686,6 @@ window.executeSearch = async function() {
     const type = row.getAttribute('data-type');
     const inputVal = row.querySelector('.search-input').value;
     
-    // 💡 [핵심] 띄어쓰기가 아닌 빗금(/)을 기준으로 배열로 쪼개고 앞뒤 공백 제거
     const keywords = inputVal.split('/').map(k => k.trim()).filter(k => k !== '');
     
     if (keywords.length > 0) {
@@ -707,19 +708,24 @@ window.executeSearch = async function() {
   const targetDatesObj = window.getTargetDateList();
   const validDates = targetDatesObj.map(item => item.dateStr);
 
+  // 💡 2. 데이터베이스에서 일지(journals) 컬렉션도 함께 불러옵니다.
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
+  const journalSnap = await window.getUserCol('journals').get();
 
   const eventMap = {};
   eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
+  
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
+  
+  const journalMap = {};
+  journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
   const checkMatch = (text, params) => {
     if (!text) return false;
     const lowerText = text.toLowerCase();
     
-    // params.logic은 'OR'로 세팅되어 있음 (한 칸 안에 빗금(/)으로 들어간 여러 단어 중 하나라도 매칭되면 통과)
     if (params.logic === 'OR') {
       return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
     }
@@ -731,10 +737,14 @@ window.executeSearch = async function() {
   validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
+    const dayJournals = journalMap[dateStr] || [];
     
     let daySubjectText = [];
     let dayMemoText = [];
     let daySuppliesText = [];
+    
+    // 일지 검색을 위한 통합 텍스트 (라벨과 내용을 모두 검색 대상으로 포함)
+    let dayJournalText = dayJournals.map(j => `[${j.label}] ${j.content}`).join(' ');
 
     for (let p = 1; p <= 6; p++) {
       if (dayPeriods[p]) {
@@ -748,12 +758,12 @@ window.executeSearch = async function() {
       'event': dayEvent,
       'subject': daySubjectText.join(' '),
       'memo': dayMemoText.join(' '),
-      'supplies': daySuppliesText.join(' ')
+      'supplies': daySuppliesText.join(' '),
+      'journal': dayJournalText
     };
 
     let isMatch = true;
 
-    // 💡 서로 다른 칸(블록) 사이의 조건은 무조건 'AND(그리고)' 로직 적용
     for (const cond of searchConditions) {
       const textToSearch = textMap[cond.type];
       if (!checkMatch(textToSearch, cond)) {
@@ -763,7 +773,7 @@ window.executeSearch = async function() {
     }
 
     if (isMatch) {
-      matchedResults.push({ dateStr, dayEvent, dayPeriods });
+      matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
     }
   });
 
@@ -814,6 +824,19 @@ window.executeSearch = async function() {
         pText += `</div>`;
         cardHtml += pText;
       }
+    }
+    
+    // 💡 3. 검색 결과 화면에 일지(Journal) 내용도 예쁘게 출력되도록 추가
+    if (res.dayJournals && res.dayJournals.length > 0) {
+      res.dayJournals.forEach(j => {
+        if (j.content || j.label) {
+          let jText = `<div style="display:flex; flex-direction:column; background:#fdf2f8; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #f472b6;">`;
+          jText += `<div style="font-weight:bold; color:#be185d; margin-bottom:4px;">[일지: ${highlight(j.label)}]</div>`;
+          jText += `<div style="font-size:0.95rem; color:#831843;">${highlight(j.content)}</div>`;
+          jText += `</div>`;
+          cardHtml += jText;
+        }
+      });
     }
 
     cardHtml += `</div>`;
