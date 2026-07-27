@@ -567,7 +567,7 @@ window.uploadCSV = async function(input) {
 };
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (실전 최적화)
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (페이지 양 끝단 감지 방식)
 // ==========================================================================
 (function() {
   let touchStartX = 0;
@@ -578,43 +578,67 @@ window.uploadCSV = async function(input) {
   let isMultiTouch = false;
 
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
-  const SWIPE_THRESHOLD = 50; // 인식 기준 완화 (조금만 밀어도 넘어가도록 70->50)
-  const SWIPE_MAX_TIME = 800; // 시간 제한 완화 (여유롭게 0.8초 이내)
+  const SWIPE_THRESHOLD = 50; // 인식할 최소 이동 거리 (px)
+  const SWIPE_MAX_TIME = 800;  // 스와이프 동작 시간 제한 (ms)
+
+  // 💡 현재 화면 스크롤이 왼쪽 끝 / 오른쪽 끝에 도달했는지 정교하게 판별하는 함수
+  function getHorizontalEdgeState() {
+    const vv = window.visualViewport;
+    
+    // 일반 스크롤 위치 + visualViewport(핀치 줌) 이동 위치 합산
+    let scrollLeft = window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+    if (vv && vv.offsetLeft) {
+      scrollLeft += vv.offsetLeft;
+    }
+
+    // 문서 전체 가로 폭 및 현재 보이는 화면 폭 계산
+    const totalWidth = Math.max(
+      document.documentElement.scrollWidth,
+      document.body.scrollWidth,
+      vv ? vv.width * vv.scale : window.innerWidth
+    );
+    const viewportWidth = vv ? vv.width : window.innerWidth;
+    const maxScrollLeft = Math.max(0, totalWidth - viewportWidth);
+
+    // 오차 범위(15px) 이내면 끝단으로 판별
+    const isAtLeftEdge = scrollLeft <= 15;
+    const isAtRightEdge = scrollLeft >= (maxScrollLeft - 15);
+
+    return { isAtLeftEdge, isAtRightEdge };
+  }
 
   function handleSwipeGesture() {
     if (currentMode !== 'viewer') return;
     if (isMultiTouch) return;
 
-    // 🛡️ 방어막 1: 1.05배 이상 '확실히' 확대된 상태면 차단 (너무 민감한 1.01 검사 제거)
-    const scale = window.visualViewport ? window.visualViewport.scale : 1;
-    if (scale > 1.05) return; 
-
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
     const deltaTime = Date.now() - touchStartTime;
 
+    // 1. 시간 초과 또는 세로 스크롤 동작 시 차단
     if (deltaTime > SWIPE_MAX_TIME) return;
-
-    // 🛡️ 방어막 2: 위아래(스크롤)로 많이 움직인 경우 차단
-    // 가로 움직임이 세로 움직임의 2배 이상 커야만 스와이프로 인정 (대각선 오작동 방지)
     if (Math.abs(deltaY) > Math.abs(deltaX) / 2) return;
 
-    // 💡 화면 가로 스크롤(scrollX) 검사 제거: 
-    // 달력/표 때문에 발생하는 미세한 여백이 스와이프를 먹통으로 만들던 문제 해결
-
-    // 최종 스와이프 실행
+    // 2. 일정 거리 이상 드래그했을 때 양 끝단 조건 확인 후 스와이프 실행
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      const { isAtLeftEdge, isAtRightEdge } = getHorizontalEdgeState();
       const currentIndex = scopeOrder.indexOf(currentScope);
 
       if (deltaX < 0) {
-        // 👈 왼쪽으로 밀기
-        if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
-          window.setScope(scopeOrder[currentIndex + 1]);
+        // 👈 오른쪽에서 왼쪽으로 밀기 (다음 화면으로)
+        // 🎯 화면의 "오른쪽 끝"에 도달해 있을 때만 다음 보기로 전환!
+        if (isAtRightEdge) {
+          if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
+            window.setScope(scopeOrder[currentIndex + 1]);
+          }
         }
       } else {
-        // 👉 오른쪽으로 밀기
-        if (currentIndex > 0) {
-          window.setScope(scopeOrder[currentIndex - 1]);
+        // 👉 왼쪽에서 오른쪽으로 밀기 (이전 화면으로)
+        // 🎯 화면의 "왼쪽 끝"에 도달해 있을 때만 이전 보기로 전환!
+        if (isAtLeftEdge) {
+          if (currentIndex > 0) {
+            window.setScope(scopeOrder[currentIndex - 1]);
+          }
         }
       }
     }
@@ -625,19 +649,18 @@ window.uploadCSV = async function(input) {
       isMultiTouch = true;
       return;
     }
-    isMultiTouch = false; 
+    isMultiTouch = false;
     touchStartX = e.changedTouches[0].screenX;
     touchStartY = e.changedTouches[0].screenY;
     touchStartTime = Date.now();
   }, { passive: true });
 
   document.addEventListener('touchmove', e => {
-    // 움직이는 도중 핀치 줌(두 손가락)이 들어오면 무효화
     if (e.touches.length > 1) isMultiTouch = true;
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
-    if (isMultiTouch) return; 
+    if (isMultiTouch) return;
     touchEndX = e.changedTouches[0].screenX;
     touchEndY = e.changedTouches[0].screenY;
     handleSwipeGesture();
