@@ -13,27 +13,33 @@ if (!window.goToDay) {
 }
 
 /**
- * 💡 현재 선택된 날짜 기준으로 이번 주 [월, 화, 수, 목, 금] 날짜 배열 자동 생성
+ * 💡 이번 주 날짜 배열 생성 (일요일 시작으로 변경)
  */
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
   const day = tempDate.getDay();
   
-  // 무조건 월요일을 시작일로 맞춤
-  const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
-  tempDate.setDate(diffToMon); 
+  // 🎯 무조건 일요일(0)을 시작일로 맞춤
+  const diffToSun = tempDate.getDate() - day;
+  tempDate.setDate(diffToSun); 
 
-  const daysCount = window.showWeekend ? 7 : 5;
-  const dayNames = ["월", "화", "수", "목", "금", "토", "일"];
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   
-  for (let i = 0; i < daysCount; i++) {
+  for (let i = 0; i < 7; i++) {
+    // 🎯 주말 숨기기 상태일 경우 일요일(0)과 토요일(6)은 배열에서 제외
+    if (!window.showWeekend && (i === 0 || i === 6)) {
+      tempDate.setDate(tempDate.getDate() + 1);
+      continue;
+    }
+
     dates.push({
       day: dayNames[i],
+      dayOfWeekNum: i, // 요일 번호 (색상 지정을 위해 추가)
       dateStr: window.formatDate(tempDate),
       dateDisplay: `${tempDate.getDate()}일`
     });
-    tempDate.setDate(tempDate.getDate() + 1);
+    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
   }
   return dates;
 };
@@ -60,12 +66,16 @@ window.renderWeekViewer = async function(container) {
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
-    // 🎯 요일/날짜 셀 클릭 시 해당 날짜의 일 보기로 이동
+    // 🎯 요일별 색상 지정 (일요일:빨강, 토요일:파랑, 평일:남색)
+    let dateColor = '#1e40af';
+    if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
+    else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+
     html += `
       <tr>
         <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-            <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
+            <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
           </div>
         </td>
@@ -114,12 +124,16 @@ window.renderWeekEditor = async function(container) {
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
-    // 🎯 에디터 모드에서도 좌측 요일/날짜 셀 클릭 시 일 보기로 이동
+    // 🎯 요일별 색상 지정
+    let dateColor = '#1e40af';
+    if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
+    else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+
     html += `
       <tr data-week-date="${d.dateStr}">
         <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-            <span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${d.day}</span>
+            <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
           </div>
         </td>
@@ -162,7 +176,6 @@ window.saveWeekDataFromEditor = async function() {
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     
     if (scheduleRow) {
-      // 🚨 [핵심 수정] 기존 데이터 보호 (주간 보기에서는 준비물이 보이지 않으므로 보호해야 함)
       let existingPeriods = {};
       try {
         const existingData = await window.dbAPI.loadDayData(d.dateStr);
