@@ -345,40 +345,71 @@ window.executeBatchOperations = async function(operations) {
   }
 };
 
-// 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트
+// 💡 헬퍼 함수: 현재 화면(일, 주, 월, 년)에 해당하는 전체 날짜 리스트 추출
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   const y = window.currentDate.getFullYear();
+  const m = window.currentDate.getMonth();
+  const d = window.currentDate.getDate();
 
-  if (currentScope === 'month') {
-    const m = window.currentDate.getMonth();
+  if (currentScope === 'day') {
+    // 🎯 [신규] 일(Day) 보기: 현재 날짜 하루만 반환
+    const dateObj = new Date(y, m, d);
+    dates.push({
+      dateStr: window.formatDate(dateObj),
+      year: y,
+      month: m + 1,
+      day: d,
+      dayOfWeek: dayNames[dateObj.getDay()]
+    });
+  } else if (currentScope === 'week') {
+    // 🎯 [신규] 주(Week) 보기: 이번 주 월요일부터 금/일요일까지 반환
+    const tempDate = new Date(window.currentDate);
+    const dayOfWeek = tempDate.getDay();
+    const diffToMon = tempDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    tempDate.setDate(diffToMon); // 월요일로 맞춤
+
+    const daysCount = window.showWeekend ? 7 : 5;
+    for (let i = 0; i < daysCount; i++) {
+      dates.push({
+        dateStr: window.formatDate(tempDate),
+        year: tempDate.getFullYear(),
+        month: tempDate.getMonth() + 1,
+        day: tempDate.getDate(),
+        dayOfWeek: dayNames[tempDate.getDay()]
+      });
+      tempDate.setDate(tempDate.getDate() + 1); // 하루씩 증가
+    }
+  } else if (currentScope === 'month') {
+    // 기존 월(Month) 보기 로직
     const lastDate = new Date(y, m + 1, 0).getDate();
-    for (let d = 1; d <= lastDate; d++) {
-      const dateObj = new Date(y, m, d);
+    for (let i = 1; i <= lastDate; i++) {
+      const dateObj = new Date(y, m, i);
       dates.push({
         dateStr: window.formatDate(dateObj),
         year: y,
         month: m + 1,
-        day: d,
+        day: i,
         dayOfWeek: dayNames[dateObj.getDay()]
       });
     }
   } else {
+    // 기존 년(Year) 보기 로직 (3월 ~ 이듬해 2월)
     const startYear = y;
-    for (let m = 3; m <= 14; m++) { 
+    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
       let targetY = startYear;
-      let targetM = m;
-      if (m > 12) { targetY = startYear + 1; targetM = m - 12; }
+      let targetM = monthIdx;
+      if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
       
       const lastDate = new Date(targetY, targetM, 0).getDate();
-      for (let d = 1; d <= lastDate; d++) {
-        const dateObj = new Date(targetY, targetM - 1, d);
+      for (let i = 1; i <= lastDate; i++) {
+        const dateObj = new Date(targetY, targetM - 1, i);
         dates.push({
           dateStr: window.formatDate(dateObj),
           year: targetY,
           month: targetM,
-          day: d,
+          day: i,
           dayOfWeek: dayNames[dateObj.getDay()]
         });
       }
@@ -427,8 +458,28 @@ window.downloadCSV = async function() {
     csv += rowStr + "\n";
   });
 
-  const titlePrefix = currentScope === 'month' ? `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월` : `${window.currentDate.getFullYear()}학년도`;
-  window.downloadCSVFile(`${titlePrefix}_통합백업.csv`, csv);
+  // 🎯 [신규] 다운로드하는 화면 범위(Scope)에 맞춰 파일 제목 생성
+  let titlePrefix = `${window.currentDate.getFullYear()}학년도`;
+  
+  if (currentScope === 'day') {
+    titlePrefix = `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월_${window.currentDate.getDate()}일`;
+  } else if (currentScope === 'week') {
+    const temp = new Date(window.currentDate);
+    const day = temp.getDay();
+    const mon = new Date(temp.setDate(temp.getDate() - day + (day === 0 ? -6 : 1)));
+    const endDay = new Date(mon);
+    endDay.setDate(mon.getDate() + (window.showWeekend ? 6 : 4));
+    
+    const mStr1 = String(mon.getMonth()+1).padStart(2,'0');
+    const dStr1 = String(mon.getDate()).padStart(2,'0');
+    const mStr2 = String(endDay.getMonth()+1).padStart(2,'0');
+    const dStr2 = String(endDay.getDate()).padStart(2,'0');
+    titlePrefix = `${window.currentDate.getFullYear()}년_${mStr1}${dStr1}_${mStr2}${dStr2}_주간`;
+  } else if (currentScope === 'month') {
+    titlePrefix = `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월`;
+  }
+
+  window.downloadCSVFile(`${titlePrefix}_백업.csv`, csv);
 };
 
 // ---------------------------------------------------------
