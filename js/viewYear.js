@@ -158,7 +158,7 @@ window.renderYearEditor = async function(container) {
     const dayOfWeekNum = dateObj.getDay();
     const dayOfWeek = dayNames[dayOfWeekNum];
 
-    if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
+    if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
