@@ -2,6 +2,7 @@
 
 /* ==========================================================================
    ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
+   이곳의 수치와 색상만 변경하시면 앱 전체 디자인이 일괄 적용됩니다.
    ========================================================================== */
 :root {
   /* 🎨 1. 기본 브랜드 색상 */
@@ -42,6 +43,7 @@
   --day-content-font-size: 1.3rem;/* 일간 보기 내용 글자 크기 */
   
   /* 💡 [추가] 일간 뷰어 '일정' 칸 최소 세로 높이 설정 */
+  /* 👉 원하는 높이로 숫자(px)를 조절하세요. (예: 60px, 80px, 100px 등) */
   --day-event-min-height: 70px;  
 }
 
@@ -67,9 +69,16 @@ body {
    🔝 [최상단 고정 헤더 영역]
    ========================================================================== */
 .app-header { 
-  position: sticky; top: 0; z-index: 1000; background: var(--bg-card); 
-  padding: 10px 16px; border-bottom: 1px solid var(--border-color); 
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 8px; 
+  position: sticky; 
+  top: 0; 
+  z-index: 1000; 
+  background: var(--bg-card); 
+  padding: 10px 16px; 
+  border-bottom: 1px solid var(--border-color); 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
 }
 .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 .title-group h1 { font-size: var(--font-header-title); font-weight: 700; color: #1e293b; }
@@ -104,8 +113,13 @@ body {
    📊 [공통 테이블 및 에디터 셀 스타일]
    ========================================================================== */
 .table-container { 
-  background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color); 
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05); max-height: calc(100vh - 130px); overflow: auto; -webkit-overflow-scrolling: touch; 
+  background: var(--bg-card); 
+  border-radius: 8px; 
+  border: 1px solid var(--border-color); 
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+  max-height: calc(100vh - 130px); 
+  overflow: auto; 
+  -webkit-overflow-scrolling: touch; 
 }
 table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: var(--week-table-min-width); table-layout: fixed; }
 thead th { position: sticky; top: 0; z-index: 100; background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: center; padding: 10px 4px; border-bottom: 2px solid var(--border-color); border-right: 1px solid var(--border-color); }
@@ -121,8 +135,13 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
    📅 [주간 뷰어 스타일]
    ========================================================================== */
 .clean-viewer-board { 
-  background: #ffffff; border: 2px solid var(--border-color); border-radius: 6px; 
-  max-height: calc(100vh - 130px); overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; 
+  background: #ffffff; 
+  border: 2px solid var(--border-color); 
+  border-radius: 6px; 
+  max-height: calc(100vh - 130px); 
+  overflow-x: auto; 
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; 
 }
 .clean-viewer-board table { border-collapse: collapse; min-width: var(--week-table-min-width); }
 .clean-viewer-board thead th { background: #f8fafc; color: #0f172a; padding: 12px; font-size: var(--font-base); border: 1px solid var(--border-color); }
@@ -133,37 +152,95 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .clean-cell-memo { font-size: var(--font-base); color: #334155; line-height: 1.4; }
 
 /* 오늘 날짜 주간 셀 강조 클래스 */
-.week-today-cell { background-color: var(--today-bg-color) !important; border: var(--today-border-width) solid var(--today-border-color) !important; }
+.week-today-cell {
+  background-color: var(--today-bg-color) !important;
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+}
 
 /* ==========================================================================
    🗓️ [일/월/년 뷰어 스타일]
    ========================================================================== */
 /* 일 보기 카드 레이아웃 */
 .day-viewer-container { display: flex; flex-direction: column; gap: 14px; }
+
+/* 💡 [추가] 일간 뷰어 '일정' 카드 스타일 (CSS 변수 --day-event-min-height 적용) */
 .day-event-card {
-  display: flex; align-items: center; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb;
-  border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); min-height: var(--day-event-min-height);
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #2563eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  min-height: var(--day-event-min-height); /* ⭐ 높이 컨트롤 타워 변수 연동 */
 }
+
 .daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
 .period-card-list { display: flex; flex-direction: column; gap: 10px; }
 .period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 12px 14px; }
-.period-card-header { display: flex; justify-content: flex-start; gap: 8px; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; }
+.period-card-header { 
+  display: flex; 
+  justify-content: flex-start; 
+  gap: 8px; 
+  align-items: center; 
+  margin-bottom: 8px; 
+  border-bottom: 1px dashed #e2e8f0; 
+  padding-bottom: 6px; 
+}
 
-/* 월 보기 달력 그리드 */
-.calendar-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); }
+/* 월 보기 달력 그리드 (평일 5일 전용) */
+.calendar-grid { 
+  display: grid; 
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 4px; 
+  background: var(--bg-card); 
+  padding: 10px; 
+  border-radius: 8px; 
+  border: 1px solid var(--border-color); 
+}
 .cal-header { font-weight: 700; text-align: center; padding: 8px; background: #f1f5f9; border-radius: 4px; font-size: 1.2rem; }
-.cal-day { min-height: var(--month-cell-min-height); border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px; font-size: var(--month-date-font-size); background: #fff; text-align: var(--month-date-align); }
-.cal-event { background: #e0f2fe; color: #0369a1; padding: 4px; border-radius: 4px; margin-top: 4px; font-size: var(--month-event-font-size); text-align: left; }
-.month-today-cell { border: var(--today-border-width) solid var(--today-border-color) !important; background-color: var(--today-bg-color) !important; box-sizing: border-box; }
+.cal-day { 
+  min-height: var(--month-cell-min-height); 
+  border: 1px solid #e2e8f0; 
+  border-radius: 4px; 
+  padding: 6px; 
+  font-size: var(--month-date-font-size); 
+  background: #fff; 
+  text-align: var(--month-date-align);
+}
+.cal-event { 
+  background: #e0f2fe; 
+  color: #0369a1; 
+  padding: 4px; 
+  border-radius: 4px; 
+  margin-top: 4px; 
+  font-size: var(--month-event-font-size); 
+  text-align: left;
+}
+
+/* 오늘 날짜 월간 셀 강조 클래스 */
+.month-today-cell {
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+  background-color: var(--today-bg-color) !important;
+  box-sizing: border-box;
+}
 
 /* 연 보기 그리드 */
 .year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .mini-month { background: #fff; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; text-align: left; }
 .mini-month h3 { font-size: var(--year-month-title-size); }
-.year-today-card { border: var(--today-border-width) solid var(--today-border-color) !important; background-color: #f8fafc !important; box-shadow: 0 4px 6px rgba(37,99,235,0.1); }
+
+/* 오늘 달 연간 카드 강조 클래스 */
+.year-today-card {
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+  background-color: #f8fafc !important;
+  box-shadow: 0 4px 6px rgba(37,99,235,0.1);
+}
 
 /* ==========================================================================
-   📱 [모바일 화면용 최적화]
+   📱 [모바일 화면용 최적화 (viewport width=1000 대응)]
    ========================================================================== */
 @media screen and (max-width: 1000px) {
   table { font-size: var(--font-base); }
@@ -172,92 +249,43 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   .title-group h1 { font-size: var(--font-header-title); }
   .current-range { font-size: var(--font-date-range); }
   .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
+
+  /* 모바일 주간 최소 너비 */
   table { min-width: var(--week-table-min-width) !important; }
   .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
-  .year-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px; }
+
+  /* 모바일 연 보기 3열 고정 */
+  .year-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px;
+  }
   .mini-month { padding: 8px; }
 }
 
 /* ==========================================================================
-   🛠️ [월간 에디터 레이아웃 최적화]
+   🛠️ [추가] 월간 에디터 레이아웃 최적화 (세로 공백 제거 및 자동 높이)
    ========================================================================== */
-.month-editor-wrapper { display: flex; flex-direction: column; }
-.month-class-cell, .month-event-cell {
-  height: auto !important; min-height: 40px !important; padding: 8px 12px !important; line-height: 1.5 !important; outline: none; word-break: break-all;
-}
-.month-class-cell { background-color: #ecfdf5 !important; color: #047857 !important; border-bottom: 1px dashed #cbd5e1 !important; }
-.month-event-cell { background-color: #f0f9ff !important; color: #0369a1 !important; }
-
-/* ==========================================================================
-   [새로 추가됨] 헤더 액션 그룹 & 저장 버튼 위치 고정
-   ========================================================================== */
-.action-group {
+.month-editor-wrapper {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-}
-.btn-save {
-  background: #16a34a; color: #fff; border: none; padding: 5px 14px;
-  border-radius: 6px; font-weight: bold; cursor: pointer; font-size: var(--font-header-btn);
-  transition: opacity 0.2s, visibility 0.2s; white-space: nowrap;
-}
-.btn-save.hidden {
-  visibility: hidden; opacity: 0; pointer-events: none;
+  flex-direction: column;
 }
 
-/* ==========================================================================
-   [새로 추가됨] ⋮ 점세개 더보기 버튼 및 드롭다운 메뉴
-   ========================================================================== */
-.more-menu-wrapper { position: relative; display: inline-block; }
-.btn-more {
-  border: 1px solid var(--border-color); background: #ffffff; padding: 4px 10px;
-  font-size: 1.4rem; font-weight: bold; color: #475569; border-radius: 6px; cursor: pointer; transition: all 0.2s; line-height: 1;
+.month-class-cell, .month-event-cell {
+  height: auto !important;       /* 고정 높이 절대 금지, 내용물 크기만큼만 늘어남 */
+  min-height: 40px !important;   /* 내용이 없을 때 최소 1줄(40px) 크기 보장 */
+  padding: 8px 12px !important;  /* 내부 여백 최적화 */
+  line-height: 1.5 !important;
+  outline: none;
+  word-break: break-all;
 }
-.btn-more:hover { background: var(--hover-bg); color: var(--primary-color); }
-.more-dropdown-menu {
-  display: none; position: absolute; top: 110%; right: 0; background: #ffffff;
-  min-width: 240px; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 2000; padding: 6px 0;
-}
-.more-dropdown-menu.show { display: block; animation: dropdownFadeIn 0.15s ease-out; }
-@keyframes dropdownFadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-.more-dropdown-menu button {
-  width: 100%; text-align: left; background: none; border: none; padding: 10px 16px;
-  font-size: 0.95rem; font-weight: 600; color: #334155; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.15s;
-}
-.more-dropdown-menu button:hover { background: #f1f5f9; color: var(--primary-color); }
-.dropdown-divider { border: 0; border-top: 1px solid #e2e8f0; margin: 4px 0; }
 
-/* ==========================================================================
-   [새로 추가됨] 🪟 기준시간표 설정 모달 창 스타일
-   ========================================================================== */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(15, 23, 42, 0.5); display: flex; justify-content: center; align-items: center; z-index: 3000; backdrop-filter: blur(2px);
+.month-class-cell {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-bottom: 1px dashed #cbd5e1 !important; /* 위아래 구분선 */
 }
-.modal-content {
-  background: #ffffff; width: 90%; max-width: 780px; max-height: 90vh;
-  border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideUp 0.2s ease-out;
+
+.month-event-cell {
+  background-color: #f0f9ff !important;
+  color: #0369a1 !important;
 }
-@keyframes modalSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-.modal-header { padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-.modal-header h2 { font-size: 1.25rem; font-weight: 700; color: #1e293b; }
-.btn-close-modal { background: transparent; border: none; font-size: 1.5rem; color: #64748b; cursor: pointer; }
-.modal-body { padding: 20px; overflow-y: auto; }
-.tab-group { display: flex; gap: 8px; margin-bottom: 16px; }
-.tab-btn { padding: 8px 16px; border: 1px solid var(--border-color); background: #f1f5f9; border-radius: 6px; font-weight: 600; cursor: pointer; color: #64748b; }
-.tab-btn.active { background: var(--primary-color); color: #ffffff; border-color: var(--primary-color); }
-.timetable-editor-container { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; }
-.timetable-editor-table { width: 100%; border-collapse: collapse; }
-.timetable-editor-table th, .timetable-editor-table td { border: 1px solid var(--border-color); padding: 8px; text-align: center; }
-.timetable-editor-table th { background: #f8fafc; font-weight: 700; }
-.timetable-editor-table input { width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-size: 0.95rem; }
-.timetable-editor-table input:focus { border-color: var(--primary-color); outline: none; background: #eff6ff; }
-.btn-primary { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-.btn-secondary { background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-.apply-range-section { background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; }
-.apply-range-section h3 { font-size: 1.1rem; margin-bottom: 4px; color: #0f172a; }
-.section-desc { font-size: 0.85rem; color: #64748b; margin-bottom: 12px; }
-.range-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.range-form label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; font-weight: 600; }
-.range-form input[type="date"], .range-form select { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
