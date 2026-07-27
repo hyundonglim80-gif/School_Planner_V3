@@ -175,10 +175,10 @@ function updateButtonUI() {
     }
   }
 
-  // 💡 [신규] 점 세개 버튼 표시 제어 (월/년 수정 모드일 때만 보임)
+  // 💡 [수정됨] 점 세개 버튼 표시 제어 (수정 모드일 때 보임 - 년/월/주/일 전체)
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
-    if (currentMode === 'editor' && (currentScope === 'month' || currentScope === 'year')) {
+    if (currentMode === 'editor' && currentScope !== 'memo') {
       moreBtn.style.display = 'inline-flex';
     } else {
       moreBtn.style.display = 'none';
