@@ -22,15 +22,9 @@
           <button class="btn-scope" onclick="setScope('day')">일</button>
         </div>
         
-        <div class="action-group">
-          <div class="mode-group">
-            <button class="btn-mode active-viewer" id="btn-mode-viewer" onclick="setMode('viewer')">👁️ 뷰어</button>
-            <button class="btn-mode" id="btn-mode-editor" onclick="setMode('editor')">✏️ 수정</button>
-          </div>
-          
-          <button id="btn-save-data" class="btn-save hidden" onclick="saveCurrentViewData()">
-            💾 저장
-          </button>
+        <div class="mode-group">
+          <button class="btn-mode active-viewer" id="btn-mode-viewer" onclick="setMode('viewer')">👁️ 뷰어</button>
+          <button class="btn-mode" id="btn-mode-editor" onclick="handleEditSaveClick()" style="width: 90px; justify-content: center;">✏️ 수정</button>
         </div>
       </div>
     <div class="header-bottom">
