@@ -119,14 +119,14 @@
       
       <div style="padding: 20px; border-bottom: 2px solid #f1f5f9; background: #fff;">
         <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 15px;">
-          * 아래 버튼을 눌러 원하는 검색 조건을 추가하세요. 띄어쓰기나 쉼표(,)로 여러 단어 입력 가능.
+          * 아래 버튼을 눌러 원하는 검색 조건을 추가하세요. 같은 버튼을 여러 번 눌러 칸을 계속 추가할 수 있습니다.
         </p>
         
         <div id="search-filter-buttons" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-          <button onclick="addSearchField('event')" id="btn-add-event" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
-          <button onclick="addSearchField('subject')" id="btn-add-subject" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
-          <button onclick="addSearchField('memo')" id="btn-add-memo" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c084fc; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 수업 메모</button>
-          <button onclick="addSearchField('supplies')" id="btn-add-supplies" style="background:#ffedd5; color:#ea580c; border:1px solid #fdba74; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 준비물</button>
+          <button onclick="addSearchField('event')" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
+          <button onclick="addSearchField('subject')" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
+          <button onclick="addSearchField('memo')" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c084fc; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 수업 메모</button>
+          <button onclick="addSearchField('supplies')" style="background:#ffedd5; color:#ea580c; border:1px solid #fdba74; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 준비물</button>
         </div>
 
         <div id="active-search-fields" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
