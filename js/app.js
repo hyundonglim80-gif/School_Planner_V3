@@ -293,16 +293,15 @@ window.downloadCSVFile = function(filename, csvData) {
   link.click();
 };
 
-// 2. CSV 문자열 이스케이프 처리 (💡 엑셀 날짜 변환 방지 기능 추가)
+// 2. CSV 문자열 이스케이프 처리 (💡 엑셀 날짜 변환 방지 - 작은따옴표 방식 적용)
 window.escapeCSV = function(str) {
   if (!str && str !== 0) return '';
   let s = String(str);
   let trimmed = s.trim();
   
-  // 🎯 [핵심] 엑셀의 날짜/시간 자동 변환 방지 ("4-1", "10/2", "09:00" 등)
-  // 숫자-숫자, 숫자/숫자, 숫자:숫자 패턴일 경우 ="4-1" 형태의 수식으로 강제 텍스트 인식시킴
+  // 🎯 [수정됨] "4-2", "10/2" 같은 패턴일 경우 앞에 작은따옴표(')를 붙임
   if (/^\d+[-/:]\d+$/.test(trimmed)) {
-    return `="${trimmed}"`;
+    return `'${trimmed}`;
   }
 
   s = s.replace(/"/g, '""');
@@ -448,7 +447,7 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
-    // 💡 [수정됨] 엑셀에서 날짜 자동 변환을 막기 위해 쓴 =, ", ' 기호를 완벽하게 벗겨내는 함수
+    // 💡 엑셀에서 날짜 자동 변환을 막기 위해 쓴 =, ", ' 기호를 완벽하게 벗겨내는 함수
     const parseExcelText = (val) => {
       let v = (val || '').trim();
       
@@ -460,6 +459,11 @@ window.uploadCSV = async function(input) {
       // 2. 양끝이 큰따옴표(")나 작은따옴표(')로 감싸져 있다면 알맹이만 추출
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
         v = v.substring(1, v.length - 1);
+      }
+      
+      // 3. 🎯 [신규] 맨 앞에 작은따옴표(') 하나만 붙어있는 경우 제거 ('4-2 -> 4-2)
+      if (v.startsWith("'")) {
+        v = v.substring(1);
       }
       
       return v;
