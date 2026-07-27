@@ -175,7 +175,7 @@ function updateButtonUI() {
     }
   }
 
-  // 🎯 [신규] 검색 버튼 노출 제어 (뷰어 모드이면서 메모 화면이 아닐 때 노출)
+  // 🎯 검색 버튼 노출 제어 (뷰어 모드이면서 메모 화면이 아닐 때 노출)
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
     if (currentMode === 'viewer' && currentScope !== 'memo') {
@@ -185,7 +185,7 @@ function updateButtonUI() {
     }
   }
 
-  // 💡 [수정됨] 점 세개 버튼 표시 제어 (수정 모드일 때 보임 - 년/월/주/일 전체)
+  // 💡 점 세개 버튼 표시 제어 (수정 모드일 때 보임 - 년/월/주/일 전체)
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
     if (currentMode === 'editor' && currentScope !== 'memo') {
@@ -203,7 +203,7 @@ function updateButtonUI() {
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
-    // 🎯 [수정됨] 일(Day) 보기에서도 주말 버튼이 보이도록 변경 (메모 화면에서만 숨김)
+    // 🎯 일(Day) 보기에서도 주말 버튼이 보이도록 변경 (메모 화면에서만 숨김)
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 }
@@ -267,7 +267,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 💡 [신규] 로그인 상태 감지 및 자동 로그인 처리 로직
+  // 💡 로그인 상태 감지 및 자동 로그인 처리 로직
   window.auth.onAuthStateChanged(user => {
     if (user) {
       // 1. 이미 로그인 된 사용자라면 (자동 로그인) 로그인 화면을 숨기고 메인 화면을 보여줌
@@ -667,20 +667,63 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 필터 통합 검색 엔진 (AND/OR 및 키워드 하이라이팅 적용)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (화면 범위 지정 + 동적 컬러 칸)
 // ==========================================================================
+
+// 🎯 각 항목별 색상 및 디자인 테마 정의
+const fieldMeta = {
+  'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
+  'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
+  'memo': { label: '메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
+  'supplies': { label: '준비물', color: '#ea580c', bg: '#ffedd5', border: '#fdba74' }
+};
 
 window.openSearchModal = function() {
   document.getElementById('search-modal').classList.remove('hidden');
-  document.getElementById('search-results-list').innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:20px;">검색 조건을 입력하고 '데이터 찾기'를 눌러주세요.</p>`;
+  document.getElementById('search-results-list').innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:20px;">항목 버튼을 눌러 조건을 추가하고 '데이터 찾기'를 눌러주세요.</p>`;
   document.getElementById('search-results-count').innerText = '';
+  
+  // 현재 보고 있는 화면(Scope)을 파악하여 표시
+  const scopeNames = { 'year': '연간 데이터', 'month': '월간 데이터', 'week': '주간 데이터', 'day': '오늘 데이터' };
+  document.getElementById('search-scope-label').innerText = scopeNames[currentScope] || '';
+  
+  // 창을 열 때마다 기존에 추가했던 검색 칸을 모두 지우고 버튼을 복구
+  document.getElementById('active-search-fields').innerHTML = '';
+  Object.keys(fieldMeta).forEach(k => document.getElementById(`btn-add-${k}`).style.display = 'inline-block');
 };
 
 window.closeSearchModal = function() {
   document.getElementById('search-modal').classList.add('hidden');
 };
 
-// 검색 결과 클릭 시 해당 날짜로 바로 이동하고 창 닫기
+// 🎯 검색 항목 칸 추가 함수 (버튼 누르면 실행)
+window.addSearchField = function(type) {
+  document.getElementById(`btn-add-${type}`).style.display = 'none'; // 누른 버튼은 숨김
+  const meta = fieldMeta[type];
+  
+  const html = `
+    <div id="field-row-${type}" style="display:flex; align-items:center; gap:8px; background:${meta.bg}; border:2px solid ${meta.border}; padding:10px; border-radius:8px;">
+      <span style="font-weight:900; color:${meta.color}; width:60px; text-align:center;">${meta.label}</span>
+      <input type="text" id="input-${type}" placeholder="키워드 입력 (띄어쓰기 구분)" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:1rem;">
+      
+      <select id="logic-${type}" style="padding:8px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer;">
+        <option value="AND">그리고</option>
+        <option value="OR">또는</option>
+      </select>
+      
+      <button onclick="removeSearchField('${type}')" style="background:transparent; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; font-weight:bold; padding:0 5px;" title="항목 삭제">✖</button>
+    </div>
+  `;
+  document.getElementById('active-search-fields').insertAdjacentHTML('beforeend', html);
+};
+
+// 🎯 검색 항목 칸 삭제 함수
+window.removeSearchField = function(type) {
+  const row = document.getElementById(`field-row-${type}`);
+  if (row) row.remove();
+  document.getElementById(`btn-add-${type}`).style.display = 'inline-block'; // 삭제하면 버튼 다시 보임
+};
+
 window.goToDayAndCloseSearch = function(dateStr) {
   window.closeSearchModal();
   if (window.goToDay) {
@@ -693,29 +736,43 @@ window.goToDayAndCloseSearch = function(dateStr) {
   }
 };
 
+// 🚀 본격적인 검색 실행 엔진
 window.executeSearch = async function() {
-  const resultList = document.getElementById('search-results-list');
-  const countText = document.getElementById('search-results-count');
+  const activeTypes = Object.keys(fieldMeta).filter(k => document.getElementById(`input-${k}`));
   
-  // 1. 입력된 키워드 추출 (쉼표나 띄어쓰기로 분리 후 빈칸 제거)
-  const getKeywords = (id) => document.getElementById(id).value.split(/[\s,]+/).filter(k => k.trim() !== '');
-  
-  const kwEvent = getKeywords('search-event');
-  const kwSubject = getKeywords('search-subject');
-  const kwMemo = getKeywords('search-memo');
-  const kwSupplies = getKeywords('search-supplies');
-  const condition = document.getElementById('search-condition').value; // 'AND' or 'OR'
-  
-  const allKeywords = [...kwEvent, ...kwSubject, ...kwMemo, ...kwSupplies];
-  
-  if (allKeywords.length === 0) {
-    alert("검색할 단어를 하나 이상 입력해주세요.");
+  if (activeTypes.length === 0) {
+    alert("상단의 [+ 버튼]을 눌러 검색할 항목을 먼저 추가해 주세요.");
     return;
   }
 
-  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 클라우드에서 검색 중입니다...</p>`;
+  // 1. 활성화된 칸에서 입력값과 조건(AND/OR) 수집
+  const searchParams = {};
+  let allKeywords = [];
+  
+  activeTypes.forEach(t => {
+    const val = document.getElementById(`input-${t}`).value;
+    const keywords = val.split(/[\s,]+/).filter(k => k.trim() !== ''); // 띄어쓰기, 쉼표로 분리
+    const logic = document.getElementById(`logic-${t}`).value;
+    searchParams[t] = { keywords, logic };
+    allKeywords.push(...keywords);
+  });
 
-  // 2. 전체 데이터 불러오기
+  if (allKeywords.length === 0) {
+    alert("검색어를 한 글자 이상 입력해 주세요.");
+    return;
+  }
+  
+  // 중복 키워드 제거 (하이라이팅용)
+  allKeywords = [...new Set(allKeywords)];
+
+  const resultList = document.getElementById('search-results-list');
+  const countText = document.getElementById('search-results-count');
+  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 해당 화면 범위 내에서 검색 중입니다...</p>`;
+
+  // 2. 💡 [핵심] 현재 화면(년, 월, 주, 일)에 해당하는 날짜 목록만 추출!
+  const targetDatesObj = window.getTargetDateList();
+  const validDates = targetDatesObj.map(item => item.dateStr);
+
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
 
@@ -724,41 +781,28 @@ window.executeSearch = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 중복 없는 전체 날짜 목록 생성
-  const allDates = [...new Set([...Object.keys(eventMap), ...Object.keys(scheduleMap)])].sort();
-
-  // 3. 텍스트 매칭 검사 함수 (AND면 모든 키워드 포함, OR이면 하나라도 포함)
-  const checkMatch = (text, keywords) => {
-    if (keywords.length === 0) return null; // 검색어 없으면 검사 패스
+  // 3. 텍스트 매칭 함수 (각 칸별 AND/OR 로직 적용)
+  const checkMatch = (text, params) => {
+    if (params.keywords.length === 0) return true; // 칸은 추가했으나 비워뒀으면 통과
     if (!text) return false;
     const lowerText = text.toLowerCase();
-    if (condition === 'AND') {
-      return keywords.every(k => lowerText.includes(k.toLowerCase()));
+    
+    if (params.logic === 'AND') {
+      // 그리고: 모든 단어가 포함되어야 함
+      return params.keywords.every(k => lowerText.includes(k.toLowerCase()));
     } else {
-      return keywords.some(k => lowerText.includes(k.toLowerCase()));
+      // 또는: 하나라도 포함되면 됨
+      return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
     }
-  };
-
-  // 4. 노란색 형광펜 하이라이팅 함수
-  const highlight = (text) => {
-    if (!text) return '';
-    let res = text;
-    allKeywords.forEach(k => {
-      const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${safeK})`, 'gi');
-      res = res.replace(regex, `<mark style="background-color:#fef08a; padding:0 2px; border-radius:3px; font-weight:bold; color:#1e293b;">$1</mark>`);
-    });
-    return res;
   };
 
   const matchedResults = [];
 
-  // 5. 조건에 맞춰 필터링
-  allDates.forEach(dateStr => {
+  // 4. 🎯 전체 DB가 아닌 '현재 화면에 떠있는 날짜(validDates)'만 순회하며 검사
+  validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
     
-    // 하루 치 데이터를 하나로 합침
     let daySubjectText = [];
     let dayMemoText = [];
     let daySuppliesText = [];
@@ -771,34 +815,32 @@ window.executeSearch = async function() {
       }
     }
 
-    const matchE = checkMatch(dayEvent, kwEvent);
-    const matchS = checkMatch(daySubjectText.join(' '), kwSubject);
-    const matchM = checkMatch(dayMemoText.join(' '), kwMemo);
-    const matchSp = checkMatch(daySuppliesText.join(' '), kwSupplies);
+    let isMatch = true;
 
-    let isMatch = false;
-
-    // AND 로직 (입력한 필드의 조건이 모두 true여야 함)
-    if (condition === 'AND') {
-      isMatch = true;
-      if (matchE === false) isMatch = false;
-      if (matchS === false) isMatch = false;
-      if (matchM === false) isMatch = false;
-      if (matchSp === false) isMatch = false;
-    } 
-    // OR 로직 (입력한 필드 중 하나라도 true면 됨)
-    else {
-      if (matchE === true || matchS === true || matchM === true || matchSp === true) {
-        isMatch = true;
-      }
-    }
+    // 추가된 검색 칸의 조건을 순서대로 검사 (칸과 칸 사이는 무조건 AND 로직)
+    if (searchParams['event'] && !checkMatch(dayEvent, searchParams['event'])) isMatch = false;
+    if (searchParams['subject'] && !checkMatch(daySubjectText.join(' '), searchParams['subject'])) isMatch = false;
+    if (searchParams['memo'] && !checkMatch(dayMemoText.join(' '), searchParams['memo'])) isMatch = false;
+    if (searchParams['supplies'] && !checkMatch(daySuppliesText.join(' '), searchParams['supplies'])) isMatch = false;
 
     if (isMatch) {
       matchedResults.push({ dateStr, dayEvent, dayPeriods });
     }
   });
 
-  // 6. 결과 화면 렌더링
+  // 5. 형광펜 하이라이팅 함수
+  const highlight = (text) => {
+    if (!text) return '';
+    let res = text;
+    allKeywords.forEach(k => {
+      const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${safeK})`, 'gi');
+      res = res.replace(regex, `<mark style="background-color:#fef08a; padding:0 2px; border-radius:3px; font-weight:bold; color:#1e293b;">$1</mark>`);
+    });
+    return res;
+  };
+
+  // 6. 결과 출력
   countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
   resultList.innerHTML = '';
 
