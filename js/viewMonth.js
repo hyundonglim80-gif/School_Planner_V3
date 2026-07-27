@@ -144,18 +144,6 @@ window.renderMonthEditor = async function(container) {
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
   let html = `
-    <div style="background:#f8fafc; padding:16px; border-radius:8px; border:1px solid #cbd5e1; margin-bottom:16px; text-align:left;">
-      <h3 style="margin-bottom:12px; color:#1e293b; font-size:1.2rem;">💾 데이터 백업 및 대량 등록 (CSV)</h3>
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <button onclick="downloadCSV()" style="padding:6px 14px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📥 백업 다운로드 (CSV)</button>
-        <button onclick="document.getElementById('upload-csv-file').click()" style="padding:6px 14px; background:#ef4444; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">📤 업로드/동기화 (CSV)</button>
-        <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
-      </div>
-      <p style="font-size:0.95rem; color:#ef4444; margin-top:8px; font-weight:bold;">
-        * 주의: 📤 업로드 시 선택한 파일이 원본이 되어, 기존 데이터는 파일과 일치하도록 덮어씌워지거나 삭제됩니다!
-      </p>
-    </div>
-
     <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
       <h3 style="margin-bottom:12px; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년 ${m+1}월 일정/수업 편집 시트</h3>
       <table style="width:100%; border-collapse:collapse; text-align:center;">
