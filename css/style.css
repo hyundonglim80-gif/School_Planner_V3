@@ -289,3 +289,34 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   background-color: #f0f9ff !important;
   color: #0369a1 !important;
 }
+
+/* ==========================================================================
+   🎯 헤더 액션 그룹 및 위치 고정 저장 버튼 스타일
+   ========================================================================== */
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-save {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: var(--font-header-btn);
+  transition: all 0.2s;
+}
+
+.btn-save:hover {
+  background: #15803d;
+}
+
+/* 💡 버튼 위치 흔들림 방지를 위한 공간 유지 클래스 */
+.hidden {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
