@@ -13,7 +13,9 @@ window.renderMonthViewer = async function(container) {
   }
 
   let html = `<div class="calendar-grid" style="grid-template-columns: repeat(${window.showWeekend ? 7 : 5}, 1fr);">`;
-  const days = window.showWeekend ? ['월','화','수','목','금','토','일'] : ['월','화','수','목','금'];
+  
+  // 🎯 [수정됨] 일요일이 맨 앞으로 오도록 요일 배열 순서 변경
+  const days = window.showWeekend ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
   days.forEach(d => html += `<div class="cal-header" style="${(d==='토'||d==='일')?'color:#ef4444;':''}">${d}</div>`);
   
   const y = window.currentDate.getFullYear();
@@ -23,10 +25,13 @@ window.renderMonthViewer = async function(container) {
   
   let padding = 0;
   if (window.showWeekend) {
-    padding = (firstDay === 0) ? 6 : firstDay - 1; // 월요일 시작 달력의 패딩 계산
+    // 🎯 [수정됨] 일요일 시작이므로 getDay() 값 자체가 빈칸(padding) 개수가 됩니다.
+    padding = firstDay; 
   } else {
+    // 주말 숨기기(월~금) 상태일 때는 기존처럼 월요일(1)을 0칸으로 맞추는 계산 유지
     if (firstDay >= 1 && firstDay <= 5) padding = firstDay - 1; 
   }
+  
   for(let i=0; i<padding; i++) {
     html += `<div class="cal-day" style="background:#f8fafc;"></div>`;
   }
