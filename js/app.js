@@ -415,7 +415,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (💡 휴일/행사 자동 비움 로직 포함)
+// 📤 통합 CSV 업로드 및 동기화 (💡 엑셀 수식 기호(=) 완벽 제거)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -430,11 +430,20 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
+    // 💡 [수정됨] 엑셀에서 날짜 자동 변환을 막기 위해 쓴 =, ", ' 기호를 완벽하게 벗겨내는 함수
     const parseExcelText = (val) => {
       let v = (val || '').trim();
-      if (v.startsWith('="') && v.endsWith('"')) {
-        v = v.substring(2, v.length - 1);
+      
+      // 1. 맨 앞이 '='로 시작하면 '=' 기호 먼저 제거 (예: =4-2 -> 4-2)
+      if (v.startsWith('=')) {
+        v = v.substring(1);
       }
+      
+      // 2. 양끝이 큰따옴표(")나 작은따옴표(')로 감싸져 있다면 알맹이만 추출
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+        v = v.substring(1, v.length - 1);
+      }
+      
       return v;
     };
 
@@ -448,7 +457,6 @@ window.uploadCSV = async function(input) {
         
         const eventText = parseExcelText(row[4]);
         
-        // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)'가 있는지 확인
         const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
         
         const periodsData = {};
@@ -456,7 +464,6 @@ window.uploadCSV = async function(input) {
         for (let p = 1; p <= 6; p++) {
           let subj = parseExcelText(row[4 + p]);
           
-          // 🎯 휴일이나 행사일이면 과목을 비움
           if (isSkipDay) {
             subj = '';
           }
@@ -468,6 +475,7 @@ window.uploadCSV = async function(input) {
           };
         }
 
+        // 💡 주의: 구글 로그인 연동 시 getUserCol을 사용합니다.
         const eRef = window.getUserCol('events').doc(dateStr);
         operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         
