@@ -85,17 +85,19 @@ window.renderMonthViewer = async function(container) {
           letterSpacing = "-1.5px";
         }
 
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; flex-shrink:0; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
+        // 💡 [핵심 변경] width 고정을 없애고 `flex: 1; min-width: 0;`을 부여하여 무조건 6등분 꽉 채우기
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
       } else {
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; flex-shrink:0; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
+        // 💡 빈 박스도 동일하게 `flex: 1; min-width: 0;` 적용
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
       }
     }
 
     let scheduleHtml = '';
     if (hasClass) {
-      // 💡 [변경] 날짜 옆이 아닌, 날짜 아랫줄에 독립적인 줄로 배치
-      scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px;">${boxesHtml}</div>`;
+      // 💡 [핵심 변경] 컨테이너에 `width: 100%;`를 주어 날짜 칸의 가로 영역을 모두 사용하게 함
+      scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>`;
     }
 
     // 💡 날짜 표시 영역 독립 분리
@@ -109,7 +111,6 @@ window.renderMonthViewer = async function(container) {
     const isToday = (dateStr === realTodayStr);
     const todayClass = isToday ? 'month-today-cell' : '';
 
-    // 💡 [구조 변경] 1줄: 날짜 -> 2줄: 수업 박스 -> 3줄: 학사일정
     html += `<div class="cal-day ${todayClass}">${dayNumHtml}${scheduleHtml}${eventHtml}</div>`;
   });
 
