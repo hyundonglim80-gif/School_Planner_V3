@@ -220,7 +220,7 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 
+// 💾 3. 월간 편집 저장 처리 함수 (덮어쓰기 방지 보호 로직 적용)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
@@ -230,8 +230,14 @@ window.saveMonthDataFromEditor = async function() {
     const nextRow = row.nextElementSibling;
     const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-    
     const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+
+    // 🚨 [핵심 수정] 기존 데이터를 먼저 불러와서 메모와 준비물이 날아가는 것을 방지
+    let existingPeriods = {};
+    try {
+      const existingData = await window.dbAPI.loadDayData(dateStr);
+      existingPeriods = existingData.periods || {};
+    } catch(e) {}
 
     const classCells = row.querySelectorAll(".edit-class-cell");
     const periodsData = {};
@@ -241,14 +247,12 @@ window.saveMonthDataFromEditor = async function() {
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
        let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
 
-       if (isSkipDay) {
-         subjText = '';
-       }
+       if (isSkipDay) subjText = '';
 
        periodsData[p] = {
           subject: subjText,
-          supplies: '',
-          memo: ''
+          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', // 기존 준비물 유지
+          memo: existingPeriods[p] ? existingPeriods[p].memo : ''          // 기존 메모 유지
        };
     });
 
