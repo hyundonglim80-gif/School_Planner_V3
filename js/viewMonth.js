@@ -67,38 +67,41 @@ window.renderMonthViewer = async function(container) {
 
     // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
     // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
+    // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         const text = subject.trim();
         
-        // 🎯 1. 글자 수에 따라 폰트 크기와 자간 동적 계산
+        // 🎯 1. 한 줄을 유지하기 위해 글자 수에 따라 폰트와 자간을 더 세밀하게 축소
         let fontSize = "0.75rem";
         let letterSpacing = "normal";
         if (text.length === 3) {
-          fontSize = "0.65rem"; // 3글자면 약간 축소
+          fontSize = "0.65rem";
           letterSpacing = "-0.5px";
-        } else if (text.length >= 4) {
-          fontSize = "0.55rem"; // 4글자 이상이면 더 축소하고 자간을 좁힘
+        } else if (text.length === 4) {
+          fontSize = "0.55rem";
           letterSpacing = "-1px";
+        } else if (text.length >= 5) {
+          fontSize = "0.45rem"; // 5글자 이상일 때 극한으로 축소
+          letterSpacing = "-1.5px";
         }
 
-        // 🎯 2. 가로 28px, 세로 22px 고정 크기 할당 및 글자 넘침 숨김
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
+        // 🎯 2. flex-shrink:0 을 추가하여 박스 가로(28px)가 절대 찌그러지지 않게 쇳덩이처럼 고정
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; flex-shrink:0; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
       } else {
-        // 빈 박스도 동일한 고정 크기 적용
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
+        // 빈 박스도 절대 크기 고정
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; flex-shrink:0; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
       }
     }
 
     let scheduleHtml = '';
     if (hasClass) {
-      // 🎯 3. 모바일에서 넘치지 않게 flex-wrap: wrap 적용 (공간 부족 시 아랫줄로 자동 넘김)
-      scheduleHtml = `<div style="display:flex; flex-wrap:wrap; gap:3px; margin-left:6px; flex:1;">${boxesHtml}</div>`;
+      // 🎯 3. flex-wrap: nowrap 으로 설정하여 화면이 좁아도 무조건 1줄로 강제 유지 (공간 부족 시 스크롤/확대로 해결)
+      scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-left:6px;">${boxesHtml}</div>`;
     }
 
-    // 💡 날짜 숫자와 여러 줄의 박스가 어울리도록 align-items를 flex-start로 변경
     let dayStyle = "font-weight:700; margin-bottom:6px; color:#334155; display:flex; align-items:flex-start; margin-top:2px;";
     let eventHtml = '';
     if(eventText) {
