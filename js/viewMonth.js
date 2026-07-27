@@ -1,5 +1,17 @@
 // js/viewMonth.js
 
+// 💡 [전역 헬퍼] 특정 날짜(YYYY-MM-DD)의 '일 보기'로 즉시 이동하는 공통 함수
+if (!window.goToDay) {
+  window.goToDay = function(dateStr) {
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      window.setScope('day');
+    }
+  };
+}
+
 // ==========================================================================
 // 👁️ 1. 월간 뷰어 모드 (주말 제외 평일 5단 달력 + 오늘 강조 + 1~6교시 수업 박스)
 // ==========================================================================
@@ -14,12 +26,11 @@ window.renderMonthViewer = async function(container) {
 
   let html = `<div class="calendar-grid" style="grid-template-columns: repeat(${window.showWeekend ? 7 : 5}, 1fr);">`;
   
-  // 🎯 [수정됨] 요일 헤더 색상 분리 (일요일: 빨간색, 토요일: 파란색)
   const days = window.showWeekend ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
   days.forEach(d => {
     let colorStyle = '';
     if (d === '일') colorStyle = 'color:#ef4444;';
-    else if (d === '토') colorStyle = 'color:#3b82f6;'; // 파란색 적용
+    else if (d === '토') colorStyle = 'color:#3b82f6;';
     html += `<div class="cal-header" style="${colorStyle}">${d}</div>`;
   });
   
@@ -105,10 +116,9 @@ window.renderMonthViewer = async function(container) {
       scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>`;
     }
 
-    // 🎯 [수정됨] 날짜 숫자 색상 분리 (일요일: 빨간색, 토요일: 파란색, 평일: 진회색)
-    let dateColor = '#334155'; // 평일 기본 색상
-    if (dayOfWeekNum === 0) dateColor = '#ef4444'; // 일요일
-    else if (dayOfWeekNum === 6) dateColor = '#3b82f6'; // 토요일
+    let dateColor = '#334155';
+    if (dayOfWeekNum === 0) dateColor = '#ef4444';
+    else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
     let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
     
@@ -120,7 +130,8 @@ window.renderMonthViewer = async function(container) {
     const isToday = (dateStr === realTodayStr);
     const todayClass = isToday ? 'month-today-cell' : '';
 
-    html += `<div class="cal-day ${todayClass}">${dayNumHtml}${scheduleHtml}${eventHtml}</div>`;
+    // 🎯 달력 셀 어디든 누르면 해당 날짜의 일 보기로 이동
+    html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${eventHtml}</div>`;
   });
 
   html += `</div>`;
@@ -178,13 +189,13 @@ window.renderMonthEditor = async function(container) {
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 🎯 [수정됨] 에디터 모드에서도 일/토/평일 색상 분리
-    let dateColor = '#1e40af'; // 평일 기본 (기존 에디터 테마에 맞춘 남색)
-    if (dayOfWeekNum === 0) dateColor = '#ef4444'; // 일요일 (빨간색)
-    else if (dayOfWeekNum === 6) dateColor = '#3b82f6'; // 토요일 (파란색)
+    let dateColor = '#1e40af';
+    if (dayOfWeekNum === 0) dateColor = '#ef4444';
+    else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+    // 🎯 날짜 셀 클릭 시 일 보기로 이동
     html += `<tr data-month-date="${item.dateStr}">` +
-      `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
+      `<td rowspan="2" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
           `<span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${dayNum}</span>` +
           `<span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
