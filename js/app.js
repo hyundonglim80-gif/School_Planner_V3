@@ -9,7 +9,17 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
-window.currentDate = new Date(); // 💡 접속한 기기의 현재(오늘) 날짜를 기준일로 설정
+// 💡 [신규] 주말 표시 여부 상태 저장 (기본값은 숨김)
+window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
+
+window.currentDate = new Date(); // 접속한 기기의 현재(오늘) 날짜를 기준일로 설정
+
+// 💡 [신규] 주말 보기/숨기기 전환 함수
+window.toggleWeekend = function() {
+  window.showWeekend = !window.showWeekend;
+  localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+  window.render(); // 화면 즉시 새로고침
+};
 
 /**
  * 🛠️ Date 객체를 "YYYY-MM-DD" 포맷 문자열로 변환하는 전역 공통 함수
