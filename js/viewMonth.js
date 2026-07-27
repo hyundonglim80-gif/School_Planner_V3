@@ -66,23 +66,40 @@ window.renderMonthViewer = async function(container) {
     let hasClass = false;
 
     // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
+    // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:0.75rem; font-weight:700; min-width:24px; white-space:nowrap;">${subject.trim()}</div>`;
+        const text = subject.trim();
+        
+        // 🎯 1. 글자 수에 따라 폰트 크기와 자간 동적 계산
+        let fontSize = "0.75rem";
+        let letterSpacing = "normal";
+        if (text.length === 3) {
+          fontSize = "0.65rem"; // 3글자면 약간 축소
+          letterSpacing = "-0.5px";
+        } else if (text.length >= 4) {
+          fontSize = "0.55rem"; // 4글자 이상이면 더 축소하고 자간을 좁힘
+          letterSpacing = "-1px";
+        }
+
+        // 🎯 2. 가로 28px, 세로 22px 고정 크기 할당 및 글자 넘침 숨김
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
       } else {
-        // 내용이 없으면 X가 아니라 빈 박스로 처리
-        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; padding:2px 4px; margin-left:3px; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700; min-width:24px;">&nbsp;</div>`;
+        // 빈 박스도 동일한 고정 크기 적용
+        boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; width:28px; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
       }
     }
 
     let scheduleHtml = '';
     if (hasClass) {
-      scheduleHtml = `<div style="display:flex; margin-left:8px;">${boxesHtml}</div>`;
+      // 🎯 3. 모바일에서 넘치지 않게 flex-wrap: wrap 적용 (공간 부족 시 아랫줄로 자동 넘김)
+      scheduleHtml = `<div style="display:flex; flex-wrap:wrap; gap:3px; margin-left:6px; flex:1;">${boxesHtml}</div>`;
     }
 
-    let dayStyle = "font-weight:700; margin-bottom:4px; color:#334155; display:flex; align-items:center;";
+    // 💡 날짜 숫자와 여러 줄의 박스가 어울리도록 align-items를 flex-start로 변경
+    let dayStyle = "font-weight:700; margin-bottom:6px; color:#334155; display:flex; align-items:flex-start; margin-top:2px;";
     let eventHtml = '';
     if(eventText) {
        eventHtml = `<div class="cal-event" style="white-space: pre-wrap;">${eventText}</div>`;
