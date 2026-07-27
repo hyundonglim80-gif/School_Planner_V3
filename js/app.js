@@ -567,7 +567,7 @@ window.uploadCSV = async function(input) {
 };
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (100% 배율 엄격 감지)
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (실전 최적화)
 // ==========================================================================
 (function() {
   let touchStartX = 0;
@@ -578,27 +578,29 @@ window.uploadCSV = async function(input) {
   let isMultiTouch = false;
 
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
-  const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프 인정
-  const SWIPE_MAX_TIME = 500; // 0.5초 이내 동작만 인정
+  const SWIPE_THRESHOLD = 50; // 인식 기준 완화 (조금만 밀어도 넘어가도록 70->50)
+  const SWIPE_MAX_TIME = 800; // 시간 제한 완화 (여유롭게 0.8초 이내)
 
   function handleSwipeGesture() {
     if (currentMode !== 'viewer') return;
     if (isMultiTouch) return;
 
-    // 🛡️ 방어막 1: 100% 화면 배율인지 "매우 엄격하게" 검사 (1.01배 초과 또는 0.99배 미만이면 차단)
+    // 🛡️ 방어막 1: 1.05배 이상 '확실히' 확대된 상태면 차단 (너무 민감한 1.01 검사 제거)
     const scale = window.visualViewport ? window.visualViewport.scale : 1;
-    if (scale > 1.01 || scale < 0.99) return; 
-
-    // 🛡️ 방어막 2: 확대 후 화면을 좌우로 스크롤(패닝)하여 이동한 흔적이 있다면 무조건 차단
-    if (window.scrollX > 5 || document.documentElement.scrollLeft > 5) return;
+    if (scale > 1.05) return; 
 
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
     const deltaTime = Date.now() - touchStartTime;
 
-    // 🛡️ 방어막 3: 시간 초과 및 대각선 움직임 차단
     if (deltaTime > SWIPE_MAX_TIME) return;
-    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+
+    // 🛡️ 방어막 2: 위아래(스크롤)로 많이 움직인 경우 차단
+    // 가로 움직임이 세로 움직임의 2배 이상 커야만 스와이프로 인정 (대각선 오작동 방지)
+    if (Math.abs(deltaY) > Math.abs(deltaX) / 2) return;
+
+    // 💡 화면 가로 스크롤(scrollX) 검사 제거: 
+    // 달력/표 때문에 발생하는 미세한 여백이 스와이프를 먹통으로 만들던 문제 해결
 
     // 최종 스와이프 실행
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
