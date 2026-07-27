@@ -7,15 +7,19 @@ window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
   const day = tempDate.getDay();
+  
+  // 무조건 월요일을 시작일로 맞춤
   const diffToMon = tempDate.getDate() - day + (day === 0 ? -6 : 1);
-  tempDate.setDate(diffToMon); // 월요일로 맞춤
+  tempDate.setDate(diffToMon); 
 
-  const dayNames = ["월", "화", "수", "목", "금"];
-  for (let i = 0; i < 5; i++) {
+  // 💡 [신규] 주말 표시 여부에 따라 배열 길이를 7일(월~일) 또는 5일(월~금)로 조정
+  const daysCount = window.showWeekend ? 7 : 5;
+  const dayNames = ["월", "화", "수", "목", "금", "토", "일"];
+  
+  for (let i = 0; i < daysCount; i++) {
     dates.push({
       day: dayNames[i],
       dateStr: window.formatDate(tempDate),
-      // 💡 월 표기를 빼고 'O일' 형태로만 출력하도록 수정
       dateDisplay: `${tempDate.getDate()}일`
     });
     tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
