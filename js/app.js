@@ -98,6 +98,17 @@ window.setMode = function(mode) {
 };
 
 /**
+ * 🔘 [신규] 수정/저장 버튼 통합 클릭 핸들러
+ */
+window.handleEditSaveClick = function() {
+  if (currentMode === 'viewer') {
+    window.setMode('editor'); // 뷰어일 때는 수정 모드로 진입
+  } else {
+    window.saveCurrentViewData(); // 수정 모드일 때는 데이터 저장
+  }
+};
+
+/**
  * 🔘 상단 버튼 활성화 상태 및 메모 화면 시 [뷰어/수정] 버튼 숨김 제어
  */
 function updateButtonUI() {
@@ -112,7 +123,6 @@ function updateButtonUI() {
 
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
-  const saveBtn = document.getElementById('btn-save-data');
   const modeGroup = document.querySelector('.mode-group');
 
   // 💡 메모(memo) 화면일 때는 [뷰어/수정] 버튼 그룹 자체를 숨깁니다.
@@ -128,17 +138,14 @@ function updateButtonUI() {
 
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
-    editorBtn.className = currentMode === 'editor' ? 'btn-mode active-editor' : 'btn-mode';
-  }
 
-  // 💡 [수정됨] 수정 모드일 때만 [💾 저장] 버튼 노출 (위치 흔들림 방지를 위해 hidden 클래스 사용)
-  if (saveBtn) {
-    saveBtn.style.display = ''; // (중요) 기존에 남아있던 display:none 속성 강제 초기화
-    
-    if (currentMode === 'editor' && currentScope !== 'memo') {
-      saveBtn.classList.remove('hidden');
+    // 💡 핵심 로직: 현재 모드에 따라 2번째 버튼의 텍스트와 디자인을 변경합니다!
+    if (currentMode === 'viewer') {
+      editorBtn.innerHTML = '✏️ 수정';
+      editorBtn.className = 'btn-mode';
     } else {
-      saveBtn.classList.add('hidden');
+      editorBtn.innerHTML = '💾 저장';
+      editorBtn.className = 'btn-mode save-mode';
     }
   }
 }
@@ -147,12 +154,11 @@ function updateButtonUI() {
  * 💾 [저장] 버튼 클릭 시 현재 활성화된 Scope에 맞춰 Firestore 일괄 저장 실행
  */
 window.saveCurrentViewData = async function() {
-  const saveBtn = document.getElementById('btn-save-data');
+  const editorBtn = document.getElementById('btn-mode-editor');
   
-  // 💡 [수정됨] 잘못 들어갔던 UI 제어 코드 제거하고 원래의 저장 중 표시 로직 복구
-  if (saveBtn) {
-    saveBtn.textContent = "⏳ 저장 중...";
-    saveBtn.disabled = true;
+  if (editorBtn) {
+    editorBtn.innerHTML = "⏳ 저장중..";
+    editorBtn.disabled = true;
   }
 
   if (currentScope === 'day' && window.saveDayDataFromEditor) {
@@ -167,12 +173,12 @@ window.saveCurrentViewData = async function() {
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
 
-  if (saveBtn) {
-    saveBtn.textContent = "💾 저장";
-    saveBtn.disabled = false;
+  if (editorBtn) {
+    editorBtn.disabled = false;
   }
   
-  window.setMode('viewer'); // 저장 후 뷰어 모드로 자동 전환
+  // 저장 완료 후 다시 뷰어 모드로 자동 전환 -> 버튼도 알아서 '✏️ 수정'으로 돌아감
+  window.setMode('viewer'); 
 };
 
 /**
