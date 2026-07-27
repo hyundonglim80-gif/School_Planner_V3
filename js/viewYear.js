@@ -14,7 +14,7 @@ window.renderYearViewer = async function(container) {
 
   let allEvents = [];
   try {
-    const snapshot = await window.db.collection('events').get();
+    const snapshot = await window.getUserCol('events').get();
     snapshot.forEach(doc => {
       const data = doc.data();
       if (data.eventText && data.eventText.trim() !== '') {
