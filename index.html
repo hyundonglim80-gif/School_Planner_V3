@@ -109,19 +109,29 @@
     </div>
   </div>
 
+  <!-- 👇 빗금(/) 기호 안내가 포함된 동적 검색 모달 -->
   <div id="search-modal" class="modal-overlay hidden" style="z-index: 10000; background: #f8fafc;">
     <div style="width: 100%; height: 100%; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
       
+      <!-- 검색 헤더 -->
       <div style="padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #fff;">
         <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">🔍 상세 검색 (<span id="search-scope-label" style="color: #3b82f6;"></span>)</h2>
         <button onclick="closeSearchModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;">✖</button>
       </div>
       
+      <!-- 동적 검색 조건 입력부 -->
       <div style="padding: 20px; border-bottom: 2px solid #f1f5f9; background: #fff;">
-        <p style="color: #64748b; font-size: 0.95rem; margin-bottom: 15px;">
-          * 아래 버튼을 눌러 원하는 검색 조건을 추가하세요. 같은 버튼을 여러 번 눌러 칸을 계속 추가할 수 있습니다.
-        </p>
         
+        <!-- 🎯 새롭게 추가된 검색 사용법 안내 박스 -->
+        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 15px; margin-bottom: 15px; border-radius: 4px;">
+          <p style="color: #475569; font-size: 0.95rem; margin: 0; line-height: 1.6;">
+            * <b>[추가]</b> 아래 항목 버튼을 눌러 조건을 추가하세요. (같은 버튼 중복 가능)<br>
+            * <b>[OR 검색]</b> 한 칸에 <b>/</b> 기호로 단어를 구분하세요. <span style="color:#94a3b8;">(예: 국어/수학)</span><br>
+            * <b>[AND 검색]</b> 칸을 <b>여러 개 추가</b>해서 단어를 각각 따로 입력하세요.
+          </p>
+        </div>
+        
+        <!-- 필터 추가 버튼 영역 -->
         <div id="search-filter-buttons" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
           <button onclick="addSearchField('event')" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
           <button onclick="addSearchField('subject')" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
@@ -129,16 +139,21 @@
           <button onclick="addSearchField('supplies')" style="background:#ffedd5; color:#ea580c; border:1px solid #fdba74; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 준비물</button>
         </div>
 
+        <!-- 3단 그리드가 적용된 입력 칸 영역 -->
         <div id="active-search-fields" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 20px;">
-          </div>
+          <!-- JS에서 동적 생성됨 -->
+        </div>
         
+        <!-- 실행 버튼 -->
         <button onclick="executeSearch()" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">🚀 데이터 찾기</button>
       </div>
 
+      <!-- 검색 결과 출력부 -->
       <div style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;">
         <div id="search-results-count" style="margin-bottom: 15px; font-weight: bold; color: #2563eb; font-size: 1.1rem;"></div>
         <div id="search-results-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
-          </div>
+          <!-- 검색 결과 카드들이 여기에 생성됩니다 -->
+        </div>
       </div>
 
     </div>
