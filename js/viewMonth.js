@@ -12,18 +12,20 @@ window.renderMonthViewer = async function(container) {
     return;
   }
 
-  let html = `<div class="calendar-grid">`;
-  const days = ['월','화','수','목','금'];
-  days.forEach(d => html += `<div class="cal-header">${d}</div>`);
-
+  let html = `<div class="calendar-grid" style="grid-template-columns: repeat(${window.showWeekend ? 7 : 5}, 1fr);">`;
+  const days = window.showWeekend ? ['월','화','수','목','금','토','일'] : ['월','화','수','목','금'];
+  days.forEach(d => html += `<div class="cal-header" style="${(d==='토'||d==='일')?'color:#ef4444;':''}">${d}</div>`);
+  
   const y = window.currentDate.getFullYear();
   const m = window.currentDate.getMonth();
   const firstDay = new Date(y, m, 1).getDay(); 
   const lastDate = new Date(y, m + 1, 0).getDate(); 
-
+  
   let padding = 0;
-  if (firstDay >= 1 && firstDay <= 5) {
-    padding = firstDay - 1; 
+  if (window.showWeekend) {
+    padding = (firstDay === 0) ? 6 : firstDay - 1; // 월요일 시작 달력의 패딩 계산
+  } else {
+    if (firstDay >= 1 && firstDay <= 5) padding = firstDay - 1; 
   }
   for(let i=0; i<padding; i++) {
     html += `<div class="cal-day" style="background:#f8fafc;"></div>`;
@@ -59,7 +61,7 @@ window.renderMonthViewer = async function(container) {
     const dateObj = new Date(y, m, d);
     const dayOfWeekNum = dateObj.getDay();
     
-    if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return;
+    if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const dayPeriods = scheduleMap[dateStr] || {};
     let boxesHtml = '';
