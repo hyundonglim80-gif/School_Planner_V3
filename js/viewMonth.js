@@ -61,6 +61,7 @@ window.renderMonthViewer = async function(container) {
     const dateObj = new Date(y, m, d);
     const dayOfWeekNum = dateObj.getDay();
     
+    // 🎯 [수정] 주말 숨기기 상태일 때만 토/일 제외
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const dayPeriods = scheduleMap[dateStr] || {};
@@ -87,7 +88,7 @@ window.renderMonthViewer = async function(container) {
           letterSpacing = "-1.5px";
         }
 
-        // 💡 [핵심 변경] width 고정을 없애고 `flex: 1; min-width: 0;`을 부여하여 무조건 6등분 꽉 채우기
+        // 💡 width 고정을 없애고 `flex: 1; min-width: 0;`을 부여하여 무조건 6등분 꽉 채우기
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
       } else {
@@ -98,12 +99,14 @@ window.renderMonthViewer = async function(container) {
 
     let scheduleHtml = '';
     if (hasClass) {
-      // 💡 [핵심 변경] 컨테이너에 `width: 100%;`를 주어 날짜 칸의 가로 영역을 모두 사용하게 함
+      // 💡 컨테이너에 `width: 100%;`를 주어 날짜 칸의 가로 영역을 모두 사용하게 함
       scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>`;
     }
 
-    // 💡 날짜 표시 영역 독립 분리
-    let dayNumHtml = `<div style="font-weight:700; color:#334155; font-size:1.1rem;">${d}</div>`;
+    // 💡 날짜 표시 영역 독립 분리 및 주말 붉은색 강조
+    const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
+    const dateColor = isWeekend ? '#ef4444' : '#334155';
+    let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
     
     let eventHtml = '';
     if(eventText) {
@@ -166,16 +169,21 @@ window.renderMonthEditor = async function(container) {
     const dayOfWeekNum = dateObj.getDay();
     const dayOfWeek = dayNames[dayOfWeekNum];
 
-    if (dayOfWeekNum === 0 || dayOfWeekNum === 6) return; // 주말 제외
+    // 🎯 [수정] 주말 숨기기 옵션일 때만 토(6)/일(0)요일을 제외합니다.
+    if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
+    // 🎯 주말(토/일)일 경우 날짜 글자색을 붉은 계열로 강조 표시
+    const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
+    const dateColor = isWeekend ? '#ef4444' : '#1e40af';
+
     html += `<tr data-month-date="${item.dateStr}">` +
       `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-          `<span style="font-size:1.8rem; font-weight:900; color:#1e40af; line-height:1;">${dayNum}</span>` +
-          `<span style="font-size:1rem; font-weight:600; color:#475569; line-height:1;">${dayOfWeek}</span>` +
+          `<span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${dayNum}</span>` +
+          `<span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
         `</div>` +
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
