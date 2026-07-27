@@ -409,7 +409,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (💡 수식 포장 해제 로직 추가)
+// 📤 통합 CSV 업로드 및 동기화 (💡 휴일/행사 자동 비움 로직 포함)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -424,7 +424,6 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
-    // 🎯 [핵심] 엑셀에서 ="4-1" 처럼 강제 텍스트 처리된 값을 다시 4-1로 깔끔하게 복구하는 헬퍼 함수
     const parseExcelText = (val) => {
       let v = (val || '').trim();
       if (v.startsWith('="') && v.endsWith('"')) {
@@ -442,11 +441,22 @@ window.uploadCSV = async function(input) {
         const dateStr = `${y}-${m}-${d}`;
         
         const eventText = parseExcelText(row[4]);
+        
+        // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)'가 있는지 확인
+        const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+        
         const periodsData = {};
         
         for (let p = 1; p <= 6; p++) {
+          let subj = parseExcelText(row[4 + p]);
+          
+          // 🎯 휴일이나 행사일이면 과목을 비움
+          if (isSkipDay) {
+            subj = '';
+          }
+
           periodsData[p] = {
-            subject: parseExcelText(row[4 + p]),
+            subject: subj,
             memo: parseExcelText(row[10 + p]),
             supplies: parseExcelText(row[16 + p])
           };
@@ -461,7 +471,7 @@ window.uploadCSV = async function(input) {
     }
 
     await window.executeBatchOperations(operations);
-    alert("✅ 해당 파일의 데이터가 다른 달에 영향을 주지 않고 성공적으로 업데이트되었습니다!");
+    alert("✅ 데이터가 성공적으로 동기화 및 업데이트되었습니다!");
     window.render();
   };
   
