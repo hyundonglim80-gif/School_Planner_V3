@@ -522,18 +522,19 @@ window.uploadCSV = async function(input) {
   const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프로 인정 (오터치 방지)
 
   function handleSwipeGesture() {
-    // 💡 에디터(수정) 모드일 때는 글자 선택이나 스크롤 시 오작동을 막기 위해 스와이프 차단
-    if (window.currentMode !== 'viewer') return;
+    // 💡 [수정] window.을 빼고 파일 내의 currentMode 변수를 직접 확인합니다.
+    if (currentMode !== 'viewer') return;
 
     const deltaX = touchEndX - touchStartX;
 
     // 좌우로 충분히 밀었는지 확인
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      const currentIndex = scopeOrder.indexOf(window.currentScope);
+      // 💡 [수정] window.을 빼고 currentScope 변수를 직접 확인합니다.
+      const currentIndex = scopeOrder.indexOf(currentScope);
 
       if (deltaX < 0) {
         // 👈 왼쪽으로 밀기 (오른쪽에서 왼쪽으로) -> 다음 화면으로 이동
-        if (currentIndex < scopeOrder.length - 1) {
+        if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
           window.setScope(scopeOrder[currentIndex + 1]);
         }
       } else {
