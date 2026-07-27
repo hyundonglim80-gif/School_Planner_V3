@@ -108,7 +108,7 @@ window.renderDayEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 일간 저장 처리 함수
+// 💾 3. 일간 저장 처리 함수 (💡 휴일/행사 수업 자동 삭제 로직 추가)
 // ==========================================================================
 window.saveDayDataFromEditor = async function() {
   const dateStr = CURRENT_DAY_STR();
@@ -117,6 +117,9 @@ window.saveDayDataFromEditor = async function() {
 
   // 1) 전체 일정 저장
   await window.dbAPI.saveEvent(dateStr, eventText);
+
+  // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
+  const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
   // 2) 교시별 상세 수업 정보 저장
   const periodsData = {};
@@ -129,11 +132,16 @@ window.saveDayDataFromEditor = async function() {
     const memoEl = row.querySelector(".cell-memo");
     const suppliesEl = row.querySelector(".cell-supplies");
 
-    const subject = subjectEl ? (subjectEl.innerText || subjectEl.textContent || '').trim() : '';
+    let subject = subjectEl ? (subjectEl.innerText || subjectEl.textContent || '').trim() : '';
     const memo = memoEl ? (memoEl.innerText || memoEl.textContent || '').trim() : '';
     const supplies = suppliesEl ? (suppliesEl.innerText || suppliesEl.textContent || '').trim() : '';
 
-    periodsData[p] = { subject, memo, supplies }; // 데이터 객체에도 순서 맞춤
+    // 🎯 휴일이나 행사일이면 수업 과목을 비움
+    if (isSkipDay) {
+      subject = '';
+    }
+
+    periodsData[p] = { subject, memo, supplies };
   });
 
   await window.dbAPI.saveSchedule(dateStr, periodsData);
