@@ -511,3 +511,47 @@ window.uploadCSV = async function(input) {
   input.value = '';
 };
 
+// ==========================================================================
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
+// ==========================================================================
+(function() {
+  let touchStartX = 0;
+  let touchEndX = 0;
+  // 화면 전환 순서 (메모 -> 년 -> 월 -> 주 -> 일)
+  const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
+  const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프로 인정 (오터치 방지)
+
+  function handleSwipeGesture() {
+    // 💡 에디터(수정) 모드일 때는 글자 선택이나 스크롤 시 오작동을 막기 위해 스와이프 차단
+    if (window.currentMode !== 'viewer') return;
+
+    const deltaX = touchEndX - touchStartX;
+
+    // 좌우로 충분히 밀었는지 확인
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      const currentIndex = scopeOrder.indexOf(window.currentScope);
+
+      if (deltaX < 0) {
+        // 👈 왼쪽으로 밀기 (오른쪽에서 왼쪽으로) -> 다음 화면으로 이동
+        if (currentIndex < scopeOrder.length - 1) {
+          window.setScope(scopeOrder[currentIndex + 1]);
+        }
+      } else {
+        // 👉 오른쪽으로 밀기 (왼쪽에서 오른쪽으로) -> 이전 화면으로 이동
+        if (currentIndex > 0) {
+          window.setScope(scopeOrder[currentIndex - 1]);
+        }
+      }
+    }
+  }
+
+  // 화면 전체에 터치 이벤트 리스너 등록
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipeGesture();
+  }, { passive: true });
+})();
