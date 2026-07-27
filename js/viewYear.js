@@ -158,17 +158,21 @@ window.renderYearEditor = async function(container) {
     const dayOfWeekNum = dateObj.getDay();
     const dayOfWeek = dayNames[dayOfWeekNum];
 
+    // 🎯 [수정] 주말 숨기기 옵션일 때만 토(6)/일(0)요일을 제외합니다.
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 연간 수정 날짜 표기: 월과 일을 함께 표시 (예: 3월 3일 / 화)
+    // 🎯 주말(토/일)일 경우 날짜 글자색을 붉은 계열로 강조 표시
+    const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
+    const dateColor = isWeekend ? '#ef4444' : '#1e40af';
+
     html += `<tr data-year-date="${item.dateStr}">` +
       `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-          `<span style="font-size:1.2rem; font-weight:900; color:#1e40af; line-height:1.1;">${item.month}월 ${item.day}일</span>` +
-          `<span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${dayOfWeek}</span>` +
+          `<span style="font-size:1.2rem; font-weight:900; color:${dateColor}; line-height:1.1;">${item.month}월 ${item.day}일</span>` +
+          `<span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
         `</div>` +
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
