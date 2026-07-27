@@ -131,12 +131,14 @@ function updateButtonUI() {
     editorBtn.className = currentMode === 'editor' ? 'btn-mode active-editor' : 'btn-mode';
   }
 
-  // 수정 모드일 때만 [💾 저장] 버튼 노출
+  // 💡 [수정됨] 수정 모드일 때만 [💾 저장] 버튼 노출 (위치 흔들림 방지를 위해 hidden 클래스 사용)
   if (saveBtn) {
+    saveBtn.style.display = ''; // (중요) 기존에 남아있던 display:none 속성 강제 초기화
+    
     if (currentMode === 'editor' && currentScope !== 'memo') {
-      saveBtn.style.display = 'inline-block';
+      saveBtn.classList.remove('hidden');
     } else {
-      saveBtn.style.display = 'none';
+      saveBtn.classList.add('hidden');
     }
   }
 }
@@ -146,13 +148,11 @@ function updateButtonUI() {
  */
 window.saveCurrentViewData = async function() {
   const saveBtn = document.getElementById('btn-save-data');
-  // 수정 모드일 때만 [💾 저장] 버튼 노출 (위치 흔들림 방지를 위해 hidden 클래스 사용)
+  
+  // 💡 [수정됨] 잘못 들어갔던 UI 제어 코드 제거하고 원래의 저장 중 표시 로직 복구
   if (saveBtn) {
-    if (currentMode === 'editor' && currentScope !== 'memo') {
-      saveBtn.classList.remove('hidden');
-    } else {
-      saveBtn.classList.add('hidden');
-    }
+    saveBtn.textContent = "⏳ 저장 중...";
+    saveBtn.disabled = true;
   }
 
   if (currentScope === 'day' && window.saveDayDataFromEditor) {
