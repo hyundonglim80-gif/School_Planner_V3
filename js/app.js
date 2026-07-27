@@ -227,31 +227,37 @@ window.moveDate = function(dir) {
 };
 
 // ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 및 이벤트 연결 실행
+// ✅ (js/app.js 파일의 제일 마지막 부분 덮어쓰기)
 window.addEventListener('DOMContentLoaded', () => {
-  // 💡 HTML의 onclick 대신 Javascript 내부에서 안전하게 이벤트 리스너를 연결합니다.
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
 
-  if (viewerBtn) {
-    viewerBtn.addEventListener('click', () => {
-      window.setMode('viewer');
-    });
-  }
-
+  if (viewerBtn) viewerBtn.addEventListener('click', () => window.setMode('viewer'));
   if (editorBtn) {
     editorBtn.addEventListener('click', () => {
-      if (currentMode === 'viewer') {
-        window.setMode('editor'); // 뷰어일 때는 수정 모드로 진입
-      } else {
-        window.saveCurrentViewData(); // 수정 모드일 때는 데이터 저장
-      }
+      if (currentMode === 'viewer') window.setMode('editor');
+      else window.saveCurrentViewData();
     });
   }
 
-  // DB 연동 시간을 조금 더 벌어주기 위해 약간의 지연(100ms) 후 렌더링
-  setTimeout(() => {
-    window.render();
-  }, 100);
+  // 💡 [신규] 로그인 상태 감지 및 자동 로그인 처리 로직
+  window.auth.onAuthStateChanged(user => {
+    if (user) {
+      // 1. 이미 로그인 된 사용자라면 (자동 로그인) 로그인 화면을 숨기고 메인 화면을 보여줌
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('user-info').style.display = 'flex';
+      // 프로필 사진 불러오기
+      if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+      
+      // 2. 로그인 한 사람의 개인 데이터를 불러와서 화면에 그림
+      window.render();
+    } else {
+      // 로그아웃 상태라면 메인 화면을 지우고 로그인 덮개 화면을 표시함
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('user-info').style.display = 'none';
+      document.getElementById("main-view").innerHTML = ""; 
+    }
+  });
 });
 
 
