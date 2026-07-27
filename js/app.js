@@ -567,37 +567,50 @@ window.uploadCSV = async function(input) {
 };
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (확대/스크롤 오작동 방지 적용)
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (초강력 오작동 방지)
 // ==========================================================================
 (function() {
   let touchStartX = 0;
-  let touchStartY = 0; // 💡 상하 움직임 감지를 위해 Y좌표 추가
+  let touchStartY = 0;
   let touchEndX = 0;
   let touchEndY = 0;
+  let touchStartTime = 0;   // 💡 터치 시작 시간
+  let isMultiTouch = false; // 💡 다중 터치 상태 기억
+
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
   const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프 인정
+  const SWIPE_MAX_TIME = 500; // 💡 0.5초(500ms) 이내에 휙! 넘긴 것만 스와이프로 인정
 
   function handleSwipeGesture() {
     if (currentMode !== 'viewer') return;
+    
+    // 🛡️ 방어막 1: 터치 도중 두 손가락 이상이 닿은 적이 있다면 무조건 무효 (줌 인/아웃 후 손가락 뗄 때 오작동 방지)
+    if (isMultiTouch) return;
 
-    // 🛡️ 방어막 1: 화면이 100% 이상으로 확대(Zoom)된 상태면 스와이프 차단
-    // (모바일 브라우저에 따라 소수점 오차가 발생하므로 1.01을 기준으로 함)
-    if (window.visualViewport && window.visualViewport.scale > 1.01) return;
+    // 🛡️ 방어막 2: 화면 확대(Zoom) 상태 감지 (기기별 오차를 고려해 1.05배 초과일 때만 차단)
+    const scale = window.visualViewport ? window.visualViewport.scale : 1;
+    if (scale > 1.05) return; 
 
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
+    const deltaTime = Date.now() - touchStartTime;
 
-    // 🛡️ 방어막 2: 위아래로 스크롤(Y축)하는 움직임이 좌우(X축)보다 크면 스와이프 차단
+    // 🛡️ 방어막 3: 화면을 둘러보기 위해 0.5초 이상 천천히 화면을 끈 경우 차단
+    if (deltaTime > SWIPE_MAX_TIME) return;
+
+    // 🛡️ 방어막 4: 위아래(Y축)로 움직인 거리가 좌우(X축)보다 크면 스와이프 차단
     if (Math.abs(deltaY) > Math.abs(deltaX)) return;
 
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
       const currentIndex = scopeOrder.indexOf(currentScope);
 
       if (deltaX < 0) {
+        // 👈 왼쪽으로 밀기
         if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
           window.setScope(scopeOrder[currentIndex + 1]);
         }
       } else {
+        // 👉 오른쪽으로 밀기
         if (currentIndex > 0) {
           window.setScope(scopeOrder[currentIndex - 1]);
         }
@@ -606,14 +619,26 @@ window.uploadCSV = async function(input) {
   }
 
   document.addEventListener('touchstart', e => {
-    // 🛡️ 방어막 3: 두 손가락 이상 터치 중일 때(확대/축소 중)는 스와이프 기록을 하지 않음
-    if (e.touches.length > 1) return;
-    
+    // 터치 시작 시 두 손가락 이상이면 다중 터치로 간주
+    if (e.touches.length > 1) {
+      isMultiTouch = true;
+      return;
+    }
+    isMultiTouch = false; // 단일 터치일 때만 초기화
     touchStartX = e.changedTouches[0].screenX;
     touchStartY = e.changedTouches[0].screenY;
+    touchStartTime = Date.now(); // 시간 기록
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    // 움직이는 도중이라도 두 손가락이 닿으면 즉시 스와이프 무효화
+    if (e.touches.length > 1) {
+      isMultiTouch = true;
+    }
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
+    if (isMultiTouch) return; // 다중 터치였으면 계산조차 하지 않음
     touchEndX = e.changedTouches[0].screenX;
     touchEndY = e.changedTouches[0].screenY;
     handleSwipeGesture();
