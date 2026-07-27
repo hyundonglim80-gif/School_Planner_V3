@@ -8,12 +8,12 @@
   /* 🎨 1. 기본 브랜드 색상 */
   --primary-color: #1a73e8;       /* 메인 테마 파란색 */
   --border-color: #cbd5e1;        /* 기본 테두리 색상 */
-  --bg-body: #f8fafc;             /* 전체 배경색 */
-  --bg-card: #ffffff;             /* 카드 및 테이블 배경색 */
-  --hover-bg: #f1f5f9;            /* 마우스 호버 배경색 */
+  --bg-body: #f8fafc;              /* 전체 배경색 */
+  --bg-card: #ffffff;              /* 카드 및 테이블 배경색 */
+  --hover-bg: #f1f5f9;             /* 마우스 호버 배경색 */
   --edit-focus-bg: #ffffcc;       /* 셀 수정 클릭 시 포커스 배경색 (연노랑) */
-  --tag-bg: #dbeafe;              /* 과목 배지 배경색 */
-  --tag-color: #1e40af;           /* 과목 배지 글자색 */
+  --tag-bg: #dbeafe;               /* 과목 배지 배경색 */
+  --tag-color: #1e40af;            /* 과목 배지 글자색 */
 
   /* 🎯 2. '오늘' 강조 스타일 설정 */
   --today-bg-color: #eff6ff;      /* 오늘 날짜 칸 배경색 (연푸른색) */
@@ -41,9 +41,6 @@
   /* 📌 6. 일(Day) 보기 전용 레이아웃 설정 */
   --day-title-font-size: 1.5rem;  /* 일간 보기 제목 글자 크기 */
   --day-content-font-size: 1.3rem;/* 일간 보기 내용 글자 크기 */
-  
-  /* 💡 [추가] 일간 뷰어 '일정' 칸 최소 세로 높이 설정 */
-  /* 👉 원하는 높이로 숫자(px)를 조절하세요. (예: 60px, 80px, 100px 등) */
   --day-event-min-height: 70px;  
 }
 
@@ -68,9 +65,6 @@ body {
 /* ==========================================================================
    🔝 [최상단 고정 헤더 영역]
    ========================================================================== */
-/* ==========================================================================
-   🔝 [최상단 고정 헤더 영역]
-   ========================================================================== */
 .app-header { 
   position: sticky; 
   top: 0; 
@@ -80,7 +74,7 @@ body {
   border-bottom: 1px solid var(--border-color); 
   box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
   display: flex; 
-  flex-direction: column; /* 💡 상단(top)과 하단(bottom)을 명확한 세로(Column) 구조로 분리 */
+  flex-direction: column; 
   gap: 12px; 
 }
 .header-top { 
@@ -183,10 +177,8 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 /* ==========================================================================
    🗓️ [일/월/년 뷰어 스타일]
    ========================================================================== */
-/* 일 보기 카드 레이아웃 */
 .day-viewer-container { display: flex; flex-direction: column; gap: 14px; }
 
-/* 💡 [추가] 일간 뷰어 '일정' 카드 스타일 (CSS 변수 --day-event-min-height 적용) */
 .day-event-card {
   display: flex;
   align-items: center;
@@ -197,7 +189,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   margin-bottom: 16px;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  min-height: var(--day-event-min-height); /* ⭐ 높이 컨트롤 타워 변수 연동 */
+  min-height: var(--day-event-min-height);
 }
 
 .daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
@@ -273,11 +265,9 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   .current-range { font-size: var(--font-date-range); }
   .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
 
-  /* 모바일 주간 최소 너비 */
   table { min-width: var(--week-table-min-width) !important; }
   .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
 
-  /* 모바일 연 보기 3열 고정 */
   .year-grid {
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 6px;
@@ -286,7 +276,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 }
 
 /* ==========================================================================
-   🛠️ [추가] 월간 에디터 레이아웃 최적화 (세로 공백 제거 및 자동 높이)
+   🛠️ 월간 에디터 레이아웃 최적화
    ========================================================================== */
 .month-editor-wrapper {
   display: flex;
@@ -294,9 +284,9 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 }
 
 .month-class-cell, .month-event-cell {
-  height: auto !important;       /* 고정 높이 절대 금지, 내용물 크기만큼만 늘어남 */
-  min-height: 40px !important;   /* 내용이 없을 때 최소 1줄(40px) 크기 보장 */
-  padding: 8px 12px !important;  /* 내부 여백 최적화 */
+  height: auto !important;
+  min-height: 40px !important;
+  padding: 8px 12px !important;
   line-height: 1.5 !important;
   outline: none;
   word-break: break-all;
@@ -305,45 +295,12 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .month-class-cell {
   background-color: #ecfdf5 !important;
   color: #047857 !important;
-  border-bottom: 1px dashed #cbd5e1 !important; /* 위아래 구분선 */
+  border-bottom: 1px dashed #cbd5e1 !important;
 }
 
 .month-event-cell {
   background-color: #f0f9ff !important;
   color: #0369a1 !important;
-}
-
-/* ==========================================================================
-   🎯 헤더 액션 그룹 및 위치 고정 저장 버튼 스타일
-   ========================================================================== */
-.btn-save {
-  background: #16a34a;
-  color: #fff;
-  border: none;
-  padding: 5px 14px;
-  border-radius: 6px;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: var(--font-header-btn);
-  transition: all 0.2s;
-}
-
-.btn-save:hover {
-  background: #15803d;
-}
-
-/* ==========================================================================
-   🎯 수정 버튼 -> 저장 버튼 변신 스타일
-   ========================================================================== */
-.btn-mode.save-mode {
-  background-color: #16a34a !important;
-  color: #ffffff !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-.btn-mode.save-mode:hover {
-  background-color: #15803d !important;
-}
-  pointer-events: none !important;
 }
 
 /* ==========================================================================
