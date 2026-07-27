@@ -175,6 +175,16 @@ function updateButtonUI() {
     }
   }
 
+  // 🎯 [신규] 검색 버튼 노출 제어 (뷰어 모드이면서 메모 화면이 아닐 때 노출)
+  const searchBtn = document.getElementById('btn-search');
+  if (searchBtn) {
+    if (currentMode === 'viewer' && currentScope !== 'memo') {
+      searchBtn.style.display = 'inline-block';
+    } else {
+      searchBtn.style.display = 'none';
+    }
+  }
+
   // 💡 [수정됨] 점 세개 버튼 표시 제어 (수정 모드일 때 보임 - 년/월/주/일 전체)
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
@@ -193,8 +203,8 @@ function updateButtonUI() {
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
-    // 일(Day) 보기나 메모(Memo) 화면에서는 굳이 필요 없으므로 숨김
-    weekendBtn.style.display = (currentScope === 'memo' || currentScope === 'day') ? 'none' : 'inline-block';
+    // 🎯 [수정됨] 일(Day) 보기에서도 주말 버튼이 보이도록 변경 (메모 화면에서만 숨김)
+    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 }
 /**
@@ -245,7 +255,6 @@ window.moveDate = function(dir) {
 };
 
 // ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 및 이벤트 연결 실행
-// ✅ (js/app.js 파일의 제일 마지막 부분 덮어쓰기)
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -299,7 +308,7 @@ window.escapeCSV = function(str) {
   let s = String(str);
   let trimmed = s.trim();
   
-  // 🎯 [수정됨] "4-2", "10/2" 같은 패턴일 경우 앞에 작은따옴표(')를 붙임
+  // 🎯 "4-2", "10/2" 같은 패턴일 경우 앞에 작은따옴표(')를 붙임
   if (/^\d+[-/:]\d+$/.test(trimmed)) {
     return `'${trimmed}`;
   }
@@ -354,7 +363,7 @@ window.getTargetDateList = function() {
   const d = window.currentDate.getDate();
 
   if (currentScope === 'day') {
-    // 🎯 [신규] 일(Day) 보기: 현재 날짜 하루만 반환
+    // 🎯 일(Day) 보기: 현재 날짜 하루만 반환
     const dateObj = new Date(y, m, d);
     dates.push({
       dateStr: window.formatDate(dateObj),
@@ -364,14 +373,17 @@ window.getTargetDateList = function() {
       dayOfWeek: dayNames[dateObj.getDay()]
     });
   } else if (currentScope === 'week') {
-    // 🎯 [신규] 주(Week) 보기: 이번 주 월요일부터 금/일요일까지 반환
+    // 🎯 주(Week) 보기: 이번 주 일요일(0)부터 토요일(6)까지 반환
     const tempDate = new Date(window.currentDate);
     const dayOfWeek = tempDate.getDay();
-    const diffToMon = tempDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    tempDate.setDate(diffToMon); // 월요일로 맞춤
+    const diffToSun = tempDate.getDate() - dayOfWeek;
+    tempDate.setDate(diffToSun); // 일요일로 맞춤
 
-    const daysCount = window.showWeekend ? 7 : 5;
-    for (let i = 0; i < daysCount; i++) {
+    for (let i = 0; i < 7; i++) {
+      if (!window.showWeekend && (i === 0 || i === 6)) {
+        tempDate.setDate(tempDate.getDate() + 1);
+        continue;
+      }
       dates.push({
         dateStr: window.formatDate(tempDate),
         year: tempDate.getFullYear(),
@@ -379,10 +391,9 @@ window.getTargetDateList = function() {
         day: tempDate.getDate(),
         dayOfWeek: dayNames[tempDate.getDay()]
       });
-      tempDate.setDate(tempDate.getDate() + 1); // 하루씩 증가
+      tempDate.setDate(tempDate.getDate() + 1);
     }
   } else if (currentScope === 'month') {
-    // 기존 월(Month) 보기 로직
     const lastDate = new Date(y, m + 1, 0).getDate();
     for (let i = 1; i <= lastDate; i++) {
       const dateObj = new Date(y, m, i);
@@ -395,7 +406,6 @@ window.getTargetDateList = function() {
       });
     }
   } else {
-    // 기존 년(Year) 보기 로직 (3월 ~ 이듬해 2월)
     const startYear = y;
     for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
       let targetY = startYear;
@@ -458,7 +468,7 @@ window.downloadCSV = async function() {
     csv += rowStr + "\n";
   });
 
-  // 🎯 [신규] 다운로드하는 화면 범위(Scope)에 맞춰 파일 제목 생성
+  // 🎯 다운로드하는 화면 범위(Scope)에 맞춰 파일 제목 생성
   let titlePrefix = `${window.currentDate.getFullYear()}학년도`;
   
   if (currentScope === 'day') {
@@ -466,12 +476,12 @@ window.downloadCSV = async function() {
   } else if (currentScope === 'week') {
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
-    const mon = new Date(temp.setDate(temp.getDate() - day + (day === 0 ? -6 : 1)));
-    const endDay = new Date(mon);
-    endDay.setDate(mon.getDate() + (window.showWeekend ? 6 : 4));
+    const sun = new Date(temp.setDate(temp.getDate() - day));
+    const endDay = new Date(sun);
+    endDay.setDate(sun.getDate() + 6);
     
-    const mStr1 = String(mon.getMonth()+1).padStart(2,'0');
-    const dStr1 = String(mon.getDate()).padStart(2,'0');
+    const mStr1 = String(sun.getMonth()+1).padStart(2,'0');
+    const dStr1 = String(sun.getDate()).padStart(2,'0');
     const mStr2 = String(endDay.getMonth()+1).padStart(2,'0');
     const dStr2 = String(endDay.getDate()).padStart(2,'0');
     titlePrefix = `${window.currentDate.getFullYear()}년_${mStr1}${dStr1}_${mStr2}${dStr2}_주간`;
@@ -512,7 +522,7 @@ window.uploadCSV = async function(input) {
         v = v.substring(1, v.length - 1);
       }
       
-      // 3. 🎯 [신규] 맨 앞에 작은따옴표(') 하나만 붙어있는 경우 제거 ('4-2 -> 4-2)
+      // 3. 맨 앞에 작은따옴표(') 하나만 붙어있는 경우 제거 ('4-2 -> 4-2)
       if (v.startsWith("'")) {
         v = v.substring(1);
       }
@@ -548,7 +558,6 @@ window.uploadCSV = async function(input) {
           };
         }
 
-        // 💡 주의: 구글 로그인 연동 시 getUserCol을 사용합니다.
         const eRef = window.getUserCol('events').doc(dateStr);
         operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         
@@ -578,20 +587,17 @@ window.uploadCSV = async function(input) {
   let isMultiTouch = false;
 
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
-  const SWIPE_THRESHOLD = 50; // 인식할 최소 이동 거리 (px)
-  const SWIPE_MAX_TIME = 800;  // 스와이프 동작 시간 제한 (ms)
+  const SWIPE_THRESHOLD = 50; 
+  const SWIPE_MAX_TIME = 800;  
 
-  // 💡 현재 화면 스크롤이 왼쪽 끝 / 오른쪽 끝에 도달했는지 정교하게 판별하는 함수
   function getHorizontalEdgeState() {
     const vv = window.visualViewport;
     
-    // 일반 스크롤 위치 + visualViewport(핀치 줌) 이동 위치 합산
     let scrollLeft = window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
     if (vv && vv.offsetLeft) {
       scrollLeft += vv.offsetLeft;
     }
 
-    // 문서 전체 가로 폭 및 현재 보이는 화면 폭 계산
     const totalWidth = Math.max(
       document.documentElement.scrollWidth,
       document.body.scrollWidth,
@@ -600,7 +606,6 @@ window.uploadCSV = async function(input) {
     const viewportWidth = vv ? vv.width : window.innerWidth;
     const maxScrollLeft = Math.max(0, totalWidth - viewportWidth);
 
-    // 오차 범위(15px) 이내면 끝단으로 판별
     const isAtLeftEdge = scrollLeft <= 15;
     const isAtRightEdge = scrollLeft >= (maxScrollLeft - 15);
 
@@ -615,26 +620,20 @@ window.uploadCSV = async function(input) {
     const deltaY = touchEndY - touchStartY;
     const deltaTime = Date.now() - touchStartTime;
 
-    // 1. 시간 초과 또는 세로 스크롤 동작 시 차단
     if (deltaTime > SWIPE_MAX_TIME) return;
     if (Math.abs(deltaY) > Math.abs(deltaX) / 2) return;
 
-    // 2. 일정 거리 이상 드래그했을 때 양 끝단 조건 확인 후 스와이프 실행
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
       const { isAtLeftEdge, isAtRightEdge } = getHorizontalEdgeState();
       const currentIndex = scopeOrder.indexOf(currentScope);
 
       if (deltaX < 0) {
-        // 👈 오른쪽에서 왼쪽으로 밀기 (다음 화면으로)
-        // 🎯 화면의 "오른쪽 끝"에 도달해 있을 때만 다음 보기로 전환!
         if (isAtRightEdge) {
           if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
             window.setScope(scopeOrder[currentIndex + 1]);
           }
         }
       } else {
-        // 👉 왼쪽에서 오른쪽으로 밀기 (이전 화면으로)
-        // 🎯 화면의 "왼쪽 끝"에 도달해 있을 때만 이전 보기로 전환!
         if (isAtLeftEdge) {
           if (currentIndex > 0) {
             window.setScope(scopeOrder[currentIndex - 1]);
@@ -666,3 +665,179 @@ window.uploadCSV = async function(input) {
     handleSwipeGesture();
   }, { passive: true });
 })();
+
+// ==========================================================================
+// 🔍 강력한 고급 필터 통합 검색 엔진 (AND/OR 및 키워드 하이라이팅 적용)
+// ==========================================================================
+
+window.openSearchModal = function() {
+  document.getElementById('search-modal').classList.remove('hidden');
+  document.getElementById('search-results-list').innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:20px;">검색 조건을 입력하고 '데이터 찾기'를 눌러주세요.</p>`;
+  document.getElementById('search-results-count').innerText = '';
+};
+
+window.closeSearchModal = function() {
+  document.getElementById('search-modal').classList.add('hidden');
+};
+
+// 검색 결과 클릭 시 해당 날짜로 바로 이동하고 창 닫기
+window.goToDayAndCloseSearch = function(dateStr) {
+  window.closeSearchModal();
+  if (window.goToDay) {
+    window.goToDay(dateStr);
+  } else {
+    // goToDay 함수가 없을 경우를 대비한 헬퍼
+    const parts = dateStr.split('-');
+    window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    window.setScope('day');
+  }
+};
+
+window.executeSearch = async function() {
+  const resultList = document.getElementById('search-results-list');
+  const countText = document.getElementById('search-results-count');
+  
+  // 1. 입력된 키워드 추출 (쉼표나 띄어쓰기로 분리 후 빈칸 제거)
+  const getKeywords = (id) => document.getElementById(id).value.split(/[\s,]+/).filter(k => k.trim() !== '');
+  
+  const kwEvent = getKeywords('search-event');
+  const kwSubject = getKeywords('search-subject');
+  const kwMemo = getKeywords('search-memo');
+  const kwSupplies = getKeywords('search-supplies');
+  const condition = document.getElementById('search-condition').value; // 'AND' or 'OR'
+  
+  const allKeywords = [...kwEvent, ...kwSubject, ...kwMemo, ...kwSupplies];
+  
+  if (allKeywords.length === 0) {
+    alert("검색할 단어를 하나 이상 입력해주세요.");
+    return;
+  }
+
+  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 클라우드에서 검색 중입니다...</p>`;
+
+  // 2. 전체 데이터 불러오기
+  const eventSnap = await window.getUserCol('events').get();
+  const scheduleSnap = await window.getUserCol('schedules').get();
+
+  const eventMap = {};
+  eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
+  const scheduleMap = {};
+  scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
+
+  // 중복 없는 전체 날짜 목록 생성
+  const allDates = [...new Set([...Object.keys(eventMap), ...Object.keys(scheduleMap)])].sort();
+
+  // 3. 텍스트 매칭 검사 함수 (AND면 모든 키워드 포함, OR이면 하나라도 포함)
+  const checkMatch = (text, keywords) => {
+    if (keywords.length === 0) return null; // 검색어 없으면 검사 패스
+    if (!text) return false;
+    const lowerText = text.toLowerCase();
+    if (condition === 'AND') {
+      return keywords.every(k => lowerText.includes(k.toLowerCase()));
+    } else {
+      return keywords.some(k => lowerText.includes(k.toLowerCase()));
+    }
+  };
+
+  // 4. 노란색 형광펜 하이라이팅 함수
+  const highlight = (text) => {
+    if (!text) return '';
+    let res = text;
+    allKeywords.forEach(k => {
+      const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${safeK})`, 'gi');
+      res = res.replace(regex, `<mark style="background-color:#fef08a; padding:0 2px; border-radius:3px; font-weight:bold; color:#1e293b;">$1</mark>`);
+    });
+    return res;
+  };
+
+  const matchedResults = [];
+
+  // 5. 조건에 맞춰 필터링
+  allDates.forEach(dateStr => {
+    const dayEvent = eventMap[dateStr] || '';
+    const dayPeriods = scheduleMap[dateStr] || {};
+    
+    // 하루 치 데이터를 하나로 합침
+    let daySubjectText = [];
+    let dayMemoText = [];
+    let daySuppliesText = [];
+
+    for (let p = 1; p <= 6; p++) {
+      if (dayPeriods[p]) {
+        if(dayPeriods[p].subject) daySubjectText.push(dayPeriods[p].subject);
+        if(dayPeriods[p].memo) dayMemoText.push(dayPeriods[p].memo);
+        if(dayPeriods[p].supplies) daySuppliesText.push(dayPeriods[p].supplies);
+      }
+    }
+
+    const matchE = checkMatch(dayEvent, kwEvent);
+    const matchS = checkMatch(daySubjectText.join(' '), kwSubject);
+    const matchM = checkMatch(dayMemoText.join(' '), kwMemo);
+    const matchSp = checkMatch(daySuppliesText.join(' '), kwSupplies);
+
+    let isMatch = false;
+
+    // AND 로직 (입력한 필드의 조건이 모두 true여야 함)
+    if (condition === 'AND') {
+      isMatch = true;
+      if (matchE === false) isMatch = false;
+      if (matchS === false) isMatch = false;
+      if (matchM === false) isMatch = false;
+      if (matchSp === false) isMatch = false;
+    } 
+    // OR 로직 (입력한 필드 중 하나라도 true면 됨)
+    else {
+      if (matchE === true || matchS === true || matchM === true || matchSp === true) {
+        isMatch = true;
+      }
+    }
+
+    if (isMatch) {
+      matchedResults.push({ dateStr, dayEvent, dayPeriods });
+    }
+  });
+
+  // 6. 결과 화면 렌더링
+  countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
+  resultList.innerHTML = '';
+
+  if (matchedResults.length === 0) {
+    resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-size:1.1rem; margin-top:20px;">조건에 일치하는 결과가 없습니다.</p>`;
+    return;
+  }
+
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+  matchedResults.forEach(res => {
+    const dObj = new Date(res.dateStr);
+    const dayName = dayNames[dObj.getDay()];
+    const dateColor = dObj.getDay() === 0 ? '#ef4444' : dObj.getDay() === 6 ? '#3b82f6' : '#1e40af';
+
+    let cardHtml = `
+      <div class="search-card" onclick="window.goToDayAndCloseSearch('${res.dateStr}')" style="background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:15px; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.05); transition:transform 0.1s;">
+        <div style="font-size:1.1rem; font-weight:900; color:${dateColor}; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:8px;">
+          📅 ${res.dateStr.replace(/-/g, '. ')} (${dayName})
+        </div>
+    `;
+
+    if (res.dayEvent) {
+      cardHtml += `<div style="margin-bottom:6px; color:#0369a1; font-weight:bold;">📍 일정: <span style="font-weight:normal; color:#334155;">${highlight(res.dayEvent)}</span></div>`;
+    }
+
+    for (let p = 1; p <= 6; p++) {
+      const pData = res.dayPeriods[p];
+      if (pData && (pData.subject || pData.memo || pData.supplies)) {
+        let pText = `<div style="display:flex; flex-direction:column; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #cbd5e1;">`;
+        pText += `<div style="font-weight:bold; color:#0f172a; margin-bottom:4px;">[${p}교시] ${highlight(pData.subject)}</div>`;
+        if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">📝 메모: ${highlight(pData.memo)}</div>`;
+        if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">🎒 준비물: ${highlight(pData.supplies)}</div>`;
+        pText += `</div>`;
+        cardHtml += pText;
+      }
+    }
+
+    cardHtml += `</div>`;
+    resultList.innerHTML += cardHtml;
+  });
+};
