@@ -29,6 +29,7 @@
           <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
+            <button class="dropdown-item" onclick="openTimetableModal()">🗓️ 기준시간표 등록/적용</button>
             <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
             <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
           </div>
@@ -62,5 +63,60 @@
   <script src="js/firebase.js"></script>
 
   <script src="js/app.js"></script>
+</body>
+</html>
+
+<div id="timetable-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🗓️ 기준시간표 등록 및 적용</h2>
+        <button class="modal-close" onclick="closeTimetableModal()">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="timetable-section">
+          <h3>1. 기준시간표 등록</h3>
+          <select id="tt-semester-select" onchange="loadBaseTimetable()">
+            <option value="1">1학기</option>
+            <option value="2">2학기</option>
+          </select>
+          <table class="timetable-input-table">
+            <thead>
+              <tr><th>교시</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr>
+            </thead>
+            <tbody id="tt-tbody">
+              </tbody>
+          </table>
+          <button class="btn-save-tt" onclick="saveBaseTimetable()">💾 기준시간표 클라우드에 저장</button>
+        </div>
+        <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 20px 0;">
+        <div class="timetable-section">
+          <h3>2. 일정 기간에 일괄 적용</h3>
+          <div class="apply-group">
+            <select id="apply-semester">
+              <option value="1">1학기 시간표 적용</option>
+              <option value="2">2학기 시간표 적용</option>
+            </select>
+            <input type="date" id="apply-start-date"> ~ <input type="date" id="apply-end-date">
+            <button class="btn-apply-tt" onclick="applyBaseTimetable()">🚀 일괄 적용</button>
+          </div>
+          <p class="apply-warning">* 주의: 선택하신 기간의 평일(월~금)에 기준시간표 '과목'이 덮어씌워집니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/viewWeek.js"></script>
+  <script src="js/viewDay.js"></script>
+  <script src="js/viewMonth.js"></script>
+  <script src="js/viewYear.js"></script>
+  <script src="js/viewMemo.js"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/app.js"></script>
+  
+  <script src="js/timetable.js"></script>
 </body>
 </html>
