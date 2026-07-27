@@ -197,7 +197,6 @@ window.moveDate = function(dir) {
   window.render();
 };
 
-// ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 실행
 // ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 및 이벤트 연결 실행
 window.addEventListener('DOMContentLoaded', () => {
   // 💡 HTML의 onclick 대신 Javascript 내부에서 안전하게 이벤트 리스너를 연결합니다.
