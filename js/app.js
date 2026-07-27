@@ -188,6 +188,14 @@ function updateButtonUI() {
   // 화면이나 모드가 바뀔 때 열려있던 드롭다운은 무조건 닫기
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
+
+  // 💡 주말 버튼 상태 및 표시 여부 업데이트
+  const weekendBtn = document.getElementById('btn-toggle-weekend');
+  if (weekendBtn) {
+    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
+    // 일(Day) 보기나 메모(Memo) 화면에서는 굳이 필요 없으므로 숨김
+    weekendBtn.style.display = (currentScope === 'memo' || currentScope === 'day') ? 'none' : 'inline-block';
+  }
 }
 /**
  * 💾 [저장] 버튼 클릭 시 현재 활성화된 Scope에 맞춰 Firestore 일괄 저장 실행
