@@ -198,7 +198,28 @@ window.moveDate = function(dir) {
 };
 
 // ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 실행
+// ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 및 이벤트 연결 실행
 window.addEventListener('DOMContentLoaded', () => {
+  // 💡 HTML의 onclick 대신 Javascript 내부에서 안전하게 이벤트 리스너를 연결합니다.
+  const viewerBtn = document.getElementById('btn-mode-viewer');
+  const editorBtn = document.getElementById('btn-mode-editor');
+
+  if (viewerBtn) {
+    viewerBtn.addEventListener('click', () => {
+      window.setMode('viewer');
+    });
+  }
+
+  if (editorBtn) {
+    editorBtn.addEventListener('click', () => {
+      if (currentMode === 'viewer') {
+        window.setMode('editor'); // 뷰어일 때는 수정 모드로 진입
+      } else {
+        window.saveCurrentViewData(); // 수정 모드일 때는 데이터 저장
+      }
+    });
+  }
+
   // DB 연동 시간을 조금 더 벌어주기 위해 약간의 지연(100ms) 후 렌더링
   setTimeout(() => {
     window.render();
