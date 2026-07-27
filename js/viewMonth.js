@@ -14,9 +14,14 @@ window.renderMonthViewer = async function(container) {
 
   let html = `<div class="calendar-grid" style="grid-template-columns: repeat(${window.showWeekend ? 7 : 5}, 1fr);">`;
   
-  // 🎯 [수정됨] 일요일이 맨 앞으로 오도록 요일 배열 순서 변경
+  // 🎯 [수정됨] 요일 헤더 색상 분리 (일요일: 빨간색, 토요일: 파란색)
   const days = window.showWeekend ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
-  days.forEach(d => html += `<div class="cal-header" style="${(d==='토'||d==='일')?'color:#ef4444;':''}">${d}</div>`);
+  days.forEach(d => {
+    let colorStyle = '';
+    if (d === '일') colorStyle = 'color:#ef4444;';
+    else if (d === '토') colorStyle = 'color:#3b82f6;'; // 파란색 적용
+    html += `<div class="cal-header" style="${colorStyle}">${d}</div>`;
+  });
   
   const y = window.currentDate.getFullYear();
   const m = window.currentDate.getMonth();
@@ -25,10 +30,8 @@ window.renderMonthViewer = async function(container) {
   
   let padding = 0;
   if (window.showWeekend) {
-    // 🎯 [수정됨] 일요일 시작이므로 getDay() 값 자체가 빈칸(padding) 개수가 됩니다.
     padding = firstDay; 
   } else {
-    // 주말 숨기기(월~금) 상태일 때는 기존처럼 월요일(1)을 0칸으로 맞추는 계산 유지
     if (firstDay >= 1 && firstDay <= 5) padding = firstDay - 1; 
   }
   
@@ -66,20 +69,17 @@ window.renderMonthViewer = async function(container) {
     const dateObj = new Date(y, m, d);
     const dayOfWeekNum = dateObj.getDay();
     
-    // 🎯 [수정] 주말 숨기기 상태일 때만 토/일 제외
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const dayPeriods = scheduleMap[dateStr] || {};
     let boxesHtml = '';
     let hasClass = false;
 
-    // 💡 월간 달력 뷰어에서 'X' 출력 방지 및 빈 박스 처리
     for (let p = 1; p <= 6; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         const text = subject.trim();
         
-        // 🎯 한 줄 배치를 위한 폰트/자간 축소 로직 유지
         let fontSize = "0.75rem";
         let letterSpacing = "normal";
         if (text.length === 3) {
@@ -93,24 +93,23 @@ window.renderMonthViewer = async function(container) {
           letterSpacing = "-1.5px";
         }
 
-        // 💡 width 고정을 없애고 `flex: 1; min-width: 0;`을 부여하여 무조건 6등분 꽉 채우기
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
       } else {
-        // 💡 빈 박스도 동일하게 `flex: 1; min-width: 0;` 적용
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
       }
     }
 
     let scheduleHtml = '';
     if (hasClass) {
-      // 💡 컨테이너에 `width: 100%;`를 주어 날짜 칸의 가로 영역을 모두 사용하게 함
       scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>`;
     }
 
-    // 💡 날짜 표시 영역 독립 분리 및 주말 붉은색 강조
-    const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
-    const dateColor = isWeekend ? '#ef4444' : '#334155';
+    // 🎯 [수정됨] 날짜 숫자 색상 분리 (일요일: 빨간색, 토요일: 파란색, 평일: 진회색)
+    let dateColor = '#334155'; // 평일 기본 색상
+    if (dayOfWeekNum === 0) dateColor = '#ef4444'; // 일요일
+    else if (dayOfWeekNum === 6) dateColor = '#3b82f6'; // 토요일
+
     let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
     
     let eventHtml = '';
@@ -174,15 +173,15 @@ window.renderMonthEditor = async function(container) {
     const dayOfWeekNum = dateObj.getDay();
     const dayOfWeek = dayNames[dayOfWeekNum];
 
-    // 🎯 [수정] 주말 숨기기 옵션일 때만 토(6)/일(0)요일을 제외합니다.
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
     const eventText = (item.data.eventText || '').trim();
     const periods = item.data.periods || {};
 
-    // 🎯 주말(토/일)일 경우 날짜 글자색을 붉은 계열로 강조 표시
-    const isWeekend = (dayOfWeekNum === 0 || dayOfWeekNum === 6);
-    const dateColor = isWeekend ? '#ef4444' : '#1e40af';
+    // 🎯 [수정됨] 에디터 모드에서도 일/토/평일 색상 분리
+    let dateColor = '#1e40af'; // 평일 기본 (기존 에디터 테마에 맞춘 남색)
+    if (dayOfWeekNum === 0) dateColor = '#ef4444'; // 일요일 (빨간색)
+    else if (dayOfWeekNum === 6) dateColor = '#3b82f6'; // 토요일 (파란색)
 
     html += `<tr data-month-date="${item.dateStr}">` +
       `<td rowspan="2" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
@@ -193,7 +192,6 @@ window.renderMonthEditor = async function(container) {
       `</td>` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
       
-      // 💡 에디터 칸에 출력 시 'X' 대신 빈 문자열 할당
       for(let p=1; p<=6; p++) {
          const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
@@ -211,7 +209,7 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (💡 휴일/행사 수업 자동 삭제 로직 추가)
+// 💾 3. 월간 편집 저장 처리 함수 
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
@@ -222,7 +220,6 @@ window.saveMonthDataFromEditor = async function() {
     const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
     const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
     
-    // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
     const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
     const classCells = row.querySelectorAll(".edit-class-cell");
@@ -233,7 +230,6 @@ window.saveMonthDataFromEditor = async function() {
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
        let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
 
-       // 🎯 휴일이나 행사일이면 수업 과목을 비움
        if (isSkipDay) {
          subjText = '';
        }
