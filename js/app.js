@@ -146,9 +146,13 @@ function updateButtonUI() {
  */
 window.saveCurrentViewData = async function() {
   const saveBtn = document.getElementById('btn-save-data');
+  // 수정 모드일 때만 [💾 저장] 버튼 노출 (위치 흔들림 방지를 위해 hidden 클래스 사용)
   if (saveBtn) {
-    saveBtn.textContent = "⏳ 저장 중...";
-    saveBtn.disabled = true;
+    if (currentMode === 'editor' && currentScope !== 'memo') {
+      saveBtn.classList.remove('hidden');
+    } else {
+      saveBtn.classList.add('hidden');
+    }
   }
 
   if (currentScope === 'day' && window.saveDayDataFromEditor) {
