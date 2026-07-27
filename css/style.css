@@ -345,3 +345,48 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 }
   pointer-events: none !important;
 }
+
+/* ==========================================================================
+   🎯 드롭다운 메뉴 스타일 (점 세 개 버튼용)
+   ========================================================================== */
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.dropdown-menu.hidden {
+  display: none !important;
+}
+
+.dropdown-item {
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 1.1rem;
+  color: #334155;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: #f1f5f9;
+  color: var(--primary-color);
+}
