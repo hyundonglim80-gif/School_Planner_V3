@@ -191,31 +191,40 @@ window.renderYearEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 연간 편집 저장 처리 함수
+// 💾 3. 연간 편집 저장 처리 함수 (💡 휴일/행사 수업 자동 삭제 로직 추가)
 // ==========================================================================
 window.saveYearDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-year-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-year-date");
     
+    const nextRow = row.nextElementSibling;
+    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
+    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
+    
+    // 💡 [B방식 적용] 일정에 '(휴일)' 또는 '(행사)' 포함 여부 검사
+    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+
     const classCells = row.querySelectorAll(".edit-class-cell");
     const periodsData = {};
     
-    // 💡 저장 시에도 빈 문자열로 저장
     classCells.forEach(cell => {
        const p = cell.getAttribute("data-p");
        const subjRaw = (cell.innerText || cell.textContent || "").trim();
+       let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
+
+       // 🎯 휴일이나 행사일이면 수업 과목을 비움
+       if (isSkipDay) {
+         subjText = '';
+       }
+
        periodsData[p] = {
-          subject: (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw,
+          subject: subjText,
           supplies: '',
           memo: ''
        };
     });
 
-    const nextRow = row.nextElementSibling;
-    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
-    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-    
     await window.dbAPI.saveEvent(dateStr, eventText);
     await window.dbAPI.saveSchedule(dateStr, periodsData);
   }
