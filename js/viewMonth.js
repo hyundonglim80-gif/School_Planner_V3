@@ -38,7 +38,7 @@ window.renderMonthViewer = async function(container) {
 
   let scheduleMap = {};
   try {
-    const snap = await window.db.collection('schedules').get();
+    const snap = await window.getUserCol('schedules').get();
     snap.forEach(doc => {
       scheduleMap[doc.id] = doc.data().periods || {};
     });
