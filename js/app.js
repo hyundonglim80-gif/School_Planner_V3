@@ -1,7 +1,7 @@
 // ==========================================================================
-// 1. 모드 전환 제어 (수정됨: 저장 버튼 유무에 따른 다른 버튼 위치 변경 방지)
+// 1. 모드 전환 제어 (저장 버튼 유무에 따른 다른 버튼 위치 변경 방지)
 // ==========================================================================
-window.setMode = function(mode) {
+function setMode(mode) {
   window.currentMode = mode;
   const btnViewer = document.getElementById('btn-mode-viewer');
   const btnEditor = document.getElementById('btn-mode-editor');
@@ -14,26 +14,26 @@ window.setMode = function(mode) {
   } else {
     if (btnViewer) btnViewer.className = 'btn-mode active-viewer';
     if (btnEditor) btnEditor.className = 'btn-mode';
-    if (btnSave) btnSave.classList.add('hidden'); // 공간은 유지하고 버튼만 숨기기
+    if (btnSave) btnSave.classList.add('hidden'); // 버튼을 숨기되, 여백(공간)은 유지
   }
 
   // 화면 다시 그리기 호출
   if (typeof renderCurrentView === 'function') {
     renderCurrentView();
   }
-};
+}
 
 
 // ==========================================================================
-// 2. 점세개(⋮) 더보기 드롭다운 메뉴 처리 (새로 추가)
+// 2. 점세개(⋮) 더보기 드롭다운 메뉴 처리
 // ==========================================================================
-window.toggleMoreMenu = function(event) {
+function toggleMoreMenu(event) {
   if (event) event.stopPropagation();
   const menu = document.getElementById('more-dropdown-menu');
   if (menu) {
     menu.classList.toggle('show');
   }
-};
+}
 
 // 화면 아무곳이나 클릭 시 더보기 드롭다운 자동으로 닫기
 document.addEventListener('click', function(e) {
@@ -47,7 +47,7 @@ document.addEventListener('click', function(e) {
 });
 
 // JSON 내보내기 (데이터 백업)
-window.exportDataJSON = function() {
+function exportDataJSON() {
   toggleMoreMenu();
   try {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.appData || {}));
@@ -60,10 +60,10 @@ window.exportDataJSON = function() {
   } catch (err) {
     alert("백업 파일 생성 중 오류가 발생했습니다: " + err.message);
   }
-};
+}
 
 // JSON 가져오기 (데이터 대량 등록)
-window.importDataJSON = function() {
+function importDataJSON() {
   toggleMoreMenu();
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -88,11 +88,11 @@ window.importDataJSON = function() {
     reader.readAsText(file);
   };
   fileInput.click();
-};
+}
 
 
 // ==========================================================================
-// 3. 1학기/2학기 기준시간표 모달 및 기간 일괄 적용 로직 (새로 추가)
+// 3. 1학기/2학기 기준시간표 모달 및 기간 일괄 적용 로직
 // ==========================================================================
 window.activeSemesterTab = 1;
 window.timetableConfig = JSON.parse(localStorage.getItem('app_timetable_config')) || {
@@ -101,31 +101,31 @@ window.timetableConfig = JSON.parse(localStorage.getItem('app_timetable_config')
 };
 
 // 기준시간표 모달 창 열기
-window.openTimetableModal = function() {
+function openTimetableModal() {
   const menu = document.getElementById('more-dropdown-menu');
   if (menu) menu.classList.remove('show');
   
   const modal = document.getElementById('timetable-modal');
   if (modal) modal.style.display = 'flex';
   switchSemesterTab(1); // 기본 1학기 선택
-};
+}
 
 // 기준시간표 모달 창 닫기
-window.closeTimetableModal = function() {
+function closeTimetableModal() {
   const modal = document.getElementById('timetable-modal');
   if (modal) modal.style.display = 'none';
-};
+}
 
 // 학기 탭 전환
-window.switchSemesterTab = function(sem) {
+function switchSemesterTab(sem) {
   window.activeSemesterTab = sem;
   document.getElementById('tab-sem-1').classList.toggle('active', sem === 1);
   document.getElementById('tab-sem-2').classList.toggle('active', sem === 2);
   renderTimetableForm();
-};
+}
 
 // 시간표 입력 폼 렌더링
-window.renderTimetableForm = function() {
+function renderTimetableForm() {
   const tbody = document.getElementById('timetable-editor-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
@@ -141,10 +141,10 @@ window.renderTimetableForm = function() {
     }).join('');
     tbody.appendChild(tr);
   }
-};
+}
 
 // 기준시간표 저장
-window.saveTimetableConfig = function() {
+function saveTimetableConfig() {
   const inputs = document.querySelectorAll('#timetable-editor-tbody input');
   const semData = window.timetableConfig[window.activeSemesterTab] || {};
 
@@ -158,10 +158,10 @@ window.saveTimetableConfig = function() {
   window.timetableConfig[window.activeSemesterTab] = semData;
   localStorage.setItem('app_timetable_config', JSON.stringify(window.timetableConfig));
   alert(`${window.activeSemesterTab}학기 기준시간표가 저장되었습니다!`);
-};
+}
 
 // 선택한 기간에 기준시간표 일괄 적용
-window.applyTimetableToRange = function() {
+function applyTimetableToRange() {
   const sem = document.getElementById('apply-semester-select').value;
   const startDateStr = document.getElementById('apply-start-date').value;
   const endDateStr = document.getElementById('apply-end-date').value;
@@ -230,4 +230,4 @@ window.applyTimetableToRange = function() {
   if (typeof renderCurrentView === 'function') {
     renderCurrentView();
   }
-};
+}
