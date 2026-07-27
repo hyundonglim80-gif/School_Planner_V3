@@ -145,7 +145,7 @@ window.renderWeekEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수 (💡 휴일/행사 수업 자동 삭제 로직 추가)
+// 💾 3. 주간 일괄 저장 처리 함수 (덮어쓰기 방지 보호 로직 적용)
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
@@ -159,9 +159,16 @@ window.saveWeekDataFromEditor = async function() {
     }
 
     const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
-
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
+    
     if (scheduleRow) {
+      // 🚨 [핵심 수정] 기존 데이터 보호 (주간 보기에서는 준비물이 보이지 않으므로 보호해야 함)
+      let existingPeriods = {};
+      try {
+        const existingData = await window.dbAPI.loadDayData(d.dateStr);
+        existingPeriods = existingData.periods || {};
+      } catch(e) {}
+
       const periodsData = {};
       const periodCells = scheduleRow.querySelectorAll('.week-period-cell');
 
@@ -178,11 +185,13 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
-        if (isSkipDay) {
-          subject = '';
-        }
+        if (isSkipDay) subject = '';
 
-        periodsData[p] = { subject, memo, supplies: '' };
+        periodsData[p] = { 
+          subject: subject, 
+          memo: memo, 
+          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '' // 기존 준비물 유지
+        };
       });
 
       await window.dbAPI.saveSchedule(d.dateStr, periodsData);
