@@ -567,33 +567,37 @@ window.uploadCSV = async function(input) {
 };
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (확대/스크롤 오작동 방지 적용)
 // ==========================================================================
 (function() {
   let touchStartX = 0;
+  let touchStartY = 0; // 💡 상하 움직임 감지를 위해 Y좌표 추가
   let touchEndX = 0;
-  // 화면 전환 순서 (메모 -> 년 -> 월 -> 주 -> 일)
+  let touchEndY = 0;
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
-  const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프로 인정 (오터치 방지)
+  const SWIPE_THRESHOLD = 70; // 70px 이상 밀어야 스와이프 인정
 
   function handleSwipeGesture() {
-    // 💡 [수정] window.을 빼고 파일 내의 currentMode 변수를 직접 확인합니다.
     if (currentMode !== 'viewer') return;
 
-    const deltaX = touchEndX - touchStartX;
+    // 🛡️ 방어막 1: 화면이 100% 이상으로 확대(Zoom)된 상태면 스와이프 차단
+    // (모바일 브라우저에 따라 소수점 오차가 발생하므로 1.01을 기준으로 함)
+    if (window.visualViewport && window.visualViewport.scale > 1.01) return;
 
-    // 좌우로 충분히 밀었는지 확인
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    // 🛡️ 방어막 2: 위아래로 스크롤(Y축)하는 움직임이 좌우(X축)보다 크면 스와이프 차단
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      // 💡 [수정] window.을 빼고 currentScope 변수를 직접 확인합니다.
       const currentIndex = scopeOrder.indexOf(currentScope);
 
       if (deltaX < 0) {
-        // 👈 왼쪽으로 밀기 (오른쪽에서 왼쪽으로) -> 다음 화면으로 이동
         if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
           window.setScope(scopeOrder[currentIndex + 1]);
         }
       } else {
-        // 👉 오른쪽으로 밀기 (왼쪽에서 오른쪽으로) -> 이전 화면으로 이동
         if (currentIndex > 0) {
           window.setScope(scopeOrder[currentIndex - 1]);
         }
@@ -601,13 +605,17 @@ window.uploadCSV = async function(input) {
     }
   }
 
-  // 화면 전체에 터치 이벤트 리스너 등록
   document.addEventListener('touchstart', e => {
+    // 🛡️ 방어막 3: 두 손가락 이상 터치 중일 때(확대/축소 중)는 스와이프 기록을 하지 않음
+    if (e.touches.length > 1) return;
+    
     touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
     touchEndX = e.changedTouches[0].screenX;
+    touchEndY = e.changedTouches[0].screenY;
     handleSwipeGesture();
   }, { passive: true });
 })();
