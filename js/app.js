@@ -269,10 +269,19 @@ window.downloadCSVFile = function(filename, csvData) {
   link.click();
 };
 
-// 2. CSV 문자열 이스케이프 처리
+// 2. CSV 문자열 이스케이프 처리 (💡 엑셀 날짜 변환 방지 기능 추가)
 window.escapeCSV = function(str) {
-  if (!str) return '';
-  let s = String(str).replace(/"/g, '""');
+  if (!str && str !== 0) return '';
+  let s = String(str);
+  let trimmed = s.trim();
+  
+  // 🎯 [핵심] 엑셀의 날짜/시간 자동 변환 방지 ("4-1", "10/2", "09:00" 등)
+  // 숫자-숫자, 숫자/숫자, 숫자:숫자 패턴일 경우 ="4-1" 형태의 수식으로 강제 텍스트 인식시킴
+  if (/^\d+[-/:]\d+$/.test(trimmed)) {
+    return `="${trimmed}"`;
+  }
+
+  s = s.replace(/"/g, '""');
   if (s.includes(',') || s.includes('\n') || s.includes('"')) {
     s = `"${s}"`;
   }
@@ -313,7 +322,7 @@ window.executeBatchOperations = async function(operations) {
   }
 };
 
-// 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트(빈칸 포함, 년/월/일/요일 분할)
+// 💡 헬퍼 함수: 현재 화면(월 또는 년)에 해당하는 전체 날짜 리스트
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -337,11 +346,7 @@ window.getTargetDateList = function() {
     for (let m = 3; m <= 14; m++) { 
       let targetY = startYear;
       let targetM = m;
-      
-      if (m > 12) {
-        targetY = startYear + 1;
-        targetM = m - 12;
-      }
+      if (m > 12) { targetY = startYear + 1; targetM = m - 12; }
       
       const lastDate = new Date(targetY, targetM, 0).getDate();
       for (let d = 1; d <= lastDate; d++) {
@@ -360,7 +365,7 @@ window.getTargetDateList = function() {
 };
 
 // ---------------------------------------------------------
-// 📥 통합 CSV 백업 다운로드 (과목 -> 메모 -> 준비물 순서)
+// 📥 통합 CSV 백업 다운로드
 // ---------------------------------------------------------
 window.downloadCSV = async function() {
   const eventSnap = await window.db.collection('events').get();
@@ -372,7 +377,6 @@ window.downloadCSV = async function() {
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
-  // 💡 헤더 순서 (메모가 준비물보다 앞서도록 배치)
   let csv = "년도,월,일,요일,일정," +
             "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
             "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모," +
@@ -396,9 +400,7 @@ window.downloadCSV = async function() {
       supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
     }
 
-    // 💡 과목 6개 -> 메모 6개 -> 준비물 6개 순서대로 연결
     rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')}`;
-
     csv += rowStr + "\n";
   });
 
@@ -407,7 +409,7 @@ window.downloadCSV = async function() {
 };
 
 // ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (파일에 있는 날짜만 덮어쓰기 + 모바일 utf-8 대응)
+// 📤 통합 CSV 업로드 및 동기화 (💡 수식 포장 해제 로직 추가)
 // ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
@@ -422,11 +424,15 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
-    // CSV 구조 인덱스 가이드:
-    // 0~4: 년도, 월, 일, 요일, 일정
-    // 5~10: 1~6교시 과목
-    // 11~16: 1~6교시 메모
-    // 17~22: 1~6교시 준비물
+    // 🎯 [핵심] 엑셀에서 ="4-1" 처럼 강제 텍스트 처리된 값을 다시 4-1로 깔끔하게 복구하는 헬퍼 함수
+    const parseExcelText = (val) => {
+      let v = (val || '').trim();
+      if (v.startsWith('="') && v.endsWith('"')) {
+        v = v.substring(2, v.length - 1);
+      }
+      return v;
+    };
+
     for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
@@ -435,19 +441,17 @@ window.uploadCSV = async function(input) {
         const d = String(row[2].trim()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         
-        const eventText = (row[4] || '').trim();
+        const eventText = parseExcelText(row[4]);
         const periodsData = {};
         
-        // 💡 교시(p) 1 ~ 6 파싱 (메모와 준비물 인덱스 위치)
         for (let p = 1; p <= 6; p++) {
           periodsData[p] = {
-            subject: (row[4 + p] || '').trim(),       // 과목: 인덱스 5, 6, 7, 8, 9, 10
-            memo: (row[10 + p] || '').trim(),         // 메모: 인덱스 11, 12, 13, 14, 15, 16
-            supplies: (row[16 + p] || '').trim()      // 준비물: 인덱스 17, 18, 19, 20, 21, 22
+            subject: parseExcelText(row[4 + p]),
+            memo: parseExcelText(row[10 + p]),
+            supplies: parseExcelText(row[16 + p])
           };
         }
 
-        // 해당 날짜만 덮어쓰기
         const eRef = window.db.collection('events').doc(dateStr);
         operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
         
@@ -461,7 +465,6 @@ window.uploadCSV = async function(input) {
     window.render();
   };
   
-  // 💡 모바일 환경(UTF-8) 호환
   reader.readAsText(file, 'utf-8');
   input.value = '';
 };
