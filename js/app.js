@@ -9,12 +9,12 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
-// 💡 [신규] 주말 표시 여부 상태 저장 (기본값은 숨김)
+// 💡 주말 표시 여부 상태 저장 (기본값은 숨김)
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
 
 window.currentDate = new Date(); // 접속한 기기의 현재(오늘) 날짜를 기준일로 설정
 
-// 💡 [신규] 주말 보기/숨기기 전환 함수
+// 💡 주말 보기/숨기기 전환 함수
 window.toggleWeekend = function() {
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
@@ -42,7 +42,6 @@ window.render = function() {
   updateTitle();
   updateButtonUI();
 
-  // 💡 오류 해결: 함수 호출 시 앞에 'window.'을 명시하여 브라우저가 전역 함수를 정확히 찾도록 강제 수정
   if (currentScope === 'week') { currentMode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
   else if (currentScope === 'month') { currentMode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
   else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
@@ -66,7 +65,6 @@ function updateTitle() {
   if (currentScope === 'day') { 
     titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
   } else if (currentScope === 'week') {
-    // 해당 주의 월요일과 금요일 날짜 자동 계산
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
     const diffToMon = temp.getDate() - day + (day === 0 ? -6 : 1);
@@ -90,7 +88,7 @@ function updateTitle() {
 }
 
 /**
- * 🔘 보기 범위(Scope) 변경 함수 ('memo', 'year', 'month', 'week', 'day')
+ * 🔘 보기 범위(Scope) 변경 함수
  */
 window.setScope = function(scope) {
   currentScope = scope;
@@ -99,7 +97,7 @@ window.setScope = function(scope) {
 };
 
 /**
- * 🔘 모드(Mode) 변경 함수 ('viewer': 보기, 'editor': 수정)
+ * 🔘 모드(Mode) 변경 함수
  */
 window.setMode = function(mode) {
   currentMode = mode;
@@ -108,18 +106,18 @@ window.setMode = function(mode) {
 };
 
 /**
- * 🔘 [신규] 수정/저장 버튼 통합 클릭 핸들러
+ * 🔘 수정/저장 버튼 통합 클릭 핸들러
  */
 window.handleEditSaveClick = function() {
   if (currentMode === 'viewer') {
-    window.setMode('editor'); // 뷰어일 때는 수정 모드로 진입
+    window.setMode('editor');
   } else {
-    window.saveCurrentViewData(); // 수정 모드일 때는 데이터 저장
+    window.saveCurrentViewData();
   }
 };
 
 /**
- * 🔘 [신규] 드롭다운 메뉴 토글 및 외부 클릭 시 닫기
+ * 🔘 드롭다운 메뉴 토글 및 외부 클릭 시 닫기
  */
 window.toggleMoreMenu = function() {
   const dropdown = document.getElementById('more-dropdown');
@@ -130,7 +128,6 @@ window.addEventListener('click', function(e) {
   const btn = document.getElementById('btn-more-menu');
   const dropdown = document.getElementById('more-dropdown');
   if (btn && dropdown) {
-    // 버튼이나 드롭다운 내부를 클릭한 게 아니라면 드롭다운을 닫음
     if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.classList.add('hidden');
     }
@@ -138,10 +135,9 @@ window.addEventListener('click', function(e) {
 });
 
 /**
- * 🔘 상단 버튼 활성화 상태 및 메모 화면 시 [뷰어/수정] 버튼 숨김 제어
+ * 🔘 상단 버튼 활성화 상태 및 UI 제어
  */
 function updateButtonUI() {
-  // Scope 버튼 활성화 클래스 토글
   const scopeBtns = document.querySelectorAll('.btn-scope');
   scopeBtns.forEach(btn => {
     btn.classList.remove('active');
@@ -185,7 +181,7 @@ function updateButtonUI() {
     }
   }
 
-  // 💡 점 세개 버튼 표시 제어 (수정 모드일 때 보임 - 년/월/주/일 전체)
+  // 점 세개 버튼 표시 제어 
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
     if (currentMode === 'editor' && currentScope !== 'memo') {
@@ -195,18 +191,17 @@ function updateButtonUI() {
     }
   }
 
-  // 화면이나 모드가 바뀔 때 열려있던 드롭다운은 무조건 닫기
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 
-  // 💡 주말 버튼 상태 및 표시 여부 업데이트
+  // 주말 버튼 상태 및 표시 여부 업데이트 (일 보기에서도 노출)
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
-    // 🎯 일(Day) 보기에서도 주말 버튼이 보이도록 변경 (메모 화면에서만 숨김)
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 }
+
 /**
  * 💾 [저장] 버튼 클릭 시 현재 활성화된 Scope에 맞춰 Firestore 일괄 저장 실행
  */
@@ -234,7 +229,6 @@ window.saveCurrentViewData = async function() {
     editorBtn.disabled = false;
   }
   
-  // 저장 완료 후 다시 뷰어 모드로 자동 전환 -> 버튼도 알아서 '✏️ 수정'으로 돌아감
   window.setMode('viewer'); 
 };
 
@@ -254,7 +248,7 @@ window.moveDate = function(dir) {
   window.render();
 };
 
-// ✅ 수정: 브라우저 요소와 스크립트가 충분히 로드된 후 최초 렌더링 및 이벤트 연결 실행
+// 최초 렌더링 및 로그인 이벤트 연결
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -267,19 +261,13 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 💡 로그인 상태 감지 및 자동 로그인 처리 로직
   window.auth.onAuthStateChanged(user => {
     if (user) {
-      // 1. 이미 로그인 된 사용자라면 (자동 로그인) 로그인 화면을 숨기고 메인 화면을 보여줌
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('user-info').style.display = 'flex';
-      // 프로필 사진 불러오기
       if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
-      
-      // 2. 로그인 한 사람의 개인 데이터를 불러와서 화면에 그림
       window.render();
     } else {
-      // 로그아웃 상태라면 메인 화면을 지우고 로그인 덮개 화면을 표시함
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('user-info').style.display = 'none';
       document.getElementById("main-view").innerHTML = ""; 
@@ -287,12 +275,10 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-
 // ==========================================================================
 // 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
 // ==========================================================================
 
-// 1. CSV 파일 생성 및 다운로드 (한글 깨짐 방지 BOM 포함)
 window.downloadCSVFile = function(filename, csvData) {
   const bom = "\uFEFF";
   const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
@@ -302,13 +288,11 @@ window.downloadCSVFile = function(filename, csvData) {
   link.click();
 };
 
-// 2. CSV 문자열 이스케이프 처리 (💡 엑셀 날짜 변환 방지 - 작은따옴표 방식 적용)
 window.escapeCSV = function(str) {
   if (!str && str !== 0) return '';
   let s = String(str);
   let trimmed = s.trim();
   
-  // 🎯 "4-2", "10/2" 같은 패턴일 경우 앞에 작은따옴표(')를 붙임
   if (/^\d+[-/:]\d+$/.test(trimmed)) {
     return `'${trimmed}`;
   }
@@ -320,7 +304,6 @@ window.escapeCSV = function(str) {
   return s;
 };
 
-// 3. 강력한 CSV 파서
 window.parseCSV = function(str) {
   const arr = [];
   let quote = false;
@@ -340,7 +323,6 @@ window.parseCSV = function(str) {
   return arr;
 };
 
-// 4. Firestore 500개 제한 돌파를 위한 분할 일괄 처리(Chunk Batch)
 window.executeBatchOperations = async function(operations) {
   const chunkSize = 400; 
   for (let i = 0; i < operations.length; i += chunkSize) {
@@ -354,7 +336,6 @@ window.executeBatchOperations = async function(operations) {
   }
 };
 
-// 💡 헬퍼 함수: 현재 화면(일, 주, 월, 년)에 해당하는 전체 날짜 리스트 추출
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -363,7 +344,6 @@ window.getTargetDateList = function() {
   const d = window.currentDate.getDate();
 
   if (currentScope === 'day') {
-    // 🎯 일(Day) 보기: 현재 날짜 하루만 반환
     const dateObj = new Date(y, m, d);
     dates.push({
       dateStr: window.formatDate(dateObj),
@@ -373,11 +353,10 @@ window.getTargetDateList = function() {
       dayOfWeek: dayNames[dateObj.getDay()]
     });
   } else if (currentScope === 'week') {
-    // 🎯 주(Week) 보기: 이번 주 일요일(0)부터 토요일(6)까지 반환
     const tempDate = new Date(window.currentDate);
     const dayOfWeek = tempDate.getDay();
     const diffToSun = tempDate.getDate() - dayOfWeek;
-    tempDate.setDate(diffToSun); // 일요일로 맞춤
+    tempDate.setDate(diffToSun);
 
     for (let i = 0; i < 7; i++) {
       if (!window.showWeekend && (i === 0 || i === 6)) {
@@ -428,9 +407,6 @@ window.getTargetDateList = function() {
   return dates;
 };
 
-// ---------------------------------------------------------
-// 📥 통합 CSV 백업 다운로드
-// ---------------------------------------------------------
 window.downloadCSV = async function() {
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
@@ -468,7 +444,6 @@ window.downloadCSV = async function() {
     csv += rowStr + "\n";
   });
 
-  // 🎯 다운로드하는 화면 범위(Scope)에 맞춰 파일 제목 생성
   let titlePrefix = `${window.currentDate.getFullYear()}학년도`;
   
   if (currentScope === 'day') {
@@ -492,9 +467,6 @@ window.downloadCSV = async function() {
   window.downloadCSVFile(`${titlePrefix}_백업.csv`, csv);
 };
 
-// ---------------------------------------------------------
-// 📤 통합 CSV 업로드 및 동기화 (💡 엑셀 수식 기호(=) 완벽 제거)
-// ---------------------------------------------------------
 window.uploadCSV = async function(input) {
   const file = input.files[0];
   if(!file) return;
@@ -508,25 +480,13 @@ window.uploadCSV = async function(input) {
     const rows = window.parseCSV(text);
     const operations = [];
 
-    // 💡 엑셀에서 날짜 자동 변환을 막기 위해 쓴 =, ", ' 기호를 완벽하게 벗겨내는 함수
     const parseExcelText = (val) => {
       let v = (val || '').trim();
-      
-      // 1. 맨 앞이 '='로 시작하면 '=' 기호 먼저 제거 (예: =4-2 -> 4-2)
-      if (v.startsWith('=')) {
-        v = v.substring(1);
-      }
-      
-      // 2. 양끝이 큰따옴표(")나 작은따옴표(')로 감싸져 있다면 알맹이만 추출
+      if (v.startsWith('=')) v = v.substring(1);
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
         v = v.substring(1, v.length - 1);
       }
-      
-      // 3. 맨 앞에 작은따옴표(') 하나만 붙어있는 경우 제거 ('4-2 -> 4-2)
-      if (v.startsWith("'")) {
-        v = v.substring(1);
-      }
-      
+      if (v.startsWith("'")) v = v.substring(1);
       return v;
     };
 
@@ -539,17 +499,12 @@ window.uploadCSV = async function(input) {
         const dateStr = `${y}-${m}-${d}`;
         
         const eventText = parseExcelText(row[4]);
-        
         const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
-        
         const periodsData = {};
         
         for (let p = 1; p <= 6; p++) {
           let subj = parseExcelText(row[4 + p]);
-          
-          if (isSkipDay) {
-            subj = '';
-          }
+          if (isSkipDay) subj = '';
 
           periodsData[p] = {
             subject: subj,
@@ -667,10 +622,10 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (화면 범위 지정 + 동적 컬러 칸)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (무한 칸 추가 & 칸별 AND/OR)
 // ==========================================================================
 
-// 🎯 각 항목별 색상 및 디자인 테마 정의
+// 각 항목별 색상 및 디자인 테마 정의
 const fieldMeta = {
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
@@ -687,41 +642,39 @@ window.openSearchModal = function() {
   const scopeNames = { 'year': '연간 데이터', 'month': '월간 데이터', 'week': '주간 데이터', 'day': '오늘 데이터' };
   document.getElementById('search-scope-label').innerText = scopeNames[currentScope] || '';
   
-  // 창을 열 때마다 기존에 추가했던 검색 칸을 모두 지우고 버튼을 복구
+  // 창을 열 때마다 기존에 추가했던 검색 칸을 초기화
   document.getElementById('active-search-fields').innerHTML = '';
-  Object.keys(fieldMeta).forEach(k => document.getElementById(`btn-add-${k}`).style.display = 'inline-block');
 };
 
 window.closeSearchModal = function() {
   document.getElementById('search-modal').classList.add('hidden');
 };
 
-// 🎯 검색 항목 칸 추가 함수 (버튼 누르면 실행)
+// 🎯 검색 항목 칸 동적 추가 함수 (같은 버튼을 눌러도 무한 생성됨)
 window.addSearchField = function(type) {
-  document.getElementById(`btn-add-${type}`).style.display = 'none'; // 누른 버튼은 숨김
   const meta = fieldMeta[type];
+  const uniqueId = Date.now() + Math.floor(Math.random() * 1000); // 💡 삭제 제어를 위한 고유 ID 부여
   
   const html = `
-    <div id="field-row-${type}" style="display:flex; align-items:center; gap:8px; background:${meta.bg}; border:2px solid ${meta.border}; padding:10px; border-radius:8px;">
+    <div id="field-row-${uniqueId}" data-type="${type}" style="display:flex; align-items:center; gap:8px; background:${meta.bg}; border:2px solid ${meta.border}; padding:10px; border-radius:8px;">
       <span style="font-weight:900; color:${meta.color}; width:60px; text-align:center;">${meta.label}</span>
-      <input type="text" id="input-${type}" placeholder="키워드 입력 (띄어쓰기 구분)" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:1rem;">
+      <input type="text" class="search-input" placeholder="키워드 입력 (띄어쓰기 구분)" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:1rem;">
       
-      <select id="logic-${type}" style="padding:8px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer;">
+      <select class="search-logic" style="padding:8px; border:1px solid ${meta.border}; border-radius:4px; color:${meta.color}; font-weight:bold; background:#fff; outline:none; cursor:pointer;">
         <option value="AND">그리고</option>
         <option value="OR">또는</option>
       </select>
       
-      <button onclick="removeSearchField('${type}')" style="background:transparent; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; font-weight:bold; padding:0 5px;" title="항목 삭제">✖</button>
+      <button onclick="removeSearchField('${uniqueId}')" style="background:transparent; border:none; color:#ef4444; font-size:1.3rem; cursor:pointer; font-weight:bold; padding:0 5px;" title="항목 삭제">✖</button>
     </div>
   `;
   document.getElementById('active-search-fields').insertAdjacentHTML('beforeend', html);
 };
 
-// 🎯 검색 항목 칸 삭제 함수
-window.removeSearchField = function(type) {
-  const row = document.getElementById(`field-row-${type}`);
+// 🎯 특정 검색 항목 칸 삭제 함수
+window.removeSearchField = function(uniqueId) {
+  const row = document.getElementById(`field-row-${uniqueId}`);
   if (row) row.remove();
-  document.getElementById(`btn-add-${type}`).style.display = 'inline-block'; // 삭제하면 버튼 다시 보임
 };
 
 window.goToDayAndCloseSearch = function(dateStr) {
@@ -729,35 +682,39 @@ window.goToDayAndCloseSearch = function(dateStr) {
   if (window.goToDay) {
     window.goToDay(dateStr);
   } else {
-    // goToDay 함수가 없을 경우를 대비한 헬퍼
     const parts = dateStr.split('-');
     window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     window.setScope('day');
   }
 };
 
-// 🚀 본격적인 검색 실행 엔진
+// 🚀 본격적인 다중 필터 검색 엔진
 window.executeSearch = async function() {
-  const activeTypes = Object.keys(fieldMeta).filter(k => document.getElementById(`input-${k}`));
+  const rows = document.querySelectorAll('#active-search-fields > div');
   
-  if (activeTypes.length === 0) {
+  if (rows.length === 0) {
     alert("상단의 [+ 버튼]을 눌러 검색할 항목을 먼저 추가해 주세요.");
     return;
   }
 
   // 1. 활성화된 칸에서 입력값과 조건(AND/OR) 수집
-  const searchParams = {};
+  const searchConditions = [];
   let allKeywords = [];
   
-  activeTypes.forEach(t => {
-    const val = document.getElementById(`input-${t}`).value;
-    const keywords = val.split(/[\s,]+/).filter(k => k.trim() !== ''); // 띄어쓰기, 쉼표로 분리
-    const logic = document.getElementById(`logic-${t}`).value;
-    searchParams[t] = { keywords, logic };
-    allKeywords.push(...keywords);
+  rows.forEach(row => {
+    const type = row.getAttribute('data-type');
+    const inputVal = row.querySelector('.search-input').value;
+    const logicVal = row.querySelector('.search-logic').value;
+    
+    const keywords = inputVal.split(/[\s,]+/).filter(k => k.trim() !== '');
+    
+    if (keywords.length > 0) {
+      searchConditions.push({ type, keywords, logic: logicVal });
+      allKeywords.push(...keywords);
+    }
   });
 
-  if (allKeywords.length === 0) {
+  if (searchConditions.length === 0) {
     alert("검색어를 한 글자 이상 입력해 주세요.");
     return;
   }
@@ -769,7 +726,7 @@ window.executeSearch = async function() {
   const countText = document.getElementById('search-results-count');
   resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 해당 화면 범위 내에서 검색 중입니다...</p>`;
 
-  // 2. 💡 [핵심] 현재 화면(년, 월, 주, 일)에 해당하는 날짜 목록만 추출!
+  // 2. 현재 화면(년, 월, 주, 일)에 해당하는 날짜 목록만 추출
   const targetDatesObj = window.getTargetDateList();
   const validDates = targetDatesObj.map(item => item.dateStr);
 
@@ -783,22 +740,19 @@ window.executeSearch = async function() {
 
   // 3. 텍스트 매칭 함수 (각 칸별 AND/OR 로직 적용)
   const checkMatch = (text, params) => {
-    if (params.keywords.length === 0) return true; // 칸은 추가했으나 비워뒀으면 통과
     if (!text) return false;
     const lowerText = text.toLowerCase();
     
     if (params.logic === 'AND') {
-      // 그리고: 모든 단어가 포함되어야 함
       return params.keywords.every(k => lowerText.includes(k.toLowerCase()));
     } else {
-      // 또는: 하나라도 포함되면 됨
       return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
     }
   };
 
   const matchedResults = [];
 
-  // 4. 🎯 전체 DB가 아닌 '현재 화면에 떠있는 날짜(validDates)'만 순회하며 검사
+  // 4. '현재 화면에 떠있는 날짜(validDates)'만 순회하며 검사
   validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
@@ -815,13 +769,23 @@ window.executeSearch = async function() {
       }
     }
 
+    const textMap = {
+      'event': dayEvent,
+      'subject': daySubjectText.join(' '),
+      'memo': dayMemoText.join(' '),
+      'supplies': daySuppliesText.join(' ')
+    };
+
     let isMatch = true;
 
-    // 추가된 검색 칸의 조건을 순서대로 검사 (칸과 칸 사이는 무조건 AND 로직)
-    if (searchParams['event'] && !checkMatch(dayEvent, searchParams['event'])) isMatch = false;
-    if (searchParams['subject'] && !checkMatch(daySubjectText.join(' '), searchParams['subject'])) isMatch = false;
-    if (searchParams['memo'] && !checkMatch(dayMemoText.join(' '), searchParams['memo'])) isMatch = false;
-    if (searchParams['supplies'] && !checkMatch(daySuppliesText.join(' '), searchParams['supplies'])) isMatch = false;
+    // 추가된 검색 칸의 조건을 모두 만족해야 함 (칸과 칸 사이는 AND)
+    for (const cond of searchConditions) {
+      const textToSearch = textMap[cond.type];
+      if (!checkMatch(textToSearch, cond)) {
+        isMatch = false;
+        break; // 하나라도 만족하지 않으면 즉시 중단
+      }
+    }
 
     if (isMatch) {
       matchedResults.push({ dateStr, dayEvent, dayPeriods });
