@@ -615,7 +615,7 @@ window.uploadCSV = async function(input) {
 })();
 
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (UI/UX 개선 버전)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (슬래시(/) 분리 기법 적용)
 // ==========================================================================
 
 const fieldMeta = {
@@ -640,7 +640,6 @@ window.closeSearchModal = function() {
   document.getElementById('search-modal').classList.add('hidden');
 };
 
-// 🎯 라벨과 토글을 제거하고 플레이스홀더를 활용한 깔끔한 UI 생성
 window.addSearchField = function(type) {
   const meta = fieldMeta[type];
   const uniqueId = Date.now() + Math.floor(Math.random() * 1000); 
@@ -684,10 +683,11 @@ window.executeSearch = async function() {
   rows.forEach(row => {
     const type = row.getAttribute('data-type');
     const inputVal = row.querySelector('.search-input').value;
-    const keywords = inputVal.split(/[\s,]+/).filter(k => k.trim() !== '');
+    
+    // 💡 [핵심] 띄어쓰기가 아닌 빗금(/)을 기준으로 배열로 쪼개고 앞뒤 공백 제거
+    const keywords = inputVal.split('/').map(k => k.trim()).filter(k => k !== '');
     
     if (keywords.length > 0) {
-      // 💡 한 칸 안에서 여러 단어를 검색하면 기본으로 'OR(또는)' 로직 적용
       searchConditions.push({ type, keywords, logic: 'OR' });
       allKeywords.push(...keywords);
     }
@@ -719,7 +719,7 @@ window.executeSearch = async function() {
     if (!text) return false;
     const lowerText = text.toLowerCase();
     
-    // params.logic은 'OR'로 세팅되어 있음
+    // params.logic은 'OR'로 세팅되어 있음 (한 칸 안에 빗금(/)으로 들어간 여러 단어 중 하나라도 매칭되면 통과)
     if (params.logic === 'OR') {
       return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
     }
