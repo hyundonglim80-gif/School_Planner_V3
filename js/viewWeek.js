@@ -55,7 +55,7 @@ window.renderWeekViewer = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff; white-space: pre-wrap;">${eventText}</td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
@@ -159,7 +159,7 @@ window.saveWeekDataFromEditor = async function() {
         let subject = '';
         let memo = text;
 
-        const match = text.match(/^\[(.*?)\]\s*(.*)$/);
+        const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
         if (match) {
           subject = match[1];
           memo = match[2];
