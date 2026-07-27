@@ -53,7 +53,7 @@ window.loadBaseTimetable = async function() {
   });
 
   try {
-    const doc = await window.db.collection('settings').doc('timetable_sem' + sem).get();
+    const doc = await window.getUserCol('settings').doc('timetable_sem' + sem).get();
     if (doc.exists) {
       const data = doc.data();
       days.forEach(day => {
@@ -90,7 +90,7 @@ window.saveBaseTimetable = async function() {
 
   try {
     // settings 컬렉션에 학기별로 분리해서 저장
-    await window.db.collection('settings').doc('timetable_sem' + sem).set(data);
+    await window.getUserCol('settings').doc('timetable_sem' + sem).set(data);
     alert(`✅ ${sem}학기 기준시간표가 클라우드에 안전하게 저장되었습니다.`);
   } catch (e) {
     console.error("저장 오류", e);
@@ -130,7 +130,7 @@ window.applyBaseTimetable = async function() {
 
   try {
     // 저장된 기준시간표 가져오기
-    const doc = await window.db.collection('settings').doc('timetable_sem' + sem).get();
+    const doc = await window.getUserCol('settings').doc('timetable_sem' + sem).get();
     const baseData = doc.exists ? doc.data() : null;
     
     if(!baseData) {
@@ -154,14 +154,14 @@ window.applyBaseTimetable = async function() {
         const dateStr = window.formatDate(curr);
         
         // 💡 [핵심] 1. 해당 날짜의 전체 일정(Event)을 먼저 불러옵니다.
-        const eventDoc = await window.db.collection('events').doc(dateStr).get();
+        const eventDoc = await window.getUserCol('events').doc(dateStr).get();
         const eventText = eventDoc.exists ? (eventDoc.data().eventText || '') : '';
         
         // 💡 [핵심] 2. 일정 텍스트에 '(휴일)' 또는 '(행사)'가 있는지 확인합니다.
         const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
 
         // 해당 날짜의 기존 수업 데이터를 읽어옴 (메모나 준비물을 날리지 않고 보호하기 위함)
-        const scheduleDoc = await window.db.collection('schedules').doc(dateStr).get();
+        const scheduleDoc = await window.getUserCol('schedules').doc(dateStr).get();
         let periods = scheduleDoc.exists ? (scheduleDoc.data().periods || {}) : {};
         
         // 1~6교시에 기준시간표 과목 덮어쓰기 (또는 휴일/행사 시 삭제)
@@ -178,7 +178,7 @@ window.applyBaseTimetable = async function() {
           }
         }
 
-        const sRef = window.db.collection('schedules').doc(dateStr);
+        const sRef = window.getUserCol('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periods, updatedAt: Date.now() } });
         
         if (isSkipDay) {
