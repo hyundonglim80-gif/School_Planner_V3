@@ -1,6 +1,5 @@
 // js/viewMonth.js
 
-// 💡 [전역 헬퍼] 특정 날짜(YYYY-MM-DD)의 '일 보기'로 즉시 이동하는 공통 함수
 if (!window.goToDay) {
   window.goToDay = function(dateStr) {
     if (!dateStr) return;
@@ -13,16 +12,12 @@ if (!window.goToDay) {
 }
 
 // ==========================================================================
-// 👁️ 1. 월간 뷰어 모드 (주말 제외 평일 5단 달력 + 오늘 강조 + 1~6교시 수업 박스)
+// 👁️ 1. 월간 뷰어 모드 
 // ==========================================================================
 window.renderMonthViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중입니다...</p>`;
 
-  if (!window.db) {
-    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
-    container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
-    return;
-  }
+  if (!window.db) return;
 
   let html = `<div class="calendar-grid" style="grid-template-columns: repeat(${window.showWeekend ? 7 : 5}, 1fr);">`;
   
@@ -53,29 +48,33 @@ window.renderMonthViewer = async function(container) {
   const dayPromises = [];
   for(let i=1; i<=lastDate; i++) {
     const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-    dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ day: i, data, dateStr })));
+    dayPromises.push(window.getUserCol('events').doc(dateStr).get().then(doc => ({ 
+      day: i, 
+      dateStr, 
+      eventData: doc.exists ? doc.data() : {} 
+    })));
   }
   const monthData = await Promise.all(dayPromises);
 
   let scheduleMap = {};
   try {
     const snap = await window.getUserCol('schedules').get();
-    snap.forEach(doc => {
-      scheduleMap[doc.id] = doc.data().periods || {};
-    });
-  } catch(e) {
-    console.error("시간표 로딩 에러:", e);
-  }
+    snap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
+  } catch(e) {}
 
-  const realToday = new Date();
-  const realTodayStr = typeof window.formatDate === 'function' 
-      ? window.formatDate(realToday) 
-      : `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
+  const realTodayStr = window.formatDate(new Date());
 
   monthData.forEach(item => {
     const d = item.day;
     const dateStr = item.dateStr;
-    const eventText = item.data.eventText || '';
+    
+    // 💡 이벤트 리스트를 아름다운 텍스트로 합치기
+    let eventText = '';
+    if (item.eventData.eventList && item.eventData.eventList.length > 0) {
+      eventText = window.formatEventListToText(item.eventData.eventList);
+    } else if (item.eventData.eventText) {
+      eventText = item.eventData.eventText;
+    }
     
     const dateObj = new Date(y, m, d);
     const dayOfWeekNum = dateObj.getDay();
@@ -90,19 +89,11 @@ window.renderMonthViewer = async function(container) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         const text = subject.trim();
-        
         let fontSize = "0.75rem";
         let letterSpacing = "normal";
-        if (text.length === 3) {
-          fontSize = "0.65rem";
-          letterSpacing = "-0.5px";
-        } else if (text.length === 4) {
-          fontSize = "0.55rem";
-          letterSpacing = "-1px";
-        } else if (text.length >= 5) {
-          fontSize = "0.45rem";
-          letterSpacing = "-1.5px";
-        }
+        if (text.length === 3) { fontSize = "0.65rem"; letterSpacing = "-0.5px"; } 
+        else if (text.length === 4) { fontSize = "0.55rem"; letterSpacing = "-1px"; } 
+        else if (text.length >= 5) { fontSize = "0.45rem"; letterSpacing = "-1.5px"; }
 
         boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
         hasClass = true;
@@ -111,26 +102,17 @@ window.renderMonthViewer = async function(container) {
       }
     }
 
-    let scheduleHtml = '';
-    if (hasClass) {
-      scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>`;
-    }
+    let scheduleHtml = hasClass ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
 
     let dateColor = '#334155';
     if (dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
     let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
-    
-    let eventHtml = '';
-    if(eventText) {
-       eventHtml = `<div class="cal-event" style="white-space: pre-wrap; margin-top:4px;">${eventText}</div>`;
-    }
+    let eventHtml = eventText ? `<div class="cal-event" style="white-space: pre-wrap; margin-top:4px;">${eventText}</div>` : '';
 
-    const isToday = (dateStr === realTodayStr);
-    const todayClass = isToday ? 'month-today-cell' : '';
+    const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
-    // 🎯 달력 셀 어디든 누르면 해당 날짜의 일 보기로 이동
     html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${eventHtml}</div>`;
   });
 
@@ -139,16 +121,12 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (통합 CSV 버튼 + 1~6교시 헤더 제거 + 'X' 제거)
+// ✏️ 2. 월간 에디터 모드
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
 
-  if (!window.db) {
-    console.warn("데이터베이스(window.db)가 아직 준비되지 않았습니다.");
-    container.innerHTML = `<p style="text-align:center; padding: 40px; color:#ef4444; font-weight:bold;">🚨 데이터베이스 연결 대기 중입니다. 잠시 후 새로고침(F5) 해주세요.</p>`;
-    return;
-  }
+  if (!window.db) return;
 
   const y = window.currentDate.getFullYear();
   const m = window.currentDate.getMonth();
@@ -157,7 +135,12 @@ window.renderMonthEditor = async function(container) {
   const dayPromises = [];
   for(let i=1; i<=lastDate; i++) {
     const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-    dayPromises.push(window.dbAPI.loadDayData(dateStr).then(data => ({ day: i, dateStr, data })));
+    dayPromises.push(
+      Promise.all([
+        window.dbAPI.loadDayData(dateStr), 
+        window.getUserCol('events').doc(dateStr).get()
+      ]).then(([data, eventDoc]) => ({ day: i, dateStr, data, eventData: eventDoc.exists ? eventDoc.data() : {} }))
+    );
   }
 
   const monthData = await Promise.all(dayPromises);
@@ -186,14 +169,19 @@ window.renderMonthEditor = async function(container) {
 
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
-    const eventText = (item.data.eventText || '').trim();
+    let eventText = '';
+    if (item.eventData.eventList && item.eventData.eventList.length > 0) {
+      eventText = window.formatEventListToText(item.eventData.eventList);
+    } else if (item.eventData.eventText) {
+      eventText = item.eventData.eventText;
+    }
+
     const periods = item.data.periods || {};
 
     let dateColor = '#1e40af';
     if (dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-    // 🎯 날짜 셀 클릭 시 일 보기로 이동
     html += `<tr data-month-date="${item.dateStr}">` +
       `<td rowspan="2" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
@@ -211,7 +199,7 @@ window.renderMonthEditor = async function(container) {
     html += `</tr>` +
     `<tr data-month-sub="${item.dateStr}">` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
-      `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4;">${eventText}</td>` +
+      `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4; white-space:pre-wrap;">${eventText}</td>` +
     `</tr>`;
   });
 
@@ -220,7 +208,7 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (덮어쓰기 방지 보호 로직 적용)
+// 💾 3. 월간 편집 저장 처리 함수 ([전일행사] 감지 로직 적용)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
@@ -229,10 +217,20 @@ window.saveMonthDataFromEditor = async function() {
     
     const nextRow = row.nextElementSibling;
     const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
-    const eventText = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+    const eventTextRaw = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
+    
+    // 💡 다중 일정 배열로 파싱 및 텍스트 갱신
+    const parsedEventList = window.parseRawEventTextToEventList(eventTextRaw);
+    const cleanEventText = window.formatEventListToText(parsedEventList);
 
-    // 🚨 [핵심 수정] 기존 데이터를 먼저 불러와서 메모와 준비물이 날아가는 것을 방지
+    await window.getUserCol('events').doc(dateStr).set({
+        eventList: parsedEventList,
+        eventText: cleanEventText,
+        updatedAt: Date.now()
+    });
+
+    const isSkipDay = cleanEventText.includes('(휴일)') || cleanEventText.includes('(행사)') || cleanEventText.includes('[전일행사]');
+
     let existingPeriods = {};
     try {
       const existingData = await window.dbAPI.loadDayData(dateStr);
@@ -251,12 +249,11 @@ window.saveMonthDataFromEditor = async function() {
 
        periodsData[p] = {
           subject: subjText,
-          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', // 기존 준비물 유지
-          memo: existingPeriods[p] ? existingPeriods[p].memo : ''          // 기존 메모 유지
+          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', 
+          memo: existingPeriods[p] ? existingPeriods[p].memo : ''         
        };
     });
 
-    await window.dbAPI.saveEvent(dateStr, eventText);
     await window.dbAPI.saveSchedule(dateStr, periodsData);
   }
 };
