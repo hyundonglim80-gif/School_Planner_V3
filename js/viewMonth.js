@@ -1,5 +1,3 @@
-// js/viewMonth.js
-
 if (!window.goToDay) {
   window.goToDay = function(dateStr) {
     if (!dateStr) return;
@@ -11,9 +9,6 @@ if (!window.goToDay) {
   };
 }
 
-// ==========================================================================
-// 👁️ 1. 월간 뷰어 모드 (뱃지 렌더링 적용)
-// ==========================================================================
 window.renderMonthViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중...</p>`;
 
@@ -65,7 +60,6 @@ window.renderMonthViewer = async function(container) {
     const d = item.day;
     const dateStr = item.dateStr;
     
-    // 💡 이벤트 리스트를 뱃지로 변환
     let eventHtml = '';
     if (item.eventData.eventList && item.eventData.eventList.length > 0) {
       eventHtml = window.generateEventBadgesHTML(item.eventData.eventList);
@@ -99,17 +93,15 @@ window.renderMonthViewer = async function(container) {
       }
     }
 
-    let scheduleHtml = hasClass ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
+    // 💡 수업 숨기기 적용
+    let scheduleHtml = (hasClass && window.showClass) ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
 
     let dateColor = '#334155';
     if (dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
     let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
-    
-    // 💡 이벤트 뱃지가 있다면 하단에 출력
     let finalEventOutput = eventHtml ? `<div style="margin-top:4px;">${eventHtml}</div>` : '';
-
     const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
     html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${finalEventOutput}</div>`;
@@ -120,7 +112,7 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드 (컴팩트 일정 에디터 적용)
+// ✏️ 2. 월간 에디터 모드 (구조 개선 및 +버튼 재배치)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중...</p>`;
@@ -168,7 +160,6 @@ window.renderMonthEditor = async function(container) {
 
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
-    // 💡 컴팩트 에디터용 리스트 생성
     let eventList = [];
     if (item.eventData.eventList && item.eventData.eventList.length > 0) {
       eventList = item.eventData.eventList;
@@ -179,9 +170,7 @@ window.renderMonthEditor = async function(container) {
     window[`tempEvents_${item.dateStr}`] = eventList;
     let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
     compactEditorHtml += window.generateCompactEventEditor(item.dateStr);
-    compactEditorHtml += `</div>
-        <button onclick="addCompactEvent('${item.dateStr}')" style="margin-top:4px; font-size:0.8rem; background:#e0f2fe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 6px; cursor:pointer;">+ 일정 추가</button>
-    `;
+    compactEditorHtml += `</div>`; // 💡 +버튼 이동됨
 
     const periods = item.data.periods || {};
 
@@ -189,13 +178,21 @@ window.renderMonthEditor = async function(container) {
     if (dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+    // 💡 수업 숨기기 로직 적용을 위해 '일정' 칸을 첫 번째 tr로, '수업' 칸을 두 번째 tr로 순서 조정 및 rowspan 동기화
     html += `<tr data-month-date="${item.dateStr}">` +
-      `<td rowspan="2" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
+      `<td rowspan="${window.showClass ? 2 : 1}" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
         `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
           `<span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${dayNum}</span>` +
           `<span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
         `</div>` +
       `</td>` +
+      `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">` +
+          `일정<br>` +
+          `<button onclick="addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>` +
+      `</td>` +
+      `<td colspan="6" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>` +
+    `</tr>` +
+    `<tr data-month-sub="${item.dateStr}" style="${window.showClass ? '' : 'display:none;'}">` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
       
       for(let p=1; p<=6; p++) {
@@ -203,20 +200,13 @@ window.renderMonthEditor = async function(container) {
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
       }
       
-    html += `</tr>` +
-    `<tr data-month-sub="${item.dateStr}">` +
-      `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
-      `<td colspan="6" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>` +
-    `</tr>`;
+    html += `</tr>`;
   });
 
   html += `</tbody></table></div>`;
   container.innerHTML = html;
 };
 
-// ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 
-// ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
@@ -246,23 +236,27 @@ window.saveMonthDataFromEditor = async function() {
       existingPeriods = existingData.periods || {};
     } catch(e) {}
 
-    const classCells = row.querySelectorAll(".edit-class-cell");
-    const periodsData = {};
-    
-    classCells.forEach(cell => {
-       const p = cell.getAttribute("data-p");
-       const subjRaw = (cell.innerText || cell.textContent || "").trim();
-       let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
+    // 💡 변경된 DOM 구조에 맞춰 서브(수업) Row를 정상적으로 가져옵니다.
+    const subRow = document.querySelector(`tr[data-month-sub="${dateStr}"]`);
+    if (subRow) {
+      const classCells = subRow.querySelectorAll(".edit-class-cell");
+      const periodsData = {};
+      
+      classCells.forEach(cell => {
+         const p = cell.getAttribute("data-p");
+         const subjRaw = (cell.innerText || cell.textContent || "").trim();
+         let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
 
-       if (isSkipDay) subjText = '';
+         if (isSkipDay) subjText = '';
 
-       periodsData[p] = {
-          subject: subjText,
-          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', 
-          memo: existingPeriods[p] ? existingPeriods[p].memo : ''         
-       };
-    });
+         periodsData[p] = {
+            subject: subjText,
+            supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', 
+            memo: existingPeriods[p] ? existingPeriods[p].memo : ''         
+         };
+      });
 
-    await window.dbAPI.saveSchedule(dateStr, periodsData);
+      await window.dbAPI.saveSchedule(dateStr, periodsData);
+    }
   }
 };
