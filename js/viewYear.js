@@ -1,18 +1,7 @@
 // js/viewYear.js
 
-if (!window.goToDay) {
-  window.goToDay = function(dateStr) {
-    if (!dateStr) return;
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      window.setScope('day');
-    }
-  };
-}
-
 // ==========================================================================
-// 👁️ 1. 연간 뷰어 모드 
+// 👁️ 1. 연간 뷰어 모드 (뱃지 렌더링 적용)
 // ==========================================================================
 window.renderYearViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 연간 일정을 분석하여 불러오는 중...</p>`;
@@ -24,16 +13,20 @@ window.renderYearViewer = async function(container) {
     const snapshot = await window.getUserCol('events').get();
     snapshot.forEach(doc => {
       const data = doc.data();
-      // 💡 다중 리스트나 일반 텍스트 모두 지원
-      let combinedText = '';
+      let hasContent = false;
+      let htmlOutput = '';
+
       if (data.eventList && data.eventList.length > 0) {
-        combinedText = window.formatEventListToText(data.eventList);
+        htmlOutput = window.generateEventBadgesHTML(data.eventList);
+        hasContent = true;
       } else if (data.eventText && data.eventText.trim() !== '') {
-        combinedText = data.eventText;
+        const parsed = window.parseRawEventTextToEventList(data.eventText);
+        htmlOutput = window.generateEventBadgesHTML(parsed);
+        hasContent = true;
       }
       
-      if (combinedText) {
-        allEvents.push({ dateStr: doc.id, text: combinedText });
+      if (hasContent) {
+        allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput });
       }
     });
   } catch (error) {}
@@ -45,18 +38,12 @@ window.renderYearViewer = async function(container) {
   const nextYear = targetYear + 1;
 
   const months = [
-    { label: "3월", match: `${targetYear}-03-` },
-    { label: "4월", match: `${targetYear}-04-` },
-    { label: "5월", match: `${targetYear}-05-` },
-    { label: "6월", match: `${targetYear}-06-` },
-    { label: "7월", match: `${targetYear}-07-` },
-    { label: "8월", match: `${targetYear}-08-` },
-    { label: "9월", match: `${targetYear}-09-` },
-    { label: "10월", match: `${targetYear}-10-` },
-    { label: "11월", match: `${targetYear}-11-` },
-    { label: "12월", match: `${targetYear}-12-` },
-    { label: "1월", match: `${nextYear}-01-` },
-    { label: "2월", match: `${nextYear}-02-` }
+    { label: "3월", match: `${targetYear}-03-` }, { label: "4월", match: `${targetYear}-04-` },
+    { label: "5월", match: `${targetYear}-05-` }, { label: "6월", match: `${targetYear}-06-` },
+    { label: "7월", match: `${targetYear}-07-` }, { label: "8월", match: `${targetYear}-08-` },
+    { label: "9월", match: `${targetYear}-09-` }, { label: "10월", match: `${targetYear}-10-` },
+    { label: "11월", match: `${targetYear}-11-` }, { label: "12월", match: `${targetYear}-12-` },
+    { label: "1월", match: `${nextYear}-01-` }, { label: "2월", match: `${nextYear}-02-` }
   ];
 
   let html = `<div class="year-grid">`;
@@ -65,14 +52,12 @@ window.renderYearViewer = async function(container) {
   months.forEach(mObj => {
     const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
     let eventListHtml = '';
+    
     if (monthEvents.length > 0) {
       eventListHtml = monthEvents.map(e => {
         const parts = e.dateStr.split('-');
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
         const dayNum = parseInt(parts[2], 10);
-        
-        const dateObj = new Date(year, month, dayNum);
+        const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, dayNum);
         const dayOfWeek = dayNames[dateObj.getDay()];
         
         const isTodayEvent = (e.dateStr === realTodayStr);
@@ -82,7 +67,7 @@ window.renderYearViewer = async function(container) {
 
         return `<div onclick="window.goToDay('${e.dateStr}')" style="${eventStyle} cursor:pointer;" title="${e.dateStr} 일 보기로 이동">
                   <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
-                  <div style="color:#334155; white-space:pre-wrap; word-break:break-all; margin-top:2px; font-size:var(--year-event-font-size);">${e.text}</div>
+                  <div style="margin-top:2px;">${e.htmlOutput}</div>
                 </div>`;
       }).join('');
     } else {
@@ -200,7 +185,7 @@ window.renderYearEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 연간 편집 저장 처리 함수 ([전일행사] 감지 로직 적용)
+// 💾 3. 연간 편집 저장 처리 함수 (동적 라벨 감지 적용)
 // ==========================================================================
 window.saveYearDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-year-date]");
@@ -220,7 +205,7 @@ window.saveYearDataFromEditor = async function() {
         updatedAt: Date.now()
     });
 
-    const isSkipDay = cleanEventText.includes('(휴일)') || cleanEventText.includes('(행사)') || cleanEventText.includes('[전일행사]');
+    const isSkipDay = window.checkSkipConditionFromText(cleanEventText);
 
     let existingPeriods = {};
     try {
