@@ -1,18 +1,7 @@
 // js/viewMonth.js
 
-if (!window.goToDay) {
-  window.goToDay = function(dateStr) {
-    if (!dateStr) return;
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      window.setScope('day');
-    }
-  };
-}
-
 // ==========================================================================
-// 👁️ 1. 월간 뷰어 모드 
+// 👁️ 1. 월간 뷰어 모드 (뱃지 렌더링 적용)
 // ==========================================================================
 window.renderMonthViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중입니다...</p>`;
@@ -35,11 +24,8 @@ window.renderMonthViewer = async function(container) {
   const lastDate = new Date(y, m + 1, 0).getDate(); 
   
   let padding = 0;
-  if (window.showWeekend) {
-    padding = firstDay; 
-  } else {
-    if (firstDay >= 1 && firstDay <= 5) padding = firstDay - 1; 
-  }
+  if (window.showWeekend) { padding = firstDay; } 
+  else { if (firstDay >= 1 && firstDay <= 5) padding = firstDay - 1; }
   
   for(let i=0; i<padding; i++) {
     html += `<div class="cal-day" style="background:#f8fafc;"></div>`;
@@ -68,12 +54,13 @@ window.renderMonthViewer = async function(container) {
     const d = item.day;
     const dateStr = item.dateStr;
     
-    // 💡 이벤트 리스트를 아름다운 텍스트로 합치기
-    let eventText = '';
+    // 💡 이벤트 리스트를 뱃지로 변환
+    let eventHtml = '';
     if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-      eventText = window.formatEventListToText(item.eventData.eventList);
+      eventHtml = window.generateEventBadgesHTML(item.eventData.eventList);
     } else if (item.eventData.eventText) {
-      eventText = item.eventData.eventText;
+      const parsed = window.parseRawEventTextToEventList(item.eventData.eventText);
+      eventHtml = window.generateEventBadgesHTML(parsed);
     }
     
     const dateObj = new Date(y, m, d);
@@ -89,8 +76,7 @@ window.renderMonthViewer = async function(container) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         const text = subject.trim();
-        let fontSize = "0.75rem";
-        let letterSpacing = "normal";
+        let fontSize = "0.75rem"; let letterSpacing = "normal";
         if (text.length === 3) { fontSize = "0.65rem"; letterSpacing = "-0.5px"; } 
         else if (text.length === 4) { fontSize = "0.55rem"; letterSpacing = "-1px"; } 
         else if (text.length >= 5) { fontSize = "0.45rem"; letterSpacing = "-1.5px"; }
@@ -109,11 +95,13 @@ window.renderMonthViewer = async function(container) {
     else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
     let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
-    let eventHtml = eventText ? `<div class="cal-event" style="white-space: pre-wrap; margin-top:4px;">${eventText}</div>` : '';
+    
+    // 💡 이벤트 뱃지가 있다면 하단에 출력
+    let finalEventOutput = eventHtml ? `<div style="margin-top:4px;">${eventHtml}</div>` : '';
 
     const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
-    html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${eventHtml}</div>`;
+    html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${finalEventOutput}</div>`;
   });
 
   html += `</div>`;
@@ -208,7 +196,7 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 ([전일행사] 감지 로직 적용)
+// 💾 3. 월간 편집 저장 처리 함수 (동적 라벨 확인 로직 적용)
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
@@ -219,7 +207,6 @@ window.saveMonthDataFromEditor = async function() {
     const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
     const eventTextRaw = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
     
-    // 💡 다중 일정 배열로 파싱 및 텍스트 갱신
     const parsedEventList = window.parseRawEventTextToEventList(eventTextRaw);
     const cleanEventText = window.formatEventListToText(parsedEventList);
 
@@ -229,7 +216,7 @@ window.saveMonthDataFromEditor = async function() {
         updatedAt: Date.now()
     });
 
-    const isSkipDay = cleanEventText.includes('(휴일)') || cleanEventText.includes('(행사)') || cleanEventText.includes('[전일행사]');
+    const isSkipDay = window.checkSkipConditionFromText(cleanEventText);
 
     let existingPeriods = {};
     try {
