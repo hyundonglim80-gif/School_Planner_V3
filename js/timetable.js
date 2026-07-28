@@ -89,7 +89,6 @@ window.saveBaseTimetable = async function() {
   });
 
   try {
-    // settings 컬렉션에 학기별로 분리해서 저장
     await window.getUserCol('settings').doc('timetable_sem' + sem).set(data);
     alert(`✅ ${sem}학기 기준시간표가 클라우드에 안전하게 저장되었습니다.`);
   } catch (e) {
@@ -101,7 +100,7 @@ window.saveBaseTimetable = async function() {
   }
 };
 
-// 6. 기준시간표 지정된 날짜 기간에 일괄 적용하기 (동기화 엔진)
+// 6. 기준시간표 지정된 날짜 기간에 일괄 적용하기 (전일행사 감지 로직 추가)
 window.applyBaseTimetable = async function() {
   const sem = document.getElementById('apply-semester').value;
   const startDate = document.getElementById('apply-start-date').value;
@@ -120,7 +119,7 @@ window.applyBaseTimetable = async function() {
     return;
   }
 
-  if(!confirm(`⚠️ 정말로 ${startDate} ~ ${endDate} 기간의 평일에 [${sem}학기 기준시간표]를 일괄 적용하시겠습니까?\n(일정에 '(휴일)'이나 '(행사)'가 포함된 날은 자동으로 수업이 비워집니다)`)) {
+  if(!confirm(`⚠️ 정말로 ${startDate} ~ ${endDate} 기간의 평일에 [${sem}학기 기준시간표]를 일괄 적용하시겠습니까?\n(일정에 '[전일행사]'나 '(휴일)'이 포함된 날은 자동으로 수업이 비워집니다)`)) {
     return;
   }
 
@@ -129,7 +128,6 @@ window.applyBaseTimetable = async function() {
   btn.disabled = true;
 
   try {
-    // 저장된 기준시간표 가져오기
     const doc = await window.getUserCol('settings').doc('timetable_sem' + sem).get();
     const baseData = doc.exists ? doc.data() : null;
     
@@ -141,38 +139,32 @@ window.applyBaseTimetable = async function() {
     const operations = [];
     const daysArr = ['일', '월', '화', '수', '목', '금', '토'];
     let appliedCount = 0;
-    let skippedCount = 0; // 휴일/행사로 건너뛴 날짜 카운트
+    let skippedCount = 0; 
     
     let curr = new Date(start);
     
-    // 시작일부터 종료일까지 하루씩 넘어가며 평일(월~금) 검사
     while(curr <= end) {
-      const dayOfWeekNum = curr.getDay(); // 0:일요일 ~ 6:토요일
+      const dayOfWeekNum = curr.getDay(); 
       
       if (dayOfWeekNum !== 0 && dayOfWeekNum !== 6) { 
         const dayName = daysArr[dayOfWeekNum];
         const dateStr = window.formatDate(curr);
         
-        // 💡 [핵심] 1. 해당 날짜의 전체 일정(Event)을 먼저 불러옵니다.
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
         const eventText = eventDoc.exists ? (eventDoc.data().eventText || '') : '';
         
-        // 💡 [핵심] 2. 일정 텍스트에 '(휴일)' 또는 '(행사)'가 있는지 확인합니다.
-        const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+        // 💡 [핵심 업데이트] 새로운 라벨인 [전일행사] 감지 로직을 추가했습니다.
+        const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)') || eventText.includes('[전일행사]');
 
-        // 해당 날짜의 기존 수업 데이터를 읽어옴 (메모나 준비물을 날리지 않고 보호하기 위함)
         const scheduleDoc = await window.getUserCol('schedules').doc(dateStr).get();
         let periods = scheduleDoc.exists ? (scheduleDoc.data().periods || {}) : {};
         
-        // 1~6교시에 기준시간표 과목 덮어쓰기 (또는 휴일/행사 시 삭제)
         for(let p=1; p<=6; p++) {
           if(!periods[p]) periods[p] = { subject:'', memo:'', supplies:'' };
           
           if (isSkipDay) {
-            // 🎯 휴일이거나 행사일이면 과목을 텅 비게 만듭니다.
             periods[p].subject = '';
           } else {
-            // 🎯 평범한 날이면 기준시간표의 과목을 적용합니다.
             const baseSubject = baseData[dayName] && baseData[dayName][p] !== undefined ? baseData[dayName][p] : '';
             periods[p].subject = baseSubject;
           }
@@ -187,15 +179,14 @@ window.applyBaseTimetable = async function() {
           appliedCount++;
         }
       }
-      curr.setDate(curr.getDate() + 1); // 다음 날짜로 이동
+      curr.setDate(curr.getDate() + 1);
     }
 
-    // 일괄 통신 저장
     await window.executeBatchOperations(operations);
     
     alert(`🎉 동기화 완료!\n- 기준시간표 적용: ${appliedCount}일\n- 휴일/행사로 수업 비움: ${skippedCount}일`);
     window.closeTimetableModal();
-    window.render(); // 화면 새로고침하여 바뀐 시간표 즉시 표시
+    window.render(); 
 
   } catch (e) {
     console.error("일괄 적용 오류", e);
