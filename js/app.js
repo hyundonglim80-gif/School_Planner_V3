@@ -991,3 +991,187 @@ document.addEventListener('keydown', function(event) {
     }
   }
 });
+
+// ==========================================================================
+// 🏷️ [신규 시스템] 전역 일정 라벨 관리 및 렌더링 엔진
+// ==========================================================================
+
+// 1. 기본 라벨 설정 및 로드 (단순 문자열 배열 -> 객체 배열로 마이그레이션 포함)
+window.getEventLabels = function() {
+    let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v2'));
+    
+    // V2(객체 형태) 데이터가 없다면
+    if (!labels) {
+        // 기존 V1(문자열 배열) 데이터 확인
+        let oldLabels = JSON.parse(localStorage.getItem('workCalendar_eventLabels'));
+        if (oldLabels && Array.isArray(oldLabels)) {
+            // V1을 V2로 변환 (기존 '전일행사'만 수업 삭제 속성 부여)
+            labels = oldLabels.map(l => ({
+                name: l,
+                isSkip: l === '전일행사' || l === '휴일'
+            }));
+        } else {
+            // 완전 초기 기본값
+            labels = [
+                { name: '일정', isSkip: false },
+                { name: '행사', isSkip: false },
+                { name: '전일행사', isSkip: true },
+                { name: '제출', isSkip: false },
+                { name: '기타', isSkip: false }
+            ];
+        }
+        // V2로 저장
+        localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(labels));
+    }
+    return labels;
+};
+
+// 2. 특정 라벨이 수업을 삭제해야 하는(isSkip) 라벨인지 확인하는 헬퍼
+window.isSkipLabel = function(labelName) {
+    const labels = window.getEventLabels();
+    const target = labels.find(l => l.name === labelName);
+    return target ? target.isSkip : false; // 없으면 기본적으로 삭제 안함
+};
+
+// 3. 텍스트를 파싱하여, 수업 삭제 조건(isSkip)이 하나라도 있는지 확인하는 헬퍼 (일괄 적용 시 사용)
+window.checkSkipConditionFromText = function(rawText) {
+    if (!rawText) return false;
+    
+    // 1) 명시적 구버전 키워드 체크 (안전장치)
+    if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
+
+    // 2) 정규식으로 [라벨] 추출하여 설정 확인
+    const regex = /\[(.*?)\]/g;
+    let match;
+    while ((match = regex.exec(rawText)) !== null) {
+        if (window.isSkipLabel(match[1])) return true;
+    }
+    return false;
+};
+
+// 4. 모달창: 라벨 리스트 그리기
+window.renderEventLabelManager = function() {
+    const container = document.getElementById('event-label-list-container');
+    if (!container) return;
+    
+    // 모달을 열 때마다 로컬 스토리지에서 최신 상태를 복사해서 작업용으로 씁니다.
+    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
+    
+    const drawList = () => {
+        container.innerHTML = '';
+        window.tempEditingLabels.forEach((label, index) => {
+            const skipChecked = label.isSkip ? 'checked' : '';
+            const skipColor = label.isSkip ? '#ef4444' : '#64748b';
+            
+            container.innerHTML += `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0;">
+                <span style="font-weight:bold; color:#1e40af; font-size:1.05rem;">${label.name}</span>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; color:${skipColor}; cursor:pointer;">
+                        <input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; window.renderEventLabelManager();" ${skipChecked} style="accent-color:#ef4444;">
+                        수업삭제
+                    </label>
+                    <button onclick="window.tempEditingLabels.splice(${index}, 1); window.renderEventLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
+                </div>
+            </div>`;
+        });
+    };
+    drawList();
+};
+
+// 5. 모달창: 새 라벨 추가
+window.addNewEventLabel = function() {
+    const nameInput = document.getElementById('new-label-name');
+    const skipCheck = document.getElementById('new-label-skip');
+    
+    const name = nameInput.value.trim();
+    if (!name) return alert("라벨 이름을 입력하세요.");
+    if (window.tempEditingLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
+    
+    window.tempEditingLabels.push({ name: name, isSkip: skipCheck.checked });
+    
+    nameInput.value = '';
+    skipCheck.checked = false;
+    window.renderEventLabelManager();
+};
+
+// 6. 모달창: 변경사항 최종 저장
+window.saveEventLabels = function() {
+    if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
+    localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
+    document.getElementById('event-label-modal').classList.add('hidden');
+    alert("라벨 설정이 저장되었습니다.");
+    window.render(); // 현재 화면 새로고침하여 바뀐 설정 적용
+};
+
+// 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환하는 헬퍼
+window.generateEventBadgesHTML = function(eventList) {
+    if (!eventList || eventList.length === 0) return '';
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
+    eventList.forEach(e => {
+        // 라벨에 따라 색상 자동 결정
+        let badgeColor = '#2563eb'; // 기본 파랑
+        let badgeBg = '#dbeafe';
+        let textStyle = '';
+        
+        if (window.isSkipLabel(e.label)) {
+            badgeColor = '#ef4444'; // 삭제 적용 라벨은 빨강
+            badgeBg = '#fee2e2';
+            textStyle = 'color:#ef4444; font-weight:bold;'; // 텍스트도 빨갛게 강조
+        } else if (e.label === '제출') {
+            badgeColor = '#d97706'; // 제출은 주황
+            badgeBg = '#fef3c7';
+        }
+
+        html += `
+        <div style="display:flex; align-items:flex-start; gap:4px; font-size:0.95rem; line-height:1.3;">
+            <span style="background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${e.label}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${e.content}</span>
+        </div>`;
+    });
+    html += `</div>`;
+    return html;
+};
+
+// 8. 텍스트 <-> 리스트 변환 엔진 고도화
+if (!window.parseRawEventTextToEventList) {
+  window.parseRawEventTextToEventList = function(rawText) {
+      if (!rawText || !rawText.trim()) return [];
+      const lines = rawText.split('\n');
+      const eventList = [];
+      const validLabels = window.getEventLabels().map(l => l.name);
+
+      lines.forEach(line => {
+          let t = line.trim();
+          if(!t) return;
+          
+          const match = t.match(/^\[(.*?)\]\s*(.*)$/);
+          if (match) {
+              // 사용자가 괄호를 쳐서 입력한 경우
+              let labelName = match[1].trim();
+              // 유효하지 않은 라벨을 손으로 쳤다면 기본 라벨('일정' 등)로 변경
+              if (!validLabels.includes(labelName)) {
+                  labelName = validLabels[0] || '일정'; 
+              }
+              eventList.push({ label: labelName, content: match[2].trim() });
+          } else {
+              // 괄호 없이 텍스트만 쳤을 경우, 기본 라벨 부여
+              let defaultLabel = validLabels[0] || '일정';
+              
+              // 💡 구버전 하위호환: (휴일), (행사)를 쳤으면 수업삭제 라벨을 찾아 부여 시도
+              if (t.includes('(휴일)') || t.includes('(행사)')) {
+                  const skipLabel = window.getEventLabels().find(l => l.isSkip);
+                  if (skipLabel) defaultLabel = skipLabel.name;
+              }
+              eventList.push({ label: defaultLabel, content: t });
+          }
+      });
+      return eventList;
+  };
+
+  window.formatEventListToText = function(eventList) {
+      if (!eventList || eventList.length === 0) return '';
+      return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
+  };
+}
