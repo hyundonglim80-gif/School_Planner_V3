@@ -146,11 +146,14 @@ function updateButtonUI() {
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
+    // 💡 에디터/저장 버튼 텍스트와 툴팁 동적 반영
     if (currentMode === 'viewer') {
       editorBtn.innerHTML = '✏️ 수정';
+      editorBtn.title = '단축키: Ctrl + ↓';
       editorBtn.className = 'btn-mode';
     } else {
       editorBtn.innerHTML = '💾 저장';
+      editorBtn.title = '단축키: Ctrl + Enter';
       editorBtn.className = 'btn-mode save-mode';
     }
   }
@@ -207,7 +210,7 @@ window.saveCurrentViewData = async function() {
     editorBtn.disabled = false;
   }
   
-  window.hasUnsavedChanges = false; // 💡 저장 완료 시 플래그 리셋
+  window.hasUnsavedChanges = false; 
   window.setMode('viewer'); 
 };
 
@@ -237,7 +240,6 @@ window.goToToday = function() {
   window.render();
 };
 
-// 🎯 DOMContentLoaded 시 전역 이벤트 리스너(변경 감지 및 브라우저 이탈 경고) 추가
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -250,7 +252,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 💡 사용자가 텍스트를 입력하거나(input), 라벨을 변경할 때(change) 변경 상태 감지
   const markUnsaved = () => {
     if (currentMode === 'editor') {
       window.hasUnsavedChanges = true;
@@ -259,11 +260,10 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('input', markUnsaved);
   document.addEventListener('change', markUnsaved);
 
-  // 💡 브라우저 새로고침이나 탭 닫기 시도 시 경고
   window.addEventListener('beforeunload', (e) => {
     if (currentMode === 'editor' && window.hasUnsavedChanges) {
       e.preventDefault();
-      e.returnValue = ''; // 표준 방식에 따라 빈 문자열을 넘김
+      e.returnValue = ''; 
     }
   });
 
@@ -281,7 +281,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// CSV 다운로드에 사용되는 날짜 리스트 생성 함수
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -554,7 +553,7 @@ window.uploadCSV = async function(input) {
 // ==========================================================================
 
 const fieldMeta = {
-  'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' }, // 💡 전체 검색 추가됨
+  'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' },
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
   'memo': { label: '수업 메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
@@ -739,7 +738,6 @@ window.getSearchTargetDates = function(eventMap) {
   return dates;
 };
 
-// 🚀 검색 실행 함수 (전체 검색 로직 포함)
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -821,7 +819,6 @@ window.executeSearch = async function() {
       }
     }
 
-    // 💡 '전체' 검색 시 모든 데이터를 합쳐서 검색할 수 있도록 맵핑
     const textMap = {
       'all': [dayEvent, daySubjectText.join(' '), dayMemoText.join(' '), daySuppliesText.join(' '), dayJournalText].join(' '),
       'event': dayEvent,
@@ -911,3 +908,80 @@ window.executeSearch = async function() {
     resultList.innerHTML += cardHtml;
   });
 };
+
+// ==========================================================================
+// ⌨️ 단축키(Keyboard Shortcuts) 이벤트 엔진
+// ==========================================================================
+document.addEventListener('keydown', function(event) {
+  
+  // 1. 현재 사용자가 텍스트 입력창(메모, 일지 등)에 포커스를 두고 있는지 확인
+  const isTyping = event.target.tagName === 'INPUT' || 
+                   event.target.tagName === 'TEXTAREA' || 
+                   event.target.isContentEditable;
+
+  // 💡 [저장 단축키] Ctrl + Enter : 텍스트 입력 중에도 작동해야 하므로 가장 먼저 처리
+  if (event.ctrlKey && event.key === 'Enter') {
+    event.preventDefault();
+    if (currentMode === 'editor') {
+      window.saveCurrentViewData();
+    }
+    return;
+  }
+
+  // 💡 [추천 추가: Esc] Esc를 누르면 활성화된 모달이나 검색창 닫기
+  if (event.key === 'Escape') {
+    if (typeof window.closeSearchModal === 'function') window.closeSearchModal();
+    if (typeof window.closeTimetableModal === 'function') window.closeTimetableModal();
+    return;
+  }
+
+  // 🔥 텍스트를 입력 중일 때는 아래의 페이지 이동/전환 단축키 작동을 막음 (화살표 이동 등 충돌 방지)
+  if (isTyping) return;
+
+  // 2. Ctrl 키 조합 단축키
+  if (event.ctrlKey) {
+    switch (event.key) {
+      case 'ArrowLeft': // 이전 버튼 (Ctrl + 좌측 화살표)
+        event.preventDefault();
+        window.moveDate(-1);
+        break;
+      case 'ArrowRight': // 다음 버튼 (Ctrl + 우측 화살표)
+        event.preventDefault();
+        window.moveDate(1);
+        break;
+      case ' ': // 오늘로 돌아가기 (Ctrl + 스페이스바)
+        event.preventDefault();
+        if(window.goToToday) window.goToToday();
+        break;
+      case 'ArrowUp': // 뷰어 모드 (Ctrl + 위 화살표)
+        event.preventDefault();
+        if(currentMode !== 'viewer') window.setMode('viewer');
+        break;
+      case 'ArrowDown': // 수정 모드 (Ctrl + 아래 화살표)
+        event.preventDefault();
+        if(currentMode !== 'editor') window.setMode('editor');
+        break;
+    }
+  }
+  // 3. Shift 키 조합 단축키 (메모/년/월/주/일 스와이프)
+  else if (event.shiftKey) {
+    const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
+    const currentIndex = scopeOrder.indexOf(currentScope);
+
+    if (event.key === 'ArrowLeft') { 
+      event.preventDefault();
+      if (currentIndex > 0) window.setScope(scopeOrder[currentIndex - 1]);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) window.setScope(scopeOrder[currentIndex + 1]);
+    }
+  }
+  // 4. 단일 키 단축키
+  else {
+    // 💡 [추천 추가: 슬래시] 검색창 빠르게 열기
+    if (event.key === '/') { 
+      event.preventDefault();
+      if (typeof window.openSearchModal === 'function') window.openSearchModal();
+    }
+  }
+});
