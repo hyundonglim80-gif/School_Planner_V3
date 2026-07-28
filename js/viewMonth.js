@@ -1,10 +1,21 @@
 // js/viewMonth.js
 
+if (!window.goToDay) {
+  window.goToDay = function(dateStr) {
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      window.setScope('day');
+    }
+  };
+}
+
 // ==========================================================================
 // 👁️ 1. 월간 뷰어 모드 (뱃지 렌더링 적용)
 // ==========================================================================
 window.renderMonthViewer = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중입니다...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 월간 일정을 불러오는 중...</p>`;
 
   if (!window.db) return;
 
@@ -109,10 +120,10 @@ window.renderMonthViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 월간 에디터 모드
+// ✏️ 2. 월간 에디터 모드 (컴팩트 일정 에디터 적용)
 // ==========================================================================
 window.renderMonthEditor = async function(container) {
-  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중입니다...</p>`;
+  container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 월간 편집 시트를 불러오는 중...</p>`;
 
   if (!window.db) return;
 
@@ -157,12 +168,20 @@ window.renderMonthEditor = async function(container) {
 
     if (!window.showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
-    let eventText = '';
+    // 💡 컴팩트 에디터용 리스트 생성
+    let eventList = [];
     if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-      eventText = window.formatEventListToText(item.eventData.eventList);
+      eventList = item.eventData.eventList;
     } else if (item.eventData.eventText) {
-      eventText = item.eventData.eventText;
+      eventList = window.parseRawEventTextToEventList(item.eventData.eventText);
     }
+    
+    window[`tempEvents_${item.dateStr}`] = eventList;
+    let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
+    compactEditorHtml += window.generateCompactEventEditor(item.dateStr);
+    compactEditorHtml += `</div>
+        <button onclick="addCompactEvent('${item.dateStr}')" style="margin-top:4px; font-size:0.8rem; background:#e0f2fe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 6px; cursor:pointer;">+ 일정 추가</button>
+    `;
 
     const periods = item.data.periods || {};
 
@@ -187,7 +206,7 @@ window.renderMonthEditor = async function(container) {
     html += `</tr>` +
     `<tr data-month-sub="${item.dateStr}">` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">일정</td>` +
-      `<td colspan="6" class="editable-cell edit-event-cell" contenteditable="true" style="text-align:left; padding:6px 10px; border:1px solid #cbd5e1; font-size:1.1rem; color:#0369a1; background:#f0f9ff; vertical-align:top; line-height:1.4; white-space:pre-wrap;">${eventText}</td>` +
+      `<td colspan="6" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>` +
     `</tr>`;
   });
 
@@ -196,27 +215,30 @@ window.renderMonthEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 월간 편집 저장 처리 함수 (동적 라벨 확인 로직 적용)
+// 💾 3. 월간 편집 저장 처리 함수 
 // ==========================================================================
 window.saveMonthDataFromEditor = async function() {
   const rows = document.querySelectorAll("tr[data-month-date]");
   for (const row of rows) {
     const dateStr = row.getAttribute("data-month-date");
     
-    const nextRow = row.nextElementSibling;
-    const eventCell = nextRow ? nextRow.querySelector(".edit-event-cell") : null;
-    const eventTextRaw = eventCell ? (eventCell.innerText || eventCell.textContent || "").trim() : "";
-    
-    const parsedEventList = window.parseRawEventTextToEventList(eventTextRaw);
-    const cleanEventText = window.formatEventListToText(parsedEventList);
+    const rawList = window[`tempEvents_${dateStr}`] || [];
+    const validEvents = rawList.filter(e => e.content.trim() !== '');
+    const cleanEventText = window.formatEventListToText(validEvents);
 
     await window.getUserCol('events').doc(dateStr).set({
-        eventList: parsedEventList,
+        eventList: validEvents,
         eventText: cleanEventText,
         updatedAt: Date.now()
     });
 
-    const isSkipDay = window.checkSkipConditionFromText(cleanEventText);
+    let isSkipDay = false;
+    for (const e of validEvents) {
+        if (window.isSkipLabel(e.label)) {
+            isSkipDay = true;
+            break;
+        }
+    }
 
     let existingPeriods = {};
     try {
