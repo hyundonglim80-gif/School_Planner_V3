@@ -1,6 +1,36 @@
 // js/viewWeek.js
 
-// 💡 [전역 헬퍼] 특정 날짜(YYYY-MM-DD)의 '일 보기'로 즉시 이동하는 공통 함수
+// 💡 [전역 헬퍼] 다중 일정(라벨/내용)과 텍스트를 상호 변환하는 아주 똑똑한 엔진입니다.
+if (!window.parseRawEventTextToEventList) {
+  window.parseRawEventTextToEventList = function(rawText) {
+      if (!rawText || !rawText.trim()) return [];
+      const lines = rawText.split('\n');
+      const eventList = [];
+      lines.forEach(line => {
+          let t = line.trim();
+          if(!t) return;
+          // [라벨] 내용 형태인지 정규식으로 검사
+          const match = t.match(/^\[(.*?)\]\s*(.*)$/);
+          if (match) {
+              eventList.push({ label: match[1].trim(), content: match[2].trim() });
+          } else {
+              // 괄호가 없다면 똑똑하게 판단 (기존 (휴일) 등은 전일행사로 취급)
+              if (t.includes('(휴일)') || t.includes('(행사)')) {
+                  eventList.push({ label: '전일행사', content: t });
+              } else {
+                  eventList.push({ label: '일정', content: t });
+              }
+          }
+      });
+      return eventList;
+  };
+
+  window.formatEventListToText = function(eventList) {
+      if (!eventList || eventList.length === 0) return '';
+      return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
+  };
+}
+
 if (!window.goToDay) {
   window.goToDay = function(dateStr) {
     if (!dateStr) return;
@@ -12,22 +42,17 @@ if (!window.goToDay) {
   };
 }
 
-/**
- * 💡 이번 주 날짜 배열 생성 (일요일 시작으로 변경)
- */
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
   const day = tempDate.getDay();
   
-  // 🎯 무조건 일요일(0)을 시작일로 맞춤
   const diffToSun = tempDate.getDate() - day;
   tempDate.setDate(diffToSun); 
 
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   
   for (let i = 0; i < 7; i++) {
-    // 🎯 주말 숨기기 상태일 경우 일요일(0)과 토요일(6)은 배열에서 제외
     if (!window.showWeekend && (i === 0 || i === 6)) {
       tempDate.setDate(tempDate.getDate() + 1);
       continue;
@@ -35,17 +60,17 @@ window.getWeekDates = function() {
 
     dates.push({
       day: dayNames[i],
-      dayOfWeekNum: i, // 요일 번호 (색상 지정을 위해 추가)
+      dayOfWeekNum: i,
       dateStr: window.formatDate(tempDate),
       dateDisplay: `${tempDate.getDate()}일`
     });
-    tempDate.setDate(tempDate.getDate() + 1); // 하루씩 더함
+    tempDate.setDate(tempDate.getDate() + 1); 
   }
   return dates;
 };
 
 // ==========================================================================
-// 👁️ 1. 주간 뷰어 모드 (오늘 날짜 강조 + 클라우드 수업/메모 조회)
+// 👁️ 1. 주간 뷰어 모드 (일정 텍스트 그대로 표시 - 라벨 적용됨)
 // ==========================================================================
 window.renderWeekViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
@@ -60,13 +85,23 @@ window.renderWeekViewer = async function(container) {
 
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
-    const eventText = dayData.eventText || '-';
-    const periods = dayData.periods || {};
+    
+    // DB의 events 컬렉션에서 다중 일정을 불러와서 예쁜 텍스트로 합칩니다.
+    const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
+    let eventText = '-';
+    if (eventDoc.exists) {
+      const eData = eventDoc.data();
+      if (eData.eventList && eData.eventList.length > 0) {
+        eventText = window.formatEventListToText(eData.eventList);
+      } else if (eData.eventText) {
+        eventText = eData.eventText;
+      }
+    }
 
+    const periods = dayData.periods || {};
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
-    // 🎯 요일별 색상 지정 (일요일:빨강, 토요일:파랑, 평일:남색)
     let dateColor = '#1e40af';
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
@@ -103,7 +138,7 @@ window.renderWeekViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 주간 에디터 모드 (스프레드시트 형태 직접 입력)
+// ✏️ 2. 주간 에디터 모드
 // ==========================================================================
 window.renderWeekEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
@@ -118,13 +153,23 @@ window.renderWeekEditor = async function(container) {
 
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
-    const eventText = dayData.eventText || '';
-    const periods = dayData.periods || {};
+    
+    // DB 조회
+    const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
+    let eventText = '';
+    if (eventDoc.exists) {
+      const eData = eventDoc.data();
+      if (eData.eventList && eData.eventList.length > 0) {
+        eventText = window.formatEventListToText(eData.eventList);
+      } else if (eData.eventText) {
+        eventText = eData.eventText;
+      }
+    }
 
+    const periods = dayData.periods || {};
     const isToday = (d.dateStr === realTodayStr);
     const todayClass = isToday ? 'week-today-cell' : '';
 
-    // 🎯 요일별 색상 지정
     let dateColor = '#1e40af';
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
@@ -159,7 +204,7 @@ window.renderWeekEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수 (덮어쓰기 방지 보호 로직 적용)
+// 💾 3. 주간 일괄 저장 처리 함수 ([전일행사] 처리 로직 완벽 적용)
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
@@ -169,10 +214,22 @@ window.saveWeekDataFromEditor = async function() {
     if (eventRow) {
       const eventCell = eventRow.querySelector('.week-event-cell');
       eventText = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
-      await window.dbAPI.saveEvent(d.dateStr, eventText);
+      
+      // 💡 [핵심] 주간 화면에서 수정된 다중 줄 텍스트를 구조화된 배열로 변환하여 DB에 저장
+      const parsedEventList = window.parseRawEventTextToEventList(eventText);
+      const cleanEventText = window.formatEventListToText(parsedEventList);
+
+      await window.getUserCol('events').doc(d.dateStr).set({
+          eventList: parsedEventList,
+          eventText: cleanEventText, // 구버전 호환용 텍스트
+          updatedAt: Date.now()
+      });
+      
+      eventText = cleanEventText; // 아래 수업 지우기 판단을 위해 갱신
     }
 
-    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+    // 🎯 '전일행사' 자동 수업 삭제 필터 적용
+    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)') || eventText.includes('[전일행사]');
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     
     if (scheduleRow) {
@@ -198,12 +255,13 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
+        // 🎯 전일행사면 과목(Subject)을 텅 비움
         if (isSkipDay) subject = '';
 
         periodsData[p] = { 
           subject: subject, 
           memo: memo, 
-          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '' // 기존 준비물 유지
+          supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
         };
       });
 
