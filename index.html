@@ -122,12 +122,11 @@
         <div style="margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: #f1f5f9; padding: 10px 15px; border-radius: 8px;">
           <label style="font-weight:bold; color:#1e293b; display:flex; align-items:center;">📅 검색 대상 기간:</label>
           <select id="search-scope-select" onchange="toggleCustomDateSearch()" style="padding:8px; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; outline:none; background:#fff; color:#0f172a; cursor:pointer;">
-            <option value="current" id="search-scope-current-opt">현재 화면 범위 (기본)</option>
-            <option value="year">연간 전체 데이터</option>
-            <option value="month">현재 표시 월 데이터</option>
-            <option value="week">현재 표시 주 데이터</option>
-            <option value="day">현재 표시 일 데이터</option>
-            <option value="custom">직접 지정 (날짜 범위)</option>
+            <option value="current" id="search-scope-current-opt">현재 선택 범위 (기본)</option>
+            <option value="sem1">1학기</option>
+            <option value="sem2">2학기</option>
+            <option value="year">학년도</option>
+            <option value="custom">범위 지정</option>
           </select>
           <div id="custom-date-inputs" style="display:none; align-items:center; gap:5px;">
             <input type="date" id="search-start-date" style="padding:7px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
@@ -153,7 +152,7 @@
         </div>
 
         <div id="active-search-fields" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 20px;">
-        </div>
+          </div>
         
         <button onclick="executeSearch()" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">🚀 데이터 찾기</button>
       </div>
@@ -161,7 +160,7 @@
       <div style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;">
         <div id="search-results-count" style="margin-bottom: 15px; font-weight: bold; color: #2563eb; font-size: 1.1rem;"></div>
         <div id="search-results-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
-        </div>
+          </div>
       </div>
 
     </div>
