@@ -188,7 +188,10 @@ function updateButtonUI() {
 // 💡 모달창 열기 함수
 window.openHelpModal = function() {
   const modal = document.getElementById('help-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex'; // 열릴 때 화면 가운데 정렬을 위해 flex로 변경
+  }
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 };
@@ -200,8 +203,12 @@ window.closeHelpModal = function() {
   if (chk && chk.checked) {
     localStorage.setItem('workCalendar_hideHelp_v3', 'true');
   }
+  
   const modal = document.getElementById('help-modal');
-  if (modal) modal.classList.add('hidden');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.style.display = 'none'; // 닫힐 때 화면에서 완전히 숨김 처리
+  }
 };
 
 window.saveCurrentViewData = async function() {
