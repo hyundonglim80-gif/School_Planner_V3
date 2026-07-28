@@ -424,13 +424,13 @@ window.downloadCSV = async function() {
   const eventMap = {};
   eventSnap.forEach(doc => { 
     const data = doc.data();
-    // 💡 여러 개인 일정 리스트(eventList)가 있으면 각각의 [라벨] 내용 형태로 모두 이어 붙여서 백업합니다.
     let eList = [];
     if (data.eventList && Array.isArray(data.eventList) && data.eventList.length > 0) {
       eList = data.eventList;
     } else if (data.eventText && data.eventText.trim() !== '') {
       eList = window.parseRawEventTextToEventList(data.eventText);
     }
+    // 각 일정 항목을 [라벨] 내용 형태로 묶어서 백업 (줄바꿈이 있어도 라벨 구조 유지)
     eventMap[doc.id] = eList.map(e => `[${e.label}] ${e.content}`).join('\n');
   });
 
@@ -440,11 +440,11 @@ window.downloadCSV = async function() {
   const journalMap = {};
   journalSnap.forEach(doc => { 
     const data = doc.data();
-    // 💡 여러 개인 일지 리스트(entries)가 있으면 각각의 [라벨] 내용 형태로 모두 이어 붙여서 백업합니다.
     let jList = [];
     if (data.entries && Array.isArray(data.entries) && data.entries.length > 0) {
       jList = data.entries;
     }
+    // 각 일지 항목을 [라벨] 내용 형태로 묶어서 백업
     journalMap[doc.id] = jList.map(j => `[${j.label}] ${j.content}`).join('\n');
   });
 
@@ -516,6 +516,39 @@ window.uploadCSV = async function(input) {
       return v;
     };
 
+    // 💡 핵심 파서: 줄바꿈이 섞여 있더라도 대괄호([라벨]) 패턴을 기준으로 정확하게 일정/일지를 분리합니다.
+    const parseStructuredList = (rawStr, defaultLabel) => {
+        const text = parseExcelText(rawStr);
+        if (!text) return [];
+        
+        // 정규식을 이용해 [라벨] 위치를 기준으로 문자열을 쪼갭니다.
+        // 예: "[일정] 회의\n내용\n[행사] 축제" 형태를 완벽하게 인식
+        const regex = /\[(.*?)\]/g;
+        const matches = [...text.matchAll(regex)];
+        
+        if (matches.length === 0) {
+            // 대괄호 라벨이 아예 없다면 전체를 하나의 내용으로 처리
+            return [{ label: defaultLabel, content: text }];
+        }
+
+        const items = [];
+        for (let i = 0; i < matches.length; i++) {
+            const currentMatch = matches[i];
+            const label = currentMatch[1].trim();
+            const startIndex = currentMatch.index + currentMatch[0].length;
+            
+            // 다음 [라벨]이 시작하기 전까지의 텍스트를 현재 항목의 내용으로 가져옵니다.
+            let endIndex = text.length;
+            if (i + 1 < matches.length) {
+                endIndex = matches[i + 1].index;
+            }
+            
+            const content = text.substring(startIndex, endIndex).trim();
+            items.push({ label: label, content: content });
+        }
+        return items;
+    };
+
     for(let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
@@ -524,10 +557,11 @@ window.uploadCSV = async function(input) {
         const d = String(row[2].trim()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         
-        // 💡 6. 엑셀의 일정 텍스트를 읽어 독립된 뱃지 배열(eventList)로 완벽하게 복구
-        const eventText = parseExcelText(row[4]);
-        const eventList = window.parseRawEventTextToEventList(eventText);
-        const isSkipDay = window.checkSkipConditionFromText(eventText);
+        // 💡 1. 일정 파싱 (라벨 기준 분할)
+        const eventTextRaw = parseExcelText(row[4]);
+        const eventList = parseStructuredList(eventTextRaw, '일정');
+        const cleanEventText = eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
+        const isSkipDay = window.checkSkipConditionFromText(cleanEventText);
         
         const periodsData = {};
         for (let p = 1; p <= 6; p++) {
@@ -536,26 +570,12 @@ window.uploadCSV = async function(input) {
           periodsData[p] = { subject: subj, memo: parseExcelText(row[10 + p]), supplies: parseExcelText(row[16 + p]) };
         }
 
-        // 💡 7. 엑셀의 일지 텍스트(24번째 열)를 읽어 독립된 배열로 복구
-        const journalText = parseExcelText(row[23] || '');
-        const journalList = [];
-        if (journalText) {
-            const jLines = journalText.split('\n');
-            jLines.forEach(line => {
-                let t = line.trim();
-                if(!t) return;
-                const match = t.match(/^\[(.*?)\]\s*(.*)$/);
-                if (match) {
-                    journalList.push({ label: match[1].trim(), content: match[2].trim() });
-                } else {
-                    journalList.push({ label: '참고', content: t });
-                }
-            });
-        }
+        // 💡 2. 일지 파싱 (라벨 기준 분할)
+        const journalTextRaw = parseExcelText(row[23] || '');
+        const journalList = parseStructuredList(journalTextRaw, '참고');
 
-        // 💡 8. eventList와 entries를 명시적으로 저장하여 화면에서 독립된 박스로 분리되도록 조치
         const eRef = window.getUserCol('events').doc(dateStr);
-        operations.push({ type: 'set', ref: eRef, data: { eventList: eventList, eventText: eventText, updatedAt: Date.now() } });
+        operations.push({ type: 'set', ref: eRef, data: { eventList: eventList, eventText: cleanEventText, updatedAt: Date.now() } });
         
         const sRef = window.getUserCol('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
@@ -564,7 +584,7 @@ window.uploadCSV = async function(input) {
         if (journalList.length > 0) {
             operations.push({ type: 'set', ref: jRef, data: { entries: journalList, updatedAt: Date.now() } });
         } else {
-            operations.push({ type: 'delete', ref: jRef }); // 내용이 없으면 깔끔하게 비움
+            operations.push({ type: 'delete', ref: jRef });
         }
       }
     }
