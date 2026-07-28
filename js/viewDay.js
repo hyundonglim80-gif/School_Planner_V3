@@ -1,5 +1,3 @@
-// js/viewDay.js
-
 const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
 window.parseEvents = function(docData) {
@@ -27,37 +25,39 @@ window.renderDayViewer = async function(container) {
 
   let html = `<div class="day-viewer-container">`;
 
-  // 🎯 일정 박스 렌더링 (공통 뱃지 헬퍼 사용!)
   html += `<div class="day-event-card" style="display: flex; align-items: flex-start; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="width: 80px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 일정</div>
             <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
             
   if (events.length > 0) {
-    html += window.generateEventBadgesHTML(events); // 💡 새 엔진 사용
+    html += window.generateEventBadgesHTML(events); 
   } else {
     html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
   }
   html += `</div></div>`;
       
-  html += `<div class="period-card-list">`;
-  for (let p = 1; p <= 6; p++) {
-    const pData = periods[p] || {};
-    const subject = pData.subject || '';
-    const supplies = pData.supplies || '';
-    const memo = pData.memo || '';
+  // 💡 수업 숨기기 적용
+  if (window.showClass) {
+    html += `<div class="period-card-list">`;
+    for (let p = 1; p <= 6; p++) {
+      const pData = periods[p] || {};
+      const subject = pData.subject || '';
+      const supplies = pData.supplies || '';
+      const memo = pData.memo || '';
 
-    const memoHtml = memo.trim() !== '' ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` : '';
-    const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` : '';
+      const memoHtml = memo.trim() !== '' ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` : '';
+      const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` : '';
 
-    html += `
-      <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
-        <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
-        ${memoHtml}
-        ${suppliesHtml}
-      </div>
-    `;
+      html += `
+        <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
+          <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
+          ${memoHtml}
+          ${suppliesHtml}
+        </div>
+      `;
+    }
+    html += `</div>`;
   }
-  html += `</div>`;
 
   if (journals.length > 0) {
     html += `<div class="day-journal-section" style="margin-top:20px;">
@@ -89,7 +89,6 @@ window.renderDayEditor = async function(container) {
   const eventDoc = await window.getUserCol('events').doc(dateStr).get();
   const events = eventDoc.exists ? window.parseEvents(eventDoc.data()) : [];
   
-  // 💡 라벨 객체에서 첫 번째 라벨 이름을 기본값으로 사용
   const validLabels = window.getEventLabels().map(l => l.name);
   const defaultLabel = validLabels[0] || '일정';
 
@@ -101,20 +100,21 @@ window.renderDayEditor = async function(container) {
 
   let html = `<div class="day-viewer-container">`;
 
-  // 🎯 일정 에디터 섹션 (새로운 모달 호출 연결)
+  // 💡 라벨 설정 버튼 누르면 openEventLabelModal 함수가 정상 호출되도록 변경
   html += `
     <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
         <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘의 일정/행사</h3>
-        <button onclick="document.getElementById('event-label-modal').classList.remove('hidden'); window.renderEventLabelManager();" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
+        <button onclick="window.openEventLabelModal()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
       </div>
       <div id="event-entries-container"></div>
       <button onclick="addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 칸 추가</button>
     </div>
   `;
 
+  // 💡 수업 숨기기 적용
   html += `
-      <div class="table-container" style="margin-top:10px;">
+      <div class="table-container" style="margin-top:10px; ${window.showClass ? '' : 'display:none;'}">
         <table style="text-align: center;">
           <thead>
             <tr>
@@ -140,7 +140,6 @@ window.renderDayEditor = async function(container) {
   }
   html += `</tbody></table></div>`;
 
-  // 일지 에디터 섹션
   html += `
     <div class="day-journal-editor-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
@@ -160,26 +159,21 @@ window.renderDayEditor = async function(container) {
   }, 0);
 };
 
-// ==========================================================================
-// 📌 [신규] 일정(Event) 동적 라벨 입력 툴박스 (V2 엔진 연결)
-// ==========================================================================
+// ... 나머지 코드는 기존과 완벽하게 동일하게 유지
 window.renderEventEntries = function() {
   const container = document.getElementById('event-entries-container');
   if(!container) return;
   
-  // 💡 V2 객체 배열 로드
   const labelObjs = window.getEventLabels();
   
   let html = '';
   window.currentEvents.forEach((e, index) => {
-      // 💡 유효하지 않은 라벨(삭제됨)을 갖고 있다면, 기본 첫 번째 라벨로 강제 세팅 (오류 방지)
       if (!labelObjs.some(l => l.name === e.label)) {
           e.label = labelObjs[0] ? labelObjs[0].name : '';
       }
       
       let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
       
-      // 💡 선택된 라벨이 수업을 삭제하는 라벨이면 배경색을 빨갛게 경고
       const isSkip = window.isSkipLabel(e.label);
       const selBg = isSkip ? '#fee2e2' : '#eff6ff';
       const selColor = isSkip ? '#ef4444' : '#1e40af';
@@ -224,9 +218,6 @@ window.removeEventEntry = function(index) {
   window.renderEventEntries();
 };
 
-// ==========================================================================
-// 📔 일지(Journal) 동적 라벨 입력 툴박스
-// ==========================================================================
 window.renderJournalEntries = function() {
   const container = document.getElementById('journal-entries-container');
   if(!container) return;
@@ -287,9 +278,6 @@ window.manageJournalLabels = function() {
   }
 };
 
-// ==========================================================================
-// 🔄 수업 교시 맞바꾸기 / 이동 (Cross-Day Swap)
-// ==========================================================================
 window.openClassSwapModal = function(sourcePeriod) {
   const sourceDate = CURRENT_DAY_STR();
   const modalHtml = `
@@ -377,9 +365,6 @@ window.executeClassSwap = async function(sourcePeriod) {
   window.hasUnsavedChanges = true; 
 };
 
-// ==========================================================================
-// 💾 3. 일간 저장 (동적 라벨 삭제 시스템 적용)
-// ==========================================================================
 window.saveDayDataFromEditor = async function() {
   const dateStr = CURRENT_DAY_STR();
 
@@ -393,7 +378,6 @@ window.saveDayDataFromEditor = async function() {
       updatedAt: Date.now()
   });
 
-  // 🎯 [핵심] 이제 하드코딩된 '전일행사'가 아닌, 라벨 설정(isSkip)에 기반하여 삭제 여부 판단
   let isSkipDay = false;
   for (const e of validEvents) {
       if (window.isSkipLabel(e.label)) {
@@ -412,7 +396,6 @@ window.saveDayDataFromEditor = async function() {
     const memo = (row.querySelector(".cell-memo").innerText || '').trim();
     const supplies = (row.querySelector(".cell-supplies").innerText || '').trim();
 
-    // 수업 삭제 속성을 가진 라벨이 있다면 과목 삭제
     if (isSkipDay) {
       subject = ''; 
     }
