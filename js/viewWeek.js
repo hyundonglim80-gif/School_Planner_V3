@@ -1,5 +1,3 @@
-// js/viewWeek.js
-
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
@@ -44,7 +42,6 @@ window.renderWeekViewer = async function(container) {
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
-    // 💡 이벤트 리스트 로드 및 HTML 뱃지 생성
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
     let eventHtml = '<span style="color:#94a3b8;">-</span>';
     
@@ -54,7 +51,7 @@ window.renderWeekViewer = async function(container) {
       const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
       
       if (finalEvents.length > 0) {
-          eventHtml = window.generateEventBadgesHTML(finalEvents); // 🎯 뱃지로 변환
+          eventHtml = window.generateEventBadgesHTML(finalEvents); 
       }
     }
 
@@ -66,9 +63,10 @@ window.renderWeekViewer = async function(container) {
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+    // 💡 수업 숨기기 적용 (rowspan 조절 및 tr display 설정)
     html += `
       <tr>
-        <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
+        <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
             <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
@@ -79,11 +77,11 @@ window.renderWeekViewer = async function(container) {
             ${eventHtml}
         </td>
       </tr>
-      <tr>
+      <tr style="${window.showClass ? '' : 'display:none;'}">
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
         ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
       </tr>
-      <tr>
+      <tr style="${window.showClass ? '' : 'display:none;'}">
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           let content = '';
@@ -100,7 +98,7 @@ window.renderWeekViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 주간 에디터 모드 (컴팩트 일정 입력 UI 적용)
+// ✏️ 2. 주간 에디터 모드
 // ==========================================================================
 window.renderWeekEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
@@ -116,7 +114,6 @@ window.renderWeekEditor = async function(container) {
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
-    // DB 조회
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
     let eventList = [];
     if (eventDoc.exists) {
@@ -128,13 +125,10 @@ window.renderWeekEditor = async function(container) {
       }
     }
     
-    // 💡 에디터용 컴팩트 HTML 생성
-    window[`tempEvents_${d.dateStr}`] = eventList; // 임시 메모리 저장
+    window[`tempEvents_${d.dateStr}`] = eventList; 
     let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
     compactEditorHtml += window.generateCompactEventEditor(d.dateStr);
-    compactEditorHtml += `</div>
-        <button onclick="addCompactEvent('${d.dateStr}')" style="margin-top:4px; font-size:0.8rem; background:#e0f2fe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 6px; cursor:pointer;">+ 일정 추가</button>
-    `;
+    compactEditorHtml += `</div>`; // 💡 여기 있던 버튼을 헤더(일정) 영역으로 옮겼습니다.
 
     const periods = dayData.periods || {};
     const isToday = (d.dateStr === realTodayStr);
@@ -144,24 +138,28 @@ window.renderWeekEditor = async function(container) {
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+    // 💡 수업 숨기기 로직 및 추가버튼 위치 최적화
     html += `
       <tr data-week-date="${d.dateStr}">
-        <td rowspan="3" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
+        <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
           <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
             <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
             <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
           </div>
         </td>
-        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
+        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">
+            일정<br>
+            <button onclick="addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
+        </td>
         <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
             ${compactEditorHtml}
         </td>
       </tr>
-      <tr>
+      <tr style="${window.showClass ? '' : 'display:none;'}">
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
         ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
       </tr>
-      <tr data-week-schedule-date="${d.dateStr}">
+      <tr data-week-schedule-date="${d.dateStr}" style="${window.showClass ? '' : 'display:none;'}">
         ${[1, 2, 3, 4, 5, 6].map(p => {
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
@@ -195,7 +193,6 @@ window.generateCompactEventEditor = function(dateStr) {
     return html;
 };
 
-// 💡 컴팩트 에디터 제어 함수들
 window.updateCompactEvent = function(dateStr, idx, field, value) {
     window.hasUnsavedChanges = true;
     window[`tempEvents_${dateStr}`][idx][field] = value;
@@ -212,14 +209,11 @@ window.removeCompactEvent = function(dateStr, idx) {
     document.getElementById(`compact-events-${dateStr}`).innerHTML = window.generateCompactEventEditor(dateStr);
 };
 
-
 // ==========================================================================
 // 💾 3. 주간 일괄 저장 처리 함수
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
-    
-    // 💡 임시 메모리에 있던 컴팩트 이벤트 리스트를 필터링하여 가져옴
     const rawList = window[`tempEvents_${d.dateStr}`] || [];
     const validEvents = rawList.filter(e => e.content.trim() !== '');
     const cleanEventText = window.formatEventListToText(validEvents);
@@ -230,7 +224,6 @@ window.saveWeekDataFromEditor = async function() {
         updatedAt: Date.now()
     });
 
-    // 🎯 글로벌 헬퍼를 이용해 '수업 삭제' 속성 판별
     let isSkipDay = false;
     for (const e of validEvents) {
         if (window.isSkipLabel(e.label)) {
@@ -264,7 +257,6 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
-        // 🎯 삭제 조건이면 텅 비움
         if (isSkipDay) subject = '';
 
         periodsData[p] = { 
