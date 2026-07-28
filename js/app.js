@@ -1,29 +1,17 @@
 // js/app.js
 
-/**
- * 📌 [전역 상태 변수]
- * - currentScope: 현재 선택된 보기 범위 ('memo', 'year', 'month', 'week', 'day')
- * - currentMode: 현재 모드 ('viewer': 눈으로 보기, 'editor': 수정 및 입력)
- * - window.currentDate: 앱 전체의 기준 날짜 (기본 2026-07-20 시작)
- */
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 
-// 💡 주말 표시 여부 상태 저장 (기본값은 숨김)
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
+window.currentDate = new Date();
 
-window.currentDate = new Date(); // 접속한 기기의 현재(오늘) 날짜를 기준일로 설정
-
-// 💡 주말 보기/숨기기 전환 함수
 window.toggleWeekend = function() {
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
-  window.render(); // 화면 즉시 새로고침
+  window.render();
 };
 
-/**
- * 🛠️ Date 객체를 "YYYY-MM-DD" 포맷 문자열로 변환하는 전역 공통 함수
- */
 window.formatDate = function(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -31,9 +19,6 @@ window.formatDate = function(date) {
   return `${y}-${m}-${d}`;
 };
 
-/**
- * 🖥️ 현재 scope와 mode에 따라 메인 화면을 새로 그리는 핵심 랜더링 함수
- */
 window.render = function() {
   const container = document.getElementById("main-view");
   if (!container) return;
@@ -49,9 +34,6 @@ window.render = function() {
   else if (currentScope === 'memo') { window.renderMemoView(container); }
 };
 
-/**
- * 🏷️ 선택된 날짜와 Scope에 맞춰 상단 제목표시줄(Title) 갱신
- */
 function updateTitle() {
   const titleEl = document.getElementById("date-range-text");
   if (!titleEl) return;
@@ -87,27 +69,18 @@ function updateTitle() {
   }
 }
 
-/**
- * 🔘 보기 범위(Scope) 변경 함수
- */
 window.setScope = function(scope) {
   currentScope = scope;
   localStorage.setItem('workCalendar_scope', scope);
   window.render();
 };
 
-/**
- * 🔘 모드(Mode) 변경 함수
- */
 window.setMode = function(mode) {
   currentMode = mode;
   localStorage.setItem('workCalendar_mode', mode);
   window.render();
 };
 
-/**
- * 🔘 수정/저장 버튼 통합 클릭 핸들러
- */
 window.handleEditSaveClick = function() {
   if (currentMode === 'viewer') {
     window.setMode('editor');
@@ -116,9 +89,6 @@ window.handleEditSaveClick = function() {
   }
 };
 
-/**
- * 🔘 드롭다운 메뉴 토글 및 외부 클릭 시 닫기
- */
 window.toggleMoreMenu = function() {
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.toggle('hidden');
@@ -134,9 +104,6 @@ window.addEventListener('click', function(e) {
   }
 });
 
-/**
- * 🔘 상단 버튼 활성화 상태 및 UI 제어
- */
 function updateButtonUI() {
   const scopeBtns = document.querySelectorAll('.btn-scope');
   scopeBtns.forEach(btn => {
@@ -199,9 +166,6 @@ function updateButtonUI() {
   }
 }
 
-/**
- * 💾 [저장] 버튼 클릭 시 현재 활성화된 Scope에 맞춰 Firestore 일괄 저장 실행
- */
 window.saveCurrentViewData = async function() {
   const editorBtn = document.getElementById('btn-mode-editor');
   
@@ -229,9 +193,6 @@ window.saveCurrentViewData = async function() {
   window.setMode('viewer'); 
 };
 
-/**
- * ◀️ ▶️ [< 이전] [다음 >] 버튼 클릭 시 날짜 이동 처리
- */
 window.moveDate = function(dir) {
   if (currentScope === 'day') {
     window.currentDate.setDate(window.currentDate.getDate() + dir);
@@ -271,6 +232,62 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// CSV 다운로드 및 화면 렌더링에 사용되는 기본 타겟 리스트
+window.getTargetDateList = function() {
+  const dates = [];
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const y = window.currentDate.getFullYear();
+  const m = window.currentDate.getMonth();
+  const d = window.currentDate.getDate();
+
+  if (currentScope === 'day') {
+    const dateObj = new Date(y, m, d);
+    dates.push({
+      dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()]
+    });
+  } else if (currentScope === 'week') {
+    const tempDate = new Date(window.currentDate);
+    const dayOfWeek = tempDate.getDay();
+    const diffToSun = tempDate.getDate() - dayOfWeek;
+    tempDate.setDate(diffToSun);
+
+    for (let i = 0; i < 7; i++) {
+      if (!window.showWeekend && (i === 0 || i === 6)) {
+        tempDate.setDate(tempDate.getDate() + 1);
+        continue;
+      }
+      dates.push({
+        dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()]
+      });
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+  } else if (currentScope === 'month') {
+    const lastDate = new Date(y, m + 1, 0).getDate();
+    for (let i = 1; i <= lastDate; i++) {
+      const dateObj = new Date(y, m, i);
+      dates.push({
+        dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()]
+      });
+    }
+  } else {
+    const startYear = y;
+    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
+      let targetY = startYear;
+      let targetM = monthIdx;
+      if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
+      
+      const lastDate = new Date(targetY, targetM, 0).getDate();
+      for (let i = 1; i <= lastDate; i++) {
+        const dateObj = new Date(targetY, targetM - 1, i);
+        dates.push({
+          dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()]
+        });
+      }
+    }
+  }
+  return dates;
+};
+
 // ==========================================================================
 // 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
 // ==========================================================================
@@ -288,15 +305,9 @@ window.escapeCSV = function(str) {
   if (!str && str !== 0) return '';
   let s = String(str);
   let trimmed = s.trim();
-  
-  if (/^\d+[-/:]\d+$/.test(trimmed)) {
-    return `'${trimmed}`;
-  }
-
+  if (/^\d+[-/:]\d+$/.test(trimmed)) { return `'${trimmed}`; }
   s = s.replace(/"/g, '""');
-  if (s.includes(',') || s.includes('\n') || s.includes('"')) {
-    s = `"${s}"`;
-  }
+  if (s.includes(',') || s.includes('\n') || s.includes('"')) { s = `"${s}"`; }
   return s;
 };
 
@@ -330,77 +341,6 @@ window.executeBatchOperations = async function(operations) {
     });
     await batch.commit();
   }
-};
-
-window.getTargetDateList = function() {
-  const dates = [];
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  const y = window.currentDate.getFullYear();
-  const m = window.currentDate.getMonth();
-  const d = window.currentDate.getDate();
-
-  if (currentScope === 'day') {
-    const dateObj = new Date(y, m, d);
-    dates.push({
-      dateStr: window.formatDate(dateObj),
-      year: y,
-      month: m + 1,
-      day: d,
-      dayOfWeek: dayNames[dateObj.getDay()]
-    });
-  } else if (currentScope === 'week') {
-    const tempDate = new Date(window.currentDate);
-    const dayOfWeek = tempDate.getDay();
-    const diffToSun = tempDate.getDate() - dayOfWeek;
-    tempDate.setDate(diffToSun);
-
-    for (let i = 0; i < 7; i++) {
-      if (!window.showWeekend && (i === 0 || i === 6)) {
-        tempDate.setDate(tempDate.getDate() + 1);
-        continue;
-      }
-      dates.push({
-        dateStr: window.formatDate(tempDate),
-        year: tempDate.getFullYear(),
-        month: tempDate.getMonth() + 1,
-        day: tempDate.getDate(),
-        dayOfWeek: dayNames[tempDate.getDay()]
-      });
-      tempDate.setDate(tempDate.getDate() + 1);
-    }
-  } else if (currentScope === 'month') {
-    const lastDate = new Date(y, m + 1, 0).getDate();
-    for (let i = 1; i <= lastDate; i++) {
-      const dateObj = new Date(y, m, i);
-      dates.push({
-        dateStr: window.formatDate(dateObj),
-        year: y,
-        month: m + 1,
-        day: i,
-        dayOfWeek: dayNames[dateObj.getDay()]
-      });
-    }
-  } else {
-    const startYear = y;
-    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
-      let targetY = startYear;
-      let targetM = monthIdx;
-      if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
-      
-      const lastDate = new Date(targetY, targetM, 0).getDate();
-      for (let i = 1; i <= lastDate; i++) {
-        const dateObj = new Date(targetY, targetM - 1, i);
-        dates.push({
-          dateStr: window.formatDate(dateObj),
-          year: targetY,
-          month: targetM,
-          day: i,
-          dayOfWeek: dayNames[dateObj.getDay()]
-        });
-      }
-    }
-  }
-  return dates;
 };
 
 window.downloadCSV = async function() {
@@ -614,11 +554,11 @@ window.uploadCSV = async function(input) {
   }, { passive: true });
 })();
 
+
 // ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진 (일지 데이터까지 포함)
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진
 // ==========================================================================
 
-// 💡 1. 일지(journal) 항목이 추가되었습니다.
 const fieldMeta = {
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
@@ -627,15 +567,34 @@ const fieldMeta = {
   'journal': { label: '일지', color: '#be185d', bg: '#fdf2f8', border: '#f472b6' } 
 };
 
+// 💡 날짜 직접 지정 UI 토글 함수
+window.toggleCustomDateSearch = function() {
+  const scope = document.getElementById('search-scope-select').value;
+  const customInputs = document.getElementById('custom-date-inputs');
+  if (scope === 'custom') {
+    customInputs.style.display = 'flex';
+  } else {
+    customInputs.style.display = 'none';
+  }
+};
+
 window.openSearchModal = function() {
   document.getElementById('search-modal').classList.remove('hidden');
   document.getElementById('search-results-list').innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:20px;">항목 버튼을 눌러 조건을 추가하고 '데이터 찾기'를 눌러주세요.</p>`;
   document.getElementById('search-results-count').innerText = '';
-  
-  const scopeNames = { 'year': '연간 데이터', 'month': '월간 데이터', 'week': '주간 데이터', 'day': '오늘 데이터' };
-  document.getElementById('search-scope-label').innerText = scopeNames[currentScope] || '';
-  
   document.getElementById('active-search-fields').innerHTML = '';
+  
+  // 현재 보고 있는 화면을 기반으로 드롭다운 라벨 변경
+  const scopeNames = { 'year': '연간', 'month': '월간', 'week': '주간', 'day': '일간' };
+  const currentLabel = scopeNames[currentScope] ? `${scopeNames[currentScope]} 범위 (기본)` : '현재 화면 범위';
+  document.getElementById('search-scope-current-opt').innerText = currentLabel;
+  
+  // 모달 열 때 드롭다운 초기화
+  const scopeSelect = document.getElementById('search-scope-select');
+  if(scopeSelect) {
+    scopeSelect.value = 'current';
+    window.toggleCustomDateSearch();
+  }
 };
 
 window.closeSearchModal = function() {
@@ -671,6 +630,90 @@ window.goToDayAndCloseSearch = function(dateStr) {
   }
 };
 
+// 💡 지정된 범위에 맞게 검색 대상 날짜들을 배열로 리턴하는 독립 함수
+window.getSearchTargetDates = function() {
+  const scopeSelect = document.getElementById('search-scope-select');
+  let targetScope = scopeSelect ? scopeSelect.value : 'current';
+  
+  if (targetScope === 'current') {
+    targetScope = currentScope;
+  }
+  
+  const dates = [];
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  
+  // 직접 날짜 지정 로직
+  if (targetScope === 'custom') {
+    const startStr = document.getElementById('search-start-date').value;
+    const endStr = document.getElementById('search-end-date').value;
+    
+    if (!startStr || !endStr) {
+      alert('검색할 시작 날짜와 종료 날짜를 모두 지정해주세요.');
+      return [];
+    }
+    
+    let curDate = new Date(startStr);
+    const endDate = new Date(endStr);
+    
+    if (curDate > endDate) {
+      alert('시작 날짜가 종료 날짜보다 늦을 수 없습니다.');
+      return [];
+    }
+    
+    // 하루씩 증가시키며 배열에 삽입
+    while (curDate <= endDate) {
+      const y = curDate.getFullYear();
+      const m = curDate.getMonth();
+      const d = curDate.getDate();
+      dates.push({
+        dateStr: window.formatDate(curDate),
+        year: y, month: m + 1, day: d, dayOfWeek: dayNames[curDate.getDay()]
+      });
+      curDate.setDate(curDate.getDate() + 1);
+    }
+    return dates;
+  }
+  
+  // 나머지 범위(일,주,월,년)는 현재 기준 날짜(window.currentDate)를 바탕으로 생성
+  const y = window.currentDate.getFullYear();
+  const m = window.currentDate.getMonth();
+  const d = window.currentDate.getDate();
+
+  if (targetScope === 'day') {
+    const dateObj = new Date(y, m, d);
+    dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()] });
+  } else if (targetScope === 'week') {
+    const tempDate = new Date(window.currentDate);
+    const dayOfWeek = tempDate.getDay();
+    const diffToSun = tempDate.getDate() - dayOfWeek;
+    tempDate.setDate(diffToSun);
+    for (let i = 0; i < 7; i++) {
+      if (!window.showWeekend && (i === 0 || i === 6)) { tempDate.setDate(tempDate.getDate() + 1); continue; }
+      dates.push({ dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()] });
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+  } else if (targetScope === 'month') {
+    const lastDate = new Date(y, m + 1, 0).getDate();
+    for (let i = 1; i <= lastDate; i++) {
+      const dateObj = new Date(y, m, i);
+      dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
+    }
+  } else if (targetScope === 'year') {
+    const startYear = y;
+    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
+      let targetY = startYear;
+      let targetM = monthIdx;
+      if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
+      const lastDate = new Date(targetY, targetM, 0).getDate();
+      for (let i = 1; i <= lastDate; i++) {
+        const dateObj = new Date(targetY, targetM - 1, i);
+        dates.push({ dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
+      }
+    }
+  }
+  return dates;
+};
+
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -701,14 +744,16 @@ window.executeSearch = async function() {
   
   allKeywords = [...new Set(allKeywords)];
 
-  const resultList = document.getElementById('search-results-list');
-  const countText = document.getElementById('search-results-count');
-  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 해당 화면 범위 내에서 검색 중입니다...</p>`;
-
-  const targetDatesObj = window.getTargetDateList();
+  // 💡 독립된 검색 대상 날짜 생성기 호출
+  const targetDatesObj = window.getSearchTargetDates();
+  if (targetDatesObj.length === 0) return; // 커스텀 범위 오류 시 중단
+  
   const validDates = targetDatesObj.map(item => item.dateStr);
 
-  // 💡 2. 데이터베이스에서 일지(journals) 컬렉션도 함께 불러옵니다.
+  const resultList = document.getElementById('search-results-list');
+  const countText = document.getElementById('search-results-count');
+  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 선택된 범위 내에서 검색 중입니다...</p>`;
+
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
   const journalSnap = await window.getUserCol('journals').get();
@@ -743,7 +788,6 @@ window.executeSearch = async function() {
     let dayMemoText = [];
     let daySuppliesText = [];
     
-    // 일지 검색을 위한 통합 텍스트 (라벨과 내용을 모두 검색 대상으로 포함)
     let dayJournalText = dayJournals.map(j => `[${j.label}] ${j.content}`).join(' ');
 
     for (let p = 1; p <= 6; p++) {
@@ -826,7 +870,6 @@ window.executeSearch = async function() {
       }
     }
     
-    // 💡 3. 검색 결과 화면에 일지(Journal) 내용도 예쁘게 출력되도록 추가
     if (res.dayJournals && res.dayJournals.length > 0) {
       res.dayJournals.forEach(j => {
         if (j.content || j.label) {
