@@ -414,21 +414,37 @@ window.executeBatchOperations = async function(operations) {
 window.downloadCSV = async function() {
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
+  const journalSnap = await window.getUserCol('journals').get(); // 💡 1. 일지 데이터베이스 로드 추가
 
   const eventMap = {};
-  eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
+  eventSnap.forEach(doc => { 
+    const d = doc.data();
+    // 💡 2. 리스트 형태가 있으면 그대로 가져오고, 없으면 텍스트를 파싱하여 배열로 변환
+    eventMap[doc.id] = d.eventList || window.parseRawEventTextToEventList(d.eventText || ''); 
+  });
+  
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
+  const journalMap = {};
+  journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; }); // 💡 3. 일지 맵핑 추가
+
+  // 💡 4. CSV 헤더의 제일 마지막에 '일지' 열 추가
   let csv = "년도,월,일,요일,일정," +
             "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
             "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모," +
-            "1교시 준비물,2교시 준비물,3교시 준비물,4교시 준비물,5교시 준비물,6교시 준비물\n";
+            "1교시 준비물,2교시 준비물,3교시 준비물,4교시 준비물,5교시 준비물,6교시 준비물,일지\n";
             
   const targetDates = window.getTargetDateList();
 
   targetDates.forEach(item => {
-    const eventText = eventMap[item.dateStr] || '';
+    // 일정 및 일지 리스트를 [라벨] 내용 형태의 텍스트로 변환하여 엑셀에 저장
+    const eList = eventMap[item.dateStr] || [];
+    const eventText = eList.map(e => `[${e.label}] ${e.content}`).join('\n'); 
+    
+    const jList = journalMap[item.dateStr] || [];
+    const journalText = jList.map(j => `[${j.label}] ${j.content}`).join('\n'); 
+
     const periods = scheduleMap[item.dateStr] || {};
     
     let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
@@ -439,7 +455,8 @@ window.downloadCSV = async function() {
       memos.push(window.escapeCSV(periods[p]?.memo || ''));
       supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
     }
-    rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')}`;
+    // 💡 5. 데이터 행 마지막에 일지 데이터(journalText) 추가
+    rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')},${window.escapeCSV(journalText)}`;
     csv += rowStr + "\n";
   });
 
@@ -495,21 +512,48 @@ window.uploadCSV = async function(input) {
         const d = String(row[2].trim()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         
+        // 💡 6. 엑셀의 일정 텍스트를 읽어 독립된 뱃지 배열(eventList)로 완벽하게 복구
         const eventText = parseExcelText(row[4]);
+        const eventList = window.parseRawEventTextToEventList(eventText);
         const isSkipDay = window.checkSkipConditionFromText(eventText);
-        const periodsData = {};
         
+        const periodsData = {};
         for (let p = 1; p <= 6; p++) {
           let subj = parseExcelText(row[4 + p]);
           if (isSkipDay) subj = '';
           periodsData[p] = { subject: subj, memo: parseExcelText(row[10 + p]), supplies: parseExcelText(row[16 + p]) };
         }
 
+        // 💡 7. 엑셀의 일지 텍스트(24번째 열)를 읽어 독립된 배열로 복구
+        const journalText = parseExcelText(row[23] || '');
+        const journalList = [];
+        if (journalText) {
+            const jLines = journalText.split('\n');
+            jLines.forEach(line => {
+                let t = line.trim();
+                if(!t) return;
+                const match = t.match(/^\[(.*?)\]\s*(.*)$/);
+                if (match) {
+                    journalList.push({ label: match[1].trim(), content: match[2].trim() });
+                } else {
+                    journalList.push({ label: '참고', content: t });
+                }
+            });
+        }
+
+        // 💡 8. eventList와 entries를 명시적으로 저장하여 화면에서 독립된 박스로 분리되도록 조치
         const eRef = window.getUserCol('events').doc(dateStr);
-        operations.push({ type: 'set', ref: eRef, data: { eventText: eventText, updatedAt: Date.now() } });
+        operations.push({ type: 'set', ref: eRef, data: { eventList: eventList, eventText: eventText, updatedAt: Date.now() } });
         
         const sRef = window.getUserCol('schedules').doc(dateStr);
         operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
+
+        const jRef = window.getUserCol('journals').doc(dateStr);
+        if (journalList.length > 0) {
+            operations.push({ type: 'set', ref: jRef, data: { entries: journalList, updatedAt: Date.now() } });
+        } else {
+            operations.push({ type: 'delete', ref: jRef }); // 내용이 없으면 깔끔하게 비움
+        }
       }
     }
 
