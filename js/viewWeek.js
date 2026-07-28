@@ -1,47 +1,5 @@
 // js/viewWeek.js
 
-// 💡 [전역 헬퍼] 다중 일정(라벨/내용)과 텍스트를 상호 변환하는 아주 똑똑한 엔진입니다.
-if (!window.parseRawEventTextToEventList) {
-  window.parseRawEventTextToEventList = function(rawText) {
-      if (!rawText || !rawText.trim()) return [];
-      const lines = rawText.split('\n');
-      const eventList = [];
-      lines.forEach(line => {
-          let t = line.trim();
-          if(!t) return;
-          // [라벨] 내용 형태인지 정규식으로 검사
-          const match = t.match(/^\[(.*?)\]\s*(.*)$/);
-          if (match) {
-              eventList.push({ label: match[1].trim(), content: match[2].trim() });
-          } else {
-              // 괄호가 없다면 똑똑하게 판단 (기존 (휴일) 등은 전일행사로 취급)
-              if (t.includes('(휴일)') || t.includes('(행사)')) {
-                  eventList.push({ label: '전일행사', content: t });
-              } else {
-                  eventList.push({ label: '일정', content: t });
-              }
-          }
-      });
-      return eventList;
-  };
-
-  window.formatEventListToText = function(eventList) {
-      if (!eventList || eventList.length === 0) return '';
-      return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
-  };
-}
-
-if (!window.goToDay) {
-  window.goToDay = function(dateStr) {
-    if (!dateStr) return;
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-      window.setScope('day');
-    }
-  };
-}
-
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
@@ -70,7 +28,7 @@ window.getWeekDates = function() {
 };
 
 // ==========================================================================
-// 👁️ 1. 주간 뷰어 모드 (일정 텍스트 그대로 표시 - 라벨 적용됨)
+// 👁️ 1. 주간 뷰어 모드 (뱃지 렌더링 적용)
 // ==========================================================================
 window.renderWeekViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
@@ -86,15 +44,17 @@ window.renderWeekViewer = async function(container) {
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
-    // DB의 events 컬렉션에서 다중 일정을 불러와서 예쁜 텍스트로 합칩니다.
+    // 💡 이벤트 리스트 로드 및 HTML 뱃지 생성
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
-    let eventText = '-';
+    let eventHtml = '<span style="color:#94a3b8;">-</span>';
+    
     if (eventDoc.exists) {
       const eData = eventDoc.data();
-      if (eData.eventList && eData.eventList.length > 0) {
-        eventText = window.formatEventListToText(eData.eventList);
-      } else if (eData.eventText) {
-        eventText = eData.eventText;
+      const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); // 하위호환
+      const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
+      
+      if (finalEvents.length > 0) {
+          eventHtml = window.generateEventBadgesHTML(finalEvents); // 🎯 공통 뱃지 생성기 사용
       }
     }
 
@@ -115,7 +75,7 @@ window.renderWeekViewer = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff; white-space: pre-wrap;">${eventText}</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f0f9ff;">${eventHtml}</td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
@@ -138,7 +98,7 @@ window.renderWeekViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 주간 에디터 모드
+// ✏️ 2. 주간 에디터 모드 (다중 텍스트 파싱)
 // ==========================================================================
 window.renderWeekEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
@@ -154,13 +114,12 @@ window.renderWeekEditor = async function(container) {
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
-    // DB 조회
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
     let eventText = '';
     if (eventDoc.exists) {
       const eData = eventDoc.data();
       if (eData.eventList && eData.eventList.length > 0) {
-        eventText = window.formatEventListToText(eData.eventList);
+        eventText = window.formatEventListToText(eData.eventList); // 편집창엔 [라벨] 텍스트 로 표시
       } else if (eData.eventText) {
         eventText = eData.eventText;
       }
@@ -183,7 +142,7 @@ window.renderWeekEditor = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff;">${eventText}</td>
+        <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff; white-space:pre-wrap;">${eventText}</td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
@@ -204,32 +163,32 @@ window.renderWeekEditor = async function(container) {
 };
 
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수 ([전일행사] 처리 로직 완벽 적용)
+// 💾 3. 주간 일괄 저장 처리 함수 (동적 라벨 확인 로직 적용)
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
-    let eventText = '';
+    let eventTextRaw = '';
 
     const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
     if (eventRow) {
       const eventCell = eventRow.querySelector('.week-event-cell');
-      eventText = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
+      eventTextRaw = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
       
-      // 💡 [핵심] 주간 화면에서 수정된 다중 줄 텍스트를 구조화된 배열로 변환하여 DB에 저장
-      const parsedEventList = window.parseRawEventTextToEventList(eventText);
+      const parsedEventList = window.parseRawEventTextToEventList(eventTextRaw);
       const cleanEventText = window.formatEventListToText(parsedEventList);
 
       await window.getUserCol('events').doc(d.dateStr).set({
           eventList: parsedEventList,
-          eventText: cleanEventText, // 구버전 호환용 텍스트
+          eventText: cleanEventText, 
           updatedAt: Date.now()
       });
       
-      eventText = cleanEventText; // 아래 수업 지우기 판단을 위해 갱신
+      eventTextRaw = cleanEventText; // 재할당
     }
 
-    // 🎯 '전일행사' 자동 수업 삭제 필터 적용
-    const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)') || eventText.includes('[전일행사]');
+    // 🎯 글로벌 헬퍼를 이용해 텍스트 내에 '수업 삭제' 속성을 가진 라벨이 있는지 확인
+    const isSkipDay = window.checkSkipConditionFromText(eventTextRaw);
+    
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     
     if (scheduleRow) {
@@ -255,7 +214,7 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
-        // 🎯 전일행사면 과목(Subject)을 텅 비움
+        // 🎯 삭제 조건 라벨이 있다면 과목(Subject)을 텅 비움
         if (isSkipDay) subject = '';
 
         periodsData[p] = { 
