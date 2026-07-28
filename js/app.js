@@ -208,6 +208,12 @@ window.moveDate = function(dir) {
   window.render();
 };
 
+// 🎯 수정한 부분: 클릭 시 무조건 현재 실제 날짜(오늘)로 돌아가는 기능 추가
+window.goToToday = function() {
+  window.currentDate = new Date(); // 접속한 기기의 현재 시간으로 완전 초기화
+  window.render(); // 화면 즉시 다시 그리기
+};
+
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -234,7 +240,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// CSV 다운로드에 사용되는 날짜 리스트 생성 함수 (변경 없음)
+// CSV 다운로드에 사용되는 날짜 리스트 생성 함수
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -530,7 +536,6 @@ window.openSearchModal = function() {
   document.getElementById('search-results-count').innerText = '';
   document.getElementById('active-search-fields').innerHTML = '';
   
-  // 💡 현재 뷰 범위에 맞춰 드롭다운 기본 라벨명 변경
   const scopeNames = { 'year': '해당 학년도', 'month': '해당 월', 'week': '해당 주', 'day': '해당 일', 'memo': '메모' };
   const currentLabel = scopeNames[currentScope] ? `현재 선택 범위 (${scopeNames[currentScope]})` : '현재 선택 범위 (기본)';
   document.getElementById('search-scope-current-opt').innerText = currentLabel;
@@ -575,7 +580,6 @@ window.goToDayAndCloseSearch = function(dateStr) {
   }
 };
 
-// 💡 [핵심] 검색 대상 기간 자동 계산 (DB 데이터를 받아 개학식을 찾음)
 window.getSearchTargetDates = function(eventMap) {
   const scopeSelect = document.getElementById('search-scope-select');
   let targetScope = scopeSelect ? scopeSelect.value : 'current';
@@ -587,7 +591,6 @@ window.getSearchTargetDates = function(eventMap) {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 1. 범위 직접 지정 로직
   if (targetScope === 'custom') {
     const startStr = document.getElementById('search-start-date').value;
     const endStr = document.getElementById('search-end-date').value;
@@ -615,16 +618,14 @@ window.getSearchTargetDates = function(eventMap) {
     return dates;
   }
 
-  // 학년도 기준 연도 계산 (1~2월은 이전 연도로 취급)
   const y = window.currentDate.getFullYear();
-  const m = window.currentDate.getMonth(); // 0-indexed
+  const m = window.currentDate.getMonth(); 
   const startYear = m <= 1 ? y - 1 : y;
 
-  // 💡 2학기 시작일 찾기 (8~9월 중 '개학' 키워드 탐색)
-  let sem2StartDate = new Date(startYear, 7, 16); // 일정을 못 찾을 경우 8월 16일을 기본값으로 적용
+  let sem2StartDate = new Date(startYear, 7, 16); 
   if (eventMap) {
      let found = false;
-     for (let mth = 7; mth <= 8; mth++) { // 7(8월)부터 8(9월)까지 탐색
+     for (let mth = 7; mth <= 8; mth++) { 
         const daysInMonth = new Date(startYear, mth + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
            const checkDate = window.formatDate(new Date(startYear, mth, d));
@@ -645,7 +646,6 @@ window.getSearchTargetDates = function(eventMap) {
     });
   };
 
-  // 2. 자동 계산 로직
   if (targetScope === 'day') {
     pushDate(window.currentDate);
   } else if (targetScope === 'week') {
@@ -659,7 +659,6 @@ window.getSearchTargetDates = function(eventMap) {
       tempDate.setDate(tempDate.getDate() + 1);
     }
   } else if (targetScope === 'month') {
-    // 해당 학년도와 관계없이 화면에 보이는 '해당 월' 기준 출력
     const curY = window.currentDate.getFullYear();
     const curM = window.currentDate.getMonth();
     const lastDate = new Date(curY, curM + 1, 0).getDate();
@@ -667,7 +666,6 @@ window.getSearchTargetDates = function(eventMap) {
       pushDate(new Date(curY, curM, i));
     }
   } else if (targetScope === 'year') {
-    // 학년도 전체 (3월 1일 ~ 다음 해 2월 말일)
     for (let monthIdx = 3; monthIdx <= 14; monthIdx++) {
       let targetY = startYear;
       let targetM = monthIdx;
@@ -678,16 +676,14 @@ window.getSearchTargetDates = function(eventMap) {
       }
     }
   } else if (targetScope === 'sem1') {
-    // 1학기: 3월 1일 ~ 개학식 전날
-    let cur = new Date(startYear, 2, 1); // 3월 1일
+    let cur = new Date(startYear, 2, 1); 
     while (cur < sem2StartDate) {
         pushDate(new Date(cur));
         cur.setDate(cur.getDate() + 1);
     }
   } else if (targetScope === 'sem2') {
-    // 2학기: 개학식 ~ 다음 해 2월 말일
     let cur = new Date(sem2StartDate);
-    const endOfAcademicYear = new Date(startYear + 1, 2, 0); // 다음 해 2월 말일 (0일 = 전월 마지막 날)
+    const endOfAcademicYear = new Date(startYear + 1, 2, 0); 
     while (cur <= endOfAcademicYear) {
         pushDate(new Date(cur));
         cur.setDate(cur.getDate() + 1);
@@ -697,7 +693,7 @@ window.getSearchTargetDates = function(eventMap) {
   return dates;
 };
 
-// 🚀 검색 실행 함수 통합
+// 🚀 검색 실행 함수
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -731,10 +727,8 @@ window.executeSearch = async function() {
   const resultList = document.getElementById('search-results-list');
   const countText = document.getElementById('search-results-count');
   
-  // 💡 데이터 로드 안내 메시지 출력
   resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 클라우드 데이터를 불러오고 학사일정을 분석 중입니다...</p>`;
 
-  // 1. 데이터를 먼저 불러옵니다.
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
   const journalSnap = await window.getUserCol('journals').get();
@@ -748,9 +742,8 @@ window.executeSearch = async function() {
   const journalMap = {};
   journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
-  // 2. 불러온 이벤트 맵을 넘겨주어 개학식을 찾아 검색 범위를 세팅합니다.
   const targetDatesObj = window.getSearchTargetDates(eventMap);
-  if (targetDatesObj.length === 0) return; // 커스텀 범위 오류 발생 시 중단
+  if (targetDatesObj.length === 0) return; 
   
   const validDates = targetDatesObj.map(item => item.dateStr);
 
@@ -766,7 +759,6 @@ window.executeSearch = async function() {
 
   const matchedResults = [];
 
-  // 3. 필터링 로직 진행
   validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
@@ -817,7 +809,6 @@ window.executeSearch = async function() {
     return res;
   };
 
-  // 4. 검색 결과 그리기
   countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
   resultList.innerHTML = '';
 
