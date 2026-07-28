@@ -419,22 +419,35 @@ window.executeBatchOperations = async function(operations) {
 window.downloadCSV = async function() {
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
-  const journalSnap = await window.getUserCol('journals').get(); // 💡 1. 일지 데이터베이스 로드 추가
+  const journalSnap = await window.getUserCol('journals').get();
 
   const eventMap = {};
   eventSnap.forEach(doc => { 
-    const d = doc.data();
-    // 💡 2. 리스트 형태가 있으면 그대로 가져오고, 없으면 텍스트를 파싱하여 배열로 변환
-    eventMap[doc.id] = d.eventList || window.parseRawEventTextToEventList(d.eventText || ''); 
+    const data = doc.data();
+    // 💡 여러 개인 일정 리스트(eventList)가 있으면 각각의 [라벨] 내용 형태로 모두 이어 붙여서 백업합니다.
+    let eList = [];
+    if (data.eventList && Array.isArray(data.eventList) && data.eventList.length > 0) {
+      eList = data.eventList;
+    } else if (data.eventText && data.eventText.trim() !== '') {
+      eList = window.parseRawEventTextToEventList(data.eventText);
+    }
+    eventMap[doc.id] = eList.map(e => `[${e.label}] ${e.content}`).join('\n');
   });
-  
+
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
   const journalMap = {};
-  journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; }); // 💡 3. 일지 맵핑 추가
+  journalSnap.forEach(doc => { 
+    const data = doc.data();
+    // 💡 여러 개인 일지 리스트(entries)가 있으면 각각의 [라벨] 내용 형태로 모두 이어 붙여서 백업합니다.
+    let jList = [];
+    if (data.entries && Array.isArray(data.entries) && data.entries.length > 0) {
+      jList = data.entries;
+    }
+    journalMap[doc.id] = jList.map(j => `[${j.label}] ${j.content}`).join('\n');
+  });
 
-  // 💡 4. CSV 헤더의 제일 마지막에 '일지' 열 추가
   let csv = "년도,월,일,요일,일정," +
             "1교시 과목,2교시 과목,3교시 과목,4교시 과목,5교시 과목,6교시 과목," +
             "1교시 메모,2교시 메모,3교시 메모,4교시 메모,5교시 메모,6교시 메모," +
@@ -443,13 +456,8 @@ window.downloadCSV = async function() {
   const targetDates = window.getTargetDateList();
 
   targetDates.forEach(item => {
-    // 일정 및 일지 리스트를 [라벨] 내용 형태의 텍스트로 변환하여 엑셀에 저장
-    const eList = eventMap[item.dateStr] || [];
-    const eventText = eList.map(e => `[${e.label}] ${e.content}`).join('\n'); 
-    
-    const jList = journalMap[item.dateStr] || [];
-    const journalText = jList.map(j => `[${j.label}] ${j.content}`).join('\n'); 
-
+    const eventText = eventMap[item.dateStr] || '';
+    const journalText = journalMap[item.dateStr] || '';
     const periods = scheduleMap[item.dateStr] || {};
     
     let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
@@ -460,7 +468,6 @@ window.downloadCSV = async function() {
       memos.push(window.escapeCSV(periods[p]?.memo || ''));
       supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
     }
-    // 💡 5. 데이터 행 마지막에 일지 데이터(journalText) 추가
     rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')},${window.escapeCSV(journalText)}`;
     csv += rowStr + "\n";
   });
