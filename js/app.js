@@ -209,9 +209,12 @@ window.saveCurrentViewData = async function() {
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
 
-  if (editorBtn) editorBtn.disabled = false;
+  // 💡 수정됨: 뷰어 모드로 전환하지 않고 에디터 상태 유지 및 버튼 복구
+  if (editorBtn) {
+    editorBtn.innerHTML = '💾 저장';
+    editorBtn.disabled = false;
+  }
   window.hasUnsavedChanges = false; 
-  window.setMode('viewer'); 
 };
 
 window.moveDate = function(dir) {
@@ -315,7 +318,7 @@ window.getTargetDateList = function() {
   return dates;
 };
 
-// 백업 다운로드 부분 생략 (그대로 유지)
+// 백업 다운로드 부분 유지
 window.downloadCSVFile = function(filename, csvData) {
   const bom = "\uFEFF";
   const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
@@ -477,7 +480,7 @@ window.uploadCSV = async function(input) {
   input.value = '';
 };
 
-// 스와이프 제스처 생략 없이 유지
+// 스와이프 제스처 유지
 (function() {
   let touchStartX = 0; let touchStartY = 0; let touchEndX = 0; let touchEndY = 0;
   let touchStartTime = 0; let isMultiTouch = false;
@@ -532,7 +535,7 @@ window.uploadCSV = async function(input) {
   }, { passive: true });
 })();
 
-// 검색 엔진 로직 생략 없이 유지
+// 검색 엔진 로직 유지
 const fieldMeta = {
   'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' },
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
