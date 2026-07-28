@@ -185,14 +185,23 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
+// 💡 모달창 열기 함수
 window.openHelpModal = function() {
-  document.getElementById('help-modal').classList.remove('hidden');
+  const modal = document.getElementById('help-modal');
+  if (modal) modal.classList.remove('hidden');
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 };
 
+// 💡 모달창 닫기 함수 (상단 체크박스 확인 기능 포함)
 window.closeHelpModal = function() {
-  document.getElementById('help-modal').classList.add('hidden');
+  const chk = document.getElementById('chk-hide-help');
+  // 사용자가 '다음부터 표시 안 함'을 체크했다면 컴퓨터(브라우저)에 기억시킵니다.
+  if (chk && chk.checked) {
+    localStorage.setItem('workCalendar_hideHelp_v3', 'true');
+  }
+  const modal = document.getElementById('help-modal');
+  if (modal) modal.classList.add('hidden');
 };
 
 window.saveCurrentViewData = async function() {
@@ -268,6 +277,15 @@ window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('user-info').style.display = 'flex';
       if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
       window.render();
+      
+      // 화면이 다 그려진 후, '다시 보지 않기'를 누르지 않은 유저에게만 팝업을 띄웁니다.
+      setTimeout(() => {
+        const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
+        if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
+          window.openHelpModal();
+        }
+      }, 400); // 0.4초 딜레이로 자연스럽게 팝업 등장
+
     } else {
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('user-info').style.display = 'none';
