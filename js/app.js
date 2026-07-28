@@ -1,3 +1,6 @@
+// ==========================================================================
+// 🚀 앱 상태 관리 및 초기화 설정
+// ==========================================================================
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
@@ -33,9 +36,12 @@ window.formatDate = function(date) {
   return `${y}-${m}-${d}`;
 };
 
+// ==========================================================================
+// 🖥️ 메인 렌더링 엔진
+// ==========================================================================
 window.render = function() {
   const container = document.getElementById("main-view");
-  if (!container) return; // container가 없으면 에러가 나지 않도록 방어
+  if (!container) return; // 방어 코드 추가
 
   container.innerHTML = "";
   updateTitle();
@@ -183,18 +189,19 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
-// 💡 모달창 열기 함수
+// ==========================================================================
+// 💡 도움말 모달(가이드창) 제어 엔진
+// ==========================================================================
 window.openHelpModal = function() {
   const modal = document.getElementById('help-modal');
   if (modal) {
     modal.classList.remove('hidden');
-    modal.style.display = 'flex'; // 강제로 화면에 표시
+    modal.style.display = 'flex'; // 강제로 화면 가운데 정렬하여 표시
   }
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 };
 
-// 💡 모달창 닫기 함수
 window.closeHelpModal = function() {
   const chk = document.getElementById('chk-hide-help');
   if (chk && chk.checked) {
@@ -204,7 +211,7 @@ window.closeHelpModal = function() {
   const modal = document.getElementById('help-modal');
   if (modal) {
     modal.classList.add('hidden');
-    modal.style.display = 'none'; // 강제로 화면에서 완벽하게 숨김
+    modal.style.display = 'none'; // 강제로 화면에서 완전히 숨김
   }
 };
 
@@ -222,6 +229,7 @@ window.saveCurrentViewData = async function() {
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
 
+  // 저장 후에도 수정 모드를 계속 유지합니다.
   if (editorBtn) {
     editorBtn.innerHTML = '💾 저장';
     editorBtn.disabled = false;
@@ -251,7 +259,9 @@ window.goToToday = function() {
   window.render();
 };
 
-// 💡 프로그램 초기화 및 자동 팝업 실행 구역 (에러 방어 코드 적용)
+// ==========================================================================
+// 🚀 앱 실행 시 초기화 이벤트 설정
+// ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -275,23 +285,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Firebase Auth 연결 확인
+  // 구글 로그인 연동 로직
   if (window.auth) {
     window.auth.onAuthStateChanged(user => {
       if (user) {
-        const loginScreen = document.getElementById('login-screen');
-        if (loginScreen) loginScreen.style.display = 'none';
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('user-info').style.display = 'flex';
+        if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+        window.render();
         
-        const userInfo = document.getElementById('user-info');
-        if (userInfo) userInfo.style.display = 'flex';
-        
-        const userPhoto = document.getElementById('user-photo');
-        if(userPhoto && user.photoURL) userPhoto.src = user.photoURL;
-        
-        // 메인 화면 렌더링 호출
-        if (typeof window.render === 'function') window.render();
-        
-        // 화면이 다 그려진 후, '다시 보지 않기'를 누르지 않은 유저에게만 팝업을 띄웁니다.
+        // 💡 로그인 시 한 번만 팝업을 띄우는 로직 (타이머 사용)
         setTimeout(() => {
           try {
             const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
@@ -299,24 +302,22 @@ window.addEventListener('DOMContentLoaded', () => {
               window.openHelpModal();
             }
           } catch(e) {
-            console.warn("팝업 실행 오류:", e);
+            console.warn("도움말 팝업 실행 중 오류:", e);
           }
-        }, 400);
+        }, 500); // UI가 전부 렌더링된 후 0.5초 뒤에 띄움
 
       } else {
-        const loginScreen = document.getElementById('login-screen');
-        if (loginScreen) loginScreen.style.display = 'flex';
-        
-        const userInfo = document.getElementById('user-info');
-        if (userInfo) userInfo.style.display = 'none';
-        
-        const mainView = document.getElementById("main-view");
-        if (mainView) mainView.innerHTML = ""; 
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('user-info').style.display = 'none';
+        document.getElementById("main-view").innerHTML = ""; 
       }
     });
   }
 });
 
+// ==========================================================================
+// 📅 백업 및 데이터 관리 도구 엔진
+// ==========================================================================
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -359,7 +360,6 @@ window.getTargetDateList = function() {
   return dates;
 };
 
-// 백업 다운로드 부분 유지
 window.downloadCSVFile = function(filename, csvData) {
   const bom = "\uFEFF";
   const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
@@ -521,7 +521,9 @@ window.uploadCSV = async function(input) {
   input.value = '';
 };
 
-// 스와이프 제스처 유지
+// ==========================================================================
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
+// ==========================================================================
 (function() {
   let touchStartX = 0; let touchStartY = 0; let touchEndX = 0; let touchEndY = 0;
   let touchStartTime = 0; let isMultiTouch = false;
@@ -576,7 +578,9 @@ window.uploadCSV = async function(input) {
   }, { passive: true });
 })();
 
-// 검색 엔진 로직 유지
+// ==========================================================================
+// 🔍 강력한 고급 동적 필터 통합 검색 엔진
+// ==========================================================================
 const fieldMeta = {
   'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' },
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
@@ -934,7 +938,11 @@ window.executeSearch = async function() {
   });
 };
 
+// ==========================================================================
+// ⌨️ 단축키(Keyboard Shortcuts) 이벤트 엔진
+// ==========================================================================
 document.addEventListener('keydown', function(event) {
+  
   const isTyping = event.target.tagName === 'INPUT' || 
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
@@ -1001,9 +1009,10 @@ document.addEventListener('keydown', function(event) {
 });
 
 // ==========================================================================
-// 🏷️ 전역 일정 라벨 관리 및 렌더링 엔진
+// 🏷️ [신규 시스템] 전역 일정 라벨 관리 및 렌더링 엔진
 // ==========================================================================
 
+// 1. 기본 라벨 설정 및 로드
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v2'));
     if (!labels) {
@@ -1027,12 +1036,14 @@ window.getEventLabels = function() {
     return labels;
 };
 
+// 2. 특정 라벨이 수업을 삭제해야 하는(isSkip) 라벨인지 확인
 window.isSkipLabel = function(labelName) {
     const labels = window.getEventLabels();
     const target = labels.find(l => l.name === labelName);
     return target ? target.isSkip : false; 
 };
 
+// 3. 텍스트를 파싱하여, 수업 삭제 조건(isSkip)이 하나라도 있는지 확인
 window.checkSkipConditionFromText = function(rawText) {
     if (!rawText) return false;
     if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
@@ -1045,16 +1056,22 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
+// 4. 모달창: 라벨 리스트 그리기
 window.openEventLabelModal = function() {
     const modal = document.getElementById('event-label-modal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex'; // 강제로 화면에 표시
+    }
     window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
-    if(typeof window.renderEventLabelManager === 'function') window.renderEventLabelManager();
+    window.renderEventLabelManager();
 };
 
 window.renderEventLabelManager = function() {
     const container = document.getElementById('event-label-list-container');
     if (!container) return;
+    
+    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
     
     const drawList = () => {
         container.innerHTML = '';
@@ -1078,6 +1095,7 @@ window.renderEventLabelManager = function() {
     drawList();
 };
 
+// 5. 모달창: 새 라벨 추가
 window.addNewEventLabel = function() {
     const nameInput = document.getElementById('new-label-name');
     const skipCheck = document.getElementById('new-label-skip');
@@ -1093,17 +1111,20 @@ window.addNewEventLabel = function() {
     window.renderEventLabelManager();
 };
 
+// 6. 모달창: 변경사항 최종 저장
 window.saveEventLabels = function() {
     if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
     localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
-    
     const modal = document.getElementById('event-label-modal');
-    if(modal) modal.classList.add('hidden');
-    
+    if(modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
     alert("라벨 설정이 저장되었습니다.");
     window.render(); 
 };
 
+// 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환
 window.generateEventBadgesHTML = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
     
@@ -1132,6 +1153,7 @@ window.generateEventBadgesHTML = function(eventList) {
     return html;
 };
 
+// 8. 텍스트 <-> 리스트 변환 엔진 고도화
 if (!window.parseRawEventTextToEventList) {
   window.parseRawEventTextToEventList = function(rawText) {
       if (!rawText || !rawText.trim()) return [];
