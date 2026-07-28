@@ -1,10 +1,12 @@
 // js/app.js
 
+/**
+ * 📌 [전역 상태 변수]
+ */
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
-
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
-window.currentDate = new Date();
+window.currentDate = new Date(); 
 
 window.toggleWeekend = function() {
   window.showWeekend = !window.showWeekend;
@@ -232,7 +234,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// CSV 다운로드 및 화면 렌더링에 사용되는 기본 타겟 리스트
+// CSV 다운로드에 사용되는 날짜 리스트 생성 함수 (변경 없음)
 window.getTargetDateList = function() {
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -242,9 +244,7 @@ window.getTargetDateList = function() {
 
   if (currentScope === 'day') {
     const dateObj = new Date(y, m, d);
-    dates.push({
-      dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()]
-    });
+    dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()] });
   } else if (currentScope === 'week') {
     const tempDate = new Date(window.currentDate);
     const dayOfWeek = tempDate.getDay();
@@ -256,18 +256,14 @@ window.getTargetDateList = function() {
         tempDate.setDate(tempDate.getDate() + 1);
         continue;
       }
-      dates.push({
-        dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()]
-      });
+      dates.push({ dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()] });
       tempDate.setDate(tempDate.getDate() + 1);
     }
   } else if (currentScope === 'month') {
     const lastDate = new Date(y, m + 1, 0).getDate();
     for (let i = 1; i <= lastDate; i++) {
       const dateObj = new Date(y, m, i);
-      dates.push({
-        dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()]
-      });
+      dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
     }
   } else {
     const startYear = y;
@@ -275,13 +271,10 @@ window.getTargetDateList = function() {
       let targetY = startYear;
       let targetM = monthIdx;
       if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
-      
       const lastDate = new Date(targetY, targetM, 0).getDate();
       for (let i = 1; i <= lastDate; i++) {
         const dateObj = new Date(targetY, targetM - 1, i);
-        dates.push({
-          dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()]
-        });
+        dates.push({ dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
       }
     }
   }
@@ -291,7 +284,6 @@ window.getTargetDateList = function() {
 // ==========================================================================
 // 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
 // ==========================================================================
-
 window.downloadCSVFile = function(filename, csvData) {
   const bom = "\uFEFF";
   const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
@@ -349,7 +341,6 @@ window.downloadCSV = async function() {
 
   const eventMap = {};
   eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
-
   const scheduleMap = {};
   scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
 
@@ -365,23 +356,18 @@ window.downloadCSV = async function() {
     const periods = scheduleMap[item.dateStr] || {};
     
     let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${window.escapeCSV(eventText)}`;
-
-    let subjects = [];
-    let memos = [];
-    let supplies = [];
+    let subjects = []; let memos = []; let supplies = [];
 
     for (let p = 1; p <= 6; p++) {
       subjects.push(window.escapeCSV(periods[p]?.subject || ''));
       memos.push(window.escapeCSV(periods[p]?.memo || ''));
       supplies.push(window.escapeCSV(periods[p]?.supplies || ''));
     }
-
     rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')}`;
     csv += rowStr + "\n";
   });
 
   let titlePrefix = `${window.currentDate.getFullYear()}학년도`;
-  
   if (currentScope === 'day') {
     titlePrefix = `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월_${window.currentDate.getDate()}일`;
   } else if (currentScope === 'week') {
@@ -390,7 +376,6 @@ window.downloadCSV = async function() {
     const sun = new Date(temp.setDate(temp.getDate() - day));
     const endDay = new Date(sun);
     endDay.setDate(sun.getDate() + 6);
-    
     const mStr1 = String(sun.getMonth()+1).padStart(2,'0');
     const dStr1 = String(sun.getDate()).padStart(2,'0');
     const mStr2 = String(endDay.getMonth()+1).padStart(2,'0');
@@ -441,12 +426,7 @@ window.uploadCSV = async function(input) {
         for (let p = 1; p <= 6; p++) {
           let subj = parseExcelText(row[4 + p]);
           if (isSkipDay) subj = '';
-
-          periodsData[p] = {
-            subject: subj,
-            memo: parseExcelText(row[10 + p]),
-            supplies: parseExcelText(row[16 + p])
-          };
+          periodsData[p] = { subject: subj, memo: parseExcelText(row[10 + p]), supplies: parseExcelText(row[16 + p]) };
         }
 
         const eRef = window.getUserCol('events').doc(dateStr);
@@ -461,7 +441,6 @@ window.uploadCSV = async function(input) {
     alert("✅ 데이터가 성공적으로 동기화 및 업데이트되었습니다!");
     window.render();
   };
-  
   reader.readAsText(file, 'utf-8');
   input.value = '';
 };
@@ -470,42 +449,25 @@ window.uploadCSV = async function(input) {
 // 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
 // ==========================================================================
 (function() {
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let touchEndX = 0;
-  let touchEndY = 0;
-  let touchStartTime = 0;
-  let isMultiTouch = false;
-
+  let touchStartX = 0; let touchStartY = 0; let touchEndX = 0; let touchEndY = 0;
+  let touchStartTime = 0; let isMultiTouch = false;
   const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
-  const SWIPE_THRESHOLD = 50; 
-  const SWIPE_MAX_TIME = 800;  
+  const SWIPE_THRESHOLD = 50; const SWIPE_MAX_TIME = 800;  
 
   function getHorizontalEdgeState() {
     const vv = window.visualViewport;
     let scrollLeft = window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
     if (vv && vv.offsetLeft) scrollLeft += vv.offsetLeft;
-
-    const totalWidth = Math.max(
-      document.documentElement.scrollWidth,
-      document.body.scrollWidth,
-      vv ? vv.width * vv.scale : window.innerWidth
-    );
+    const totalWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, vv ? vv.width * vv.scale : window.innerWidth);
     const viewportWidth = vv ? vv.width : window.innerWidth;
     const maxScrollLeft = Math.max(0, totalWidth - viewportWidth);
-
-    const isAtLeftEdge = scrollLeft <= 15;
-    const isAtRightEdge = scrollLeft >= (maxScrollLeft - 15);
-
-    return { isAtLeftEdge, isAtRightEdge };
+    return { isAtLeftEdge: scrollLeft <= 15, isAtRightEdge: scrollLeft >= (maxScrollLeft - 15) };
   }
 
   function handleSwipeGesture() {
     if (currentMode !== 'viewer') return;
     if (isMultiTouch) return;
-
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
+    const deltaX = touchEndX - touchStartX; const deltaY = touchEndY - touchStartY;
     const deltaTime = Date.now() - touchStartTime;
 
     if (deltaTime > SWIPE_MAX_TIME) return;
@@ -514,46 +476,31 @@ window.uploadCSV = async function(input) {
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
       const { isAtLeftEdge, isAtRightEdge } = getHorizontalEdgeState();
       const currentIndex = scopeOrder.indexOf(currentScope);
-
       if (deltaX < 0) {
-        if (isAtRightEdge) {
-          if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
+        if (isAtRightEdge && currentIndex !== -1 && currentIndex < scopeOrder.length - 1) {
             window.setScope(scopeOrder[currentIndex + 1]);
-          }
         }
       } else {
-        if (isAtLeftEdge) {
-          if (currentIndex > 0) {
+        if (isAtLeftEdge && currentIndex > 0) {
             window.setScope(scopeOrder[currentIndex - 1]);
-          }
         }
       }
     }
   }
 
   document.addEventListener('touchstart', e => {
-    if (e.touches.length > 1) {
-      isMultiTouch = true;
-      return;
-    }
+    if (e.touches.length > 1) { isMultiTouch = true; return; }
     isMultiTouch = false;
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
+    touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY;
     touchStartTime = Date.now();
   }, { passive: true });
-
-  document.addEventListener('touchmove', e => {
-    if (e.touches.length > 1) isMultiTouch = true;
-  }, { passive: true });
-
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) isMultiTouch = true; }, { passive: true });
   document.addEventListener('touchend', e => {
     if (isMultiTouch) return;
-    touchEndX = e.changedTouches[0].screenX;
-    touchEndY = e.changedTouches[0].screenY;
+    touchEndX = e.changedTouches[0].screenX; touchEndY = e.changedTouches[0].screenY;
     handleSwipeGesture();
   }, { passive: true });
 })();
-
 
 // ==========================================================================
 // 🔍 강력한 고급 동적 필터 통합 검색 엔진
@@ -567,7 +514,6 @@ const fieldMeta = {
   'journal': { label: '일지', color: '#be185d', bg: '#fdf2f8', border: '#f472b6' } 
 };
 
-// 💡 날짜 직접 지정 UI 토글 함수
 window.toggleCustomDateSearch = function() {
   const scope = document.getElementById('search-scope-select').value;
   const customInputs = document.getElementById('custom-date-inputs');
@@ -584,12 +530,11 @@ window.openSearchModal = function() {
   document.getElementById('search-results-count').innerText = '';
   document.getElementById('active-search-fields').innerHTML = '';
   
-  // 현재 보고 있는 화면을 기반으로 드롭다운 라벨 변경
-  const scopeNames = { 'year': '연간', 'month': '월간', 'week': '주간', 'day': '일간' };
-  const currentLabel = scopeNames[currentScope] ? `${scopeNames[currentScope]} 범위 (기본)` : '현재 화면 범위';
+  // 💡 현재 뷰 범위에 맞춰 드롭다운 기본 라벨명 변경
+  const scopeNames = { 'year': '해당 학년도', 'month': '해당 월', 'week': '해당 주', 'day': '해당 일', 'memo': '메모' };
+  const currentLabel = scopeNames[currentScope] ? `현재 선택 범위 (${scopeNames[currentScope]})` : '현재 선택 범위 (기본)';
   document.getElementById('search-scope-current-opt').innerText = currentLabel;
   
-  // 모달 열 때 드롭다운 초기화
   const scopeSelect = document.getElementById('search-scope-select');
   if(scopeSelect) {
     scopeSelect.value = 'current';
@@ -630,19 +575,19 @@ window.goToDayAndCloseSearch = function(dateStr) {
   }
 };
 
-// 💡 지정된 범위에 맞게 검색 대상 날짜들을 배열로 리턴하는 독립 함수
-window.getSearchTargetDates = function() {
+// 💡 [핵심] 검색 대상 기간 자동 계산 (DB 데이터를 받아 개학식을 찾음)
+window.getSearchTargetDates = function(eventMap) {
   const scopeSelect = document.getElementById('search-scope-select');
   let targetScope = scopeSelect ? scopeSelect.value : 'current';
-  
+
   if (targetScope === 'current') {
     targetScope = currentScope;
   }
-  
+
   const dates = [];
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  
-  // 직접 날짜 지정 로직
+
+  // 1. 범위 직접 지정 로직
   if (targetScope === 'custom') {
     const startStr = document.getElementById('search-start-date').value;
     const endStr = document.getElementById('search-end-date').value;
@@ -660,28 +605,49 @@ window.getSearchTargetDates = function() {
       return [];
     }
     
-    // 하루씩 증가시키며 배열에 삽입
     while (curDate <= endDate) {
-      const y = curDate.getFullYear();
-      const m = curDate.getMonth();
-      const d = curDate.getDate();
       dates.push({
         dateStr: window.formatDate(curDate),
-        year: y, month: m + 1, day: d, dayOfWeek: dayNames[curDate.getDay()]
+        year: curDate.getFullYear(), month: curDate.getMonth() + 1, day: curDate.getDate(), dayOfWeek: dayNames[curDate.getDay()]
       });
       curDate.setDate(curDate.getDate() + 1);
     }
     return dates;
   }
-  
-  // 나머지 범위(일,주,월,년)는 현재 기준 날짜(window.currentDate)를 바탕으로 생성
-  const y = window.currentDate.getFullYear();
-  const m = window.currentDate.getMonth();
-  const d = window.currentDate.getDate();
 
+  // 학년도 기준 연도 계산 (1~2월은 이전 연도로 취급)
+  const y = window.currentDate.getFullYear();
+  const m = window.currentDate.getMonth(); // 0-indexed
+  const startYear = m <= 1 ? y - 1 : y;
+
+  // 💡 2학기 시작일 찾기 (8~9월 중 '개학' 키워드 탐색)
+  let sem2StartDate = new Date(startYear, 7, 16); // 일정을 못 찾을 경우 8월 16일을 기본값으로 적용
+  if (eventMap) {
+     let found = false;
+     for (let mth = 7; mth <= 8; mth++) { // 7(8월)부터 8(9월)까지 탐색
+        const daysInMonth = new Date(startYear, mth + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+           const checkDate = window.formatDate(new Date(startYear, mth, d));
+           if (eventMap[checkDate] && (eventMap[checkDate].includes('개학') || eventMap[checkDate].includes('2학기 시작'))) {
+               sem2StartDate = new Date(startYear, mth, d);
+               found = true;
+               break;
+           }
+        }
+        if(found) break;
+     }
+  }
+
+  const pushDate = (dateObj) => {
+    dates.push({
+      dateStr: window.formatDate(dateObj),
+      year: dateObj.getFullYear(), month: dateObj.getMonth() + 1, day: dateObj.getDate(), dayOfWeek: dayNames[dateObj.getDay()]
+    });
+  };
+
+  // 2. 자동 계산 로직
   if (targetScope === 'day') {
-    const dateObj = new Date(y, m, d);
-    dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()] });
+    pushDate(window.currentDate);
   } else if (targetScope === 'week') {
     const tempDate = new Date(window.currentDate);
     const dayOfWeek = tempDate.getDay();
@@ -689,31 +655,49 @@ window.getSearchTargetDates = function() {
     tempDate.setDate(diffToSun);
     for (let i = 0; i < 7; i++) {
       if (!window.showWeekend && (i === 0 || i === 6)) { tempDate.setDate(tempDate.getDate() + 1); continue; }
-      dates.push({ dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()] });
+      pushDate(tempDate);
       tempDate.setDate(tempDate.getDate() + 1);
     }
   } else if (targetScope === 'month') {
-    const lastDate = new Date(y, m + 1, 0).getDate();
+    // 해당 학년도와 관계없이 화면에 보이는 '해당 월' 기준 출력
+    const curY = window.currentDate.getFullYear();
+    const curM = window.currentDate.getMonth();
+    const lastDate = new Date(curY, curM + 1, 0).getDate();
     for (let i = 1; i <= lastDate; i++) {
-      const dateObj = new Date(y, m, i);
-      dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
+      pushDate(new Date(curY, curM, i));
     }
   } else if (targetScope === 'year') {
-    const startYear = y;
-    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
+    // 학년도 전체 (3월 1일 ~ 다음 해 2월 말일)
+    for (let monthIdx = 3; monthIdx <= 14; monthIdx++) {
       let targetY = startYear;
       let targetM = monthIdx;
       if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
       const lastDate = new Date(targetY, targetM, 0).getDate();
       for (let i = 1; i <= lastDate; i++) {
-        const dateObj = new Date(targetY, targetM - 1, i);
-        dates.push({ dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
+        pushDate(new Date(targetY, targetM - 1, i));
       }
     }
+  } else if (targetScope === 'sem1') {
+    // 1학기: 3월 1일 ~ 개학식 전날
+    let cur = new Date(startYear, 2, 1); // 3월 1일
+    while (cur < sem2StartDate) {
+        pushDate(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
+    }
+  } else if (targetScope === 'sem2') {
+    // 2학기: 개학식 ~ 다음 해 2월 말일
+    let cur = new Date(sem2StartDate);
+    const endOfAcademicYear = new Date(startYear + 1, 2, 0); // 다음 해 2월 말일 (0일 = 전월 마지막 날)
+    while (cur <= endOfAcademicYear) {
+        pushDate(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
+    }
   }
+
   return dates;
 };
 
+// 🚀 검색 실행 함수 통합
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -744,16 +728,13 @@ window.executeSearch = async function() {
   
   allKeywords = [...new Set(allKeywords)];
 
-  // 💡 독립된 검색 대상 날짜 생성기 호출
-  const targetDatesObj = window.getSearchTargetDates();
-  if (targetDatesObj.length === 0) return; // 커스텀 범위 오류 시 중단
-  
-  const validDates = targetDatesObj.map(item => item.dateStr);
-
   const resultList = document.getElementById('search-results-list');
   const countText = document.getElementById('search-results-count');
-  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 선택된 범위 내에서 검색 중입니다...</p>`;
+  
+  // 💡 데이터 로드 안내 메시지 출력
+  resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; margin-top:20px;">⏳ 클라우드 데이터를 불러오고 학사일정을 분석 중입니다...</p>`;
 
+  // 1. 데이터를 먼저 불러옵니다.
   const eventSnap = await window.getUserCol('events').get();
   const scheduleSnap = await window.getUserCol('schedules').get();
   const journalSnap = await window.getUserCol('journals').get();
@@ -767,6 +748,12 @@ window.executeSearch = async function() {
   const journalMap = {};
   journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
+  // 2. 불러온 이벤트 맵을 넘겨주어 개학식을 찾아 검색 범위를 세팅합니다.
+  const targetDatesObj = window.getSearchTargetDates(eventMap);
+  if (targetDatesObj.length === 0) return; // 커스텀 범위 오류 발생 시 중단
+  
+  const validDates = targetDatesObj.map(item => item.dateStr);
+
   const checkMatch = (text, params) => {
     if (!text) return false;
     const lowerText = text.toLowerCase();
@@ -779,15 +766,13 @@ window.executeSearch = async function() {
 
   const matchedResults = [];
 
+  // 3. 필터링 로직 진행
   validDates.forEach(dateStr => {
     const dayEvent = eventMap[dateStr] || '';
     const dayPeriods = scheduleMap[dateStr] || {};
     const dayJournals = journalMap[dateStr] || [];
     
-    let daySubjectText = [];
-    let dayMemoText = [];
-    let daySuppliesText = [];
-    
+    let daySubjectText = []; let dayMemoText = []; let daySuppliesText = [];
     let dayJournalText = dayJournals.map(j => `[${j.label}] ${j.content}`).join(' ');
 
     for (let p = 1; p <= 6; p++) {
@@ -832,6 +817,7 @@ window.executeSearch = async function() {
     return res;
   };
 
+  // 4. 검색 결과 그리기
   countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
   resultList.innerHTML = '';
 
