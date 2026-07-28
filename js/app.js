@@ -16,7 +16,6 @@ window.toggleWeekend = function() {
   window.render();
 };
 
-// 💡 추가: 수업 숨기기 토글 기능
 window.toggleClass = function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) {
     if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
@@ -36,7 +35,7 @@ window.formatDate = function(date) {
 
 window.render = function() {
   const container = document.getElementById("main-view");
-  if (!container) return;
+  if (!container) return; // container가 없으면 에러가 나지 않도록 방어
 
   container.innerHTML = "";
   updateTitle();
@@ -160,7 +159,6 @@ function updateButtonUI() {
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
-  // 💡 추가: 수업 숨기기 버튼 업데이트 로직
   const classBtn = document.getElementById('btn-toggle-class');
   if (classBtn) {
     classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보기';
@@ -190,16 +188,15 @@ window.openHelpModal = function() {
   const modal = document.getElementById('help-modal');
   if (modal) {
     modal.classList.remove('hidden');
-    modal.style.display = 'flex'; // 열릴 때 화면 가운데 정렬을 위해 flex로 변경
+    modal.style.display = 'flex'; // 강제로 화면에 표시
   }
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 };
 
-// 💡 모달창 닫기 함수 (상단 체크박스 확인 기능 포함)
+// 💡 모달창 닫기 함수
 window.closeHelpModal = function() {
   const chk = document.getElementById('chk-hide-help');
-  // 사용자가 '다음부터 표시 안 함'을 체크했다면 컴퓨터(브라우저)에 기억시킵니다.
   if (chk && chk.checked) {
     localStorage.setItem('workCalendar_hideHelp_v3', 'true');
   }
@@ -207,7 +204,7 @@ window.closeHelpModal = function() {
   const modal = document.getElementById('help-modal');
   if (modal) {
     modal.classList.add('hidden');
-    modal.style.display = 'none'; // 닫힐 때 화면에서 완전히 숨김 처리
+    modal.style.display = 'none'; // 강제로 화면에서 완벽하게 숨김
   }
 };
 
@@ -225,7 +222,6 @@ window.saveCurrentViewData = async function() {
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
 
-  // 💡 수정됨: 뷰어 모드로 전환하지 않고 에디터 상태 유지 및 버튼 복구
   if (editorBtn) {
     editorBtn.innerHTML = '💾 저장';
     editorBtn.disabled = false;
@@ -255,6 +251,7 @@ window.goToToday = function() {
   window.render();
 };
 
+// 💡 프로그램 초기화 및 자동 팝업 실행 구역 (에러 방어 코드 적용)
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -278,27 +275,46 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  window.auth.onAuthStateChanged(user => {
-    if (user) {
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('user-info').style.display = 'flex';
-      if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
-      window.render();
-      
-      // 화면이 다 그려진 후, '다시 보지 않기'를 누르지 않은 유저에게만 팝업을 띄웁니다.
-      setTimeout(() => {
-        const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
-        if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
-          window.openHelpModal();
-        }
-      }, 400); // 0.4초 딜레이로 자연스럽게 팝업 등장
+  // Firebase Auth 연결 확인
+  if (window.auth) {
+    window.auth.onAuthStateChanged(user => {
+      if (user) {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        
+        const userInfo = document.getElementById('user-info');
+        if (userInfo) userInfo.style.display = 'flex';
+        
+        const userPhoto = document.getElementById('user-photo');
+        if(userPhoto && user.photoURL) userPhoto.src = user.photoURL;
+        
+        // 메인 화면 렌더링 호출
+        if (typeof window.render === 'function') window.render();
+        
+        // 화면이 다 그려진 후, '다시 보지 않기'를 누르지 않은 유저에게만 팝업을 띄웁니다.
+        setTimeout(() => {
+          try {
+            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
+            if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
+              window.openHelpModal();
+            }
+          } catch(e) {
+            console.warn("팝업 실행 오류:", e);
+          }
+        }, 400);
 
-    } else {
-      document.getElementById('login-screen').style.display = 'flex';
-      document.getElementById('user-info').style.display = 'none';
-      document.getElementById("main-view").innerHTML = ""; 
-    }
-  });
+      } else {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.style.display = 'flex';
+        
+        const userInfo = document.getElementById('user-info');
+        if (userInfo) userInfo.style.display = 'none';
+        
+        const mainView = document.getElementById("main-view");
+        if (mainView) mainView.innerHTML = ""; 
+      }
+    });
+  }
 });
 
 window.getTargetDateList = function() {
@@ -985,10 +1001,9 @@ document.addEventListener('keydown', function(event) {
 });
 
 // ==========================================================================
-// 🏷️ [버그 수정 완료] 전역 일정 라벨 관리 및 렌더링 엔진
+// 🏷️ 전역 일정 라벨 관리 및 렌더링 엔진
 // ==========================================================================
 
-// 1. 기본 라벨 설정 및 로드
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v2'));
     if (!labels) {
@@ -1030,15 +1045,13 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 💡 4. 모달창 열기 (렌더링 버그 수정의 핵심)
 window.openEventLabelModal = function() {
-    document.getElementById('event-label-modal').classList.remove('hidden');
-    // 모달을 열 때만 데이터를 복사해 옵니다. 리렌더링 시에는 덮어쓰지 않습니다.
+    const modal = document.getElementById('event-label-modal');
+    if (modal) modal.classList.remove('hidden');
     window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
-    window.renderEventLabelManager();
+    if(typeof window.renderEventLabelManager === 'function') window.renderEventLabelManager();
 };
 
-// 5. 모달창: 라벨 리스트 그리기
 window.renderEventLabelManager = function() {
     const container = document.getElementById('event-label-list-container');
     if (!container) return;
@@ -1065,7 +1078,6 @@ window.renderEventLabelManager = function() {
     drawList();
 };
 
-// 6. 모달창: 새 라벨 추가
 window.addNewEventLabel = function() {
     const nameInput = document.getElementById('new-label-name');
     const skipCheck = document.getElementById('new-label-skip');
@@ -1078,15 +1090,16 @@ window.addNewEventLabel = function() {
     
     nameInput.value = '';
     skipCheck.checked = false;
-    // 목록을 다시 그리더라도 데이터가 리셋되지 않아 버그가 해결되었습니다.
     window.renderEventLabelManager();
 };
 
-// 7. 모달창: 변경사항 최종 저장
 window.saveEventLabels = function() {
     if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
     localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
-    document.getElementById('event-label-modal').classList.add('hidden');
+    
+    const modal = document.getElementById('event-label-modal');
+    if(modal) modal.classList.add('hidden');
+    
     alert("라벨 설정이 저장되었습니다.");
     window.render(); 
 };
