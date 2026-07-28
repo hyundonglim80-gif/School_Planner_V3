@@ -28,7 +28,7 @@ window.getWeekDates = function() {
 };
 
 // ==========================================================================
-// 👁️ 1. 주간 뷰어 모드 (뱃지 렌더링 적용)
+// 👁️ 1. 주간 뷰어 모드 
 // ==========================================================================
 window.renderWeekViewer = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 클라우드에서 주간 데이터를 불러오는 중...</p>`;
@@ -50,11 +50,11 @@ window.renderWeekViewer = async function(container) {
     
     if (eventDoc.exists) {
       const eData = eventDoc.data();
-      const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); // 하위호환
+      const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
       const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
       
       if (finalEvents.length > 0) {
-          eventHtml = window.generateEventBadgesHTML(finalEvents); // 🎯 공통 뱃지 생성기 사용
+          eventHtml = window.generateEventBadgesHTML(finalEvents); // 🎯 뱃지로 변환
       }
     }
 
@@ -75,7 +75,9 @@ window.renderWeekViewer = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f0f9ff;">${eventHtml}</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
+            ${eventHtml}
+        </td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
@@ -98,7 +100,7 @@ window.renderWeekViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 주간 에디터 모드 (다중 텍스트 파싱)
+// ✏️ 2. 주간 에디터 모드 (컴팩트 일정 입력 UI 적용)
 // ==========================================================================
 window.renderWeekEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
@@ -114,16 +116,25 @@ window.renderWeekEditor = async function(container) {
   for (const d of window.getWeekDates()) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
+    // DB 조회
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
-    let eventText = '';
+    let eventList = [];
     if (eventDoc.exists) {
       const eData = eventDoc.data();
       if (eData.eventList && eData.eventList.length > 0) {
-        eventText = window.formatEventListToText(eData.eventList); // 편집창엔 [라벨] 텍스트 로 표시
+        eventList = eData.eventList;
       } else if (eData.eventText) {
-        eventText = eData.eventText;
+        eventList = window.parseRawEventTextToEventList(eData.eventText);
       }
     }
+    
+    // 💡 에디터용 컴팩트 HTML 생성
+    window[`tempEvents_${d.dateStr}`] = eventList; // 임시 메모리 저장
+    let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
+    compactEditorHtml += window.generateCompactEventEditor(d.dateStr);
+    compactEditorHtml += `</div>
+        <button onclick="addCompactEvent('${d.dateStr}')" style="margin-top:4px; font-size:0.8rem; background:#e0f2fe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 6px; cursor:pointer;">+ 일정 추가</button>
+    `;
 
     const periods = dayData.periods || {};
     const isToday = (d.dateStr === realTodayStr);
@@ -142,7 +153,9 @@ window.renderWeekEditor = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" class="editable-cell week-event-cell" contenteditable="true" style="text-align: left; padding: 8px 10px; font-size: var(--week-event-font-size); color: #0369a1; background: #f0f9ff; white-space:pre-wrap;">${eventText}</td>
+        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
+            ${compactEditorHtml}
+        </td>
       </tr>
       <tr>
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
@@ -162,32 +175,69 @@ window.renderWeekEditor = async function(container) {
   container.innerHTML = html;
 };
 
+// 💡 컴팩트 에디터 그리기 헬퍼 함수
+window.generateCompactEventEditor = function(dateStr) {
+    const list = window[`tempEvents_${dateStr}`] || [];
+    const labels = window.getEventLabels();
+    let html = '';
+    
+    list.forEach((e, idx) => {
+        let options = labels.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
+        html += `
+        <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
+            <select onchange="updateCompactEvent('${dateStr}', ${idx}, 'label', this.value)" style="padding:2px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#1e40af; outline:none;">
+                ${options}
+            </select>
+            <input type="text" value="${e.content}" oninput="updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+            <button onclick="removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer;" title="삭제">✖</button>
+        </div>`;
+    });
+    return html;
+};
+
+// 💡 컴팩트 에디터 제어 함수들
+window.updateCompactEvent = function(dateStr, idx, field, value) {
+    window.hasUnsavedChanges = true;
+    window[`tempEvents_${dateStr}`][idx][field] = value;
+};
+window.addCompactEvent = function(dateStr) {
+    window.hasUnsavedChanges = true;
+    const defaultLabel = window.getEventLabels()[0]?.name || '일정';
+    window[`tempEvents_${dateStr}`].push({ label: defaultLabel, content: '' });
+    document.getElementById(`compact-events-${dateStr}`).innerHTML = window.generateCompactEventEditor(dateStr);
+};
+window.removeCompactEvent = function(dateStr, idx) {
+    window.hasUnsavedChanges = true;
+    window[`tempEvents_${dateStr}`].splice(idx, 1);
+    document.getElementById(`compact-events-${dateStr}`).innerHTML = window.generateCompactEventEditor(dateStr);
+};
+
+
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수 (동적 라벨 확인 로직 적용)
+// 💾 3. 주간 일괄 저장 처리 함수
 // ==========================================================================
 window.saveWeekDataFromEditor = async function() {
   for (const d of window.getWeekDates()) {
-    let eventTextRaw = '';
+    
+    // 💡 임시 메모리에 있던 컴팩트 이벤트 리스트를 필터링하여 가져옴
+    const rawList = window[`tempEvents_${d.dateStr}`] || [];
+    const validEvents = rawList.filter(e => e.content.trim() !== '');
+    const cleanEventText = window.formatEventListToText(validEvents);
 
-    const eventRow = document.querySelector(`tr[data-week-date="${d.dateStr}"]`);
-    if (eventRow) {
-      const eventCell = eventRow.querySelector('.week-event-cell');
-      eventTextRaw = eventCell ? (eventCell.innerText || eventCell.textContent || '').trim() : '';
-      
-      const parsedEventList = window.parseRawEventTextToEventList(eventTextRaw);
-      const cleanEventText = window.formatEventListToText(parsedEventList);
+    await window.getUserCol('events').doc(d.dateStr).set({
+        eventList: validEvents,
+        eventText: cleanEventText, 
+        updatedAt: Date.now()
+    });
 
-      await window.getUserCol('events').doc(d.dateStr).set({
-          eventList: parsedEventList,
-          eventText: cleanEventText, 
-          updatedAt: Date.now()
-      });
-      
-      eventTextRaw = cleanEventText; // 재할당
+    // 🎯 글로벌 헬퍼를 이용해 '수업 삭제' 속성 판별
+    let isSkipDay = false;
+    for (const e of validEvents) {
+        if (window.isSkipLabel(e.label)) {
+            isSkipDay = true;
+            break;
+        }
     }
-
-    // 🎯 글로벌 헬퍼를 이용해 텍스트 내에 '수업 삭제' 속성을 가진 라벨이 있는지 확인
-    const isSkipDay = window.checkSkipConditionFromText(eventTextRaw);
     
     const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
     
@@ -214,7 +264,7 @@ window.saveWeekDataFromEditor = async function() {
           memo = match[2];
         }
 
-        // 🎯 삭제 조건 라벨이 있다면 과목(Subject)을 텅 비움
+        // 🎯 삭제 조건이면 텅 비움
         if (isSkipDay) subject = '';
 
         periodsData[p] = { 
