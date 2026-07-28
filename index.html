@@ -25,7 +25,7 @@
         <h1>🗓️ 업무 및 수업 계획표</h1>
       </div>
       <div class="control-panel">
-        <div class="btn-group">
+        <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
           <button class="btn-scope" onclick="setScope('memo')">📝</button>
           <button class="btn-scope" onclick="setScope('year')">년</button>
           <button class="btn-scope" onclick="setScope('month')">월</button>
@@ -34,8 +34,8 @@
         </div>
         
         <div class="mode-group" style="position: relative;">
-          <button class="btn-mode" id="btn-mode-viewer">👁️ 뷰어</button>
-          <button class="btn-mode" id="btn-mode-editor" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
+          <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">👁️ 뷰어</button>
+          <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
           
           <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;">⋮</button>
           
@@ -57,15 +57,13 @@
     
     <div class="header-bottom">
       <div class="nav-bar">
-        <button class="nav-btn" id="btn-search" onclick="openSearchModal()" style="margin-right: 10px; display: none; background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">🔍 검색</button>
+        <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="margin-right: 10px; display: none; background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">🔍 검색</button>
         
         <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="margin-right: 15px; background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">📅 주말 보기</button>
         
-        <button class="nav-btn" onclick="moveDate(-1)">&lt; 이전</button>
-        
-        <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기">...</span>
-        
-        <button class="nav-btn" onclick="moveDate(1)">다음 &gt;</button>
+        <button class="nav-btn" onclick="moveDate(-1)" title="단축키: Ctrl + ←">&lt; 이전</button>
+        <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
+        <button class="nav-btn" onclick="moveDate(1)" title="단축키: Ctrl + →">다음 &gt;</button>
       </div>
     </div>
   </header>
@@ -76,7 +74,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>🗓️ 기준시간표 등록 및 적용</h2>
-        <button class="modal-close" onclick="closeTimetableModal()">✖</button>
+        <button class="modal-close" onclick="closeTimetableModal()" title="닫기 (Esc)">✖</button>
       </div>
       <div class="modal-body">
         <div class="timetable-section">
@@ -116,7 +114,7 @@
       
       <div style="padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #fff;">
         <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">🔍 상세 검색</h2>
-        <button onclick="closeSearchModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;">✖</button>
+        <button onclick="closeSearchModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;" title="닫기 (Esc)">✖</button>
       </div>
       
       <div style="padding: 20px; border-bottom: 2px solid #f1f5f9; background: #fff;">
