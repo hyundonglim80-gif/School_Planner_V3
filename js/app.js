@@ -1,8 +1,8 @@
-// js/app.js
-
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
+// 💡 추가: 수업 숨기기/보기 상태 저장
+window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; // 기본값은 항상 보기(true)
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
@@ -12,6 +12,17 @@ window.toggleWeekend = function() {
   }
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+  window.hasUnsavedChanges = false;
+  window.render();
+};
+
+// 💡 추가: 수업 숨기기 토글 기능
+window.toggleClass = function() {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
+  }
+  window.showClass = !window.showClass;
+  localStorage.setItem('workCalendar_showClass', window.showClass);
   window.hasUnsavedChanges = false;
   window.render();
 };
@@ -133,7 +144,6 @@ function updateButtonUI() {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
-  // 💡 버튼 보임/숨김 로직 수정 (간격 유지되도록 inline-block, none 등으로 명확히 설정)
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
     searchBtn.style.display = (currentScope !== 'memo') ? 'inline-block' : 'none';
@@ -148,6 +158,13 @@ function updateButtonUI() {
   if (weekendBtn) {
     weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보기';
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
+  }
+
+  // 💡 추가: 수업 숨기기 버튼 업데이트 로직
+  const classBtn = document.getElementById('btn-toggle-class');
+  if (classBtn) {
+    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보기';
+    classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
   if (viewerBtn && editorBtn) {
@@ -298,9 +315,7 @@ window.getTargetDateList = function() {
   return dates;
 };
 
-// ==========================================================================
-// 💾 [데이터 백업 및 대량 등록 (CSV 동기화 엔진)]
-// ==========================================================================
+// 백업 다운로드 부분 생략 (그대로 유지)
 window.downloadCSVFile = function(filename, csvData) {
   const bom = "\uFEFF";
   const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
@@ -462,9 +477,7 @@ window.uploadCSV = async function(input) {
   input.value = '';
 };
 
-// ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
-// ==========================================================================
+// 스와이프 제스처 생략 없이 유지
 (function() {
   let touchStartX = 0; let touchStartY = 0; let touchEndX = 0; let touchEndY = 0;
   let touchStartTime = 0; let isMultiTouch = false;
@@ -519,10 +532,7 @@ window.uploadCSV = async function(input) {
   }, { passive: true });
 })();
 
-// ==========================================================================
-// 🔍 강력한 고급 동적 필터 통합 검색 엔진
-// ==========================================================================
-
+// 검색 엔진 로직 생략 없이 유지
 const fieldMeta = {
   'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' },
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
@@ -880,11 +890,7 @@ window.executeSearch = async function() {
   });
 };
 
-// ==========================================================================
-// ⌨️ 단축키(Keyboard Shortcuts) 이벤트 엔진
-// ==========================================================================
 document.addEventListener('keydown', function(event) {
-  
   const isTyping = event.target.tagName === 'INPUT' || 
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
@@ -951,7 +957,7 @@ document.addEventListener('keydown', function(event) {
 });
 
 // ==========================================================================
-// 🏷️ [신규 시스템] 전역 일정 라벨 관리 및 렌더링 엔진
+// 🏷️ [버그 수정 완료] 전역 일정 라벨 관리 및 렌더링 엔진
 // ==========================================================================
 
 // 1. 기본 라벨 설정 및 로드
@@ -978,14 +984,12 @@ window.getEventLabels = function() {
     return labels;
 };
 
-// 2. 특정 라벨이 수업을 삭제해야 하는(isSkip) 라벨인지 확인
 window.isSkipLabel = function(labelName) {
     const labels = window.getEventLabels();
     const target = labels.find(l => l.name === labelName);
     return target ? target.isSkip : false; 
 };
 
-// 3. 텍스트를 파싱하여, 수업 삭제 조건(isSkip)이 하나라도 있는지 확인
 window.checkSkipConditionFromText = function(rawText) {
     if (!rawText) return false;
     if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
@@ -998,12 +1002,18 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 4. 모달창: 라벨 리스트 그리기
+// 💡 4. 모달창 열기 (렌더링 버그 수정의 핵심)
+window.openEventLabelModal = function() {
+    document.getElementById('event-label-modal').classList.remove('hidden');
+    // 모달을 열 때만 데이터를 복사해 옵니다. 리렌더링 시에는 덮어쓰지 않습니다.
+    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
+    window.renderEventLabelManager();
+};
+
+// 5. 모달창: 라벨 리스트 그리기
 window.renderEventLabelManager = function() {
     const container = document.getElementById('event-label-list-container');
     if (!container) return;
-    
-    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
     
     const drawList = () => {
         container.innerHTML = '';
@@ -1027,7 +1037,7 @@ window.renderEventLabelManager = function() {
     drawList();
 };
 
-// 5. 모달창: 새 라벨 추가
+// 6. 모달창: 새 라벨 추가
 window.addNewEventLabel = function() {
     const nameInput = document.getElementById('new-label-name');
     const skipCheck = document.getElementById('new-label-skip');
@@ -1040,10 +1050,11 @@ window.addNewEventLabel = function() {
     
     nameInput.value = '';
     skipCheck.checked = false;
+    // 목록을 다시 그리더라도 데이터가 리셋되지 않아 버그가 해결되었습니다.
     window.renderEventLabelManager();
 };
 
-// 6. 모달창: 변경사항 최종 저장
+// 7. 모달창: 변경사항 최종 저장
 window.saveEventLabels = function() {
     if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
     localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
@@ -1052,7 +1063,6 @@ window.saveEventLabels = function() {
     window.render(); 
 };
 
-// 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환
 window.generateEventBadgesHTML = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
     
@@ -1081,7 +1091,6 @@ window.generateEventBadgesHTML = function(eventList) {
     return html;
 };
 
-// 8. 텍스트 <-> 리스트 변환 엔진 고도화
 if (!window.parseRawEventTextToEventList) {
   window.parseRawEventTextToEventList = function(rawText) {
       if (!rawText || !rawText.trim()) return [];
