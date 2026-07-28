@@ -37,9 +37,10 @@
           <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">👁️ 뷰어</button>
           <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
           
-          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;">⋮</button>
+          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;" title="더보기 및 도움말">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
+            <button class="dropdown-item" onclick="openHelpModal()">📖 사용 설명서 및 단축키 안내</button>
             <button class="dropdown-item" onclick="openTimetableModal()">🗓️ 기준시간표 등록/적용</button>
             <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
             <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
@@ -164,6 +165,110 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <div id="help-modal" class="modal-overlay hidden" style="z-index: 10001; background: rgba(0,0,0,0.6);">
+    <div style="width: 95%; max-width: 800px; max-height: 90vh; background: #fff; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      
+      <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-radius: 12px 12px 0 0;">
+        <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">📖 사용 설명서 및 단축키 안내</h2>
+        <button onclick="closeHelpModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;" title="닫기 (Esc)">✖</button>
+      </div>
+      
+      <div style="padding: 25px; overflow-y: auto; flex: 1; font-size: 1.1rem; line-height: 1.6; color: #334155;">
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">📌 프로그램 소개</h3>
+          <p style="margin-bottom: 10px; color: #334155;">이 프로그램은 선생님들의 학교 업무와 수업 일정을 한 곳에서 체계적으로 관리할 수 있게 도와주는 '개인 맞춤형 온라인 플래너'입니다. 입력하신 모든 내용은 구글 클라우드에 안전하게 자동 저장되어, 언제 어디서든 스마트폰이나 컴퓨터로 확인할 수 있습니다.</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">📅 화면 보기 방식 (상단 버튼)</h3>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>📝 (메모):</b> 포스트잇처럼 할 일을 적어두고 완료 체크를 할 수 있는 공간입니다. 순서를 위아래로 끌어서(드래그) 바꿀 수도 있습니다.</li>
+            <li style="margin-bottom: 8px;"><b>년 / 월 / 주 / 일:</b> 달력의 형태를 조절합니다.
+              <ul style="padding-left: 20px; margin-top: 4px; color: #64748b; font-size: 1rem;">
+                <li style="margin-bottom: 4px;"><b>년:</b> 1년 치 주요 행사를 한눈에 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>월:</b> 한 달의 일정을 익숙한 달력 형태로 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>주:</b> 일주일 치 수업과 일정을 시간표 형태로 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>일:</b> 오늘 하루의 일정, 수업(메모, 준비물), 일지(사건, 감상 등)를 매우 상세하게 보고 꼼꼼하게 기록할 수 있습니다.</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">✏️ 뷰어 모드와 수정 모드</h3>
+          <p style="margin-bottom: 10px; color: #334155;">실수로 내용이 지워지는 것을 방지하기 위해 두 가지 모드로 나뉘어 있습니다.</p>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>👁️ 뷰어 모드:</b> 단순히 내용을 읽고 확인할 때 사용합니다. 글씨를 수정할 수 없도록 화면이 잠겨있습니다.</li>
+            <li style="margin-bottom: 8px;"><b>✏️ 수정 모드:</b> 일정을 적거나 고칠 때 <b>[수정]</b> 버튼을 누릅니다. 글씨를 고칠 수 있는 노란색 테두리 칸으로 바뀌며, 내용 입력 후에는 반드시 <b>[💾 저장]</b> 버튼을 눌러야 클라우드에 안전하게 저장됩니다! (저장하지 않고 이동하려 하면 경고창이 뜹니다.)</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">⚙️ 기타 유용한 기능 (⋮ 점 세 개 버튼)</h3>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>🗓️ 기준시간표 등록/적용:</b> 학기 초에 매주 반복되는 기본 시간표(예: 월 1교시 국어, 2교시 수학...)를 미리 등록해 두고, 원하는 기간(예: 1학기 전체)에 한 번에 쫙 복사해 넣는 아주 편리한 자동화 기능입니다.</li>
+            <li style="margin-bottom: 8px;"><b>📥 백업 및 업로드:</b> 내가 쓴 데이터 전체를 엑셀(CSV) 파일로 내 컴퓨터에 다운받아 평생 보관하거나, 작성된 파일을 다시 프로그램으로 불러올 수 있습니다. (※ 일정에 '(휴일)' 또는 '(행사)'라고 쓰면 해당 일의 수업이 자동으로 지워집니다.)</li>
+            <li style="margin-bottom: 8px;"><b>🔍 검색 기능 (단축키: /):</b> 오래전에 쓴 내용이나 일지를 찾을 때 사용합니다. 검색 대상 기간을 정하고 '전체', '일정', '과목명' 등 여러 조건을 섞어서 매우 똑똑하게 찾아냅니다.</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">⌨️ 마우스 없이 빠르게! 단축키 안내</h3>
+          <p style="margin-bottom: 10px; color: #334155;">키보드를 활용하면 훨씬 빠르게 프로그램을 조작할 수 있습니다. <b>(단, 글자를 입력하고 있을 때는 방향키 이동이 작동하지 않습니다.)</b></p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left;">
+            <thead>
+              <tr style="background: #f1f5f9; color: #0f172a;">
+                <th style="padding: 10px; border: 1px solid #cbd5e1;">기능 동작</th>
+                <th style="padding: 10px; border: 1px solid #cbd5e1;">단축키 (키보드)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">이전 날짜로 이동</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">←</span> (왼쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">다음 날짜로 이동</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">→</span> (오른쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">보기 형태 변경 (메모/년/월/주/일)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Shift</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">←</span> 또는 <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">→</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">오늘 날짜로 뿅! 돌아가기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Spacebar</span> (스페이스바)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">👁️ 뷰어 모드로 변경 (읽기 전용)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">↑</span> (위쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">✏️ 수정 모드로 변경 (글쓰기)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">↓</span> (아래쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">💾 작성한 내용 클라우드에 <b>저장</b></td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Enter</span> (엔터)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">🔍 상세 검색창 바로 열기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">/</span> (슬래시)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">열려있는 팝업/모달창 즉시 닫기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Esc</span> (이스케이프)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+      </div>
     </div>
   </div>
 
