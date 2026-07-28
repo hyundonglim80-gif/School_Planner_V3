@@ -2,7 +2,6 @@
 
 const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
-// 🎯 DB에서 구버전(텍스트)과 신버전(리스트) 일정을 모두 안전하게 불러오는 헬퍼
 window.parseEvents = function(docData) {
   if (!docData) return [];
   if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
@@ -20,7 +19,6 @@ window.renderDayViewer = async function(container) {
   const dayData = await window.dbAPI.loadDayData(dateStr);
   const periods = dayData.periods || {};
   
-  // 💡 기존 이벤트 텍스트 대신 이벤트 리스트 불러오기
   const eventDoc = await window.getUserCol('events').doc(dateStr).get();
   const events = eventDoc.exists ? window.parseEvents(eventDoc.data()) : [];
   
@@ -29,20 +27,13 @@ window.renderDayViewer = async function(container) {
 
   let html = `<div class="day-viewer-container">`;
 
-  // 🎯 일정 박스 렌더링 (라벨 표시)
+  // 🎯 일정 박스 렌더링 (공통 뱃지 헬퍼 사용!)
   html += `<div class="day-event-card" style="display: flex; align-items: flex-start; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="width: 80px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 일정</div>
-            <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0; display:flex; flex-direction:column; gap:8px;">`;
+            <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
             
   if (events.length > 0) {
-    events.forEach(e => {
-      let badgeColor = e.label === '전일행사' ? '#ef4444' : (e.label === '제출' ? '#d97706' : '#2563eb');
-      let badgeBg = e.label === '전일행사' ? '#fee2e2' : (e.label === '제출' ? '#fef3c7' : '#dbeafe');
-      html += `<div style="font-size: 1.05rem; color: #334155; line-height: 1.5; display:flex; align-items:flex-start; gap:8px;">
-                 <span style="background:${badgeBg}; color:${badgeColor}; padding:2px 8px; border-radius:4px; font-size:0.9rem; font-weight:bold; white-space:nowrap;">${e.label}</span>
-                 <span style="white-space:pre-wrap; word-break:break-all; margin-top:1px;">${e.content}</span>
-               </div>`;
-    });
+    html += window.generateEventBadgesHTML(events); // 💡 새 엔진 사용
   } else {
     html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
   }
@@ -86,7 +77,7 @@ window.renderDayViewer = async function(container) {
 };
 
 // ==========================================================================
-// ✏️ 2. 일간 에디터 모드 (일정 독립박스 + 수업 교환 기능 탑재)
+// ✏️ 2. 일간 에디터 모드
 // ==========================================================================
 window.renderDayEditor = async function(container) {
   container.innerHTML = `<p style="text-align:center; padding: 40px; color:#64748b; font-weight:bold; font-size:var(--font-base);">⏳ 편집 화면을 준비 중...</p>`;
@@ -97,7 +88,12 @@ window.renderDayEditor = async function(container) {
   
   const eventDoc = await window.getUserCol('events').doc(dateStr).get();
   const events = eventDoc.exists ? window.parseEvents(eventDoc.data()) : [];
-  window.currentEvents = events.length > 0 ? events : [{ label: '일정', content: '' }];
+  
+  // 💡 라벨 객체에서 첫 번째 라벨 이름을 기본값으로 사용
+  const validLabels = window.getEventLabels().map(l => l.name);
+  const defaultLabel = validLabels[0] || '일정';
+
+  window.currentEvents = events.length > 0 ? events : [{ label: defaultLabel, content: '' }];
   
   const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
   const journals = journalDoc.exists ? journalDoc.data().entries || [] : [];
@@ -105,12 +101,12 @@ window.renderDayEditor = async function(container) {
 
   let html = `<div class="day-viewer-container">`;
 
-  // 🎯 일정 에디터 섹션 (일지처럼 독립박스로 변경)
+  // 🎯 일정 에디터 섹션 (새로운 모달 호출 연결)
   html += `
     <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
         <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘의 일정/행사</h3>
-        <button onclick="manageEventLabels()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
+        <button onclick="document.getElementById('event-label-modal').classList.remove('hidden'); window.renderEventLabelManager();" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
       </div>
       <div id="event-entries-container"></div>
       <button onclick="addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 칸 추가</button>
@@ -133,7 +129,6 @@ window.renderDayEditor = async function(container) {
 
   for (let p = 1; p <= 6; p++) {
     const pObj = periods[p] || {};
-    // 💡 교시 숫자(period-cell)에 이동/맞바꾸기 모달 띄우기 기능 연결 (파란색 밑줄로 표시)
     html += `
             <tr data-period="${p}">
               <td class="period-cell" onclick="openClassSwapModal(${p})" style="cursor:pointer; color:#2563eb; text-decoration:underline; font-weight:900;" title="클릭하여 수업 이동/맞바꾸기">${p}</td>
@@ -166,24 +161,36 @@ window.renderDayEditor = async function(container) {
 };
 
 // ==========================================================================
-// 📌 [신규] 일정(Event) 동적 라벨 입력 툴박스
+// 📌 [신규] 일정(Event) 동적 라벨 입력 툴박스 (V2 엔진 연결)
 // ==========================================================================
 window.renderEventEntries = function() {
   const container = document.getElementById('event-entries-container');
   if(!container) return;
   
-  let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels')) || ['일정', '행사', '전일행사', '제출', '기타'];
+  // 💡 V2 객체 배열 로드
+  const labelObjs = window.getEventLabels();
   
   let html = '';
   window.currentEvents.forEach((e, index) => {
-      let options = labels.map(l => `<option value="${l}" ${e.label === l ? 'selected' : ''}>${l}</option>`).join('');
+      // 💡 유효하지 않은 라벨(삭제됨)을 갖고 있다면, 기본 첫 번째 라벨로 강제 세팅 (오류 방지)
+      if (!labelObjs.some(l => l.name === e.label)) {
+          e.label = labelObjs[0] ? labelObjs[0].name : '';
+      }
+      
+      let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
+      
+      // 💡 선택된 라벨이 수업을 삭제하는 라벨이면 배경색을 빨갛게 경고
+      const isSkip = window.isSkipLabel(e.label);
+      const selBg = isSkip ? '#fee2e2' : '#eff6ff';
+      const selColor = isSkip ? '#ef4444' : '#1e40af';
+      
       html += `
       <div class="event-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-          <select class="event-label-select" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#1e40af; background:#eff6ff;">
+          <select class="event-label-select" onchange="window.syncEventInputs(); window.renderEventEntries();" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${selColor}; background:${selBg}; transition:0.2s;">
               ${options}
           </select>
           <textarea class="event-content-input" placeholder="일정 내용을 입력하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
-          <button onclick="removeEventEntry(${index})" style="background:#fee2e2; border:1px solid #fca5a5; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s;" title="삭제">✖</button>
+          <button onclick="removeEventEntry(${index})" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s;" title="삭제">✖</button>
       </div>`;
   });
   container.innerHTML = html;
@@ -206,7 +213,8 @@ window.syncEventInputs = function() {
 
 window.addEventEntry = function() {
   window.syncEventInputs();
-  window.currentEvents.push({ label: '일정', content: '' });
+  const defaultLabel = window.getEventLabels()[0]?.name || '일정';
+  window.currentEvents.push({ label: defaultLabel, content: '' });
   window.renderEventEntries();
 };
 
@@ -216,23 +224,8 @@ window.removeEventEntry = function(index) {
   window.renderEventEntries();
 };
 
-window.manageEventLabels = function() {
-  let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels')) || ['일정', '행사', '전일행사', '제출', '기타'];
-  let currentStr = labels.join(', ');
-  let result = prompt("📌 일정의 종류(라벨)를 쉼표(,)로 구분하여 입력해주세요.\n(주의: '전일행사' 라벨을 삭제하면 수업 자동 삭제 기능이 작동하지 않습니다!)", currentStr);
-  
-  if(result !== null) {
-      let newLabels = result.split(',').map(s => s.trim()).filter(s => s !== '');
-      if(newLabels.length > 0) {
-          localStorage.setItem('workCalendar_eventLabels', JSON.stringify(newLabels));
-          window.syncEventInputs();
-          window.renderEventEntries();
-      }
-  }
-};
-
 // ==========================================================================
-// 📔 기존 일지(Journal) 동적 라벨 입력 툴박스
+// 📔 일지(Journal) 동적 라벨 입력 툴박스
 // ==========================================================================
 window.renderJournalEntries = function() {
   const container = document.getElementById('journal-entries-container');
@@ -247,7 +240,7 @@ window.renderJournalEntries = function() {
               ${options}
           </select>
           <textarea class="journal-content-input" placeholder="사건이나 감상 등을 편하게 작성하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${j.content}</textarea>
-          <button onclick="removeJournalEntry(${index})" style="background:#fee2e2; border:1px solid #fca5a5; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s;" title="삭제">✖</button>
+          <button onclick="removeJournalEntry(${index})" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s;" title="삭제">✖</button>
       </div>`;
   });
   container.innerHTML = html;
@@ -295,7 +288,7 @@ window.manageJournalLabels = function() {
 };
 
 // ==========================================================================
-// 🔄 [신규 고급 기능] 수업 교시 맞바꾸기 / 이동 (Cross-Day Swap)
+// 🔄 수업 교시 맞바꾸기 / 이동 (Cross-Day Swap)
 // ==========================================================================
 window.openClassSwapModal = function(sourcePeriod) {
   const sourceDate = CURRENT_DAY_STR();
@@ -333,7 +326,6 @@ window.executeClassSwap = async function(sourcePeriod) {
 
   if (!targetDate) return alert("목표 날짜를 선택해주세요.");
 
-  // 1. 현재 에디터 화면에 쓰여있는 데이터를 수집 (아직 DB에 저장 안 된 최신 상태)
   const currentDOMPeriods = {};
   for(let p=1; p<=6; p++) {
       const row = document.querySelector(`tr[data-period="${p}"]`);
@@ -351,12 +343,10 @@ window.executeClassSwap = async function(sourcePeriod) {
           document.getElementById('swap-modal').remove();
           return;
       }
-      // 같은 날짜 내에서 교시만 맞바꾸기
       const targetData = currentDOMPeriods[targetPeriod];
       currentDOMPeriods[targetPeriod] = sourceData;
       currentDOMPeriods[sourcePeriod] = targetData;
 
-      // 바뀐 내용을 다시 현재 DOM(화면)에 뿌려줌
       for(let p=1; p<=6; p++) {
           const row = document.querySelector(`tr[data-period="${p}"]`);
           row.querySelector(".cell-subject").innerText = currentDOMPeriods[p].subject;
@@ -364,19 +354,15 @@ window.executeClassSwap = async function(sourcePeriod) {
           row.querySelector(".cell-supplies").innerText = currentDOMPeriods[p].supplies;
       }
   } else {
-      // 다른 날짜의 교시와 맞바꾸기 (Cross-Day Swap)
       document.getElementById('swap-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; font-size:1.2rem; box-shadow:0 10px 25px rgba(0,0,0,0.2);">⏳ 클라우드에서 타겟 데이터를 교환 중입니다...</div>`;
 
-      // 타겟 날짜의 데이터를 DB에서 불러옴
       const targetDoc = await window.getUserCol('schedules').doc(targetDate).get();
       const targetPeriodsDB = targetDoc.exists ? (targetDoc.data().periods || {}) : {};
       const targetData = targetPeriodsDB[targetPeriod] || {subject:'', memo:'', supplies:''};
 
-      // 타겟 날짜 DB에 내(Source) 데이터를 집어넣고 저장
       targetPeriodsDB[targetPeriod] = sourceData;
       await window.getUserCol('schedules').doc(targetDate).set({ periods: targetPeriodsDB, updatedAt: Date.now() });
 
-      // 내 현재 화면(Source DOM)의 빈자리에는 타겟이 쓰던 데이터를 채워줌
       const sourceRow = document.querySelector(`tr[data-period="${sourcePeriod}"]`);
       sourceRow.querySelector(".cell-subject").innerText = targetData.subject;
       sourceRow.querySelector(".cell-memo").innerText = targetData.memo;
@@ -388,33 +374,34 @@ window.executeClassSwap = async function(sourcePeriod) {
   const modal = document.getElementById('swap-modal');
   if(modal) modal.remove();
   
-  window.hasUnsavedChanges = true; // 변경이 일어났으므로 경고 플래그 ON
+  window.hasUnsavedChanges = true; 
 };
 
 // ==========================================================================
-// 💾 3. 일간 저장 (전일행사 자동 삭제 및 하위호환성 유지 로직)
+// 💾 3. 일간 저장 (동적 라벨 삭제 시스템 적용)
 // ==========================================================================
 window.saveDayDataFromEditor = async function() {
   const dateStr = CURRENT_DAY_STR();
 
-  // 1) 일정(Event) 데이터 저장 (블록 리스트 -> DB 배열 저장)
   window.syncEventInputs();
   const validEvents = window.currentEvents.filter(e => e.content.trim() !== '');
-  
-  // 💡 기존의 단일 텍스트(eventText)를 참조하던 다른 코드(검색, 백업 등)가 에러나지 않도록 
-  // [라벨] 내용 형태로 합친 텍스트를 함께 저장하는 완벽한 하위 호환성 기술 적용!
-  const eventTextForLegacy = validEvents.map(e => `[${e.label}] ${e.content}`).join('\n');
+  const eventTextForLegacy = window.formatEventListToText(validEvents);
   
   await window.getUserCol('events').doc(dateStr).set({
       eventList: validEvents,
-      eventText: eventTextForLegacy, // 검색이나 구버전 뷰어에서 읽어들일 수 있는 텍스트
+      eventText: eventTextForLegacy,
       updatedAt: Date.now()
   });
 
-  // 🎯 '전일행사' 라벨 존재 여부 검사 (전일행사면 수업 1~6교시 텅 비움)
-  const isSkipDay = validEvents.some(e => e.label === '전일행사');
+  // 🎯 [핵심] 이제 하드코딩된 '전일행사'가 아닌, 라벨 설정(isSkip)에 기반하여 삭제 여부 판단
+  let isSkipDay = false;
+  for (const e of validEvents) {
+      if (window.isSkipLabel(e.label)) {
+          isSkipDay = true;
+          break;
+      }
+  }
 
-  // 2) 교시별 상세 수업 정보 저장
   const periodsData = {};
   const rows = document.querySelectorAll("tr[data-period]");
   
@@ -425,15 +412,15 @@ window.saveDayDataFromEditor = async function() {
     const memo = (row.querySelector(".cell-memo").innerText || '').trim();
     const supplies = (row.querySelector(".cell-supplies").innerText || '').trim();
 
+    // 수업 삭제 속성을 가진 라벨이 있다면 과목 삭제
     if (isSkipDay) {
-      subject = ''; // 전일행사면 과목을 삭제
+      subject = ''; 
     }
     periodsData[p] = { subject, memo, supplies };
   });
 
   await window.dbAPI.saveSchedule(dateStr, periodsData);
   
-  // 3) 일지 데이터 저장
   window.syncJournalInputs();
   const validJournals = window.currentJournals.filter(j => j.content.trim() !== '');
   await window.getUserCol('journals').doc(dateStr).set({ entries: validJournals, updatedAt: Date.now() });
