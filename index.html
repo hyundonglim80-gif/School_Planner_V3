@@ -1,28 +1,290 @@
-<div id="event-label-modal" class="modal-overlay hidden" style="z-index: 10003; background: rgba(0,0,0,0.5);">
-    <div style="background:#fff; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">
-        <h3 style="margin:0; color:#1e40af; font-size:1.3rem;">🏷️ 일정 라벨 관리</h3>
-        <button onclick="document.getElementById('event-label-modal').classList.add('hidden')" style="font-size:1.5rem; background:none; border:none; cursor:pointer; color:#64748b;">✖</button>
-      </div>
-      
-      <p style="font-size:0.9rem; color:#475569; margin-bottom:15px; line-height:1.4;">
-        일정에 사용할 라벨을 정의합니다. <br><b>'수업 삭제'</b>를 체크하면, 해당 라벨이 붙은 날은 시간표 일괄 적용 시 수업이 자동으로 비워집니다.
-      </p>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1000">
+  <title>업무 및 수업 계획표</title>
+  <link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
 
-      <div id="event-label-list-container" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; max-height:300px; overflow-y:auto; padding-right:5px;">
-        </div>
+  <div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-body); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:50px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,0.1); text-align:center;">
+          <h1 style="margin-bottom:10px; font-size: 2rem; color:var(--primary-color);">🗓️ 업무 및 수업 계획표</h1>
+          <p style="color:#64748b; font-size: 1.2rem; margin-bottom:40px;">나만의 데이터를 안전하게 동기화하기 위해<br>구글 계정으로 시작해주세요.</p>
+          <button onclick="signInWithGoogle()" style="background:#4285F4; color:#fff; border:none; padding:12px 24px; font-size:1.2rem; border-radius:8px; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:10px; margin:0 auto; box-shadow: 0 4px 6px rgba(66, 133, 244, 0.3); transition: 0.2s;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Google 계정으로 로그인
+          </button>
+      </div>
+  </div>
 
-      <div style="display:flex; gap:10px; margin-bottom:15px;">
-        <input type="text" id="new-label-name" placeholder="새 라벨 이름 (예: 단축수업)" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
-        <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; color:#ef4444; font-weight:bold; cursor:pointer;">
-          <input type="checkbox" id="new-label-skip" style="width:16px; height:16px; accent-color:#ef4444;">
-          수업 삭제
-        </label>
-        <button onclick="addNewEventLabel()" style="background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
-      </div>
+  <header class="app-header">
+    <div class="header-top">
+      <div class="title-group">
+        <h1>🗓️ 업무 및 수업 계획표</h1>
+      </div>
+      <div class="control-panel">
+        <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
+          <button class="btn-scope" onclick="setScope('memo')">📝</button>
+          <button class="btn-scope" onclick="setScope('year')">년</button>
+          <button class="btn-scope" onclick="setScope('month')">월</button>
+          <button class="btn-scope" onclick="setScope('week')">주</button>
+          <button class="btn-scope" onclick="setScope('day')">일</button>
+        </div>
+        
+        <div class="mode-group" style="position: relative;">
+          <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">👁️ 뷰어</button>
+          <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
+          
+          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;" title="더보기 및 도움말">⋮</button>
+          
+          <div id="more-dropdown" class="dropdown-menu hidden">
+            <button class="dropdown-item" onclick="openHelpModal()">📖 사용 설명서 및 단축키 안내</button>
+            <button class="dropdown-item" onclick="openTimetableModal()">🗓️ 기준시간표 등록/적용</button>
+            <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
+            <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
+          </div>
+          <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
+        </div>
 
-      <div style="display:flex; justify-content:flex-end;">
-        <button onclick="saveEventLabels()" style="background:#16a34a; color:#fff; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1.05rem; width:100%;">💾 변경사항 저장</button>
-      </div>
-    </div>
-  </div>
+        <div id="user-info" style="display:none; align-items:center; gap:8px; margin-left:10px; padding-left:12px; border-left:2px solid #cbd5e1;">
+            <img id="user-photo" src="" style="width:32px; height:32px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
+            <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.95rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+        </div>
+
+      </div>
+    </div>
+    
+    <div class="header-bottom">
+      <div class="nav-bar">
+        <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="margin-right: 10px; display: none; background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">🔍 검색</button>
+        
+        <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="margin-right: 15px; background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">📅 주말 보기</button>
+        
+        <button class="nav-btn" onclick="moveDate(-1)" title="단축키: Ctrl + ←">&lt; 이전</button>
+        <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
+        <button class="nav-btn" onclick="moveDate(1)" title="단축키: Ctrl + →">다음 &gt;</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container" id="main-view"></main>
+
+  <div id="timetable-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🗓️ 기준시간표 등록 및 적용</h2>
+        <button class="modal-close" onclick="closeTimetableModal()" title="닫기 (Esc)">✖</button>
+      </div>
+      <div class="modal-body">
+        <div class="timetable-section">
+          <h3>1. 기준시간표 등록</h3>
+          <select id="tt-semester-select" onchange="loadBaseTimetable()">
+            <option value="1">1학기</option>
+            <option value="2">2학기</option>
+          </select>
+          <table class="timetable-input-table">
+            <thead>
+              <tr><th>교시</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th></tr>
+            </thead>
+            <tbody id="tt-tbody">
+              </tbody>
+          </table>
+          <button class="btn-save-tt" onclick="saveBaseTimetable()">💾 기준시간표 클라우드에 저장</button>
+        </div>
+        <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 20px 0;">
+        <div class="timetable-section">
+          <h3>2. 일정 기간에 일괄 적용</h3>
+          <div class="apply-group">
+            <select id="apply-semester">
+              <option value="1">1학기 시간표 적용</option>
+              <option value="2">2학기 시간표 적용</option>
+            </select>
+            <input type="date" id="apply-start-date"> ~ <input type="date" id="apply-end-date">
+            <button class="btn-apply-tt" onclick="applyBaseTimetable()">🚀 일괄 적용</button>
+          </div>
+          <p class="apply-warning">* 주의: 선택하신 기간의 평일(월~금)에 기준시간표 '과목'이 덮어씌워집니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="search-modal" class="modal-overlay hidden" style="z-index: 10000; background: #f8fafc;">
+    <div style="width: 100%; height: 100%; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+      
+      <div style="padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #fff;">
+        <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">🔍 상세 검색</h2>
+        <button onclick="closeSearchModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;" title="닫기 (Esc)">✖</button>
+      </div>
+      
+      <div style="padding: 20px; border-bottom: 2px solid #f1f5f9; background: #fff;">
+        
+        <div style="margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: #f1f5f9; padding: 10px 15px; border-radius: 8px;">
+          <label style="font-weight:bold; color:#1e293b; display:flex; align-items:center;">📅 검색 대상 기간:</label>
+          <select id="search-scope-select" onchange="toggleCustomDateSearch()" style="padding:8px; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; outline:none; background:#fff; color:#0f172a; cursor:pointer;">
+            <option value="current" id="search-scope-current-opt">현재 선택 범위 (기본)</option>
+            <option value="sem1">1학기</option>
+            <option value="sem2">2학기</option>
+            <option value="year">학년도</option>
+            <option value="custom">범위 지정</option>
+          </select>
+          <div id="custom-date-inputs" style="display:none; align-items:center; gap:5px;">
+            <input type="date" id="search-start-date" style="padding:7px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
+            <span style="font-weight:bold; color:#64748b;">~</span>
+            <input type="date" id="search-end-date" style="padding:7px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 15px; margin-bottom: 15px; border-radius: 4px;">
+          <p style="color: #475569; font-size: 0.95rem; margin: 0; line-height: 1.6;">
+            * <b>[추가]</b> 아래 항목 버튼을 눌러 조건을 추가하세요. (같은 버튼 중복 가능)<br>
+            * <b>[OR 검색]</b> 한 칸에 <b>/</b> 기호로 단어를 구분하세요. <span style="color:#94a3b8;">(예: 국어/수학)</span><br>
+            * <b>[AND 검색]</b> 칸을 <b>여러 개 추가</b>해서 단어를 각각 따로 입력하세요.
+          </p>
+        </div>
+        
+        <div id="search-filter-buttons" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+          <button onclick="addSearchField('all')" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);">+ 전체(통합)</button>
+          <button onclick="addSearchField('event')" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
+          <button onclick="addSearchField('subject')" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
+          <button onclick="addSearchField('memo')" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c084fc; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 수업 메모</button>
+          <button onclick="addSearchField('supplies')" style="background:#ffedd5; color:#ea580c; border:1px solid #fdba74; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 준비물</button>
+          <button onclick="addSearchField('journal')" style="background:#fdf2f8; color:#be185d; border:1px solid #f472b6; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일지(기록)</button>
+        </div>
+
+        <div id="active-search-fields" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 20px;">
+        </div>
+        
+        <button onclick="executeSearch()" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">🚀 데이터 찾기</button>
+      </div>
+
+      <div style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;">
+        <div id="search-results-count" style="margin-bottom: 15px; font-weight: bold; color: #2563eb; font-size: 1.1rem;"></div>
+        <div id="search-results-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="help-modal" class="modal-overlay hidden" style="z-index: 10001; background: rgba(0,0,0,0.6);">
+    <div style="width: 95%; max-width: 800px; max-height: 90vh; background: #fff; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      
+      <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-radius: 12px 12px 0 0;">
+        <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">📖 사용 설명서 및 단축키 안내</h2>
+        <button onclick="closeHelpModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;" title="닫기 (Esc)">✖</button>
+      </div>
+      
+      <div style="padding: 25px; overflow-y: auto; flex: 1; font-size: 1.1rem; line-height: 1.6; color: #334155;">
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">📌 프로그램 소개</h3>
+          <p style="margin-bottom: 10px; color: #334155;">이 프로그램은 선생님들의 학교 업무와 수업 일정을 한 곳에서 체계적으로 관리할 수 있게 도와주는 '개인 맞춤형 온라인 플래너'입니다. 입력하신 모든 내용은 구글 클라우드에 안전하게 자동 저장되어, 언제 어디서든 스마트폰이나 컴퓨터로 확인할 수 있습니다.</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">📅 화면 보기 방식 (상단 버튼)</h3>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>📝 (메모):</b> 포스트잇처럼 할 일을 적어두고 완료 체크를 할 수 있는 공간입니다. 순서를 위아래로 끌어서(드래그) 바꿀 수도 있습니다.</li>
+            <li style="margin-bottom: 8px;"><b>년 / 월 / 주 / 일:</b> 달력의 형태를 조절합니다.
+              <ul style="padding-left: 20px; margin-top: 4px; color: #64748b; font-size: 1rem;">
+                <li style="margin-bottom: 4px;"><b>년:</b> 1년 치 주요 행사를 한눈에 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>월:</b> 한 달의 일정을 익숙한 달력 형태로 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>주:</b> 일주일 치 수업과 일정을 시간표 형태로 봅니다.</li>
+                <li style="margin-bottom: 4px;"><b>일:</b> 오늘 하루의 일정, 수업(메모, 준비물), 일지(사건, 감상 등)를 매우 상세하게 보고 꼼꼼하게 기록할 수 있습니다.</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">✏️ 뷰어 모드와 수정 모드</h3>
+          <p style="margin-bottom: 10px; color: #334155;">실수로 내용이 지워지는 것을 방지하기 위해 두 가지 모드로 나뉘어 있습니다.</p>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>👁️ 뷰어 모드:</b> 단순히 내용을 읽고 확인할 때 사용합니다. 글씨를 수정할 수 없도록 화면이 잠겨있습니다.</li>
+            <li style="margin-bottom: 8px;"><b>✏️ 수정 모드:</b> 일정을 적거나 고칠 때 <b>[수정]</b> 버튼을 누릅니다. 글씨를 고칠 수 있는 노란색 테두리 칸으로 바뀌며, 내용 입력 후에는 반드시 <b>[💾 저장]</b> 버튼을 눌러야 클라우드에 안전하게 저장됩니다! (저장하지 않고 이동하려 하면 경고창이 뜹니다.)</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">⚙️ 기타 유용한 기능 (⋮ 점 세 개 버튼)</h3>
+          <ul style="padding-left: 20px; color: #334155;">
+            <li style="margin-bottom: 8px;"><b>🗓️ 기준시간표 등록/적용:</b> 학기 초에 매주 반복되는 기본 시간표(예: 월 1교시 국어, 2교시 수학...)를 미리 등록해 두고, 원하는 기간(예: 1학기 전체)에 한 번에 쫙 복사해 넣는 아주 편리한 자동화 기능입니다.</li>
+            <li style="margin-bottom: 8px;"><b>📥 백업 및 업로드:</b> 내가 쓴 데이터 전체를 엑셀(CSV) 파일로 내 컴퓨터에 다운받아 평생 보관하거나, 작성된 파일을 다시 프로그램으로 불러올 수 있습니다. (※ 일정에 '(휴일)' 또는 '(행사)'라고 쓰면 해당 일의 수업이 자동으로 지워집니다.)</li>
+            <li style="margin-bottom: 8px;"><b>🔍 검색 기능 (단축키: /):</b> 오래전에 쓴 내용이나 일지를 찾을 때 사용합니다. 검색 대상 기간을 정하고 '전체', '일정', '과목명' 등 여러 조건을 섞어서 매우 똑똑하게 찾아냅니다.</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <h3 style="color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; margin-bottom: 12px; font-size: 1.3rem;">⌨️ 마우스 없이 빠르게! 단축키 안내</h3>
+          <p style="margin-bottom: 10px; color: #334155;">키보드를 활용하면 훨씬 빠르게 프로그램을 조작할 수 있습니다. <b>(단, 글자를 입력하고 있을 때는 방향키 이동이 작동하지 않습니다.)</b></p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; text-align: left;">
+            <thead>
+              <tr style="background: #f1f5f9; color: #0f172a;">
+                <th style="padding: 10px; border: 1px solid #cbd5e1;">기능 동작</th>
+                <th style="padding: 10px; border: 1px solid #cbd5e1;">단축키 (키보드)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">이전 날짜로 이동</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">←</span> (왼쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">다음 날짜로 이동</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">→</span> (오른쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">보기 형태 변경 (메모/년/월/주/일)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Shift</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">←</span> 또는 <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">→</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">오늘 날짜로 뿅! 돌아가기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Spacebar</span> (스페이스바)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">👁️ 뷰어 모드로 변경 (읽기 전용)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">↑</span> (위쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">✏️ 수정 모드로 변경 (글쓰기)</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">↓</span> (아래쪽 화살표)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">💾 작성한 내용 클라우드에 <b>저장</b></td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Ctrl</span> + <span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Enter</span> (엔터)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">🔍 상세 검색창 바로 열기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">/</span> (슬래시)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;">열려있는 팝업/모달창 즉시 닫기</td>
+                <td style="padding: 10px; border: 1px solid #cbd5e1;"><span style="background: #e2e8f0; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #0f172a;">Esc</span> (이스케이프)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  
+  <script src="js/firebase.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/timetable.js"></script>
+  
+  <script src="js/viewWeek.js"></script>
+  <script src="js/viewDay.js"></script>
+  <script src="js/viewMonth.js"></script>
+  <script src="js/viewYear.js"></script>
+  <script src="js/viewMemo.js"></script>
+
+</body>
+</html>
