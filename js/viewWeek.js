@@ -174,6 +174,7 @@ window.renderWeekEditor = async function(container) {
 };
 
 // 💡 컴팩트 에디터 그리기 헬퍼 함수
+// 💡 컴팩트 에디터 그리기 헬퍼 함수
 window.generateCompactEventEditor = function(dateStr) {
     const list = window[`tempEvents_${dateStr}`] || [];
     const labels = window.getEventLabels();
@@ -181,9 +182,12 @@ window.generateCompactEventEditor = function(dateStr) {
     
     list.forEach((e, idx) => {
         let options = labels.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
+        options += `<option disabled>──────────</option>`;
+        options += `<option value="__setting__">⚙️ 라벨 설정...</option>`;
+
         html += `
         <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
-            <select onchange="updateCompactEvent('${dateStr}', ${idx}, 'label', this.value)" style="padding:2px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#1e40af; outline:none;">
+            <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#1e40af; outline:none;">
                 ${options}
             </select>
             <input type="text" value="${e.content}" oninput="updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
