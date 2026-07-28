@@ -252,7 +252,7 @@ window.saveMonthDataFromEditor = async function() {
          periodsData[p] = {
             subject: subjText,
             supplies: existingPeriods[p] ? existingPeriods[p].supplies : '', 
-            memo: existingPeriods[p] ? existingPeriods[p].memo : ''         
+            memo: existingPeriods[p] ? existingPeriods[p].memo : ''          
          };
       });
 
