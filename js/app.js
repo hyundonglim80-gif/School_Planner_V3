@@ -227,7 +227,7 @@ window.saveCurrentViewData = async function() {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
+  alert("✅ 클라우드 데이터베이스에 저장되었습니다!"); // ❌ 이 귀찮은 알림창!
 
   // 저장 후에도 수정 모드를 계속 유지합니다.
   if (editorBtn) {
