@@ -62,7 +62,9 @@
         <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="margin-right: 15px; background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">📅 주말 보기</button>
         
         <button class="nav-btn" onclick="moveDate(-1)">&lt; 이전</button>
-        <span class="current-range" id="date-range-text">...</span>
+        
+        <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기">...</span>
+        
         <button class="nav-btn" onclick="moveDate(1)">다음 &gt;</button>
       </div>
     </div>
