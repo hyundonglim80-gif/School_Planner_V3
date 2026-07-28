@@ -146,7 +146,6 @@ function updateButtonUI() {
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
-    // 💡 에디터/저장 버튼 텍스트와 툴팁 동적 반영
     if (currentMode === 'viewer') {
       editorBtn.innerHTML = '✏️ 수정';
       editorBtn.title = '단축키: Ctrl + ↓';
@@ -158,18 +157,20 @@ function updateButtonUI() {
     }
   }
 
+  // 💡 수정된 부분: 뷰어/수정 모드에 상관없이 '메모' 탭만 아니라면 항상 보이도록 수정
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
-    if (currentMode === 'viewer' && currentScope !== 'memo') {
+    if (currentScope !== 'memo') {
       searchBtn.style.display = 'inline-block';
     } else {
       searchBtn.style.display = 'none';
     }
   }
 
+  // 💡 수정된 부분: 뷰어/수정 모드에 상관없이 '메모' 탭만 아니라면 항상 보이도록 수정
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
-    if (currentMode === 'editor' && currentScope !== 'memo') {
+    if (currentScope !== 'memo') {
       moreBtn.style.display = 'inline-flex';
     } else {
       moreBtn.style.display = 'none';
@@ -185,6 +186,17 @@ function updateButtonUI() {
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 }
+
+// 💡 [신규] 사용 설명서 모달 열기/닫기 함수 추가
+window.openHelpModal = function() {
+  document.getElementById('help-modal').classList.remove('hidden');
+  const dropdown = document.getElementById('more-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+};
+
+window.closeHelpModal = function() {
+  document.getElementById('help-modal').classList.add('hidden');
+};
 
 window.saveCurrentViewData = async function() {
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -914,12 +926,10 @@ window.executeSearch = async function() {
 // ==========================================================================
 document.addEventListener('keydown', function(event) {
   
-  // 1. 현재 사용자가 텍스트 입력창(메모, 일지 등)에 포커스를 두고 있는지 확인
   const isTyping = event.target.tagName === 'INPUT' || 
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
 
-  // 💡 [저장 단축키] Ctrl + Enter : 텍스트 입력 중에도 작동해야 하므로 가장 먼저 처리
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault();
     if (currentMode === 'editor') {
@@ -928,42 +938,40 @@ document.addEventListener('keydown', function(event) {
     return;
   }
 
-  // 💡 [추천 추가: Esc] Esc를 누르면 활성화된 모달이나 검색창 닫기
+  // 💡 [수정] Esc 누를 때 도움말 창(help-modal)도 닫히게 처리
   if (event.key === 'Escape') {
     if (typeof window.closeSearchModal === 'function') window.closeSearchModal();
     if (typeof window.closeTimetableModal === 'function') window.closeTimetableModal();
+    if (typeof window.closeHelpModal === 'function') window.closeHelpModal();
     return;
   }
 
-  // 🔥 텍스트를 입력 중일 때는 아래의 페이지 이동/전환 단축키 작동을 막음 (화살표 이동 등 충돌 방지)
   if (isTyping) return;
 
-  // 2. Ctrl 키 조합 단축키
   if (event.ctrlKey) {
     switch (event.key) {
-      case 'ArrowLeft': // 이전 버튼 (Ctrl + 좌측 화살표)
+      case 'ArrowLeft': 
         event.preventDefault();
         window.moveDate(-1);
         break;
-      case 'ArrowRight': // 다음 버튼 (Ctrl + 우측 화살표)
+      case 'ArrowRight': 
         event.preventDefault();
         window.moveDate(1);
         break;
-      case ' ': // 오늘로 돌아가기 (Ctrl + 스페이스바)
+      case ' ': 
         event.preventDefault();
         if(window.goToToday) window.goToToday();
         break;
-      case 'ArrowUp': // 뷰어 모드 (Ctrl + 위 화살표)
+      case 'ArrowUp': 
         event.preventDefault();
         if(currentMode !== 'viewer') window.setMode('viewer');
         break;
-      case 'ArrowDown': // 수정 모드 (Ctrl + 아래 화살표)
+      case 'ArrowDown': 
         event.preventDefault();
         if(currentMode !== 'editor') window.setMode('editor');
         break;
     }
   }
-  // 3. Shift 키 조합 단축키 (메모/년/월/주/일 스와이프)
   else if (event.shiftKey) {
     const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
     const currentIndex = scopeOrder.indexOf(currentScope);
@@ -976,9 +984,7 @@ document.addEventListener('keydown', function(event) {
       if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1) window.setScope(scopeOrder[currentIndex + 1]);
     }
   }
-  // 4. 단일 키 단축키
   else {
-    // 💡 [추천 추가: 슬래시] 검색창 빠르게 열기
     if (event.key === '/') { 
       event.preventDefault();
       if (typeof window.openSearchModal === 'function') window.openSearchModal();
