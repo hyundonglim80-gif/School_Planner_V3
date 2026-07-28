@@ -8,9 +8,16 @@ let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
 window.currentDate = new Date(); 
 
+// 🎯 데이터 변경 감지용 전역 변수
+window.hasUnsavedChanges = false;
+
 window.toggleWeekend = function() {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
+  }
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+  window.hasUnsavedChanges = false;
   window.render();
 };
 
@@ -72,14 +79,22 @@ function updateTitle() {
 }
 
 window.setScope = function(scope) {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 다른 보기로 이동하시겠습니까?")) return;
+  }
   currentScope = scope;
   localStorage.setItem('workCalendar_scope', scope);
+  window.hasUnsavedChanges = false;
   window.render();
 };
 
 window.setMode = function(mode) {
+  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 뷰어 모드로 전환하시겠습니까?")) return;
+  }
   currentMode = mode;
   localStorage.setItem('workCalendar_mode', mode);
+  if (mode === 'viewer') window.hasUnsavedChanges = false;
   window.render();
 };
 
@@ -192,10 +207,14 @@ window.saveCurrentViewData = async function() {
     editorBtn.disabled = false;
   }
   
+  window.hasUnsavedChanges = false; // 💡 저장 완료 시 플래그 리셋
   window.setMode('viewer'); 
 };
 
 window.moveDate = function(dir) {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 날짜를 이동하시겠습니까?")) return;
+  }
   if (currentScope === 'day') {
     window.currentDate.setDate(window.currentDate.getDate() + dir);
   } else if (currentScope === 'week') {
@@ -205,15 +224,20 @@ window.moveDate = function(dir) {
   } else if (currentScope === 'year') {
     window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
   }
+  window.hasUnsavedChanges = false;
   window.render();
 };
 
-// 🎯 수정한 부분: 클릭 시 무조건 현재 실제 날짜(오늘)로 돌아가는 기능 추가
 window.goToToday = function() {
-  window.currentDate = new Date(); // 접속한 기기의 현재 시간으로 완전 초기화
-  window.render(); // 화면 즉시 다시 그리기
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 오늘 날짜로 돌아가시겠습니까?")) return;
+  }
+  window.currentDate = new Date();
+  window.hasUnsavedChanges = false;
+  window.render();
 };
 
+// 🎯 DOMContentLoaded 시 전역 이벤트 리스너(변경 감지 및 브라우저 이탈 경고) 추가
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -225,6 +249,23 @@ window.addEventListener('DOMContentLoaded', () => {
       else window.saveCurrentViewData();
     });
   }
+
+  // 💡 사용자가 텍스트를 입력하거나(input), 라벨을 변경할 때(change) 변경 상태 감지
+  const markUnsaved = () => {
+    if (currentMode === 'editor') {
+      window.hasUnsavedChanges = true;
+    }
+  };
+  document.addEventListener('input', markUnsaved);
+  document.addEventListener('change', markUnsaved);
+
+  // 💡 브라우저 새로고침이나 탭 닫기 시도 시 경고
+  window.addEventListener('beforeunload', (e) => {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = ''; // 표준 방식에 따라 빈 문자열을 넘김
+    }
+  });
 
   window.auth.onAuthStateChanged(user => {
     if (user) {
@@ -513,6 +554,7 @@ window.uploadCSV = async function(input) {
 // ==========================================================================
 
 const fieldMeta = {
+  'all': { label: '전체', color: '#0f172a', bg: '#f1f5f9', border: '#cbd5e1' }, // 💡 전체 검색 추가됨
   'event': { label: '일정', color: '#0284c7', bg: '#e0f2fe', border: '#38bdf8' },
   'subject': { label: '과목명', color: '#059669', bg: '#dcfce3', border: '#34d399' },
   'memo': { label: '수업 메모', color: '#6d28d9', bg: '#f3e8ff', border: '#c084fc' },
@@ -570,6 +612,9 @@ window.removeSearchField = function(uniqueId) {
 };
 
 window.goToDayAndCloseSearch = function(dateStr) {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) {
+    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
+  }
   window.closeSearchModal();
   if (window.goToDay) {
     window.goToDay(dateStr);
@@ -578,6 +623,7 @@ window.goToDayAndCloseSearch = function(dateStr) {
     window.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     window.setScope('day');
   }
+  window.hasUnsavedChanges = false;
 };
 
 window.getSearchTargetDates = function(eventMap) {
@@ -693,7 +739,7 @@ window.getSearchTargetDates = function(eventMap) {
   return dates;
 };
 
-// 🚀 검색 실행 함수
+// 🚀 검색 실행 함수 (전체 검색 로직 포함)
 window.executeSearch = async function() {
   const rows = document.querySelectorAll('#active-search-fields > div');
   
@@ -775,7 +821,9 @@ window.executeSearch = async function() {
       }
     }
 
+    // 💡 '전체' 검색 시 모든 데이터를 합쳐서 검색할 수 있도록 맵핑
     const textMap = {
+      'all': [dayEvent, daySubjectText.join(' '), dayMemoText.join(' '), daySuppliesText.join(' '), dayJournalText].join(' '),
       'event': dayEvent,
       'subject': daySubjectText.join(' '),
       'memo': dayMemoText.join(' '),
