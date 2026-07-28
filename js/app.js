@@ -1,14 +1,9 @@
 // js/app.js
 
-/**
- * 📌 [전역 상태 변수]
- */
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
 window.currentDate = new Date(); 
-
-// 🎯 데이터 변경 감지용 전역 변수
 window.hasUnsavedChanges = false;
 
 window.toggleWeekend = function() {
@@ -138,10 +133,22 @@ function updateButtonUI() {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
-  const navBtns = document.querySelectorAll('.nav-btn');
-  navBtns.forEach(btn => {
-    btn.style.display = (currentScope === 'memo') ? 'none' : '';
-  });
+  // 💡 버튼 보임/숨김 로직 수정 (간격 유지되도록 inline-block, none 등으로 명확히 설정)
+  const searchBtn = document.getElementById('btn-search');
+  if (searchBtn) {
+    searchBtn.style.display = (currentScope !== 'memo') ? 'inline-block' : 'none';
+  }
+
+  const moreBtn = document.getElementById('btn-more-menu');
+  if (moreBtn) {
+    moreBtn.style.display = (currentScope !== 'memo') ? 'inline-flex' : 'none';
+  }
+
+  const weekendBtn = document.getElementById('btn-toggle-weekend');
+  if (weekendBtn) {
+    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보기';
+    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
+  }
 
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
@@ -157,37 +164,10 @@ function updateButtonUI() {
     }
   }
 
-  // 💡 수정된 부분: 뷰어/수정 모드에 상관없이 '메모' 탭만 아니라면 항상 보이도록 수정
-  const searchBtn = document.getElementById('btn-search');
-  if (searchBtn) {
-    if (currentScope !== 'memo') {
-      searchBtn.style.display = 'inline-block';
-    } else {
-      searchBtn.style.display = 'none';
-    }
-  }
-
-  // 💡 수정된 부분: 뷰어/수정 모드에 상관없이 '메모' 탭만 아니라면 항상 보이도록 수정
-  const moreBtn = document.getElementById('btn-more-menu');
-  if (moreBtn) {
-    if (currentScope !== 'memo') {
-      moreBtn.style.display = 'inline-flex';
-    } else {
-      moreBtn.style.display = 'none';
-    }
-  }
-
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
-
-  const weekendBtn = document.getElementById('btn-toggle-weekend');
-  if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보기';
-    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
-  }
 }
 
-// 💡 [신규] 사용 설명서 모달 열기/닫기 함수 추가
 window.openHelpModal = function() {
   document.getElementById('help-modal').classList.remove('hidden');
   const dropdown = document.getElementById('more-dropdown');
@@ -200,28 +180,19 @@ window.closeHelpModal = function() {
 
 window.saveCurrentViewData = async function() {
   const editorBtn = document.getElementById('btn-mode-editor');
-  
   if (editorBtn) {
     editorBtn.innerHTML = "⏳ 저장중..";
     editorBtn.disabled = true;
   }
 
-  if (currentScope === 'day' && window.saveDayDataFromEditor) {
-    await window.saveDayDataFromEditor();
-  } else if (currentScope === 'week' && window.saveWeekDataFromEditor) {
-    await window.saveWeekDataFromEditor();
-  } else if (currentScope === 'month' && window.saveMonthDataFromEditor) {
-    await window.saveMonthDataFromEditor();
-  } else if (currentScope === 'year' && window.saveYearDataFromEditor) {
-    await window.saveYearDataFromEditor();
-  }
+  if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
+  else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
+  else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
+  else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
   alert("✅ 클라우드 데이터베이스에 저장되었습니다!");
 
-  if (editorBtn) {
-    editorBtn.disabled = false;
-  }
-  
+  if (editorBtn) editorBtn.disabled = false;
   window.hasUnsavedChanges = false; 
   window.setMode('viewer'); 
 };
@@ -230,15 +201,11 @@ window.moveDate = function(dir) {
   if (currentMode === 'editor' && window.hasUnsavedChanges) {
     if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 날짜를 이동하시겠습니까?")) return;
   }
-  if (currentScope === 'day') {
-    window.currentDate.setDate(window.currentDate.getDate() + dir);
-  } else if (currentScope === 'week') {
-    window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  } else if (currentScope === 'month') {
-    window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-  } else if (currentScope === 'year') {
-    window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
-  }
+  if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
+  else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+  else if (currentScope === 'month') window.currentDate.setMonth(window.currentDate.getMonth() + dir);
+  else if (currentScope === 'year') window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  
   window.hasUnsavedChanges = false;
   window.render();
 };
@@ -264,11 +231,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const markUnsaved = () => {
-    if (currentMode === 'editor') {
-      window.hasUnsavedChanges = true;
-    }
-  };
+  const markUnsaved = () => { if (currentMode === 'editor') window.hasUnsavedChanges = true; };
   document.addEventListener('input', markUnsaved);
   document.addEventListener('change', markUnsaved);
 
@@ -308,12 +271,8 @@ window.getTargetDateList = function() {
     const dayOfWeek = tempDate.getDay();
     const diffToSun = tempDate.getDate() - dayOfWeek;
     tempDate.setDate(diffToSun);
-
     for (let i = 0; i < 7; i++) {
-      if (!window.showWeekend && (i === 0 || i === 6)) {
-        tempDate.setDate(tempDate.getDate() + 1);
-        continue;
-      }
+      if (!window.showWeekend && (i === 0 || i === 6)) { tempDate.setDate(tempDate.getDate() + 1); continue; }
       dates.push({ dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()] });
       tempDate.setDate(tempDate.getDate() + 1);
     }
@@ -478,7 +437,7 @@ window.uploadCSV = async function(input) {
         const dateStr = `${y}-${m}-${d}`;
         
         const eventText = parseExcelText(row[4]);
-        const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)');
+        const isSkipDay = window.checkSkipConditionFromText(eventText);
         const periodsData = {};
         
         for (let p = 1; p <= 6; p++) {
@@ -938,7 +897,6 @@ document.addEventListener('keydown', function(event) {
     return;
   }
 
-  // 💡 [수정] Esc 누를 때 도움말 창(help-modal)도 닫히게 처리
   if (event.key === 'Escape') {
     if (typeof window.closeSearchModal === 'function') window.closeSearchModal();
     if (typeof window.closeTimetableModal === 'function') window.closeTimetableModal();
@@ -996,22 +954,17 @@ document.addEventListener('keydown', function(event) {
 // 🏷️ [신규 시스템] 전역 일정 라벨 관리 및 렌더링 엔진
 // ==========================================================================
 
-// 1. 기본 라벨 설정 및 로드 (단순 문자열 배열 -> 객체 배열로 마이그레이션 포함)
+// 1. 기본 라벨 설정 및 로드
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v2'));
-    
-    // V2(객체 형태) 데이터가 없다면
     if (!labels) {
-        // 기존 V1(문자열 배열) 데이터 확인
         let oldLabels = JSON.parse(localStorage.getItem('workCalendar_eventLabels'));
         if (oldLabels && Array.isArray(oldLabels)) {
-            // V1을 V2로 변환 (기존 '전일행사'만 수업 삭제 속성 부여)
             labels = oldLabels.map(l => ({
                 name: l,
                 isSkip: l === '전일행사' || l === '휴일'
             }));
         } else {
-            // 완전 초기 기본값
             labels = [
                 { name: '일정', isSkip: false },
                 { name: '행사', isSkip: false },
@@ -1020,27 +973,23 @@ window.getEventLabels = function() {
                 { name: '기타', isSkip: false }
             ];
         }
-        // V2로 저장
         localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(labels));
     }
     return labels;
 };
 
-// 2. 특정 라벨이 수업을 삭제해야 하는(isSkip) 라벨인지 확인하는 헬퍼
+// 2. 특정 라벨이 수업을 삭제해야 하는(isSkip) 라벨인지 확인
 window.isSkipLabel = function(labelName) {
     const labels = window.getEventLabels();
     const target = labels.find(l => l.name === labelName);
-    return target ? target.isSkip : false; // 없으면 기본적으로 삭제 안함
+    return target ? target.isSkip : false; 
 };
 
-// 3. 텍스트를 파싱하여, 수업 삭제 조건(isSkip)이 하나라도 있는지 확인하는 헬퍼 (일괄 적용 시 사용)
+// 3. 텍스트를 파싱하여, 수업 삭제 조건(isSkip)이 하나라도 있는지 확인
 window.checkSkipConditionFromText = function(rawText) {
     if (!rawText) return false;
-    
-    // 1) 명시적 구버전 키워드 체크 (안전장치)
     if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
 
-    // 2) 정규식으로 [라벨] 추출하여 설정 확인
     const regex = /\[(.*?)\]/g;
     let match;
     while ((match = regex.exec(rawText)) !== null) {
@@ -1054,7 +1003,6 @@ window.renderEventLabelManager = function() {
     const container = document.getElementById('event-label-list-container');
     if (!container) return;
     
-    // 모달을 열 때마다 로컬 스토리지에서 최신 상태를 복사해서 작업용으로 씁니다.
     window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
     
     const drawList = () => {
@@ -1101,26 +1049,25 @@ window.saveEventLabels = function() {
     localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
     document.getElementById('event-label-modal').classList.add('hidden');
     alert("라벨 설정이 저장되었습니다.");
-    window.render(); // 현재 화면 새로고침하여 바뀐 설정 적용
+    window.render(); 
 };
 
-// 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환하는 헬퍼
+// 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환
 window.generateEventBadgesHTML = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
     
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
     eventList.forEach(e => {
-        // 라벨에 따라 색상 자동 결정
-        let badgeColor = '#2563eb'; // 기본 파랑
+        let badgeColor = '#2563eb'; 
         let badgeBg = '#dbeafe';
         let textStyle = '';
         
         if (window.isSkipLabel(e.label)) {
-            badgeColor = '#ef4444'; // 삭제 적용 라벨은 빨강
+            badgeColor = '#ef4444'; 
             badgeBg = '#fee2e2';
-            textStyle = 'color:#ef4444; font-weight:bold;'; // 텍스트도 빨갛게 강조
+            textStyle = 'color:#ef4444; font-weight:bold;'; 
         } else if (e.label === '제출') {
-            badgeColor = '#d97706'; // 제출은 주황
+            badgeColor = '#d97706'; 
             badgeBg = '#fef3c7';
         }
 
@@ -1148,18 +1095,13 @@ if (!window.parseRawEventTextToEventList) {
           
           const match = t.match(/^\[(.*?)\]\s*(.*)$/);
           if (match) {
-              // 사용자가 괄호를 쳐서 입력한 경우
               let labelName = match[1].trim();
-              // 유효하지 않은 라벨을 손으로 쳤다면 기본 라벨('일정' 등)로 변경
               if (!validLabels.includes(labelName)) {
                   labelName = validLabels[0] || '일정'; 
               }
               eventList.push({ label: labelName, content: match[2].trim() });
           } else {
-              // 괄호 없이 텍스트만 쳤을 경우, 기본 라벨 부여
               let defaultLabel = validLabels[0] || '일정';
-              
-              // 💡 구버전 하위호환: (휴일), (행사)를 쳤으면 수업삭제 라벨을 찾아 부여 시도
               if (t.includes('(휴일)') || t.includes('(행사)')) {
                   const skipLabel = window.getEventLabels().find(l => l.isSkip);
                   if (skipLabel) defaultLabel = skipLabel.name;
