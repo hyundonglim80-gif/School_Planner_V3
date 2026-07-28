@@ -227,13 +227,18 @@ window.saveCurrentViewData = async function() {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  alert("✅ 클라우드 데이터베이스에 저장되었습니다!"); // ❌ 이 귀찮은 알림창!
-
-  // 저장 후에도 수정 모드를 계속 유지합니다.
+  // 💡 알림창(alert)을 삭제하고 버튼 글씨로 부드럽게 완료 상태를 알려줍니다.
   if (editorBtn) {
-    editorBtn.innerHTML = '💾 저장';
-    editorBtn.disabled = false;
+    editorBtn.innerHTML = '✅ 저장 완료';
+    setTimeout(() => {
+      // 1.5초 뒤에 현재 에디터 모드라면 다시 '저장' 버튼으로 복구
+      if (currentMode === 'editor') {
+        editorBtn.innerHTML = '💾 저장';
+        editorBtn.disabled = false;
+      }
+    }, 1500); 
   }
+  
   window.hasUnsavedChanges = false; 
 };
 
