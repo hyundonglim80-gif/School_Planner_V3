@@ -49,7 +49,7 @@
 
         <div id="user-info" style="display:none; align-items:center; gap:8px; margin-left:10px; padding-left:12px; border-left:2px solid #cbd5e1;">
             <img id="user-photo" src="" style="width:32px; height:32px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
-            <button onclick="signOut()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.95rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+            <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.95rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
         </div>
 
       </div>
@@ -146,6 +146,7 @@
         </div>
         
         <div id="search-filter-buttons" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+          <button onclick="addSearchField('all')" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);">+ 전체(통합)</button>
           <button onclick="addSearchField('event')" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
           <button onclick="addSearchField('subject')" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
           <button onclick="addSearchField('memo')" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c084fc; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 수업 메모</button>
@@ -154,7 +155,7 @@
         </div>
 
         <div id="active-search-fields" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 20px;">
-          </div>
+        </div>
         
         <button onclick="executeSearch()" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">🚀 데이터 찾기</button>
       </div>
@@ -162,7 +163,7 @@
       <div style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;">
         <div id="search-results-count" style="margin-bottom: 15px; font-weight: bold; color: #2563eb; font-size: 1.1rem;"></div>
         <div id="search-results-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
-          </div>
+        </div>
       </div>
 
     </div>
