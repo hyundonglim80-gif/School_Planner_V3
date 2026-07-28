@@ -13,11 +13,11 @@ window.renderMemoView = async function(container) {
 
   let html = `
     <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); max-width:800px; margin:0 auto;">
-      <div style="display:flex; gap:8px; margin-bottom:20px;">
-        <input type="text" id="memo-input-text" placeholder="새 할 일 추가 (엔터 입력)..." 
-               style="flex:1; padding:10px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.5rem; outline:none;"
-               onkeypress="if(event.key === 'Enter') addMemoItem()">
-        <button onclick="addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">추가</button>
+      <div style="display:flex; gap:8px; margin-bottom:20px; align-items:flex-start;">
+        <textarea id="memo-input-text" placeholder="새 할 일 추가 (여러 줄 입력 가능)..." 
+               style="flex:1; padding:10px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.5rem; outline:none; resize:none; overflow:hidden; min-height:46px; font-family:inherit; line-height:1.4;"
+               oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'"></textarea>
+        <button onclick="addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:46px; white-space:nowrap;">추가</button>
       </div>
       
       <div class="section-title">진행 중인 업무 (${activeMemos.length})</div>
@@ -50,15 +50,16 @@ window.generateMemoHTML = function(item, index, totalLength, isCompleted) {
     dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
   }
 
+  // 💡 텍스트 줄바꿈 처리를 위해 white-space: pre-wrap 추가
   return `
-    <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex: 1; padding-right: 10px; margin: 0;">
-        ${dragHandleHtml}
-        <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0;">
-        <span style="font-size:1.5rem; word-break: keep-all; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
+    <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
+      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
+        <div style="padding-top:2px;">${dragHandleHtml}</div>
+        <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px;">
+        <span style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
       </label>
       
-      <div class="memo-controls" style="display: flex; justify-content: flex-end;">
+      <div class="memo-controls" style="display: flex; justify-content: flex-end; padding-top:2px;">
         ${deleteBtnHtml}
       </div>
     </div>
