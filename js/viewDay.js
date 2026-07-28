@@ -105,7 +105,6 @@ window.renderDayEditor = async function(container) {
     <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
         <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘의 일정/행사</h3>
-        <button onclick="window.openEventLabelModal()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
       </div>
       <div id="event-entries-container"></div>
       <button onclick="addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 칸 추가</button>
@@ -144,7 +143,6 @@ window.renderDayEditor = async function(container) {
     <div class="day-journal-editor-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
         <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘의 일지 기록</h3>
-        <button onclick="manageJournalLabels()" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; color:#334155; font-weight:bold; transition:0.2s;">⚙️ 라벨 설정</button>
       </div>
       <div id="journal-entries-container"></div>
       <button onclick="addJournalEntry()" style="width:100%; padding:10px; margin-top:5px; background:#fdf2f8; color:#be185d; border:2px dashed #f472b6; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일지 칸 추가</button>
@@ -173,6 +171,8 @@ window.renderEventEntries = function() {
       }
       
       let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
+      options += `<option disabled>──────────</option>`;
+      options += `<option value="__setting__">⚙️ 라벨 설정...</option>`;
       
       const isSkip = window.isSkipLabel(e.label);
       const selBg = isSkip ? '#fee2e2' : '#eff6ff';
@@ -180,7 +180,7 @@ window.renderEventEntries = function() {
       
       html += `
       <div class="event-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-          <select class="event-label-select" onchange="window.syncEventInputs(); window.renderEventEntries();" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${selColor}; background:${selBg}; transition:0.2s;">
+          <select class="event-label-select" onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.syncEventInputs(); window.renderEventEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${selColor}; background:${selBg}; transition:0.2s;">
               ${options}
           </select>
           <textarea class="event-content-input" placeholder="일정 내용을 입력하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
@@ -225,9 +225,12 @@ window.renderJournalEntries = function() {
   let html = '';
   window.currentJournals.forEach((j, index) => {
       let options = labels.map(l => `<option value="${l}" ${j.label === l ? 'selected' : ''}>${l}</option>`).join('');
+      options += `<option disabled>──────────</option>`;
+      options += `<option value="__setting__">⚙️ 라벨 설정...</option>`;
+      
       html += `
       <div class="journal-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-          <select class="journal-label-select" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#be185d; background:#fdf2f8;">
+          <select class="journal-label-select" onchange="if(this.value === '__setting__') { window.manageJournalLabels(); this.value='${j.label}'; } else { window.syncJournalInputs(); window.renderJournalEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#be185d; background:#fdf2f8;">
               ${options}
           </select>
           <textarea class="journal-content-input" placeholder="사건이나 감상 등을 편하게 작성하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${j.content}</textarea>
