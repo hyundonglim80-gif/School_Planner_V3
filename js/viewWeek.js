@@ -1,3 +1,5 @@
+//js/viewWeek.js
+
 window.getWeekDates = function() {
   const dates = [];
   const tempDate = new Date(window.currentDate);
@@ -73,16 +75,17 @@ window.renderWeekViewer = async function(container) {
           </div>
         </td>
         <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
+                <td colspan="${window.periodNames.length}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
             ${eventHtml}
         </td>
       </tr>
       <tr style="${window.showClass ? '' : 'display:none;'}">
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
+                ${window.periodNames.map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / window.periodNames.length}%; text-align: center;">${name}</td>`).join('')}
       </tr>
       <tr style="${window.showClass ? '' : 'display:none;'}">
-        ${[1, 2, 3, 4, 5, 6].map(p => {
+                ${window.periodNames.map((name, i) => {
+          const p = i + 1;
           const pObj = periods[p] || {};
           let content = '';
           if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
@@ -151,16 +154,17 @@ window.renderWeekEditor = async function(container) {
             일정<br>
             <button onclick="addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
         </td>
-        <td colspan="6" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
+                <td colspan="${window.periodNames.length}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
             ${compactEditorHtml}
         </td>
       </tr>
       <tr style="${window.showClass ? '' : 'display:none;'}">
         <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-        ${[1, 2, 3, 4, 5, 6].map(p => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: 14%; text-align: center;">${p}교시</td>`).join('')}
+                ${window.periodNames.map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / window.periodNames.length}%; text-align: center;">${name}</td>`).join('')}
       </tr>
       <tr data-week-schedule-date="${d.dateStr}" style="${window.showClass ? '' : 'display:none;'}">
-        ${[1, 2, 3, 4, 5, 6].map(p => {
+                ${window.periodNames.map((name, i) => {
+          const p = i + 1;
           const pObj = periods[p] || {};
           const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
           return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
