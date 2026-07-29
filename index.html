@@ -40,11 +40,11 @@
           <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;" title="더보기 및 메뉴">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
-            <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정 (수업 명칭/시수)</button>
-            <button class="dropdown-item" onclick="openHelpModal()">📖 사용 설명서 및 단축키 안내</button>
             <button class="dropdown-item" onclick="openTimetableModal()">🗓️ 기준시간표 등록/적용</button>
             <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
             <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
+            <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정 (수업 명칭/시수)</button>
+            <button class="dropdown-item" onclick="openHelpModal()">📖 사용 설명서 및 단축키 안내</button>
           </div>
           <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
         </div>
