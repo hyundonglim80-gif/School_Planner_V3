@@ -16,16 +16,18 @@ window.closeTimetableModal = function() {
   document.getElementById('timetable-modal').classList.add('hidden');
 };
 
-// 3. 1~6교시 입력용 표(Table) 동적 생성
+// 3. 동적 시수 설정에 맞춘 입력용 표(Table) 동적 생성
 function renderTimetableGrid() {
   const tbody = document.getElementById('tt-tbody');
   tbody.innerHTML = '';
   const days = ['월', '화', '수', '목', '금'];
   
-  for (let p = 1; p <= 6; p++) {
+  // 💡 수정: 6교시 하드코딩 제거, window.periodNames 배열 길이만큼 동적 생성
+  for (let p = 1; p <= window.periodNames.length; p++) {
     let tr = document.createElement('tr');
     let tdP = document.createElement('td');
-    tdP.textContent = p + '교시';
+    // 💡 수정: 숫자가 아닌 설정된 명칭(예: 아침활동, 1교시) 표시
+    tdP.textContent = window.periodNames[p - 1]; 
     tdP.style.fontWeight = 'bold';
     tdP.style.background = '#f8fafc';
     tr.appendChild(tdP);
@@ -46,7 +48,8 @@ window.loadBaseTimetable = async function() {
   
   // 입력창 초기화
   days.forEach(day => {
-    for(let p=1; p<=6; p++) {
+    // 💡 수정: 6교시 고정 해제
+    for(let p=1; p<=window.periodNames.length; p++) {
       const input = document.getElementById(`tt-input-${day}-${p}`);
       if(input) input.value = '';
     }
@@ -58,9 +61,10 @@ window.loadBaseTimetable = async function() {
       const data = doc.data();
       days.forEach(day => {
         if(data[day]) {
-          for(let p=1; p<=6; p++) {
+          for(let p=1; p<=window.periodNames.length; p++) { // 💡 수정
             if(data[day][p]) {
-              document.getElementById(`tt-input-${day}-${p}`).value = data[day][p];
+              const input = document.getElementById(`tt-input-${day}-${p}`);
+              if(input) input.value = data[day][p];
             }
           }
         }
@@ -83,8 +87,11 @@ window.saveBaseTimetable = async function() {
   
   days.forEach(day => {
     data[day] = {};
-    for(let p=1; p<=6; p++) {
-      data[day][p] = document.getElementById(`tt-input-${day}-${p}`).value.trim();
+    for(let p=1; p<=window.periodNames.length; p++) { // 💡 수정
+      const input = document.getElementById(`tt-input-${day}-${p}`);
+      if(input) {
+         data[day][p] = input.value.trim();
+      }
     }
   });
 
@@ -100,7 +107,7 @@ window.saveBaseTimetable = async function() {
   }
 };
 
-// 6. 기준시간표 지정된 날짜 기간에 일괄 적용하기 (전일행사 감지 로직 추가)
+// 6. 기준시간표 지정된 날짜 기간에 일괄 적용하기 (전일행사 감지 로직 포함)
 window.applyBaseTimetable = async function() {
   const sem = document.getElementById('apply-semester').value;
   const startDate = document.getElementById('apply-start-date').value;
@@ -153,13 +160,13 @@ window.applyBaseTimetable = async function() {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
         const eventText = eventDoc.exists ? (eventDoc.data().eventText || '') : '';
         
-        // 💡 [핵심 업데이트] 새로운 라벨인 [전일행사] 감지 로직을 추가했습니다.
         const isSkipDay = eventText.includes('(휴일)') || eventText.includes('(행사)') || eventText.includes('[전일행사]');
 
         const scheduleDoc = await window.getUserCol('schedules').doc(dateStr).get();
         let periods = scheduleDoc.exists ? (scheduleDoc.data().periods || {}) : {};
         
-        for(let p=1; p<=6; p++) {
+        // 💡 수정: 기존 6교시 고정에서 사용자가 설정한 최대 시수만큼 적용되도록 변경
+        for(let p=1; p<=window.periodNames.length; p++) {
           if(!periods[p]) periods[p] = { subject:'', memo:'', supplies:'' };
           
           if (isSkipDay) {
