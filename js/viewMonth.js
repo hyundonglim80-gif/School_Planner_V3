@@ -79,7 +79,8 @@ window.renderMonthViewer = async function(container) {
     let boxesHtml = '';
     let hasClass = false;
 
-    for (let p = 1; p <= 6; p++) {
+    // 💡 6교시 고정 대신 동적 배열 길이만큼 네모 박스 생성
+    for (let p = 1; p <= window.periodNames.length; p++) {
       const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
       if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
         const text = subject.trim();
@@ -147,7 +148,7 @@ window.renderMonthEditor = async function(container) {
           <tr style="background:#f1f5f9;">
             <th style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
             <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
-            <th colspan="6" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
+                        <th colspan="${window.periodNames.length}" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
           </tr>
         </thead>
         <tbody>
@@ -192,12 +193,13 @@ window.renderMonthEditor = async function(container) {
           `일정<br>` +
           `<button onclick="addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>` +
       `</td>` +
-      `<td colspan="6" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>` +
+            `<td colspan="${window.periodNames.length}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>` +
     `</tr>` +
-    `<tr data-month-sub="${item.dateStr}" style="${window.showClass ? '' : 'display:none;'}">` +
+   `<tr data-month-sub="${item.dateStr}" style="${window.showClass ? '' : 'display:none;'}">` +
       `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
       
-      for(let p=1; p<=6; p++) {
+      // 💡 에디터 칸도 설정된 개수만큼 동적 생성
+      for(let p=1; p<=window.periodNames.length; p++) {
          const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
          html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
       }
