@@ -115,63 +115,7 @@
     </div>
   </div>
 
-  <div id="search-modal" class="modal-overlay hidden" style="z-index: 10000; background: #f8fafc;">
-      <div style="width: 100%; height: 100%; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
-      
-      <div style="padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #fff;">
-        <h2 style="margin: 0; font-size: 1.5rem; color: #1e293b;">🔍 상세 검색</h2>
-        <button onclick="closeSearchModal()" style="font-size: 1.8rem; background: none; border: none; cursor: pointer; color: #64748b;" title="닫기 (Esc)">✖</button>
-      </div>
-      
-      <div style="padding: 20px; border-bottom: 2px solid #f1f5f9; background: #fff;">
-        
-        <div style="margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: #f1f5f9; padding: 10px 15px; border-radius: 8px;">
-          <label style="font-weight:bold; color:#1e293b; display:flex; align-items:center;">📅 검색 대상 기간:</label>
-          <select id="search-scope-select" onchange="toggleCustomDateSearch()" style="padding:8px; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; outline:none; background:#fff; color:#0f172a; cursor:pointer;">
-            <option value="current" id="search-scope-current-opt">현재 선택 범위 (기본)</option>
-            <option value="sem1">1학기</option>
-            <option value="sem2">2학기</option>
-            <option value="year">학년도</option>
-            <option value="custom">범위 지정</option>
-          </select>
-          <div id="custom-date-inputs" style="display:none; align-items:center; gap:5px;">
-            <input type="date" id="search-start-date" style="padding:7px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
-            <span style="font-weight:bold; color:#64748b;">~</span>
-            <input type="date" id="search-end-date" style="padding:7px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
-          </div>
-        </div>
-
-        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 15px; margin-bottom: 15px; border-radius: 4px;">
-          <p style="color: #475569; font-size: 0.95rem; margin: 0; line-height: 1.6;">
-            * <b>[추가]</b> 아래 항목 버튼을 눌러 조건을 추가하세요. (같은 버튼 중복 가능)<br>
-            * <b>[OR 검색]</b> 한 칸에 <b>/</b> 기호로 단어를 구분하세요. <span style="color:#94a3b8;">(예: 국어/수학)</span><br>
-            * <b>[AND 검색]</b> 칸을 <b>여러 개 추가</b>해서 단어를 각각 따로 입력하세요.
-          </p>
-        </div>
-        
-        <div id="search-filter-buttons" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-          <button onclick="addSearchField('all')" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);">+ 전체(통합)</button>
-          <button onclick="addSearchField('event')" style="background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일정</button>
-          <button onclick="addSearchField('subject')" style="background:#dcfce3; color:#059669; border:1px solid #34d399; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 과목명</button>
-          <button onclick="addSearchField('memo')" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c084fc; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 수업 메모</button>
-          <button onclick="addSearchField('supplies')" style="background:#ffedd5; color:#ea580c; border:1px solid #fdba74; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 준비물</button>
-          <button onclick="addSearchField('journal')" style="background:#fdf2f8; color:#be185d; border:1px solid #f472b6; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; transition:0.2s;">+ 일지(기록)</button>
-        </div>
-
-        <div id="active-search-fields" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 20px;">
-        </div>
-        
-        <button onclick="executeSearch()" style="width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">🚀 데이터 찾기</button>
-      </div>
-
-      <div style="flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc;">
-        <div id="search-results-count" style="margin-bottom: 15px; font-weight: bold; color: #2563eb; font-size: 1.1rem;"></div>
-        <div id="search-results-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 40px;">
-        </div>
-      </div>
-
-    </div>
-  </div>
+  
 
   <div id="event-label-modal" class="modal-overlay hidden" style="z-index: 10003; background: rgba(0,0,0,0.5); display: none; justify-content:center; align-items:center;">
     <div style="background:#fff; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
@@ -227,69 +171,7 @@
     </div>
   </div>
 
-    <div id="help-modal" class="modal-overlay hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10005; display:none; justify-content:center; align-items:center;">
-    <div class="modal-content" style="background:#fff; border-radius:12px; width:95%; max-width:650px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-      
-      <div style="padding:15px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-radius:12px 12px 0 0; flex-wrap: wrap; gap: 10px;">
-        <h2 style="margin:0; color:#1e40af; font-size:1.3rem;">💡 '업무 시트' 초보자 사용 가이드</h2>
-        <div style="display:flex; align-items:center; gap:15px;">
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:bold; color:#ef4444; font-size:0.9rem; background:#fee2e2; padding:5px 10px; border-radius:6px;">
-            <input type="checkbox" id="chk-hide-help" style="width:16px; height:16px; accent-color:#dc2626;">
-            다음부터 표시 안 함
-          </label>
-          <button onclick="window.closeHelpModal()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
-        </div>
-      </div>
-      
-      <div style="padding:20px; overflow-y:auto; line-height:1.7; color:#334155; font-size:1rem;">
-        <h3 style="color:#2563eb; margin-top:0; border-left:4px solid #3b82f6; padding-left:10px;">1. 기본 사용법 (읽기 vs 쓰기)</h3>
-        <ul style="padding-left:20px; margin-bottom:20px;">
-          <li>글을 <b>입력하거나 지울 때</b>는 우측 상단의 <b>[✏️ 수정]</b> 버튼을 눌러주세요.</li>
-          <li>입력이 끝난 후 <b>[💾 저장]</b> 버튼을 누르면 데이터가 안전하게 보관되며, <span style="color:#ef4444; font-weight:bold;">화면이 바뀌지 않아 계속 이어서 글을 쓰실 수 있습니다.</span></li>
-          <li>안전하게 다 쓰셨다면 <b>[👁️ 뷰어]</b>를 눌러 깔끔하게 정리된 화면으로 확인하세요.</li>
-        </ul>
-
-        <h3 style="color:#2563eb; border-left:4px solid #3b82f6; padding-left:10px;">2. 화면 이동하기</h3>
-        <ul style="padding-left:20px; margin-bottom:20px;">
-          <li>상단의 버튼으로 <b>연간, 월간, 주간, 일간</b> 달력 모양을 바꿀 수 있습니다.</li>
-          <li>달력 안에서 <b>날짜 숫자(예: 15일)</b>를 클릭하면, 그날의 <b>[하루 상세 보기]</b>로 쏙 들어갑니다!</li>
-          <li>스마트폰에서는 화면을 <b>좌우로 쓱 밀어서(스와이프)</b> 화면을 쉽게 넘길 수 있어요.</li>
-        </ul>
-
-        <h3 style="color:#2563eb; border-left:4px solid #3b82f6; padding-left:10px;">3. 알아두면 정말 편한 꿀팁 🍯</h3>
-        <ul style="padding-left:20px; margin-bottom:20px;">
-          <li><b>수업 및 주말 숨기기:</b> 위쪽의 [🎒 수업 숨기기], [📅 주말 숨기기]를 누르면 메모장처럼 쓸 수 있습니다.</li>
-          <li><b>태그(라벨) 내 맘대로 바꾸기:</b> 일정이나 일지를 쓸 때, <span style="color:#047857; font-weight:bold;">목록 제일 아래에 있는 '⚙️ 라벨 설정...'</span>을 누르면 나만의 분류 태그를 새로 만들거나 삭제할 수 있습니다.</li>
-          <li><b>수업 시간표 통째로 맞바꾸기:</b> [일 보기] 수정 화면에서 파란색 <b>교시 숫자(예: 1)</b>를 누르면 다른 날짜의 수업과 통째로 자리를 바꿀 수 있습니다.</li>
-          <li><b>과거 기록 찾기:</b> 돋보기(🔍) 버튼을 눌러 예전에 적은 일정, 메모, 준비물, 일지 등을 쉽게 찾아보세요.</li>
-        </ul>
-
-        <div style="background:#f0fdf4; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #bbf7d0;">
-          <h3 style="margin-top:0; color:#166534; font-size:1.05rem;">⚙️ 나만의 수업 시수 및 명칭 설정</h3>
-          <ul style="margin:0; padding-left:20px; color:#15803d; font-size:0.95rem; line-height:1.5;">
-              <li>우측 상단 <b>[ ⋮ 더보기 ]</b> 메뉴에서 <b>[ ⚙️ 환경 설정 ]</b>을 클릭하세요.</li>
-              <li>기본 1~6교시 외에 <b>'아침활동', '방과후' 등 원하는 이름으로 수정</b>할 수 있습니다.</li>
-              <li><b>[+] 버튼으로 칸을 늘리거나 [✖] 버튼으로 삭제</b>하여 시수를 조절해 보세요.</li>
-              <li>저장 시 주간, 일간, 월간 등 <b>모든 화면의 시간표 표가 설정한 개수에 맞춰 자동으로 렌더링</b>됩니다!</li>
-          </ul>
-        </div>
-                <h3 style="color:#2563eb; border-left:4px solid #3b82f6; padding-left:10px;">5. 마우스 없이 빠르게! (키보드 단축키 ⌨️)</h3>
-        <div style="background:#f1f5f9; padding:15px; border-radius:8px; display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.95rem;">
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Ctrl</kbd> + <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">↓</kbd> : <b>수정 모드</b> 켜기</div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Ctrl</kbd> + <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">↑</kbd> : <b>뷰어 모드</b> 켜기</div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Ctrl</kbd> + <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Enter</kbd> : <b>저장하기</b></div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Ctrl</kbd> + <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">스페이스바</kbd> : <b>오늘 날짜</b>로</div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">Ctrl</kbd> + <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">←</kbd> / <kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">→</kbd> : 날짜 앞/뒤 이동</div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">/</kbd> (슬래시) : <b>검색창</b> 열기</div>
-          <div><kbd style="background:#fff; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px;">ESC</kbd> : 열려있는 창(팝업) 닫기</div>
-        </div>
-      </div>
-      
-      <div style="padding:15px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:center; background:#f8fafc; border-radius:0 0 12px 12px;">
-        <button onclick="window.closeHelpModal()" style="width:100%; background:#2563eb; color:#fff; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; font-size:1.1rem; cursor:pointer; transition:0.2s; box-shadow:0 2px 4px rgba(37,99,235,0.3);">확인하고 시작하기</button>
-      </div>
-    </div>
-  </div>
+    
 
     
 
@@ -300,6 +182,8 @@
   <script src="js/firebase.js"></script>
   <script src="js/components/Modal.js"></script>
   <script src="js/modules/settings.js"></script>
+  <script src="js/modules/help.js"></script>
+  <script src="js/modules/search.js"></script>
   <script src="js/app.js"></script>
   <script src="js/timetable.js"></script>
   
