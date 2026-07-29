@@ -1358,11 +1358,16 @@ window.tempPeriodNames = [];
 window.loadSettings = async function() {
     try {
         const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists && doc.data().periodNames) {
+        // 데이터가 정상적으로 있고, 최소 1개 이상의 명칭이 저장되어 있을 때만 불러옴
+        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
             window.periodNames = doc.data().periodNames;
+        } else {
+            // 저장된게 이상하면 무조건 기본값 복구
+            window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
         }
     } catch (error) {
-        console.log("설정 데이터를 불러오는 중 대기...");
+        console.log("설정 데이터를 불러오는 중 대기, 기본값 적용...");
+        window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
     }
 };
 
@@ -1382,6 +1387,11 @@ if (!window.originalRenderForSettings) {
 
 // 3. 모달 제어 및 설정 리스트 렌더링
 window.openSettingsModal = function() {
+    // 만약 periodNames 배열이 날아갔다면 다시 1~6교시 주입
+    if (!window.periodNames || window.periodNames.length === 0) {
+        window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
+    }
+    
     window.tempPeriodNames = [...window.periodNames]; // 편집용 배열 복사
     document.getElementById('settings-modal').style.display = 'flex'; // 강제로 보이게 함
     
@@ -1390,7 +1400,6 @@ window.openSettingsModal = function() {
 
     window.renderSettingsPeriods();
 };
-
 window.closeSettingsModal = function() {
     document.getElementById('settings-modal').style.display = 'none'; // 강제로 숨김
 };
