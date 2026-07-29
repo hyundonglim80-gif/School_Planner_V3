@@ -1345,3 +1345,115 @@ window.saveJournalLabels = function() {
     alert("일지 라벨 설정이 성공적으로 저장되었습니다.");
     window.render(); // 화면 전체 새로고침 (뷰어/에디터에 즉시 반영)
 };
+
+// ==========================================================================
+// ⚙️ [1단계] 환경 설정 (수업 시수 및 명칭 동적 설정)
+// ==========================================================================
+
+// 1. 전역 변수 (기본값)
+window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
+window.tempPeriodNames = []; 
+
+// 2. DB에서 사용자별 설정 불러오기
+window.loadSettings = async function() {
+    try {
+        const doc = await window.getUserCol('settings').doc('preferences').get();
+        if (doc.exists && doc.data().periodNames) {
+            window.periodNames = doc.data().periodNames;
+        }
+    } catch (error) {
+        console.log("설정 데이터를 불러오는 중 대기...");
+    }
+};
+
+// 💡 기존 화면 렌더링 함수를 가로채서, DB에서 periodNames 배열을 무조건 먼저 가져오도록 안전 처리
+if (!window.originalRenderForSettings) {
+    window.originalRenderForSettings = window.render;
+    let isSettingsLoaded = false;
+    
+    window.render = async function() {
+        if (!isSettingsLoaded && typeof window.getUserCol === 'function') {
+            await window.loadSettings();
+            isSettingsLoaded = true;
+        }
+        if(window.originalRenderForSettings) window.originalRenderForSettings();
+    };
+}
+
+// 3. 모달 제어 및 설정 리스트 렌더링
+window.openSettingsModal = function() {
+    window.tempPeriodNames = [...window.periodNames]; // 편집용 배열 복사
+    document.getElementById('settings-modal').classList.remove('hidden');
+    
+    const dropdown = document.getElementById('more-dropdown');
+    if (dropdown) dropdown.classList.add('hidden'); // 점세개 메뉴 닫기
+
+    window.renderSettingsPeriods();
+};
+
+window.closeSettingsModal = function() {
+    document.getElementById('settings-modal').classList.add('hidden');
+};
+
+window.renderSettingsPeriods = function() {
+    const container = document.getElementById('settings-period-list');
+    container.innerHTML = '';
+
+    window.tempPeriodNames.forEach((name, index) => {
+        container.innerHTML += `
+            <div style="display:flex; gap:10px; align-items:center;">
+                <span style="background:#e2e8f0; color:#475569; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:0.9rem; font-weight:bold;">${index + 1}</span>
+                <input type="text" value="${name}" 
+                       onchange="window.tempPeriodNames[${index}] = this.value"
+                       style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
+                <button onclick="window.removePeriodInput(${index})" style="background:none; border:none; color:#ef4444; font-size:1.2rem; cursor:pointer;" title="삭제">✖</button>
+            </div>
+        `;
+    });
+};
+
+window.addPeriodInput = function() {
+    window.tempPeriodNames.push(`새 시간 ${window.tempPeriodNames.length + 1}`);
+    window.renderSettingsPeriods();
+};
+
+window.removePeriodInput = function(index) {
+    if (window.tempPeriodNames.length <= 1) {
+        alert("최소 1개의 시간은 존재해야 합니다.");
+        return;
+    }
+    window.tempPeriodNames.splice(index, 1);
+    window.renderSettingsPeriods();
+};
+
+window.saveSettings = async function(event) {
+    const finalNames = window.tempPeriodNames.map(n => n.trim()).filter(n => n !== '');
+    
+    if (finalNames.length === 0) {
+        alert("최소 1개의 유효한 명칭을 입력해야 합니다.");
+        return;
+    }
+
+    const btn = event.target;
+    btn.textContent = "저장 중...";
+    btn.disabled = true;
+
+    try {
+        await window.getUserCol('settings').doc('preferences').set({
+            periodNames: finalNames,
+            updatedAt: Date.now()
+        }, { merge: true });
+
+        window.periodNames = [...finalNames];
+        alert("환경 설정이 성공적으로 저장되었습니다!");
+        window.closeSettingsModal();
+        
+        window.location.reload(); // 새로 바뀐 설정으로 화면 강제 새로고침
+    } catch (error) {
+        console.error("설정 저장 실패:", error);
+        alert("저장 중 오류가 발생했습니다.");
+    } finally {
+        btn.textContent = "저장 및 적용";
+        btn.disabled = false;
+    }
+};
