@@ -1,3 +1,5 @@
+//js/viewDay.js
+
 const CURRENT_DAY_STR = () => window.formatDate(window.currentDate);
 
 window.parseEvents = function(docData) {
@@ -221,7 +223,7 @@ window.removeEventEntry = function(index) {
 window.renderJournalEntries = function() {
   const container = document.getElementById('journal-entries-container');
   if(!container) return;
-  let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels')) || ['참고', '사건', '감상', '기타'];
+  let labels = window.getJournalLabels().map(l => l.name);
   let html = '';
   window.currentJournals.forEach((j, index) => {
       let options = labels.map(l => `<option value="${l}" ${j.label === l ? 'selected' : ''}>${l}</option>`).join('');
@@ -230,7 +232,7 @@ window.renderJournalEntries = function() {
       
       html += `
       <div class="journal-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-          <select class="journal-label-select" onchange="if(this.value === '__setting__') { window.manageJournalLabels(); this.value='${j.label}'; } else { window.syncJournalInputs(); window.renderJournalEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#be185d; background:#fdf2f8;">
+          <select class="journal-label-select" onchange="if(this.value === '__setting__') { window.openJournalLabelModal(); this.value='${j.label}'; } else { window.syncJournalInputs(); window.renderJournalEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#be185d; background:#fdf2f8;">
               ${options}
           </select>
           <textarea class="journal-content-input" placeholder="사건이나 감상 등을 편하게 작성하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${j.content}</textarea>
@@ -257,7 +259,8 @@ window.syncJournalInputs = function() {
 
 window.addJournalEntry = function() {
   window.syncJournalInputs();
-  window.currentJournals.push({ label: '참고', content: '' });
+  const defaultLabel = window.getJournalLabels()[0]?.name || '참고';
+  window.currentJournals.push({ label: defaultLabel, content: '' });
   window.renderJournalEntries();
 };
 
@@ -265,20 +268,6 @@ window.removeJournalEntry = function(index) {
   window.syncJournalInputs();
   window.currentJournals.splice(index, 1);
   window.renderJournalEntries();
-};
-
-window.manageJournalLabels = function() {
-  let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels')) || ['참고', '사건', '감상', '기타'];
-  let currentStr = labels.join(', ');
-  let result = prompt("💡 일지의 종류(라벨)를 쉼표(,)로 구분하여 입력해주세요.", currentStr);
-  if(result !== null) {
-      let newLabels = result.split(',').map(s => s.trim()).filter(s => s !== '');
-      if(newLabels.length > 0) {
-          localStorage.setItem('workCalendar_journalLabels', JSON.stringify(newLabels));
-          window.syncJournalInputs();
-          window.renderJournalEntries();
-      }
-  }
 };
 
 window.openClassSwapModal = function(sourcePeriod) {
