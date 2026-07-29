@@ -1147,7 +1147,8 @@ window.renderEventLabelManager = function() {
     const container = document.getElementById('event-label-list-container');
     if (!container) return;
     
-    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
+    // 💡 버그 원인 제거: 화면을 다시 그릴 때마다 원본으로 덮어씌우는 코드를 삭제합니다.
+    // window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
     
     const drawList = () => {
         container.innerHTML = '';
