@@ -653,36 +653,7 @@ document.addEventListener('keydown', function(event) {
     return;
   }
 
-  if (event.key === 'Escape') {
-    // 1. 지정된 닫기 함수가 있는 모달들 실행
-    if (typeof window.closeSearchModal === 'function') window.closeSearchModal();
-    if (typeof window.closeTimetableModal === 'function') window.closeTimetableModal();
-    if (typeof window.closeHelpModal === 'function') window.closeHelpModal();
-    if (typeof window.closeSettingsModal === 'function') window.closeSettingsModal();
-
-    // 2. HTML에 숨겨져 있는 모달창들(라벨 관리, 환경설정 등) 강제 숨김
-    ['event-label-modal', 'journal-label-modal', 'settings-modal'].forEach(id => {
-        const modal = document.getElementById(id);
-        if (modal) {
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
-        }
-    });
-
-    // 3. JS로 동적 생성된 팝업창(수업 자리바꾸기, 메모 링크 추가 등) 완전 삭제
-    ['swap-modal', 'quick-link-modal', 'link-modal'].forEach(id => {
-        const modal = document.getElementById(id);
-        if (modal) modal.remove();
-    });
-
-    // 4. (강력한 안전장치) 화면에 켜져 있는 모든 'modal-overlay' 클래스를 찾아 숨김
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-    });
-
-    return;
-  }
+  
 
   if (isTyping) return;
 
