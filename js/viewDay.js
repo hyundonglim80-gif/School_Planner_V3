@@ -41,8 +41,10 @@ window.renderDayViewer = async function(container) {
   // 💡 수업 숨기기 적용
   if (window.showClass) {
     html += `<div class="period-card-list">`;
-    for (let p = 1; p <= 6; p++) {
+    // 🎯 6교시 고정 대신 환경 설정의 명칭과 개수 배열을 사용
+    for (let p = 1; p <= window.periodNames.length; p++) {
       const pData = periods[p] || {};
+      const periodName = window.periodNames[p - 1]; // 아침활동 등 명칭 가져오기
       const subject = pData.subject || '';
       const supplies = pData.supplies || '';
       const memo = pData.memo || '';
@@ -52,7 +54,7 @@ window.renderDayViewer = async function(container) {
 
       html += `
         <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
-          <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${p}교시: ${subject}</div>
+          <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${periodName}: ${subject}</div>
           ${memoHtml}
           ${suppliesHtml}
         </div>
@@ -128,11 +130,13 @@ window.renderDayEditor = async function(container) {
           <tbody>
   `;
 
-  for (let p = 1; p <= 6; p++) {
+  // 🎯 에디터에서도 동적 배열 사용
+  for (let p = 1; p <= window.periodNames.length; p++) {
     const pObj = periods[p] || {};
+    const periodName = window.periodNames[p - 1]; // 명칭 가져오기
     html += `
             <tr data-period="${p}">
-              <td class="period-cell" onclick="openClassSwapModal(${p})" style="cursor:pointer; color:#2563eb; text-decoration:underline; font-weight:900;" title="클릭하여 수업 이동/맞바꾸기">${p}</td>
+              <td class="period-cell" onclick="openClassSwapModal(${p})" style="cursor:pointer; color:#2563eb; text-decoration:underline; font-weight:900; font-size:0.9rem;" title="클릭하여 수업 이동/맞바꾸기">${periodName}</td>
               <td class="editable-cell cell-subject" contenteditable="true">${pObj.subject || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;">${pObj.memo || ''}</td>
               <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;">${pObj.supplies || ''}</td>
@@ -272,20 +276,25 @@ window.removeJournalEntry = function(index) {
 
 window.openClassSwapModal = function(sourcePeriod) {
   const sourceDate = CURRENT_DAY_STR();
+  const sourceName = window.periodNames[sourcePeriod - 1] || sourcePeriod + '교시'; // 🎯 현재 누른 칸의 동적 이름 추출
+
   const modalHtml = `
   <div id="swap-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
       <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-          <h3 style="margin-top:0; color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">🔄 ${sourcePeriod}교시 이동/맞바꾸기</h3>
-          <p style="font-size:0.95rem; color:#475569; margin-bottom:15px; line-height:1.4;">선택한 ${sourcePeriod}교시의 내용(과목,메모,준비물)을 아래 선택한 날짜/교시와 <b>서로 맞바꿉니다.</b></p>
+          <h3 style="margin-top:0; color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">🔄 ${sourceName} 이동/맞바꾸기</h3>
+          <p style="font-size:0.95rem; color:#475569; margin-bottom:15px; line-height:1.4;">선택한 ${sourceName}의 내용(과목,메모,준비물)을 아래 선택한 날짜/시간과 <b>서로 맞바꿉니다.</b></p>
           
           <div style="margin-bottom:15px;">
               <label style="display:block; font-weight:bold; margin-bottom:5px; color:#1e293b;">목표 날짜</label>
               <input type="date" id="swap-target-date" value="${sourceDate}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1.05rem; outline:none;">
           </div>
           <div style="margin-bottom:25px;">
-              <label style="display:block; font-weight:bold; margin-bottom:5px; color:#1e293b;">목표 교시</label>
+              <label style="display:block; font-weight:bold; margin-bottom:5px; color:#1e293b;">목표 시간</label>
               <select id="swap-target-period" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1.05rem; outline:none;">
-                  ${[1,2,3,4,5,6].map(p => `<option value="${p}" ${p===sourcePeriod ? 'selected' : ''}>${p}교시</option>`).join('')}
+                  ${window.periodNames.map((name, i) => {
+                     let pIndex = i + 1;
+                     return `<option value="${pIndex}" ${pIndex === sourcePeriod ? 'selected' : ''}>${name}</option>`;
+                  }).join('')}
               </select>
           </div>
           
@@ -307,7 +316,8 @@ window.executeClassSwap = async function(sourcePeriod) {
   if (!targetDate) return alert("목표 날짜를 선택해주세요.");
 
   const currentDOMPeriods = {};
-  for(let p=1; p<=6; p++) {
+  // 🎯 여기서도 6 대신 환경설정 개수로 매칭
+  for(let p=1; p<=window.periodNames.length; p++) {
       const row = document.querySelector(`tr[data-period="${p}"]`);
       currentDOMPeriods[p] = {
           subject: (row.querySelector(".cell-subject").innerText||'').trim(),
