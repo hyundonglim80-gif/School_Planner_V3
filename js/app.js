@@ -1383,7 +1383,7 @@ if (!window.originalRenderForSettings) {
 // 3. 모달 제어 및 설정 리스트 렌더링
 window.openSettingsModal = function() {
     window.tempPeriodNames = [...window.periodNames]; // 편집용 배열 복사
-    document.getElementById('settings-modal').classList.remove('hidden');
+    document.getElementById('settings-modal').style.display = 'flex'; // 강제로 보이게 함
     
     const dropdown = document.getElementById('more-dropdown');
     if (dropdown) dropdown.classList.add('hidden'); // 점세개 메뉴 닫기
@@ -1392,9 +1392,8 @@ window.openSettingsModal = function() {
 };
 
 window.closeSettingsModal = function() {
-    document.getElementById('settings-modal').classList.add('hidden');
+    document.getElementById('settings-modal').style.display = 'none'; // 강제로 숨김
 };
-
 window.renderSettingsPeriods = function() {
     const container = document.getElementById('settings-period-list');
     container.innerHTML = '';
