@@ -1351,8 +1351,8 @@ window.saveJournalLabels = function() {
 // ==========================================================================
 
 // 1. 전역 변수 (기본값)
-window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
-window.tempPeriodNames = []; 
+window.periodNames = ["1", "2", "3", "4", "5", "6"];
+window.tempPeriodNames = [];
 
 // 2. DB에서 사용자별 설정 불러오기
 window.loadSettings = async function() {
@@ -1363,11 +1363,11 @@ window.loadSettings = async function() {
             window.periodNames = doc.data().periodNames;
         } else {
             // 저장된게 이상하면 무조건 기본값 복구
-            window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
+            window.periodNames = ["1", "2", "3", "4", "5", "6"];
         }
     } catch (error) {
         console.log("설정 데이터를 불러오는 중 대기, 기본값 적용...");
-        window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
+        window.periodNames = ["1", "2", "3", "4", "5", "6"];
     }
 };
 
@@ -1387,9 +1387,9 @@ if (!window.originalRenderForSettings) {
 
 // 3. 모달 제어 및 설정 리스트 렌더링
 window.openSettingsModal = function() {
-    // 만약 periodNames 배열이 날아갔다면 다시 1~6교시 주입
+    // 만약 periodNames 배열이 날아갔다면 다시 1~6 주입
     if (!window.periodNames || window.periodNames.length === 0) {
-        window.periodNames = ["1교시", "2교시", "3교시", "4교시", "5교시", "6교시"];
+        window.periodNames = ["1", "2", "3", "4", "5", "6"];
     }
     
     window.tempPeriodNames = [...window.periodNames]; // 편집용 배열 복사
