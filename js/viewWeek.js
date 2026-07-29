@@ -36,6 +36,22 @@ window.renderWeekViewer = async function(container) {
   let html = `
     <div class="clean-viewer-board">
       <table>
+        <thead>
+          <tr>
+            <th style="width: 10%;">날짜</th>
+            <th style="width: 15%;">일정 및 행사</th>
+  `;
+  
+  // 💡 수정: 6교시 하드코딩 제거 (설정된 교시 이름으로 헤더 동적 생성)
+  if (window.showClass) {
+    window.periodNames.forEach(name => {
+      html += `<th>${name}</th>`;
+    });
+  }
+  
+  html += `
+          </tr>
+        </thead>
         <tbody>
   `;
 
@@ -65,37 +81,32 @@ window.renderWeekViewer = async function(container) {
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-    // 💡 수업 숨기기 적용 (rowspan 조절 및 tr display 설정)
     html += `
       <tr>
-        <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
-          <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-            <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
-            <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
-          </div>
+        <td class="${todayClass}" style="font-weight:900; font-size: 1.1rem; color:${dateColor}; vertical-align:middle; text-align:center;">
+          <div style="font-size: 1.2rem;">${d.dateDisplay}</div>
+          <div style="font-size: 0.9rem; margin-top:4px;">(${d.day})</div>
         </td>
-        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-                <td colspan="${window.periodNames.length}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
-            ${eventHtml}
+        <td class="event-td ${todayClass}" style="vertical-align: top; padding: 10px;">
+          ${eventHtml}
         </td>
-      </tr>
-      <tr style="${window.showClass ? '' : 'display:none;'}">
-        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-                ${window.periodNames.map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / window.periodNames.length}%; text-align: center;">${name}</td>`).join('')}
-      </tr>
-      <tr style="${window.showClass ? '' : 'display:none;'}">
-                ${window.periodNames.map((name, i) => {
-          const p = i + 1;
-          const pObj = periods[p] || {};
-          let content = '';
-          if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
-          if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
-          return `<td style="vertical-align: top; text-align: left; padding: 6px 8px; height: var(--week-cell-height);">${content}</td>`;
-        }).join('')}
-      </tr>
     `;
-  }
 
+    if (window.showClass) {
+      // 💡 수정: 6교시 고정 해제, periodNames 배열 길이만큼 렌더링
+      for (let p = 1; p <= window.periodNames.length; p++) {
+        const pObj = periods[p] || {};
+        let content = '';
+        if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
+        if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
+        
+        html += `<td class="${todayClass}" style="vertical-align: top; text-align: left; padding: 6px 8px; height: var(--week-cell-height);">${content}</td>`;
+      }
+    }
+    
+    html += `</tr>`;
+  }
+  
   html += `</tbody></table></div>`;
   container.innerHTML = html;
 };
@@ -109,6 +120,22 @@ window.renderWeekEditor = async function(container) {
   let html = `
     <div class="table-container">
       <table>
+        <thead>
+          <tr>
+            <th style="width: 10%;">날짜</th>
+            <th style="width: 15%;">일정 및 행사</th>
+  `;
+  
+  // 💡 수정: 에디터에서도 헤더 동적 생성
+  if (window.showClass) {
+    window.periodNames.forEach(name => {
+      html += `<th>${name}</th>`;
+    });
+  }
+  
+  html += `
+          </tr>
+        </thead>
         <tbody>
   `;
 
@@ -118,20 +145,11 @@ window.renderWeekEditor = async function(container) {
     const dayData = await window.dbAPI.loadDayData(d.dateStr);
     
     const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
-    let eventList = [];
-    if (eventDoc.exists) {
-      const eData = eventDoc.data();
-      if (eData.eventList && eData.eventList.length > 0) {
-        eventList = eData.eventList;
-      } else if (eData.eventText) {
-        eventList = window.parseRawEventTextToEventList(eData.eventText);
-      }
-    }
-    
-    window[`tempEvents_${d.dateStr}`] = eventList; 
-    let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
-    compactEditorHtml += window.generateCompactEventEditor(d.dateStr);
-    compactEditorHtml += `</div>`; // 💡 여기 있던 버튼을 헤더(일정) 영역으로 옮겼습니다.
+    let eData = eventDoc.exists ? eventDoc.data() : null;
+    let events = eData ? window.parseRawEventTextToEventList(eData.eventText || '') : [];
+    if(eData && eData.eventList && eData.eventList.length > 0) events = eData.eventList;
+
+    window[`tempEvents_${d.dateStr}`] = events.length > 0 ? events : [{ label: window.getEventLabels()[0]?.name || '일정', content: '' }];
 
     const periods = dayData.periods || {};
     const isToday = (d.dateStr === realTodayStr);
@@ -141,140 +159,101 @@ window.renderWeekEditor = async function(container) {
     if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
     else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-    // 💡 수업 숨기기 로직 및 추가버튼 위치 최적화
     html += `
-      <tr data-week-date="${d.dateStr}">
-        <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" onclick="window.goToDay('${d.dateStr}')" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">
-          <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-            <span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${d.day}</span>
-            <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
-          </div>
+      <tr data-week-schedule-date="${d.dateStr}">
+        <td class="${todayClass}" style="font-weight:900; font-size: 1.1rem; color:${dateColor}; vertical-align:middle; text-align:center;">
+          <div style="font-size: 1.2rem;">${d.dateDisplay}</div>
+          <div style="font-size: 0.9rem; margin-top:4px;">(${d.day})</div>
         </td>
-        <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">
-            일정<br>
-            <button onclick="addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
+        <td class="${todayClass}" style="vertical-align: top; padding: 8px;">
+          <div id="week-event-editor-${d.dateStr}" style="display:flex; flex-direction:column; gap:6px;"></div>
+          <button onclick="addWeekEventEntry('${d.dateStr}')" style="width:100%; padding:6px; margin-top:6px; font-size:0.85rem; background:#eff6ff; color:#2563eb; border:1px dashed #bfdbfe; border-radius:4px; cursor:pointer;">+ 일정 추가</button>
         </td>
-                <td colspan="${window.periodNames.length}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
-            ${compactEditorHtml}
-        </td>
-      </tr>
-      <tr style="${window.showClass ? '' : 'display:none;'}">
-        <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-                ${window.periodNames.map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / window.periodNames.length}%; text-align: center;">${name}</td>`).join('')}
-      </tr>
-      <tr data-week-schedule-date="${d.dateStr}" style="${window.showClass ? '' : 'display:none;'}">
-                ${window.periodNames.map((name, i) => {
-          const p = i + 1;
-          const pObj = periods[p] || {};
-          const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-          return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
-        }).join('')}
-      </tr>
     `;
-  }
 
+    if (window.showClass) {
+      // 💡 수정: 에디터 수정 셀 동적 렌더링
+      for (let p = 1; p <= window.periodNames.length; p++) {
+        const pObj = periods[p] || {};
+        let cellText = pObj.subject ? `[${pObj.subject}]` : '';
+        if (pObj.memo) cellText += cellText ? `\n${pObj.memo}` : pObj.memo;
+        
+        html += `<td class="week-period-cell editable-cell ${todayClass}" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
+      }
+    }
+    
+    html += `</tr>`;
+  }
+  
   html += `</tbody></table></div>`;
   container.innerHTML = html;
-};
 
-// 💡 컴팩트 에디터 그리기 헬퍼 함수
-// 💡 컴팩트 에디터 그리기 헬퍼 함수
-window.generateCompactEventEditor = function(dateStr) {
-    const list = window[`tempEvents_${dateStr}`] || [];
-    const labels = window.getEventLabels();
-    let html = '';
-    
-    list.forEach((e, idx) => {
-        let options = labels.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
-        options += `<option disabled>──────────</option>`;
-        options += `<option value="__setting__">⚙️ 라벨 설정...</option>`;
-
-        html += `
-        <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
-            <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#1e40af; outline:none;">
-                ${options}
-            </select>
-            <input type="text" value="${e.content}" oninput="updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
-            <button onclick="removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer;" title="삭제">✖</button>
-        </div>`;
+  setTimeout(() => {
+    window.getWeekDates().forEach(d => {
+      window.renderWeekEventEntries(d.dateStr);
     });
-    return html;
+  }, 0);
 };
 
-window.updateCompactEvent = function(dateStr, idx, field, value) {
-    window.hasUnsavedChanges = true;
-    window[`tempEvents_${dateStr}`][idx][field] = value;
+window.renderWeekEventEntries = function(dateStr) {
+  const container = document.getElementById(`week-event-editor-${dateStr}`);
+  if(!container) return;
+  const events = window[`tempEvents_${dateStr}`] || [];
+  const labelObjs = window.getEventLabels();
+  
+  let html = '';
+  events.forEach((e, idx) => {
+      let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
+      options += `<option disabled>──────────</option><option value="__setting__">⚙️ 설정...</option>`;
+      
+      const isSkip = window.isSkipLabel(e.label);
+      const selBg = isSkip ? '#fee2e2' : '#eff6ff';
+      const selColor = isSkip ? '#ef4444' : '#1e40af';
+      
+      html += `
+      <div class="week-event-entry-block" data-idx="${idx}" style="display:flex; flex-direction:column; gap:4px; padding:6px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px;">
+        <div style="display:flex; justify-content:space-between; gap:4px;">
+          <select onchange="if(this.value === '__setting__'){ window.openEventLabelModal(); this.value='${e.label}'; } else { window.syncWeekEventInputs('${dateStr}'); window.renderWeekEventEntries('${dateStr}'); }" style="padding:4px; font-size:0.8rem; border-radius:4px; border:1px solid #cbd5e1; background:${selBg}; color:${selColor}; font-weight:bold; outline:none; flex:1;">
+            ${options}
+          </select>
+          <button onclick="removeWeekEventEntry('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:1rem;" title="삭제">✖</button>
+        </div>
+        <textarea placeholder="내용" style="width:100%; padding:6px; font-size:0.9rem; border:1px solid #cbd5e1; border-radius:4px; resize:none; overflow:hidden; min-height:30px; outline:none;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
+      </div>`;
+  });
+  container.innerHTML = html;
+  setTimeout(() => {
+      container.querySelectorAll('textarea').forEach(ta => { ta.style.height = ta.scrollHeight + 'px'; });
+  }, 0);
 };
-window.addCompactEvent = function(dateStr) {
-    window.hasUnsavedChanges = true;
-    const defaultLabel = window.getEventLabels()[0]?.name || '일정';
-    window[`tempEvents_${dateStr}`].push({ label: defaultLabel, content: '' });
-    document.getElementById(`compact-events-${dateStr}`).innerHTML = window.generateCompactEventEditor(dateStr);
+
+window.syncWeekEventInputs = function(dateStr) {
+  const container = document.getElementById(`week-event-editor-${dateStr}`);
+  if(!container) return;
+  const blocks = container.querySelectorAll('.week-event-entry-block');
+  const events = window[`tempEvents_${dateStr}`];
+  blocks.forEach(block => {
+      const idx = block.getAttribute('data-idx');
+      const label = block.querySelector('select').value;
+      const content = block.querySelector('textarea').value;
+      if(events[idx]) {
+          events[idx].label = label;
+          events[idx].content = content;
+      }
+  });
 };
-window.removeCompactEvent = function(dateStr, idx) {
-    window.hasUnsavedChanges = true;
-    window[`tempEvents_${dateStr}`].splice(idx, 1);
-    document.getElementById(`compact-events-${dateStr}`).innerHTML = window.generateCompactEventEditor(dateStr);
+
+window.addWeekEventEntry = function(dateStr) {
+  window.syncWeekEventInputs(dateStr);
+  window[`tempEvents_${dateStr}`].push({ label: window.getEventLabels()[0]?.name || '일정', content: '' });
+  window.renderWeekEventEntries(dateStr);
+};
+
+window.removeWeekEventEntry = function(dateStr, idx) {
+  window.syncWeekEventInputs(dateStr);
+  window[`tempEvents_${dateStr}`].splice(idx, 1);
+  window.renderWeekEventEntries(dateStr);
 };
 
 // ==========================================================================
-// 💾 3. 주간 일괄 저장 처리 함수
-// ==========================================================================
-window.saveWeekDataFromEditor = async function() {
-  for (const d of window.getWeekDates()) {
-    const rawList = window[`tempEvents_${d.dateStr}`] || [];
-    const validEvents = rawList.filter(e => e.content.trim() !== '');
-    const cleanEventText = window.formatEventListToText(validEvents);
-
-    await window.getUserCol('events').doc(d.dateStr).set({
-        eventList: validEvents,
-        eventText: cleanEventText, 
-        updatedAt: Date.now()
-    });
-
-    let isSkipDay = false;
-    for (const e of validEvents) {
-        if (window.isSkipLabel(e.label)) {
-            isSkipDay = true;
-            break;
-        }
-    }
-    
-    const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
-    
-    if (scheduleRow) {
-      let existingPeriods = {};
-      try {
-        const existingData = await window.dbAPI.loadDayData(d.dateStr);
-        existingPeriods = existingData.periods || {};
-      } catch(e) {}
-
-      const periodsData = {};
-      const periodCells = scheduleRow.querySelectorAll('.week-period-cell');
-
-      periodCells.forEach(cell => {
-        const p = cell.getAttribute('data-p');
-        const text = (cell.innerText || cell.textContent || '').trim();
-        
-        let subject = '';
-        let memo = text;
-
-        const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-        if (match) {
-          subject = match[1];
-          memo = match[2];
-        }
-
-        if (isSkipDay) subject = '';
-
-        periodsData[p] = { 
-          subject: subject, 
-          memo: memo, 
-          supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
-        };
-      });
-
-      await window.dbAPI.saveSchedule(d.dateStr, periodsData);
-    }
-  }
-};
+// 💾 3
