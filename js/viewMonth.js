@@ -1,3 +1,5 @@
+//js/viewMonth.js
+
 if (!window.goToDay) {
   window.goToDay = function(dateStr) {
     if (!dateStr) return;
