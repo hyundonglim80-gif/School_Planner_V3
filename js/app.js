@@ -1266,3 +1266,80 @@ if (!window.parseRawEventTextToEventList) {
       return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
   };
 }
+
+// ==========================================================================
+// 🏷️ [신규 추가] 일지 라벨 관리 및 렌더링 엔진 (일정과 팝업창 통일)
+// ==========================================================================
+
+// 1. 일지 기본 라벨 설정 및 로드 (기본값: 참고/사건/감상/기타)
+window.getJournalLabels = function() {
+    let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels'));
+    if (!labels || !Array.isArray(labels)) {
+        labels = [
+            { name: '참고' },
+            { name: '사건' },
+            { name: '감상' },
+            { name: '기타' }
+        ];
+        localStorage.setItem('workCalendar_journalLabels', JSON.stringify(labels));
+    }
+    return labels;
+};
+
+// 2. 일지 라벨 모달창 열기
+window.openJournalLabelModal = function() {
+    const modal = document.getElementById('journal-label-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex'; // 화면 중앙에 표시
+    }
+    // 현재 저장된 라벨을 임시 배열에 복사하여 편집 시작
+    window.tempEditingJournalLabels = JSON.parse(JSON.stringify(window.getJournalLabels()));
+    window.renderJournalLabelManager();
+};
+
+// 3. 일지 라벨 리스트 화면에 그리기
+window.renderJournalLabelManager = function() {
+    const container = document.getElementById('journal-label-list-container');
+    if (!container) return;
+    
+    // (일정 때와 동일하게 덮어쓰기 방지 처리 완료!)
+    container.innerHTML = '';
+    
+    window.tempEditingJournalLabels.forEach((label, index) => {
+        container.innerHTML += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#fdf2f8; padding:8px 12px; border-radius:6px; border:1px solid #fbcfe8;">
+            <span style="font-weight:bold; color:#9d174d; font-size:1.05rem;">${label.name}</span>
+            <button onclick="window.tempEditingJournalLabels.splice(${index}, 1); window.renderJournalLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
+        </div>`;
+    });
+};
+
+// 4. 모달창: 새 일지 라벨 추가
+window.addNewJournalLabel = function() {
+    const nameInput = document.getElementById('new-journal-label-name');
+    const name = nameInput.value.trim();
+    
+    if (!name) return alert("라벨 이름을 입력하세요.");
+    if (window.tempEditingJournalLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
+    
+    window.tempEditingJournalLabels.push({ name: name });
+    
+    nameInput.value = ''; // 입력창 비우기
+    window.renderJournalLabelManager(); // 리스트 갱신
+};
+
+// 5. 모달창: 변경사항 최종 저장
+window.saveJournalLabels = function() {
+    if (window.tempEditingJournalLabels.length === 0) return alert("최소 1개의 일지 라벨은 있어야 합니다.");
+    
+    localStorage.setItem('workCalendar_journalLabels', JSON.stringify(window.tempEditingJournalLabels));
+    
+    const modal = document.getElementById('journal-label-modal');
+    if(modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    alert("일지 라벨 설정이 성공적으로 저장되었습니다.");
+    window.render(); // 화면 전체 새로고침 (뷰어/에디터에 즉시 반영)
+};
