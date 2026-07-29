@@ -1303,18 +1303,18 @@ window.renderJournalLabelManager = function() {
     const container = document.getElementById('journal-label-list-container');
     if (!container) return;
     
-    // (일정 때와 동일하게 덮어쓰기 방지 처리 완료!)
     container.innerHTML = '';
     
     window.tempEditingJournalLabels.forEach((label, index) => {
         container.innerHTML += `
         <div style="display:flex; justify-content:space-between; align-items:center; background:#fdf2f8; padding:8px 12px; border-radius:6px; border:1px solid #fbcfe8;">
             <span style="font-weight:bold; color:#9d174d; font-size:1.05rem;">${label.name}</span>
-            <button onclick="window.tempEditingJournalLabels.splice(${index}, 1); window.renderJournalLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <button onclick="window.tempEditingJournalLabels.splice(${index}, 1); window.renderJournalLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
+            </div>
         </div>`;
     });
 };
-
 // 4. 모달창: 새 일지 라벨 추가
 window.addNewJournalLabel = function() {
     const nameInput = document.getElementById('new-journal-label-name');
