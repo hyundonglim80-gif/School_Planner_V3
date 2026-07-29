@@ -749,74 +749,6 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 4. 모달창: 라벨 리스트 그리기
-window.openEventLabelModal = function() {
-    const modal = document.getElementById('event-label-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex'; // 강제로 화면에 표시
-    }
-    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
-    window.renderEventLabelManager();
-};
-
-window.renderEventLabelManager = function() {
-    const container = document.getElementById('event-label-list-container');
-    if (!container) return;
-    
-    // 💡 버그 원인 제거: 화면을 다시 그릴 때마다 원본으로 덮어씌우는 코드를 삭제합니다.
-    // window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
-    
-    const drawList = () => {
-        container.innerHTML = '';
-        window.tempEditingLabels.forEach((label, index) => {
-            const skipChecked = label.isSkip ? 'checked' : '';
-            const skipColor = label.isSkip ? '#ef4444' : '#64748b';
-            
-            container.innerHTML += `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0;">
-                <span style="font-weight:bold; color:#1e40af; font-size:1.05rem;">${label.name}</span>
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem; color:${skipColor}; cursor:pointer;">
-                        <input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; window.renderEventLabelManager();" ${skipChecked} style="accent-color:#ef4444;">
-                        수업삭제
-                    </label>
-                    <button onclick="window.tempEditingLabels.splice(${index}, 1); window.renderEventLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
-                </div>
-            </div>`;
-        });
-    };
-    drawList();
-};
-
-// 5. 모달창: 새 라벨 추가
-window.addNewEventLabel = function() {
-    const nameInput = document.getElementById('new-label-name');
-    const skipCheck = document.getElementById('new-label-skip');
-    
-    const name = nameInput.value.trim();
-    if (!name) return alert("라벨 이름을 입력하세요.");
-    if (window.tempEditingLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
-    
-    window.tempEditingLabels.push({ name: name, isSkip: skipCheck.checked });
-    
-    nameInput.value = '';
-    skipCheck.checked = false;
-    window.renderEventLabelManager();
-};
-
-// 6. 모달창: 변경사항 최종 저장
-window.saveEventLabels = function() {
-    if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
-    localStorage.setItem('workCalendar_eventLabels_v2', JSON.stringify(window.tempEditingLabels));
-    const modal = document.getElementById('event-label-modal');
-    if(modal) {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-    }
-    alert("라벨 설정이 저장되었습니다.");
-    window.render(); 
-};
 
 // 7. [핵심] 주/월/년 뷰어 모드에서 일정 리스트를 예쁜 HTML 뱃지로 변환
 window.generateEventBadgesHTML = function(eventList) {
@@ -903,63 +835,7 @@ window.getJournalLabels = function() {
     return labels;
 };
 
-// 2. 일지 라벨 모달창 열기
-window.openJournalLabelModal = function() {
-    const modal = document.getElementById('journal-label-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex'; // 화면 중앙에 표시
-    }
-    // 현재 저장된 라벨을 임시 배열에 복사하여 편집 시작
-    window.tempEditingJournalLabels = JSON.parse(JSON.stringify(window.getJournalLabels()));
-    window.renderJournalLabelManager();
-};
 
-// 3. 일지 라벨 리스트 화면에 그리기
-window.renderJournalLabelManager = function() {
-    const container = document.getElementById('journal-label-list-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    window.tempEditingJournalLabels.forEach((label, index) => {
-        container.innerHTML += `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#fdf2f8; padding:8px 12px; border-radius:6px; border:1px solid #fbcfe8;">
-            <span style="font-weight:bold; color:#9d174d; font-size:1.05rem;">${label.name}</span>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <button onclick="window.tempEditingJournalLabels.splice(${index}, 1); window.renderJournalLabelManager();" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;" title="삭제">✖</button>
-            </div>
-        </div>`;
-    });
-};
-// 4. 모달창: 새 일지 라벨 추가
-window.addNewJournalLabel = function() {
-    const nameInput = document.getElementById('new-journal-label-name');
-    const name = nameInput.value.trim();
-    
-    if (!name) return alert("라벨 이름을 입력하세요.");
-    if (window.tempEditingJournalLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
-    
-    window.tempEditingJournalLabels.push({ name: name });
-    
-    nameInput.value = ''; // 입력창 비우기
-    window.renderJournalLabelManager(); // 리스트 갱신
-};
-
-// 5. 모달창: 변경사항 최종 저장
-window.saveJournalLabels = function() {
-    if (window.tempEditingJournalLabels.length === 0) return alert("최소 1개의 일지 라벨은 있어야 합니다.");
-    
-    localStorage.setItem('workCalendar_journalLabels', JSON.stringify(window.tempEditingJournalLabels));
-    
-    const modal = document.getElementById('journal-label-modal');
-    if(modal) {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-    }
-    alert("일지 라벨 설정이 성공적으로 저장되었습니다.");
-    window.render(); // 화면 전체 새로고침 (뷰어/에디터에 즉시 반영)
-};
 
 // ==========================================================================
 // ⚙️ [1단계] 환경 설정 (수업 시수 및 명칭 동적 설정)
