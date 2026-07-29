@@ -256,4 +256,67 @@ window.removeWeekEventEntry = function(dateStr, idx) {
 };
 
 // ==========================================================================
-// 💾 3
+// 💾 3. 주간 편집 저장 처리 함수
+// ==========================================================================
+window.saveWeekDataFromEditor = async function() {
+  for (const d of window.getWeekDates()) {
+    window.syncWeekEventInputs(d.dateStr);
+    const validEvents = (window[`tempEvents_${d.dateStr}`] || []).filter(e => e.content.trim() !== '');
+    const cleanEventText = window.formatEventListToText(validEvents);
+
+    await window.getUserCol('events').doc(d.dateStr).set({
+        eventList: validEvents,
+        eventText: cleanEventText, 
+        updatedAt: Date.now()
+    });
+
+    let isSkipDay = false;
+    for (const e of validEvents) {
+        if (window.isSkipLabel(e.label)) {
+            isSkipDay = true;
+            break;
+        }
+    }
+    
+    const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
+    
+    if (scheduleRow) {
+      let existingPeriods = {};
+      try {
+        const existingData = await window.dbAPI.loadDayData(d.dateStr);
+        existingPeriods = existingData.periods || {};
+      } catch(e) {}
+
+      const periodsData = {};
+      const periodCells = scheduleRow.querySelectorAll('.week-period-cell');
+
+      periodCells.forEach(cell => {
+        const p = cell.getAttribute('data-p');
+        const text = (cell.innerText || cell.textContent || '').trim();
+        
+        let subject = '';
+        let memo = text;
+
+        const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
+        if (match) {
+          subject = match[1];
+          memo = match[2];
+        } else if (text.startsWith('[') && text.endsWith(']')) {
+          subject = text.substring(1, text.length - 1);
+          memo = '';
+        }
+
+        if (isSkipDay) subject = '';
+
+        // 💡 수정: 기존 준비물 데이터 유지 및 동적 교시 데이터 안전한 덮어쓰기
+        periodsData[p] = { 
+          subject: subject, 
+          memo: memo, 
+          supplies: existingPeriods[p] ? existingPeriods[p].supplies : '' 
+        };
+      });
+
+      await window.dbAPI.saveSchedule(d.dateStr, periodsData);
+    }
+  }
+};
