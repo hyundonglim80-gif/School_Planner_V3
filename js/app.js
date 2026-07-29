@@ -47,6 +47,95 @@ window.setMode = function(mode) {
 };
 
 // =========================================================================
+// 🏷️ 라벨 및 데이터 처리 시스템 (💡 getEventLabels 함수 포함!)
+// =========================================================================
+
+// 일정 라벨 가져오기
+window.getEventLabels = function() {
+    const defaultLabels = [
+        { name: '일정', isSkip: false },
+        { name: '행사', isSkip: false },
+        { name: '출장', isSkip: false },
+        { name: '전일행사', isSkip: true }, 
+        { name: '휴일', isSkip: true }
+    ];
+    try {
+        const stored = localStorage.getItem('workCalendar_eventLabels');
+        if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    return defaultLabels;
+};
+
+// 특정 라벨이 수업을 지우는(Skip) 라벨인지 확인
+window.isSkipLabel = function(labelName) {
+    const labels = window.getEventLabels();
+    const found = labels.find(l => l.name === labelName);
+    return found ? found.isSkip : false;
+};
+
+// 일지 라벨 가져오기
+window.getJournalLabels = function() {
+    const defaultLabels = [
+        { name: '참고' },
+        { name: '사건' },
+        { name: '감상' },
+        { name: '기타' }
+    ];
+    try {
+        const stored = localStorage.getItem('workCalendar_journalLabels');
+        if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    return defaultLabels;
+};
+
+// 이벤트 객체 배열을 레거시 텍스트 포맷으로 변환 (하위 호환성 유지)
+window.formatEventListToText = function(eventList) {
+    if (!eventList || eventList.length === 0) return '';
+    return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
+};
+
+// 레거시 텍스트 포맷을 이벤트 객체 배열로 변환
+window.parseRawEventTextToEventList = function(rawText) {
+    if (!rawText || rawText.trim() === '') return [];
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
+    const validLabels = window.getEventLabels().map(l => l.name);
+    
+    const eventList = [];
+    lines.forEach(line => {
+        const match = line.match(/^\[(.*?)\]\s*(.*)$/);
+        if (match) {
+            let labelName = match[1].trim();
+            if (!validLabels.includes(labelName)) {
+                labelName = validLabels[0] || '일정'; 
+            }
+            eventList.push({ label: labelName, content: match[2].trim() });
+        } else {
+            let defaultLabel = validLabels[0] || '일정';
+            if (line.includes('(휴일)') || line.includes('(행사)') || line.includes('[전일행사]')) {
+                const skipLabel = window.getEventLabels().find(l => l.isSkip);
+                if (skipLabel) defaultLabel = skipLabel.name;
+            }
+            eventList.push({ label: defaultLabel, content: line });
+        }
+    });
+    return eventList;
+};
+
+// 뷰어 모드에서 일정 객체들을 알록달록한 배지(Badge) HTML로 변환
+window.generateEventBadgesHTML = function(eventList) {
+    if (!eventList || eventList.length === 0) return '';
+    return eventList.map(e => {
+        const isSkip = window.isSkipLabel(e.label);
+        const bg = isSkip ? '#fee2e2' : '#eff6ff';
+        const border = isSkip ? '#fca5a5' : '#bfdbfe';
+        const color = isSkip ? '#ef4444' : '#2563eb';
+        return `<div style="font-size:0.85rem; background:${bg}; border:1px solid ${border}; color:${color}; padding:3px 6px; border-radius:6px; margin-bottom:4px; line-height:1.3; font-weight:500;">
+                  <b style="font-weight:900;">[${e.label}]</b> ${e.content}
+                </div>`;
+    }).join('');
+};
+
+// =========================================================================
 // ⚙️ 수업 시수 동적 설정 시스템 (최대 교시 및 명칭 관리)
 // =========================================================================
 window.periodNames = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
@@ -231,7 +320,6 @@ window.escapeCSV = function(str) {
 window.downloadCSV = async function() {
   const currentYear = window.currentDate.getFullYear();
   
-  // 💡 수정: 동적 시수 배열 길이에 맞춰 CSV 헤더 생성
   let csv = "년도,월,일,요일,일정,";
   window.periodNames.forEach((name, idx) => { csv += `${name} 과목${idx < window.periodNames.length - 1 ? ',' : ''}`; });
   csv += ",";
