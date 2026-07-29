@@ -400,3 +400,56 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; flex: 1;
 }
 .apply-warning { font-size: 0.95rem; color: #ef4444; margin: 0; font-weight: 600; }
+
+/* ==========================================================================
+   ✨ [모달 및 팝업창 공통 디자인 클래스] (인라인 스타일 다이어트용)
+   ========================================================================== */
+.modal-help-container {
+  line-height: 1.6;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.modal-help-title {
+  color: #1e40af;
+  border-bottom: 2px solid #bfdbfe;
+  padding-bottom: 5px;
+  margin-top: 15px;
+}
+
+.modal-help-title:first-child {
+  margin-top: 0;
+}
+
+.modal-help-box {
+  background: #dcfce7;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #22c55e;
+  margin-bottom: 20px;
+}
+
+.modal-help-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px solid #cbd5e1;
+  margin-top: 20px;
+  padding-top: 15px;
+}
+
+.modal-help-checkbox-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #475569;
+}
+
+.modal-help-checkbox {
+  accent-color: #3b82f6;
+  width: 16px;
+  height: 16px;
+}
