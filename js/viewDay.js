@@ -319,11 +319,13 @@ window.executeClassSwap = async function(sourcePeriod) {
   // 🎯 여기서도 6 대신 환경설정 개수로 매칭
   for(let p=1; p<=window.periodNames.length; p++) {
       const row = document.querySelector(`tr[data-period="${p}"]`);
-      currentDOMPeriods[p] = {
-          subject: (row.querySelector(".cell-subject").innerText||'').trim(),
-          memo: (row.querySelector(".cell-memo").innerText||'').trim(),
-          supplies: (row.querySelector(".cell-supplies").innerText||'').trim()
-      };
+      if (row) {
+          currentDOMPeriods[p] = {
+              subject: (row.querySelector(".cell-subject").innerText||'').trim(),
+              memo: (row.querySelector(".cell-memo").innerText||'').trim(),
+              supplies: (row.querySelector(".cell-supplies").innerText||'').trim()
+          };
+      }
   }
 
   const sourceData = currentDOMPeriods[sourcePeriod];
@@ -337,11 +339,14 @@ window.executeClassSwap = async function(sourcePeriod) {
       currentDOMPeriods[targetPeriod] = sourceData;
       currentDOMPeriods[sourcePeriod] = targetData;
 
-      for(let p=1; p<=6; p++) {
+      // 💡 수정: 동일한 날짜 내에서 교환 후 화면을 다시 그릴 때 기존 6교시 하드코딩 제거
+      for(let p=1; p<=window.periodNames.length; p++) {
           const row = document.querySelector(`tr[data-period="${p}"]`);
-          row.querySelector(".cell-subject").innerText = currentDOMPeriods[p].subject;
-          row.querySelector(".cell-memo").innerText = currentDOMPeriods[p].memo;
-          row.querySelector(".cell-supplies").innerText = currentDOMPeriods[p].supplies;
+          if (row && currentDOMPeriods[p]) {
+              row.querySelector(".cell-subject").innerText = currentDOMPeriods[p].subject || '';
+              row.querySelector(".cell-memo").innerText = currentDOMPeriods[p].memo || '';
+              row.querySelector(".cell-supplies").innerText = currentDOMPeriods[p].supplies || '';
+          }
       }
   } else {
       document.getElementById('swap-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; font-size:1.2rem; box-shadow:0 10px 25px rgba(0,0,0,0.2);">⏳ 클라우드에서 타겟 데이터를 교환 중입니다...</div>`;
@@ -354,9 +359,11 @@ window.executeClassSwap = async function(sourcePeriod) {
       await window.getUserCol('schedules').doc(targetDate).set({ periods: targetPeriodsDB, updatedAt: Date.now() });
 
       const sourceRow = document.querySelector(`tr[data-period="${sourcePeriod}"]`);
-      sourceRow.querySelector(".cell-subject").innerText = targetData.subject;
-      sourceRow.querySelector(".cell-memo").innerText = targetData.memo;
-      sourceRow.querySelector(".cell-supplies").innerText = targetData.supplies;
+      if (sourceRow) {
+          sourceRow.querySelector(".cell-subject").innerText = targetData.subject || '';
+          sourceRow.querySelector(".cell-memo").innerText = targetData.memo || '';
+          sourceRow.querySelector(".cell-supplies").innerText = targetData.supplies || '';
+      }
       
       alert(`✅ ${targetDate}의 ${targetPeriod}교시와 성공적으로 맞바꿨습니다.\n(※ 현재 화면에 적용된 변경사항을 완전히 확정하려면 반드시 상단의 [💾 저장] 버튼을 눌러주세요)`);
   }
