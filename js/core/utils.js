@@ -65,39 +65,73 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🎨 뱃지 렌더링 시 완료(Completed) 상태 음영 및 취소선 적용
-window.generateEventBadgesHTML = function(eventList) {
+// 💡 뱃지 렌더링 시 dateStr을 함께 받아 뱃지 자체에 클릭 이벤트(토글) 부여
+window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
     
     const validLabels = window.getEventLabels().map(l => l.name);
     const defaultLabel = validLabels[0] || '일정';
 
-    eventList.forEach(e => {
+    eventList.forEach((e, index) => {
         let currentLabel = e.label;
         if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel;
 
         const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
 
-        // 완료 시 회색 음영 및 취소선 스타일
+        // 완료 여부에 따른 뱃지 스타일 (완료 시 회색 취소선)
         let badgeStyle = isCompleted 
-            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through;`
-            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border};`;
+            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through; cursor:pointer;`
+            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; cursor:pointer;`;
 
         let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
         if (isCompleted) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
+        // 💡 뱃지 클릭 시 상태 변경 이벤트 (달력 이동 방지를 위해 event.stopPropagation() 사용)
+        const onClickAttr = dateStr ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
+
         html += `
         <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3; ${isCompleted ? 'opacity:0.65;' : ''}">
-            <span style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${currentLabel}</span>
+            <span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="클릭하여 완료 상태 변경">${currentLabel}</span>
             <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted ? '✓ ' : ''}${e.content}</span>
         </div>`;
     });
     html += `</div>`;
     return html;
+};
+
+// 💡 뱃지 클릭 시 즉시 클라우드에 완료 상태를 동기화하고 화면을 그리는 핵심 엔진
+window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
+    try {
+        const eventDoc = await window.getUserCol('events').doc(dateStr).get();
+        if (!eventDoc.exists) return;
+        const data = eventDoc.data();
+        let eventList = data.eventList || [];
+
+        // 혹시 예전 데이터(텍스트)라면 리스트로 변환
+        if (eventList.length === 0 && data.eventText) {
+            eventList = window.parseRawEventTextToEventList(data.eventText);
+        }
+
+        if (eventList[index]) {
+            eventList[index].completed = !currentStatus; // 상태 뒤집기 (토글)
+            const newText = window.formatEventListToText(eventList);
+            
+            await window.getUserCol('events').doc(dateStr).set({
+                eventList: eventList,
+                eventText: newText,
+                updatedAt: Date.now()
+            }, { merge: true });
+
+            // 변경 후 화면 즉시 갱신
+            if (window.render) window.render(); 
+        }
+    } catch (error) {
+        console.error("완료 상태 변경 중 오류:", error);
+    }
 };
 
 window.parseRawEventTextToEventList = function(rawText) {
