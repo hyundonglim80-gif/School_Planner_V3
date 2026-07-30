@@ -448,6 +448,7 @@ const LabelManager = {
     this.memoModal.close();
     alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
     
+    // 💡 여기서 화면 갱신 로직이 조건에 안 맞아서(currentScope 등) 실행 안 됨
     if (window.currentScope === 'memo' && window.memoViewInstance) {
         window.memoViewInstance.renderViewer();
     }
