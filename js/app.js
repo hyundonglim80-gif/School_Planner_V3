@@ -1,4 +1,4 @@
-//js/app.js
+// js/app.js
 
 // ==========================================================================
 // 🚀 앱 상태 관리 및 초기화 설정
@@ -6,8 +6,7 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
-// 💡 추가: 수업 숨기기/보기 상태 저장
-window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; // 기본값은 항상 보기(true)
+window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; 
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
@@ -31,13 +30,32 @@ window.toggleClass = function() {
   window.render();
 };
 
+// ==========================================================================
+// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정)
+// ==========================================================================
+window.periodNames = ["1", "2", "3", "4", "5", "6"];
+window.tempPeriodNames = [];
+
+window.loadSettings = async function() {
+    try {
+        const doc = await window.getUserCol('settings').doc('preferences').get();
+        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
+            window.periodNames = doc.data().periodNames;
+        } else {
+            window.periodNames = ["1", "2", "3", "4", "5", "6"];
+        }
+    } catch (error) {
+        console.warn("설정 데이터를 불러오는 데 실패하여 기본값을 적용합니다.");
+        window.periodNames = ["1", "2", "3", "4", "5", "6"];
+    }
+};
 
 // ==========================================================================
 // 🖥️ 메인 렌더링 엔진
 // ==========================================================================
 window.render = function() {
   const container = document.getElementById("main-view");
-  if (!container) return; // 방어 코드 추가
+  if (!container) return; 
 
   container.innerHTML = "";
   updateTitle();
@@ -185,11 +203,6 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
-// ==========================================================================
-// 💡 도움말 모달(가이드창) 제어 엔진
-// ==========================================================================
-
-
 window.saveCurrentViewData = async function() {
   const editorBtn = document.getElementById('btn-mode-editor');
   if (editorBtn) {
@@ -202,11 +215,9 @@ window.saveCurrentViewData = async function() {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  // 💡 알림창(alert)을 삭제하고 버튼 글씨로 부드럽게 완료 상태를 알려줍니다.
   if (editorBtn) {
     editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
-      // 1.5초 뒤에 현재 에디터 모드라면 다시 '저장' 버튼으로 복구
       if (currentMode === 'editor') {
         editorBtn.innerHTML = '💾 저장';
         editorBtn.disabled = false;
@@ -240,7 +251,7 @@ window.goToToday = function() {
 };
 
 // ==========================================================================
-// 🚀 앱 실행 시 초기화 이벤트 설정
+// 🚀 앱 실행 시 초기화 이벤트 설정 (가장 중요한 로그인 타이밍 제어)
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
@@ -265,16 +276,20 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 구글 로그인 연동 로직
+  // 💡 구글 로그인 연동 로직 (이곳에서만 렌더링을 시작하도록 완벽 통제)
   if (window.auth) {
-    window.auth.onAuthStateChanged(user => {
+    window.auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-info').style.display = 'flex';
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+        
+        // 💡 1. 로그인이 확인되면 가장 먼저 환경 설정(시수 등)을 무조건 기다렸다가 불러옵니다.
+        await window.loadSettings();
+        
+        // 💡 2. 설정이 다 불러와지면 그제서야 화면을 그립니다! (에러 방지)
         window.render();
         
-        // 💡 로그인 시 한 번만 팝업을 띄우는 로직 (타이머 사용)
         setTimeout(() => {
           try {
             const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
@@ -284,7 +299,7 @@ window.addEventListener('DOMContentLoaded', () => {
           } catch(e) {
             console.warn("도움말 팝업 실행 중 오류:", e);
           }
-        }, 500); // UI가 전부 렌더링된 후 0.5초 뒤에 띄움
+        }, 500); 
 
       } else {
         document.getElementById('login-screen').style.display = 'flex';
@@ -294,47 +309,3 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
-
-
-
-
-
-// ==========================================================================
-// ⚙️ [1단계] 환경 설정 (수업 시수 및 명칭 동적 설정)
-// ==========================================================================
-
-// 1. 전역 변수 (기본값)
-window.periodNames = ["1", "2", "3", "4", "5", "6"];
-window.tempPeriodNames = [];
-
-// 2. DB에서 사용자별 설정 불러오기
-window.loadSettings = async function() {
-    try {
-        const doc = await window.getUserCol('settings').doc('preferences').get();
-        // 데이터가 정상적으로 있고, 최소 1개 이상의 명칭이 저장되어 있을 때만 불러옴
-        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
-            window.periodNames = doc.data().periodNames;
-        } else {
-            // 저장된게 이상하면 무조건 기본값 복구
-            window.periodNames = ["1", "2", "3", "4", "5", "6"];
-        }
-    } catch (error) {
-        console.log("설정 데이터를 불러오는 중 대기, 기본값 적용...");
-        window.periodNames = ["1", "2", "3", "4", "5", "6"];
-    }
-};
-
-// 💡 기존 화면 렌더링 함수를 가로채서, DB에서 periodNames 배열을 무조건 먼저 가져오도록 안전 처리
-if (!window.originalRenderForSettings) {
-    window.originalRenderForSettings = window.render;
-    let isSettingsLoaded = false;
-    
-    window.render = async function() {
-        if (!isSettingsLoaded && typeof window.getUserCol === 'function') {
-            await window.loadSettings();
-            isSettingsLoaded = true;
-        }
-        if(window.originalRenderForSettings) window.originalRenderForSettings();
-    };
-}
