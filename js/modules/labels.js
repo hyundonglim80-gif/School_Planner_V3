@@ -81,14 +81,7 @@ const LabelManager = {
       if (this.draggedType !== type || this.draggedIdx === null) return;
       if (this.draggedIdx === targetIdx) return;
       
-      if (targetIdx === 0 || this.draggedIdx === 0) {
-          alert("기본 라벨은 위치를 변경할 수 없습니다.");
-          if (type === 'event') this.renderEventLabels(); 
-          else if (type === 'journal') this.renderJournalLabels();
-          else this.renderMemoLabels();
-          return;
-      }
-
+      // 💡 [수정됨] 기존 1번(인덱스 0) 방어 로직 완전 삭제
       let arr;
       if (type === 'event') arr = window.tempEditingLabels;
       else if (type === 'journal') arr = window.tempEditingJournalLabels;
@@ -111,7 +104,7 @@ const LabelManager = {
       <div class="modal-info-box">
           <p style="margin:0;">
               <strong>[일정 라벨]</strong> 왼쪽의 '≡' 아이콘을 드래그하여 순서를 바꾸거나, 이름을 클릭해 바로 수정할 수 있습니다.<br>
-              수정/삭제된 라벨을 쓰던 기존 일정은 자동으로 <strong>기본 라벨</strong>로 덮어써집니다.
+              수정되거나 삭제된 라벨을 사용 중이던 기존 일정은 라벨이 모두 <strong>해제</strong>됩니다.
           </p>
       </div>
       <div id="event-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -156,30 +149,23 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingLabels.map((label, index) => {
-        const isDefault = index === 0;
+        // 💡 [수정됨] 모든 항목을 자유롭게 드래그, 수정, 삭제 가능하도록 변경
         const skipChecked = label.isSkip ? 'checked' : '';
         const skipColor = label.isSkip ? '#ef4444' : '#64748b';
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
         
-        const dragHandle = isDefault 
-            ? `<span style="width:20px; display:inline-block; text-align:center; color:#cbd5e1;">🔒</span>` 
-            : `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
+        const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
+        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';"`;
         
-        const dragAttrs = isDefault ? '' : `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = isDefault
-            ? `<input type="text" value="${label.name}" readonly style="width:90px; padding:6px; border:none; background:transparent; font-weight:bold; color:#1e293b; outline:none; cursor:not-allowed;">`
-            : `<input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); LabelManager.renderEventLabels();" style="width:90px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
+        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); LabelManager.renderEventLabels();" style="width:90px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
 
         const colorSelectHTML = `
             <select onchange="window.tempEditingLabels[${index}].color = this.value; LabelManager.renderEventLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
-                ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${this.colorNames[k]}</option>`).join('')}
+                ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${LabelManager.colorNames[k]}</option>`).join('')}
             </select>
         `;
 
-        const actionHTML = isDefault 
-            ? `<span style="font-size:0.8rem; color:#94a3b8; font-weight:bold; background:#f1f5f9; padding:4px 6px; border-radius:4px;">기본</span>` 
-            : `<button onclick="window.tempEditingLabels.splice(${index}, 1); LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+        const actionHTML = `<button onclick="window.tempEditingLabels.splice(${index}, 1); LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
 
         return `
         <div class="modal-input-row" ${dragAttrs} style="transition:0.2s;">
@@ -214,11 +200,69 @@ const LabelManager = {
   },
 
   saveEventLabels: async function(e) {
-    if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
+    // 💡 [수정됨] 최소 개수 제한을 풀어서 라벨을 아예 다 삭제(0개)할 수도 있게 허용합니다.
+    for (let i=0; i<window.tempEditingLabels.length; i++) {
+        if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
+    }
+    
+    const newLabels = window.tempEditingLabels.map(l => l.name);
+
     localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(window.tempEditingLabels));
+    
+    // 💡 [수정됨] 기존 라벨 중 삭제/수정된 라벨은 강제 통합하지 않고 단순히 해당 일정에서 '라벨 해제(배열에서 삭제)' 처리합니다.
+    const btn = e.target;
+    btn.textContent = "클라우드 갱신 중...";
+    btn.disabled = true;
+    
+    try {
+        const snap = await window.getUserCol('events').get();
+        let batch = window.db.batch();
+        let opCount = 0;
+        let batchPromises = [];
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            let changed = false;
+            let list = data.eventList || [];
+            
+            // 기존 텍스트 데이터 파싱 호환 유지
+            if (list.length === 0 && data.eventText) list = window.parseRawEventTextToEventList(data.eventText);
+
+            list.forEach(ev => {
+                // 단일 라벨 호환용
+                let evLabels = ev.labels || (ev.label ? [ev.label] : []);
+                const originalLength = evLabels.length;
+                
+                // 새 설정에 존재하지 않는 라벨은 모두 제거 (해제 처리)
+                evLabels = evLabels.filter(l => newLabels.includes(l));
+                
+                if (evLabels.length !== originalLength) {
+                    ev.labels = evLabels;
+                    ev.label = evLabels[0] || ''; // 단일 라벨 시스템을 위한 폴백
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                const newText = window.formatEventListToText(list);
+                batch.update(doc.ref, { eventList: list, eventText: newText, updatedAt: Date.now() });
+                opCount++;
+                if (opCount >= 400) { 
+                    batchPromises.push(batch.commit());
+                    batch = window.db.batch();
+                    opCount = 0;
+                }
+            }
+        });
+        if (opCount > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+    } catch(err) {
+        console.error("일정 라벨 자동 업데이트 실패", err);
+    }
+
     this.eventModal.close();
     alert("일정 라벨 설정이 저장되었습니다.");
-    window.render(); 
+    if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
@@ -228,7 +272,8 @@ const LabelManager = {
     return `
       <div class="modal-info-box journal">
           <p style="margin:0;">
-              <strong>[일지 라벨]</strong> 왼쪽 '≡' 아이콘을 끌어서 순서를 바꾸거나 이름을 클릭해 수정하세요.
+              <strong>[일지 라벨]</strong> 왼쪽 '≡' 아이콘을 끌어서 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
+              삭제/수정된 라벨을 쓰던 기존 일지는 라벨이 <strong>해제</strong>됩니다.
           </p>
       </div>
       <div id="journal-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -270,18 +315,13 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingJournalLabels.map((label, index) => {
-        const isDefault = index === 0;
+        // 💡 [수정됨] 모든 항목 자유화
         const style = palette[label.color || 'purple'] || { border: '#d8b4fe', bg: '#f3e8ff', text: '#6b21a8' };
         
-        const dragHandle = isDefault 
-            ? `<span style="width:20px; display:inline-block; text-align:center; color:#cbd5e1;">🔒</span>` 
-            : `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;">≡</span>`;
+        const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;">≡</span>`;
+        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'journal')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'journal')" ondragend="this.style.opacity='1';"`;
         
-        const dragAttrs = isDefault ? '' : `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'journal')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'journal')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = isDefault
-            ? `<input type="text" value="${label.name}" readonly style="width:110px; padding:6px; border:none; background:transparent; font-weight:bold; color:#1e293b; outline:none; cursor:not-allowed;">`
-            : `<input type="text" value="${label.name}" onchange="window.tempEditingJournalLabels[${index}].name = this.value.trim(); LabelManager.renderJournalLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
+        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingJournalLabels[${index}].name = this.value.trim(); LabelManager.renderJournalLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
 
         const colorSelectHTML = `
             <select onchange="window.tempEditingJournalLabels[${index}].color = this.value; LabelManager.renderJournalLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
@@ -289,9 +329,7 @@ const LabelManager = {
             </select>
         `;
 
-        const actionHTML = isDefault 
-            ? `<span style="font-size:0.8rem; color:#94a3b8; font-weight:bold; background:#f1f5f9; padding:4px 6px; border-radius:4px;">기본</span>` 
-            : `<button onclick="window.tempEditingJournalLabels.splice(${index}, 1); LabelManager.renderJournalLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+        const actionHTML = `<button onclick="window.tempEditingJournalLabels.splice(${index}, 1); LabelManager.renderJournalLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
 
         return `
         <div class="modal-input-row journal" ${dragAttrs} style="transition:0.2s;">
@@ -319,11 +357,60 @@ const LabelManager = {
   },
 
   saveJournalLabels: async function(e) {
-    if (window.tempEditingJournalLabels.length === 0) return alert("최소 1개의 일지 라벨은 있어야 합니다.");
+    for (let i=0; i<window.tempEditingJournalLabels.length; i++) {
+        if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
+    }
+    
+    const newLabels = window.tempEditingJournalLabels.map(l => l.name);
     localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(window.tempEditingJournalLabels));
+    
+    const btn = e.target;
+    btn.textContent = "클라우드 갱신 중...";
+    btn.disabled = true;
+
+    try {
+        const snap = await window.getUserCol('journals').get();
+        let batch = window.db.batch();
+        let opCount = 0;
+        let batchPromises = [];
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            let changed = false;
+            let list = data.entries || [];
+
+            list.forEach(j => {
+                let jLabels = j.labels || (j.label ? [j.label] : []);
+                const originalLength = jLabels.length;
+                
+                jLabels = jLabels.filter(l => newLabels.includes(l));
+                
+                if (jLabels.length !== originalLength) {
+                    j.labels = jLabels;
+                    j.label = jLabels[0] || '';
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                batch.update(doc.ref, { entries: list, updatedAt: Date.now() });
+                opCount++;
+                if (opCount >= 400) {
+                    batchPromises.push(batch.commit());
+                    batch = window.db.batch();
+                    opCount = 0;
+                }
+            }
+        });
+        if (opCount > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+    } catch(err) {
+        console.error("일지 라벨 자동 업데이트 실패", err);
+    }
+
     this.journalModal.close();
     alert("일지 라벨 설정이 저장되었습니다.");
-    window.render(); 
+    if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
@@ -388,18 +475,13 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingMemoLabels.map((label, index) => {
-        const isDefault = index === 0;
+        // 💡 [수정됨] 메모 또한 1번 인덱스를 자유롭게 드래그 및 삭제 가능하도록 변경
         const style = palette[label.color || 'green'] || { border: '#86efac', bg: '#dcfce7', text: '#166534' };
         
-        const dragHandle = isDefault 
-            ? `<span style="width:20px; display:inline-block; text-align:center; color:#cbd5e1;">🔒</span>` 
-            : `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
+        const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
+        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'memo')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'memo')" ondragend="this.style.opacity='1';"`;
         
-        const dragAttrs = isDefault ? '' : `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'memo')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'memo')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = isDefault
-            ? `<input type="text" value="${label.name}" readonly style="width:110px; padding:6px; border:none; background:transparent; font-weight:bold; color:#1e293b; outline:none; cursor:not-allowed;">`
-            : `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
+        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
 
         const colorSelectHTML = `
             <select onchange="window.tempEditingMemoLabels[${index}].color = this.value; LabelManager.renderMemoLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
@@ -407,9 +489,7 @@ const LabelManager = {
             </select>
         `;
 
-        const actionHTML = isDefault 
-            ? `<span style="font-size:0.8rem; color:#94a3b8; font-weight:bold; background:#f1f5f9; padding:4px 6px; border-radius:4px;">기본</span>` 
-            : `<button onclick="window.tempEditingMemoLabels.splice(${index}, 1); LabelManager.renderMemoLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+        const actionHTML = `<button onclick="window.tempEditingMemoLabels.splice(${index}, 1); LabelManager.renderMemoLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
 
         return `
         <div class="modal-input-row" ${dragAttrs} style="transition:0.2s; border-left: 3px solid #10b981;">
@@ -437,25 +517,17 @@ const LabelManager = {
   },
 
   saveMemoLabels: async function(e) {
-    if (window.tempEditingMemoLabels.length === 0) return alert("최소 1개의 메모 라벨은 있어야 합니다.");
-    
     for (let i=0; i<window.tempEditingMemoLabels.length; i++) {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
-    // 로컬 스토리지에 새 라벨 저장
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
     
-    // 모달창 닫기
     this.memoModal.close();
     alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
     
-    // 💡 핵심 해결책: 조건 없이 현재 화면(app.js의 전역 렌더링 함수)을 강제로 다시 그리도록 명령합니다.
-    if (typeof window.render === 'function') {
-        window.render(); 
-    } else if (window.memoViewInstance) {
-        window.memoViewInstance.renderViewer();
-    }
+    if (typeof window.render === 'function') window.render(); 
+    else if (window.memoViewInstance) window.memoViewInstance.renderViewer();
   }
 };
 
