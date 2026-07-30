@@ -15,7 +15,7 @@ class MemoView extends window.BaseView {
     this.currentFilter = '전체'; 
   }
 
-  // 💡 [신규] 로컬 스토리지에서 커스텀 메모 라벨 목록을 불러오는 함수
+  // 💡 로컬 스토리지에서 커스텀 메모 라벨 목록을 불러오는 함수
   loadMemoLabels() {
       const savedLabels = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
       if (savedLabels && savedLabels.length > 0) {
@@ -25,7 +25,7 @@ class MemoView extends window.BaseView {
       }
   }
 
-  // 💡 [신규] 특정 라벨만 모아보기 위한 필터 설정 함수
+  // 💡 특정 라벨만 모아보기 위한 필터 설정 함수
   setFilter(labelName) {
       this.currentFilter = labelName;
       this.renderViewer();
@@ -204,6 +204,11 @@ class MemoView extends window.BaseView {
                    oninput="this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
             <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
           </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <button onclick="window.manageMemoLabels()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 라벨 설정</button>
+          </div>
+
           <div id="memo-add-labels" class="label-chip-container" style="margin-bottom: 25px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;"></div>
           
           <div style="margin-top:10px; margin-bottom:5px;">
@@ -404,7 +409,7 @@ class MemoView extends window.BaseView {
 }
 
 // ==========================================================================
-// 💡 [신규] 전역 메모 라벨 관리 함수 (index.html 메뉴와 연결됨)
+// 💡 전역 메모 라벨 관리 함수 (index.html 메뉴와 연결됨)
 // ==========================================================================
 window.manageMemoLabels = function() {
     // 1. 기존 라벨 불러오기
