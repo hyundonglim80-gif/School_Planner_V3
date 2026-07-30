@@ -50,7 +50,7 @@ window.renderDayViewer = async function(container) {
       const memo = pData.memo || '';
 
       const memoHtml = memo.trim() !== '' ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` : '';
-      const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 준비물: ${supplies}</div>` : '';
+      const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">🎒 비고: ${supplies}</div>` : '';
 
       html += `
         <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
@@ -124,7 +124,7 @@ window.renderDayEditor = async function(container) {
               <th style="width: 60px;">교시</th>
               <th style="width: 120px;">수업</th>
               <th>📝 메모</th>
-              <th style="width: 25%;">🎒 준비물</th>
+              <th style="width: 25%;">🎒 비고</th>
             </tr>
           </thead>
           <tbody>
@@ -282,7 +282,7 @@ window.openClassSwapModal = function(sourcePeriod) {
   <div id="swap-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
       <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
           <h3 style="margin-top:0; color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">🔄 ${sourceName} 이동/맞바꾸기</h3>
-          <p style="font-size:0.95rem; color:#475569; margin-bottom:15px; line-height:1.4;">선택한 ${sourceName}의 내용(과목,메모,준비물)을 아래 선택한 날짜/시간과 <b>서로 맞바꿉니다.</b></p>
+          <p style="font-size:0.95rem; color:#475569; margin-bottom:15px; line-height:1.4;">선택한 ${sourceName}의 내용(과목,메모,비고)을 아래 선택한 날짜/시간과 <b>서로 맞바꿉니다.</b></p>
           
           <div style="margin-bottom:15px;">
               <label style="display:block; font-weight:bold; margin-bottom:5px; color:#1e293b;">목표 날짜</label>
