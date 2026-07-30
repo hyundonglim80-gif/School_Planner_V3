@@ -8,7 +8,7 @@ const SearchModule = {
     return `
       <div class="modal-info-box">
          <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">➕ 검색 조건 설정 (다중 조건 AND/OR)</h4>
-         <p style="margin:0; margin-bottom:10px; font-size:0.85rem; color:#475569;">조건을 무한대로 추가하고 AND(그리고) / OR(또는)로 정밀하게 검색하세요.</p>
+         <p style="margin:0; margin-bottom:10px; font-size:0.85rem; color:#475569;">조건을 무한대로 추가하고 AND / OR 로 정밀하게 검색하세요.</p>
          
          <div id="search-filters-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
          <button onclick="SearchModule.addFilter()" class="modal-btn-dashed" style="margin-top:0;">+ 검색 조건 추가</button>
@@ -59,7 +59,7 @@ const SearchModule = {
     }
     this.modalInstance.open();
     
-    // 💡 모달을 열 때 기본값을 항상 'year(해당 학년도 전체)'로 설정
+    // 모달 열 때 기본값을 항상 'year(해당 학년도 전체)'로 설정
     const select = document.getElementById('search-scope-select');
     if(select) { 
         select.value = 'year'; 
@@ -88,6 +88,7 @@ const SearchModule = {
     }
   },
 
+  // 💡 [수정됨] 오른쪽 끝으로 이동된 AND/OR 로직 선택 칸
   addFilter: function() {
     const container = document.getElementById('search-filters-container');
     if (!container) return;
@@ -95,22 +96,12 @@ const SearchModule = {
     const filterRow = document.createElement('div');
     filterRow.className = 'modal-input-row alt search-filter-row';
     
-    // 💡 첫 번째 줄은 [기본 검색조건] 텍스트를 아예 지우고, 줄맞춤을 위한 빈 공간(div)만 넣었습니다.
-    const logicHTML = this.filterIdCounter > 0 
-        ? `<select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer;">
-             <option value="AND">AND (그리고)</option>
-             <option value="OR">OR (또는)</option>
-           </select>`
-        : `<input type="hidden" class="filter-logic" value="AND"><div style="width:115px;"></div>`; 
-
     const deleteBtnHTML = this.filterIdCounter > 0 
-        ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제">✖</button>`
-        : `<div style="width:24px;"></div>`;
+        ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
+        : `<div style="width:24px; flex-shrink:0;"></div>`;
 
-    // 💡 기본 검색 조건 옵션을 '전체(all)'로 유지
     filterRow.innerHTML = `
-         ${logicHTML}
-         <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer;">
+         <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer; flex-shrink:0;">
            <option value="all">전체</option>
            <option value="event">일정</option>
            <option value="journal">일지</option>
@@ -118,7 +109,11 @@ const SearchModule = {
            <option value="memo">메모(수업)</option>
            <option value="supplies">비고</option> 
          </select>
-         <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력... (띄어쓰기 없이 '/'로 여러 단어 검색 가능)">
+         <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력... (띄어쓰기 없이 '/'로 다중 검색)">
+         <select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer; flex-shrink:0;">
+           <option value="AND">AND</option>
+           <option value="OR">OR</option>
+         </select>
          ${deleteBtnHTML}
     `;
     container.appendChild(filterRow);
@@ -286,20 +281,19 @@ const SearchModule = {
             'supplies': daySuppliesText.join(' ')
           };
 
-          // 💡 AND / OR 다중 조건 동적 평가 엔진
+          // 💡 [수정됨] 우측에 있는 AND/OR 로직이 다음 줄과 결합되도록 평가 엔진 수정
           let isMatch = false;
           if (searchConditions.length > 0) {
-              // 첫 번째 조건 평가
               let currentResult = checkMatch(textMap[searchConditions[0].type], searchConditions[0].keyword);
               
-              // 두 번째 조건부터 AND/OR 결합
               for (let i = 1; i < searchConditions.length; i++) {
                   const cond = searchConditions[i];
+                  const prevLogic = searchConditions[i - 1].logic; // 윗줄(이전)의 가장 우측에 있던 AND/OR 값
                   const matchThis = checkMatch(textMap[cond.type], cond.keyword);
                   
-                  if (cond.logic === 'AND') {
+                  if (prevLogic === 'AND') {
                       currentResult = currentResult && matchThis;
-                  } else if (cond.logic === 'OR') {
+                  } else if (prevLogic === 'OR') {
                       currentResult = currentResult || matchThis;
                   }
               }
