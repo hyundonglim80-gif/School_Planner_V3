@@ -1,26 +1,27 @@
+//js/modules/timetable.js
+
 const TimetableModule = {
   modalInstance: null,
-  timetableConfig: { 1: null, 2: null }, // 데이터 임시 저장소(캐시)
+  timetableConfig: { 1: null, 2: null }, 
 
-  // 팝업창 HTML 구조
   getContentHTML: function() {
     return `
-      <div style="background:#eff6ff; border-left:4px solid #3b82f6; padding:15px; border-radius:8px; margin-bottom:15px;">
-        <p style="margin:0; font-size:0.95rem; color:#1e40af; line-height:1.5;">
+      <div class="modal-info-box alt">
+        <p style="margin:0;">
           <strong>[기준시간표]</strong> 학기별 기본 시간표를 등록해두면, 원하는 기간에 일괄 적용할 수 있습니다.
         </p>
       </div>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div class="tt-action-row">
         <select id="tt-semester-select" onchange="TimetableModule.loadBaseTimetable()" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; font-weight:bold; outline:none; cursor:pointer; background:#fff;">
           <option value="1">1학기 기준시간표</option>
           <option value="2">2학기 기준시간표</option>
         </select>
-        <button onclick="TimetableModule.saveBaseTimetable()" style="background:#2563eb; color:#fff; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; transition:0.2s;">💾 시간표 저장</button>
+        <button onclick="TimetableModule.saveBaseTimetable()" class="modal-btn-primary">💾 시간표 저장</button>
       </div>
 
       <div style="overflow-x:auto; margin-bottom:20px; border:1px solid #e2e8f0; border-radius:8px; background:#fff;">
-        <table style="width:100%; border-collapse:collapse; text-align:center;" class="timetable-input-table">
+        <table class="timetable-input-table">
           <thead style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
             <tr>
               <th style="padding:10px; color:#475569;">교시</th>
@@ -32,14 +33,14 @@ const TimetableModule = {
             </tr>
           </thead>
           <tbody id="tt-tbody">
-            </tbody>
+          </tbody>
         </table>
       </div>
 
       <hr style="border:0; border-top:1px dashed #cbd5e1; margin:20px 0;">
 
-      <h3 style="color:#0f172a; margin-top:0; font-size:1.1rem;">🚀 지정 기간 일괄 적용</h3>
-      <div style="display:flex; gap:10px; align-items:center; background:#f1f5f9; padding:15px; border-radius:8px; flex-wrap:wrap;">
+      <h3 style="color:#0f172a; margin-top:0; font-size:1.1rem; margin-bottom:10px;">🚀 지정 기간 일괄 적용</h3>
+      <div class="tt-apply-box">
         <select id="apply-semester" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff;">
           <option value="1">1학기 적용</option>
           <option value="2">2학기 적용</option>
@@ -47,7 +48,7 @@ const TimetableModule = {
         <input type="date" id="apply-start-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
         <span style="font-weight:bold; color:#64748b;">~</span>
         <input type="date" id="apply-end-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
-        <button onclick="TimetableModule.applyBaseTimetable()" style="background:#059669; color:#fff; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; flex-shrink:0;">일괄 적용 실행</button>
+        <button onclick="TimetableModule.applyBaseTimetable()" class="modal-btn-primary success" style="flex-shrink:0;">일괄 적용 실행</button>
       </div>
     `;
   },
@@ -62,18 +63,15 @@ const TimetableModule = {
       });
     }
     
-    // 드롭다운 메뉴 숨기기
     const dropdown = document.getElementById('more-dropdown');
     if (dropdown) dropdown.classList.add('hidden');
 
     this.modalInstance.open();
     this.renderTimetableGrid();
     
-    // DB에서 설정을 불러온 후 화면에 채우기
     this.fetchConfigFromDB().then(() => this.loadBaseTimetable());
   },
 
-  // 💡 6교시 하드코딩 완전 해결: 환경설정의 시수만큼 동적으로 표를 그립니다.
   renderTimetableGrid: function() {
     const tbody = document.getElementById('tt-tbody');
     if (!tbody) return;
@@ -177,8 +175,8 @@ const TimetableModule = {
     let curr = new Date(startDate);
     const maxPeriod = window.periodNames ? window.periodNames.length : 6;
 
-    // 적용 중 시각적 효과
-    document.getElementById('timetable-modal-v2').querySelector('.modal-body').style.opacity = '0.5';
+    const modalBody = document.getElementById('timetable-modal-v2').querySelector('.modal-body');
+    if (modalBody) modalBody.style.opacity = '0.5';
 
     try {
         while (curr <= endDate) {
@@ -190,7 +188,6 @@ const TimetableModule = {
             const eventDoc = await window.getUserCol('events').doc(dateStr).get();
             const eventText = eventDoc.exists ? (eventDoc.data().eventText || '') : '';
             
-            // 휴일/행사 라벨 강력 탐지 연동
             const isSkipDay = window.checkSkipConditionFromText 
               ? window.checkSkipConditionFromText(eventText) 
               : (eventText.includes('(휴일)') || eventText.includes('(행사)') || eventText.includes('[전일행사]'));
@@ -217,7 +214,13 @@ const TimetableModule = {
           curr.setDate(curr.getDate() + 1);
         }
 
-        await window.executeBatchOperations(operations);
+        if (window.executeBatchOperations) {
+          await window.executeBatchOperations(operations);
+        } else {
+            console.error("executeBatchOperations is missing!");
+            alert("일괄 적용 처리 모듈을 찾을 수 없습니다.");
+            return;
+        }
         
         alert(`🎉 일괄 적용 완료!\n- 적용된 일수: ${appliedCount}일\n- 휴일/행사로 비워진 일수: ${skippedCount}일`);
         
@@ -231,10 +234,9 @@ const TimetableModule = {
         alert('적용 중 오류가 발생했습니다.');
         console.error(e);
     } finally {
-        document.getElementById('timetable-modal-v2').querySelector('.modal-body').style.opacity = '1';
+        if (modalBody) modalBody.style.opacity = '1';
     }
   }
 };
 
-// 기존 함수 덮어쓰기
 window.openTimetableModal = () => TimetableModule.open();
