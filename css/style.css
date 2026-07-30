@@ -39,7 +39,7 @@ body {
   background-color: var(--bg-body);
   color: #0f172a;
   line-height: 1.5;
-  min-width: 800px; /* 모바일에서 너무 찌그러지지 않도록 최소 너비 유지 */
+  min-width: 800px;
 }
 
 /* ==========================================================================
@@ -60,8 +60,41 @@ body {
 }
 
 /* ==========================================================================
-   🎛️ 4. 상단 네비게이션 및 메뉴 컨트롤 바 (오류 수정 완벽 적용!)
+   🎛️ 4. 상단 네비게이션 및 메뉴 컨트롤 바 (위아래 2줄 배치 정밀 수정)
    ========================================================================== */
+/* 4-1. index.html의 .controls 구조 완벽 대응 */
+.controls {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column; /* 💡 1행(.left-controls)과 2행(.right-controls)을 위아래 2줄로 분리 */
+  gap: 10px;
+}
+
+.left-controls {
+  display: flex;
+  justify-content: space-between; /* 💡 1행: 제목, 스코프버튼, 날짜이동, 뷰어/수정을 좌우 균등 정렬 */
+  align-items: center;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.right-controls {
+  display: flex;
+  justify-content: flex-end; /* 💡 2행: 검색, 수업보기, 주말보기, 더보기[⋮] 버튼을 2행 우측 정렬 */
+  align-items: center;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 4-2. .app-header 구조 호환 대응 */
 .app-header {
   position: sticky;
   top: 0;
@@ -71,18 +104,30 @@ body {
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   display: flex;
-  flex-direction: column; /* 💡 위아래 두 줄 분리 */
-  gap: 12px;
-}
-
-.header-top, .header-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
 }
 
-.title-area, .scope-group, .date-nav, .nav-group, .action-group {
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.header-bottom {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* 상단 하위 그룹 공통 스타일 */
+.title-area, .scope-group, .date-nav, .mode-group, .nav-group, .action-group {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -93,7 +138,7 @@ body {
   font-weight: 800;
   color: var(--primary-color);
   margin: 0;
-  margin-right: 15px;
+  white-space: nowrap;
 }
 
 #date-range-text {
@@ -102,6 +147,7 @@ body {
   color: #1e293b;
   min-width: 220px;
   text-align: center;
+  white-space: nowrap;
 }
 
 /* 상단 버튼 공통 디자인 */
@@ -115,6 +161,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .nav-btn:hover, .btn-scope:hover, .btn-mode:hover, .btn-action:hover {
@@ -173,6 +220,7 @@ body {
   align-items: center;
   gap: 8px;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .dropdown-item:hover {
