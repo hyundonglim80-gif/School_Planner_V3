@@ -1,11 +1,8 @@
-// js/viewMonth.js
-
 class MonthView extends window.BaseView {
   constructor(container) {
-    super(container); // BaseView(부모) 상속
+    super(container); 
   }
 
-  // 1. 유틸리티: 날짜 이동 전역 함수 (app.js 등 외부에서 호출할 수 있도록 유지)
   static setupGoToDay() {
     if (!window.goToDay) {
       window.goToDay = function(dateStr) {
@@ -19,11 +16,8 @@ class MonthView extends window.BaseView {
     }
   }
 
-  // ==========================================================================
-  // 👁️ 2. 월간 뷰어 렌더링 (달력 형태)
-  // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드에서 월간 일정을 불러오는 중...'); // BaseView 상속 기능
+    this.showLoading('클라우드에서 월간 일정을 불러오는 중...'); 
 
     if (!window.db) return;
 
@@ -54,9 +48,7 @@ class MonthView extends window.BaseView {
     for(let i=1; i<=lastDate; i++) {
       const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       dayPromises.push(window.getUserCol('events').doc(dateStr).get().then(doc => ({ 
-        day: i, 
-        dateStr, 
-        eventData: doc.exists ? doc.data() : {} 
+        day: i, dateStr, eventData: doc.exists ? doc.data() : {} 
       })));
     }
     const monthData = await Promise.all(dayPromises);
@@ -75,10 +67,11 @@ class MonthView extends window.BaseView {
       
       let eventHtml = '';
       if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-        eventHtml = window.generateEventBadgesHTML(item.eventData.eventList);
+        // 💡 클릭 이벤트 토글을 위해 dateStr 함께 넘기기
+        eventHtml = window.generateEventBadgesHTML(item.eventData.eventList, dateStr);
       } else if (item.eventData.eventText) {
         const parsed = window.parseRawEventTextToEventList(item.eventData.eventText);
-        eventHtml = window.generateEventBadgesHTML(parsed);
+        eventHtml = window.generateEventBadgesHTML(parsed, dateStr);
       }
       
       const dateObj = new Date(y, m, d);
@@ -123,9 +116,6 @@ class MonthView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // ✏️ 3. 월간 에디터 렌더링
-  // ==========================================================================
   async renderEditor() {
     this.showLoading('월간 편집 시트를 불러오는 중...');
 
@@ -182,7 +172,7 @@ class MonthView extends window.BaseView {
       window[`tempEvents_${item.dateStr}`] = eventList;
       
       let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
-      compactEditorHtml += window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(item.dateStr) : window.generateCompactEventEditor(item.dateStr); // 주간 뷰의 헬퍼 함수 활용
+      compactEditorHtml += window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(item.dateStr) : window.generateCompactEventEditor(item.dateStr); 
       compactEditorHtml += `</div>`; 
 
       const periods = item.data.periods || {};
@@ -219,9 +209,6 @@ class MonthView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // 💾 4. 월간 일괄 저장 처리 (부모의 save 메서드 구현)
-  // ==========================================================================
   async save() {
     const rows = document.querySelectorAll("tr[data-month-date]");
     for (const row of rows) {
@@ -276,22 +263,8 @@ class MonthView extends window.BaseView {
   }
 }
 
-// 초기화 시 공통 유틸리티 연결
 MonthView.setupGoToDay();
-
-// ==========================================================================
-// 🔌 하위 호환성 유지 브릿지 (app.js 연동)
-// ==========================================================================
 window.monthViewInstance = new MonthView(document.getElementById("main-view"));
-
-window.renderMonthViewer = (container) => {
-  window.monthViewInstance.container = container;
-  window.monthViewInstance.renderViewer();
-};
-
-window.renderMonthEditor = (container) => {
-  window.monthViewInstance.container = container;
-  window.monthViewInstance.renderEditor();
-};
-
+window.renderMonthViewer = (container) => { window.monthViewInstance.container = container; window.monthViewInstance.renderViewer(); };
+window.renderMonthEditor = (container) => { window.monthViewInstance.container = container; window.monthViewInstance.renderEditor(); };
 window.saveMonthDataFromEditor = () => window.monthViewInstance.save();
