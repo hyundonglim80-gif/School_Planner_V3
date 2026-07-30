@@ -1,5 +1,3 @@
-/*index.html*/
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -42,7 +40,7 @@
           <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;" title="더보기 및 메뉴">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
-              <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.manageMemoLabels();">📝 메모 라벨 관리</button>
+              <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">📝 메모 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openEventLabelModal()">🏷️ 일정 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openJournalLabelModal()">📔 일지 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정 (수업 명칭/시수)</button>
@@ -85,6 +83,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
   
   <script src="js/firebase.js"></script>
   
@@ -104,13 +103,16 @@
   <script src="js/modules/timetable.js"></script>
   <script src="js/modules/backup.js"></script>
   
- 
-  
   <script src="js/viewWeek.js"></script>
   <script src="js/viewDay.js"></script>
   <script src="js/viewMonth.js"></script>
   <script src="js/viewYear.js"></script>
   <script src="js/viewMemo.js"></script>
+
+  <div id="image-viewer-modal" class="modal-overlay hidden" style="z-index: 10006; flex-direction: column;" onclick="this.classList.add('hidden')">
+      <img id="full-size-image" src="" style="max-width: 90%; max-height: 85vh; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); object-fit: contain;">
+      <span style="color: white; margin-top: 15px; font-size: 1.2rem; font-weight: bold; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;">화면 아무 곳이나 클릭하면 닫힙니다</span>
+  </div>
 
 </body>
 </html>
