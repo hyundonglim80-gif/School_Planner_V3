@@ -12,10 +12,12 @@ class MemoView extends window.BaseView {
     this.currentFilter = '전체'; 
   }
 
+  // 💡 로컬 스토리지에서 커스텀 메모 라벨 목록을 불러오는 함수
   loadMemoLabels() {
       const savedLabels = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
       if (savedLabels && savedLabels.length > 0) {
-          this.AVAILABLE_LABELS = savedLabels;
+          // 객체로 저장된 경우 name 속성을, 문자열로 저장된 경우 문자열 자체를 추출
+          this.AVAILABLE_LABELS = savedLabels.map(l => typeof l === 'object' ? l.name : l);
       } else {
           this.AVAILABLE_LABELS = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
       }
