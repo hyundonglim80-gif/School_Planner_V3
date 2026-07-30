@@ -64,12 +64,19 @@ class DayView extends window.BaseView {
     if (journals.length > 0) {
       html += `<div class="day-journal-section" style="margin-top:20px;">
                 <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘의 일지</h3>`;
+      
+      const validJLabels = window.getJournalLabels().map(l => l.name);
+      const defaultJLabel = validJLabels[0] || '참고';
+
       journals.forEach(j => {
-        // 🎨 일지 블록에 색상 적용
-        const style = window.getLabelStyle(j.label, 'journal');
+        // 💡 안전장치: DB에 있는 일지 라벨이 현재 목록에 없으면 '기본 라벨'로 대체 표시
+        let currentLabel = j.label;
+        if (!validJLabels.includes(currentLabel)) currentLabel = defaultJLabel;
+
+        const style = window.getLabelStyle(currentLabel, 'journal');
         html += `
           <div style="background:${style.bg}; border:1px solid ${style.border}; border-left:5px solid ${style.text}; border-radius:8px; padding:12px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-              <div style="font-weight:bold; color:${style.text}; margin-bottom:6px; font-size:1.05rem;">[${j.label}]</div>
+              <div style="font-weight:bold; color:${style.text}; margin-bottom:6px; font-size:1.05rem;">[${currentLabel}]</div>
               <div style="color:#1e293b; font-size:1.05rem; line-height:1.5; white-space:pre-wrap; word-break:break-all;">${j.content}</div>
           </div>`;
       });
@@ -95,9 +102,12 @@ class DayView extends window.BaseView {
 
     this.currentEvents = events.length > 0 ? events : [{ label: defaultLabel, content: '' }];
     
+    const validJLabels = window.getJournalLabels().map(l => l.name);
+    const defaultJLabel = validJLabels[0] || '참고';
+
     const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
     const journals = journalDoc.exists ? journalDoc.data().entries || [] : [];
-    this.currentJournals = journals.length > 0 ? journals : [{ label: '참고', content: '' }];
+    this.currentJournals = journals.length > 0 ? journals : [{ label: defaultJLabel, content: '' }];
 
     let html = `<div class="day-viewer-container">`;
 
@@ -165,12 +175,12 @@ class DayView extends window.BaseView {
     let html = '';
     
     this.currentEvents.forEach((e, index) => {
+        // 에디터 렌더링 시에도 안전장치
         if (!labelObjs.some(l => l.name === e.label)) e.label = labelObjs[0] ? labelObjs[0].name : '';
         
         let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
         options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
         
-        // 🎨 동적 색상 가져오기
         const style = window.getLabelStyle(e.label, 'event');
         
         html += `
@@ -214,14 +224,18 @@ class DayView extends window.BaseView {
   renderJournalEntries() {
     const container = document.getElementById('journal-entries-container');
     if(!container) return;
-    let labels = window.getJournalLabels().map(l => l.name);
+    
+    const labelObjs = window.getJournalLabels();
+    const labels = labelObjs.map(l => l.name);
     let html = '';
     
     this.currentJournals.forEach((j, index) => {
+        // 일지 에디터 렌더링 시 안전장치
+        if (!labels.includes(j.label)) j.label = labels[0] || '참고';
+
         let options = labels.map(l => `<option value="${l}" ${j.label === l ? 'selected' : ''}>${l}</option>`).join('');
         options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
         
-        // 🎨 동적 색상 가져오기
         const style = window.getLabelStyle(j.label, 'journal');
         
         html += `
