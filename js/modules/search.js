@@ -1,3 +1,5 @@
+// js/modules/search.js
+
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
@@ -46,7 +48,7 @@ const SearchModule = {
     `;
   },
 
-  open: function() {
+  open: async function() {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
         id: 'search-modal-v2',
@@ -55,6 +57,9 @@ const SearchModule = {
         content: this.getContentHTML()
       });
     }
+    
+    // 💡 전역 환경설정(2학기 시작일 등) 로드
+    await window.loadGlobalPreferences();
     this.modalInstance.open();
     
     const select = document.getElementById('search-scope-select');
@@ -120,10 +125,11 @@ const SearchModule = {
     this.filterIdCounter++;
   },
 
-  getSearchTargetDates: function(eventMap) {
+  // 💡 검색 날짜를 전역 엔진(getSemesterDates)에서 100% 동일하게 가져오도록 수정
+  getSearchTargetDates: function() {
     const targetScope = document.getElementById('search-scope-select').value;
     const dates = [];
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const datesInfo = window.getSemesterDates(); // 전역 엔진 호출
 
     if (targetScope === 'custom') {
       const startStr = document.getElementById('search-start-date').value;
@@ -139,26 +145,6 @@ const SearchModule = {
         curDate.setDate(curDate.getDate() + 1);
       }
       return dates;
-    }
-
-    const y = window.currentDate.getFullYear();
-    const m = window.currentDate.getMonth(); 
-    const startYear = m <= 1 ? y - 1 : y; 
-
-    let sem2StartDate = new Date(startYear, 7, 16); 
-    if (eventMap) {
-       let found = false;
-       for (let mth = 7; mth <= 8; mth++) { 
-          const daysInMonth = new Date(startYear, mth + 1, 0).getDate();
-          for (let d = 1; d <= daysInMonth; d++) {
-             const checkDate = window.formatDate(new Date(startYear, mth, d));
-             if (eventMap[checkDate] && (eventMap[checkDate].includes('개학') || eventMap[checkDate].includes('2학기 시작'))) {
-                 sem2StartDate = new Date(startYear, mth, d);
-                 found = true; break;
-             }
-          }
-          if(found) break;
-       }
     }
 
     const pushDate = (dateObj) => dates.push({ dateStr: window.formatDate(dateObj) });
@@ -180,19 +166,14 @@ const SearchModule = {
       const lastDate = new Date(curY, curM + 1, 0).getDate();
       for (let i = 1; i <= lastDate; i++) pushDate(new Date(curY, curM, i));
     } else if (targetScope === 'year') {
-      for (let monthIdx = 3; monthIdx <= 14; monthIdx++) {
-        let targetY = startYear; let targetM = monthIdx;
-        if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
-        const lastDate = new Date(targetY, targetM, 0).getDate();
-        for (let i = 1; i <= lastDate; i++) pushDate(new Date(targetY, targetM - 1, i));
-      }
+      let cur = new Date(datesInfo.yearStart);
+      while (cur <= datesInfo.yearEnd) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     } else if (targetScope === 'sem1') {
-      let cur = new Date(startYear, 2, 1); 
-      while (cur < sem2StartDate) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+      let cur = new Date(datesInfo.sem1Start); 
+      while (cur <= datesInfo.sem1End) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     } else if (targetScope === 'sem2') {
-      let cur = new Date(sem2StartDate); 
-      const endOfAcademicYear = new Date(startYear + 1, 2, 0); 
-      while (cur <= endOfAcademicYear) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+      let cur = new Date(datesInfo.sem2Start); 
+      while (cur <= datesInfo.sem2End) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     }
     return dates;
   },
@@ -235,7 +216,7 @@ const SearchModule = {
         const journalMap = {};
         journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
-        const targetDatesObj = this.getSearchTargetDates(eventMap);
+        const targetDatesObj = this.getSearchTargetDates(); // 변경됨
         if (targetDatesObj.length === 0) {
             resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-weight:bold; padding:20px;">검색할 기간에 포함되는 날짜가 없습니다.</p>`;
             return; 
@@ -351,7 +332,6 @@ const SearchModule = {
           if (res.dayJournals && res.dayJournals.length > 0) {
             res.dayJournals.forEach(j => {
               if (j.content || j.label) {
-                // 🎨 검색 결과에도 일지 색상 적용
                 const style = window.getLabelStyle(j.label, 'journal');
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
                 jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[일지: ${highlight(j.label)}]</div>`;
