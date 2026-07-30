@@ -68,16 +68,26 @@ body {
   z-index: 1000;
   background: #ffffff;
   border-bottom: 1px solid var(--border-color);
-  padding: 10px 20px;
+  padding: 12px 20px;
   display: flex;
+  flex-wrap: wrap; /* 💡 항목이 많을 때 자연스럽게 다음 줄로 넘어가게 하는 핵심 속성 */
+  gap: 15px; /* 줄이 나뉘었을 때 위아래 간격 */
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.left-controls, .right-controls {
+.left-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap; /* 왼쪽 그룹 내부 줄바꿈 허용 */
+  gap: 15px;
+}
+
+.right-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* 오른쪽 그룹 내부 줄바꿈 허용 */
   gap: 10px;
 }
 
