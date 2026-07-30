@@ -8,14 +8,10 @@ class MemoView extends window.BaseView {
     this.draggedMemoId = null;
     
     this.currentNewLabels = []; 
-    // 💡 초기화 시 기본 라벨을 설정하되, 로드될 때 localStorage 값을 가져옵니다.
     this.AVAILABLE_LABELS = [];
-    
-    // 💡 라벨 모아보기(필터) 상태 저장용 변수
     this.currentFilter = '전체'; 
   }
 
-  // 💡 로컬 스토리지에서 커스텀 메모 라벨 목록을 불러오는 함수
   loadMemoLabels() {
       const savedLabels = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
       if (savedLabels && savedLabels.length > 0) {
@@ -25,7 +21,6 @@ class MemoView extends window.BaseView {
       }
   }
 
-  // 💡 특정 라벨만 모아보기 위한 필터 설정 함수
   setFilter(labelName) {
       this.currentFilter = labelName;
       this.renderViewer();
@@ -132,6 +127,9 @@ class MemoView extends window.BaseView {
     if (!containerElement) return;
     containerElement.innerHTML = '';
     
+    // 💡 여기서 설정한 스타일을 통해 부모의 마진(margin: 10px 0;)을 초기화하여 한 줄 배치에 방해가 안 되도록 합니다.
+    containerElement.style.margin = "0";
+
     this.AVAILABLE_LABELS.forEach(labelText => {
         const chip = document.createElement('div');
         chip.className = 'label-chip';
@@ -162,12 +160,9 @@ class MemoView extends window.BaseView {
   async renderViewer() {
     this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
     
-    // 💡 그리기 직전에 최신 라벨 목록을 로드합니다.
     this.loadMemoLabels();
-    
     this.memoItems = await window.dbAPI.loadMemos();
 
-    // 💡 사용자가 선택한 라벨(currentFilter)에 따라 데이터를 필터링합니다.
     let filteredMemos = this.memoItems;
     if (this.currentFilter !== '전체') {
         filteredMemos = filteredMemos.filter(m => m.labels && m.labels.includes(this.currentFilter));
@@ -176,7 +171,6 @@ class MemoView extends window.BaseView {
     let activeMemos = filteredMemos.filter(m => !m.completed).sort((a, b) => a.order - b.order);
     let completedMemos = filteredMemos.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
-    // 💡 라벨 필터 버튼 HTML 생성 (가로 스크롤 가능하게 배치)
     const filterHtml = `
       <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:10px;">
           <div class="label-chip ${this.currentFilter === '전체' ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('전체')">👀 전체보기</div>
@@ -205,11 +199,12 @@ class MemoView extends window.BaseView {
             <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
-              <button onclick="window.manageMemoLabels()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 라벨 설정</button>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
+              
+              <div id="memo-add-labels" class="label-chip-container" style="flex: 1; margin: 0; padding-right: 10px;"></div>
+              
+              <button onclick="window.manageMemoLabels()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s; flex-shrink: 0; margin-top: 2px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 설정</button>
           </div>
-
-          <div id="memo-add-labels" class="label-chip-container" style="margin-bottom: 25px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;"></div>
           
           <div style="margin-top:10px; margin-bottom:5px;">
               ${filterHtml}
@@ -228,7 +223,6 @@ class MemoView extends window.BaseView {
     `;
     this.container.innerHTML = html;
     
-    // 신규 작성 시 현재 필터링된 라벨이 있으면 기본으로 선택해줍니다.
     this.currentNewLabels = this.currentFilter !== '전체' ? [this.currentFilter] : [];
     this.renderLabelChips(document.getElementById('memo-add-labels'), this.currentNewLabels, (updatedLabels) => {
         this.currentNewLabels = updatedLabels;
@@ -248,7 +242,6 @@ class MemoView extends window.BaseView {
     let dragHandleHtml = '';
     let dragAttributes = '';
     
-    // 전체보기 모드일 때만 드래그 앤 드롭 순서 변경 허용 (필터링 중 순서 꼬임 방지)
     if (!isCompleted && this.currentFilter === '전체') {
       dragAttributes = `draggable="true" ondragstart="window.memoViewInstance.handleDragStart(event, '${item.firestoreId}')" ondragover="window.memoViewInstance.handleDragOver(event)" ondrop="window.memoViewInstance.handleDrop(event, '${item.firestoreId}')"`;
       dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
@@ -408,23 +401,16 @@ class MemoView extends window.BaseView {
   async save() {}
 }
 
-// ==========================================================================
-// 💡 전역 메모 라벨 관리 함수 (index.html 메뉴와 연결됨)
-// ==========================================================================
 window.manageMemoLabels = function() {
-    // 1. 기존 라벨 불러오기
     let labels = JSON.parse(localStorage.getItem('workCalendar_memoLabels')) || ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
     let currentStr = labels.join(', ');
     
-    // 2. 프롬프트 창으로 사용자 입력 받기
     let result = prompt("💡 메모의 종류(라벨)를 쉼표(,)로 구분하여 입력해주세요.", currentStr);
     
-    // 3. 입력값이 있으면 쉼표 기준으로 자르고 빈 값 제거 후 저장
     if(result !== null) {
         let newLabels = result.split(',').map(s => s.trim()).filter(s => s !== '');
         if(newLabels.length > 0) {
             localStorage.setItem('workCalendar_memoLabels', JSON.stringify(newLabels));
-            // 현재 화면이 메모 화면이라면 즉시 새로고침 반영
             if (window.currentScope === 'memo' && window.memoViewInstance) {
                 window.memoViewInstance.renderViewer();
             }
