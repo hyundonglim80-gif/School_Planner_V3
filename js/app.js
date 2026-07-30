@@ -38,6 +38,7 @@ window.tempPeriodNames = [];
 
 window.loadSettings = async function() {
     try {
+        // 💡 만약 권한이 없어서 에러가 나면 여기서 걸러집니다.
         const doc = await window.getUserCol('settings').doc('preferences').get();
         if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
             window.periodNames = doc.data().periodNames;
@@ -45,7 +46,7 @@ window.loadSettings = async function() {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
         }
     } catch (error) {
-        console.warn("설정 데이터를 불러오는 데 실패하여 기본값을 적용합니다.");
+        console.warn("⚠️ [경고] 설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
         window.periodNames = ["1", "2", "3", "4", "5", "6"];
     }
 };
@@ -61,11 +62,16 @@ window.render = function() {
   updateTitle();
   updateButtonUI();
 
-  if (currentScope === 'week') { currentMode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
-  else if (currentScope === 'month') { currentMode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
-  else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
-  else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
-  else if (currentScope === 'memo') { window.renderMemoView(container); }
+  try {
+      if (currentScope === 'week') { currentMode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
+      else if (currentScope === 'month') { currentMode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
+      else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
+      else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
+      else if (currentScope === 'memo') { window.renderMemoView(container); }
+  } catch (error) {
+      console.error("화면 렌더링 중 오류 발생:", error);
+      container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">⚠️ 데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
+  }
 };
 
 function updateTitle() {
@@ -251,7 +257,7 @@ window.goToToday = function() {
 };
 
 // ==========================================================================
-// 🚀 앱 실행 시 초기화 이벤트 설정 (가장 중요한 로그인 타이밍 제어)
+// 🚀 앱 실행 시 초기화 이벤트 설정
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
   const viewerBtn = document.getElementById('btn-mode-viewer');
@@ -276,7 +282,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 💡 구글 로그인 연동 로직 (이곳에서만 렌더링을 시작하도록 완벽 통제)
   if (window.auth) {
     window.auth.onAuthStateChanged(async user => {
       if (user) {
@@ -284,10 +289,10 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('user-info').style.display = 'flex';
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
-        // 💡 1. 로그인이 확인되면 가장 먼저 환경 설정(시수 등)을 무조건 기다렸다가 불러옵니다.
+        // 💡 설정 로딩 실패를 무시하고 넘어가도록 개선
         await window.loadSettings();
         
-        // 💡 2. 설정이 다 불러와지면 그제서야 화면을 그립니다! (에러 방지)
+        // 💡 화면 렌더링 시도
         window.render();
         
         setTimeout(() => {
@@ -296,9 +301,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
               window.openHelpModal();
             }
-          } catch(e) {
-            console.warn("도움말 팝업 실행 중 오류:", e);
-          }
+          } catch(e) {}
         }, 500); 
 
       } else {
