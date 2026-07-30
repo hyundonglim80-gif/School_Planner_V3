@@ -32,7 +32,8 @@ class DayView extends window.BaseView {
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
-      html += window.generateEventBadgesHTML(events); 
+      // 💡 dateStr을 함께 넘겨주어 뱃지 클릭이 가능하게 연결
+      html += window.generateEventBadgesHTML(events, dateStr); 
     } else {
       html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
     }
@@ -166,7 +167,6 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
-  // 💡 드롭다운과 텍스트 영역 사이에 [완료] 체크박스 배치
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
