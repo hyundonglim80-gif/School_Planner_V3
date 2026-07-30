@@ -65,7 +65,7 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 💡 안전장치: DB 업데이트 전이라도 화면에 그릴 때 없는 라벨은 '기본 라벨'로 대체해서 보여줌
+// 🎨 뱃지 렌더링 시 완료(Completed) 상태 음영 및 취소선 적용
 window.generateEventBadgesHTML = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -75,15 +75,25 @@ window.generateEventBadgesHTML = function(eventList) {
 
     eventList.forEach(e => {
         let currentLabel = e.label;
-        if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel; // 안전장치 발동
+        if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel;
 
         const style = window.getLabelStyle(currentLabel, 'event');
+        const isCompleted = !!e.completed;
+
+        // 완료 시 회색 음영 및 취소선 스타일
+        let badgeStyle = isCompleted 
+            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through;`
+            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border};`;
+
         let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
+        if (isCompleted) {
+            textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
+        }
 
         html += `
-        <div style="display:flex; align-items:flex-start; gap:4px; font-size:0.95rem; line-height:1.3;">
-            <span style="background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${currentLabel}</span>
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${e.content}</span>
+        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3; ${isCompleted ? 'opacity:0.65;' : ''}">
+            <span style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${currentLabel}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted ? '✓ ' : ''}${e.content}</span>
         </div>`;
     });
     html += `</div>`;
@@ -100,18 +110,24 @@ window.parseRawEventTextToEventList = function(rawText) {
         let t = line.trim();
         if(!t) return;
         
+        let completed = false;
+        if (t.startsWith('[v]') || t.startsWith('[V]')) {
+            completed = true;
+            t = t.substring(3).trim();
+        }
+
         const match = t.match(/^\[(.*?)\]\s*(.*)$/);
         if (match) {
             let labelName = match[1].trim();
             if (!validLabels.includes(labelName)) labelName = validLabels[0] || '일정'; 
-            eventList.push({ label: labelName, content: match[2].trim() });
+            eventList.push({ label: labelName, content: match[2].trim(), completed: completed });
         } else {
             let defaultLabel = validLabels[0] || '일정';
             if (t.includes('(휴일)') || t.includes('(행사)')) {
                 const skipLabel = window.getEventLabels().find(l => l.isSkip);
                 if (skipLabel) defaultLabel = skipLabel.name;
             }
-            eventList.push({ label: defaultLabel, content: t });
+            eventList.push({ label: defaultLabel, content: t, completed: completed });
         }
     });
     return eventList;
@@ -119,7 +135,7 @@ window.parseRawEventTextToEventList = function(rawText) {
 
 window.formatEventListToText = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
+    return eventList.map(e => `${e.completed ? '[v]' : ''}[${e.label}] ${e.content}`).join('\n');
 };
 
 window.getJournalLabels = function() {
