@@ -43,7 +43,9 @@ class WeekView extends window.BaseView {
         const eData = eventDoc.data();
         const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
-        if (finalEvents.length > 0) eventHtml = window.generateEventBadgesHTML(finalEvents); 
+        
+        // 💡 dateStr을 넘겨주어 뷰어에서도 라벨 클릭 토글 가능하게 적용!
+        if (finalEvents.length > 0) eventHtml = window.generateEventBadgesHTML(finalEvents, d.dateStr); 
       }
 
       const periods = dayData.periods || {};
@@ -155,7 +157,6 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 💡 컴팩트 에디터: 드롭다운과 텍스트 입력 칸 사이 완료 체크박스 배치
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labels = window.getEventLabels();
