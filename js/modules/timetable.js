@@ -8,14 +8,14 @@ const TimetableModule = {
     return `
       <div class="modal-info-box alt">
         <p style="margin:0;">
-          <strong>[기준시간표]</strong> 학기별 기본 시간표를 등록해두면, 원하는 기간에 일괄 적용할 수 있습니다.
+          <strong>[기준 시간표]</strong> 학기별 기본 시간표를 등록해두면, 원하는 기간에 일괄 적용할 수 있습니다.
         </p>
       </div>
 
       <div class="tt-action-row">
         <select id="tt-semester-select" onchange="TimetableModule.loadBaseTimetable()" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; font-weight:bold; outline:none; cursor:pointer; background:#fff;">
-          <option value="1">1학기 기준시간표</option>
-          <option value="2">2학기 기준시간표</option>
+          <option value="1">1학기 기준 시간표</option>
+          <option value="2">2학기 기준 시간표</option>
         </select>
         <button onclick="TimetableModule.saveBaseTimetable()" class="modal-btn-primary">💾 시간표 저장</button>
       </div>
@@ -57,7 +57,7 @@ const TimetableModule = {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
         id: 'timetable-modal-v2',
-        title: '🗓️ 기준시간표 관리',
+        title: '🗓️ 기준 시간표 관리',
         width: '700px',
         content: this.getContentHTML()
       });
@@ -109,7 +109,7 @@ const TimetableModule = {
         this.timetableConfig = doc.data() || { 1: null, 2: null };
       }
     } catch(e) {
-      console.error("기준시간표 로드 오류", e);
+      console.error("기준 시간표 로드 오류", e);
     }
   },
 
@@ -147,7 +147,7 @@ const TimetableModule = {
 
     try {
       await window.getUserCol('settings').doc('timetable_config').set(this.timetableConfig);
-      alert(`✅ ${sem}학기 기준시간표가 성공적으로 저장되었습니다.`);
+      alert(`✅ ${sem}학기 기준 시간표가 성공적으로 저장되었습니다.`);
     } catch(e) {
       alert('저장 중 오류가 발생했습니다.');
     }
@@ -164,10 +164,10 @@ const TimetableModule = {
     const endDate = new Date(endDateStr);
     if (startDate > endDate) return alert("시작일은 종료일보다 이전이어야 합니다.");
     
-    if (!confirm(`${startDateStr} ~ ${endDateStr} 기간 동안 ${sem}학기 기준시간표를 일괄 적용하시겠습니까?`)) return;
+    if (!confirm(`${startDateStr} ~ ${endDateStr} 기간 동안 ${sem}학기 기준 시간표를 일괄 적용하시겠습니까?`)) return;
 
     const semData = this.timetableConfig[sem];
-    if (!semData) return alert("해당 학기의 기준시간표가 먼저 등록되어야 합니다.");
+    if (!semData) return alert("해당 학기의 기준 시간표가 먼저 등록되어야 합니다.");
 
     const dayMap = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri' };
     let appliedCount = 0, skippedCount = 0;
