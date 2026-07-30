@@ -8,7 +8,7 @@ class DayView extends window.BaseView {
   parseEvents(docData) {
     if (!docData) return [];
     if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
-    if (docData.eventText && docData.eventText.trim() !== '') return [{ label: '일정', content: docData.eventText }];
+    if (docData.eventText && docData.eventText.trim() !== '') return window.parseRawEventTextToEventList(docData.eventText);
     return [];
   }
 
@@ -69,7 +69,6 @@ class DayView extends window.BaseView {
       const defaultJLabel = validJLabels[0] || '참고';
 
       journals.forEach(j => {
-        // 💡 안전장치: DB에 있는 일지 라벨이 현재 목록에 없으면 '기본 라벨'로 대체 표시
         let currentLabel = j.label;
         if (!validJLabels.includes(currentLabel)) currentLabel = defaultJLabel;
 
@@ -100,7 +99,7 @@ class DayView extends window.BaseView {
     const validLabels = window.getEventLabels().map(l => l.name);
     const defaultLabel = validLabels[0] || '일정';
 
-    this.currentEvents = events.length > 0 ? events : [{ label: defaultLabel, content: '' }];
+    this.currentEvents = events.length > 0 ? events : [{ label: defaultLabel, content: '', completed: false }];
     
     const validJLabels = window.getJournalLabels().map(l => l.name);
     const defaultJLabel = validJLabels[0] || '참고';
@@ -167,6 +166,7 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
+  // 💡 드롭다운과 텍스트 영역 사이에 [완료] 체크박스 배치
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
@@ -175,21 +175,28 @@ class DayView extends window.BaseView {
     let html = '';
     
     this.currentEvents.forEach((e, index) => {
-        // 에디터 렌더링 시에도 안전장치
         if (!labelObjs.some(l => l.name === e.label)) e.label = labelObjs[0] ? labelObjs[0].name : '';
         
         let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
         options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
         
         const style = window.getLabelStyle(e.label, 'event');
-        
+        const isCompleted = !!e.completed;
+        const inputStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#f8fafc; color:#1e293b;';
+
         html += `
-        <div class="event-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-            <select class="event-label-select" onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.dayViewInstance.syncEventInputs(); window.dayViewInstance.renderEventEntries(); }" style="padding:10px; border-radius:6px; border:1px solid ${style.border}; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${style.text}; background:${style.bg}; transition:0.2s;">
+        <div class="event-entry-block" data-index="${index}" style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+            <select class="event-label-select" onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.dayViewInstance.syncEventInputs(); window.dayViewInstance.renderEventEntries(); }" style="padding:10px; border-radius:6px; border:1px solid ${style.border}; outline:none; font-size:1rem; width:100px; flex-shrink:0; font-weight:bold; color:${style.text}; background:${style.bg}; transition:0.2s;">
                 ${options}
             </select>
-            <textarea class="event-content-input" placeholder="일정 내용을 입력하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
-            <button onclick="window.dayViewInstance.removeEventEntry(${index})" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s;" title="삭제">✖</button>
+            
+            <label style="display:flex; align-items:center; gap:3px; cursor:pointer; flex-shrink:0; padding:4px 6px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px;" title="일정 완료 체크">
+                <input type="checkbox" class="event-complete-check" ${isCompleted ? 'checked' : ''} onchange="window.dayViewInstance.syncEventInputs(); window.dayViewInstance.renderEventEntries();" style="width:18px; height:18px; accent-color:#2563eb; cursor:pointer;">
+                <span style="font-size:0.85rem; font-weight:bold; color:${isCompleted ? '#059669' : '#64748b'};">완료</span>
+            </label>
+
+            <textarea class="event-content-input" placeholder="일정 내용을 입력하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; ${inputStyle}" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
+            <button onclick="window.dayViewInstance.removeEventEntry(${index})" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#ef4444; font-size:1.2rem; cursor:pointer; padding:6px 10px; border-radius:6px; transition:0.2s; flex-shrink:0;" title="삭제">✖</button>
         </div>`;
     });
     container.innerHTML = html;
@@ -201,9 +208,11 @@ class DayView extends window.BaseView {
     blocks.forEach((block, idx) => {
         const label = block.querySelector('.event-label-select').value;
         const content = block.querySelector('.event-content-input').value;
+        const completed = block.querySelector('.event-complete-check')?.checked || false;
         if(this.currentEvents[idx]) {
             this.currentEvents[idx].label = label;
             this.currentEvents[idx].content = content;
+            this.currentEvents[idx].completed = completed;
         }
     });
   }
@@ -211,7 +220,7 @@ class DayView extends window.BaseView {
   addEventEntry() {
     this.syncEventInputs();
     const defaultLabel = window.getEventLabels()[0]?.name || '일정';
-    this.currentEvents.push({ label: defaultLabel, content: '' });
+    this.currentEvents.push({ label: defaultLabel, content: '', completed: false });
     this.renderEventEntries();
   }
 
@@ -230,7 +239,6 @@ class DayView extends window.BaseView {
     let html = '';
     
     this.currentJournals.forEach((j, index) => {
-        // 일지 에디터 렌더링 시 안전장치
         if (!labels.includes(j.label)) j.label = labels[0] || '참고';
 
         let options = labels.map(l => `<option value="${l}" ${j.label === l ? 'selected' : ''}>${l}</option>`).join('');
