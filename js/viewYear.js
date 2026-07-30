@@ -1,15 +1,10 @@
-// js/viewYear.js
-
 class YearView extends window.BaseView {
   constructor(container) {
-    super(container); // BaseView(부모) 상속
+    super(container); 
   }
 
-  // ==========================================================================
-  // 👁️ 1. 연간 뷰어 렌더링
-  // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드에서 연간 일정을 분석하여 불러오는 중...'); // BaseView 상속 기능
+    this.showLoading('클라우드에서 연간 일정을 분석하여 불러오는 중...'); 
 
     if (!window.db) return;
 
@@ -22,11 +17,12 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
-          htmlOutput = window.generateEventBadgesHTML(data.eventList);
+          // 💡 클릭 이벤트 토글을 위해 doc.id(dateStr) 넘기기
+          htmlOutput = window.generateEventBadgesHTML(data.eventList, doc.id);
           hasContent = true;
         } else if (data.eventText && data.eventText.trim() !== '') {
           const parsed = window.parseRawEventTextToEventList(data.eventText);
-          htmlOutput = window.generateEventBadgesHTML(parsed);
+          htmlOutput = window.generateEventBadgesHTML(parsed, doc.id);
           hasContent = true;
         }
         
@@ -93,11 +89,8 @@ class YearView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // ✏️ 2. 연간 에디터 렌더링
-  // ==========================================================================
   async renderEditor() {
-    this.showLoading('연간 일정 편집 시트를 불러오는 중...'); // BaseView 상속 기능
+    this.showLoading('연간 일정 편집 시트를 불러오는 중...'); 
 
     if (!window.db) return;
 
@@ -198,9 +191,6 @@ class YearView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // 💾 3. 연간 일괄 저장 처리 (부모의 save 메서드 구현)
-  // ==========================================================================
   async save() {
     const rows = document.querySelectorAll("tr[data-year-date]");
     for (const row of rows) {
@@ -255,19 +245,7 @@ class YearView extends window.BaseView {
   }
 }
 
-// ==========================================================================
-// 🔌 하위 호환성 유지 브릿지 (app.js 연동)
-// ==========================================================================
 window.yearViewInstance = new YearView(document.getElementById("main-view"));
-
-window.renderYearViewer = (container) => {
-  window.yearViewInstance.container = container;
-  window.yearViewInstance.renderViewer();
-};
-
-window.renderYearEditor = (container) => {
-  window.yearViewInstance.container = container;
-  window.yearViewInstance.renderEditor();
-};
-
+window.renderYearViewer = (container) => { window.yearViewInstance.container = container; window.yearViewInstance.renderViewer(); };
+window.renderYearEditor = (container) => { window.yearViewInstance.container = container; window.yearViewInstance.renderEditor(); };
 window.saveYearDataFromEditor = () => window.yearViewInstance.save();
