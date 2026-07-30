@@ -1,4 +1,4 @@
-// js/modules/recurring.js - 매주 / 격주 / 매월 다중 날짜 반복 일정 일괄 등록 모듈
+// js/modules/recurring.js
 
 const RecurringEventModule = {
   modalInstance: null,
@@ -7,7 +7,6 @@ const RecurringEventModule = {
     const labels = window.getEventLabels();
     const labelOptions = labels.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
 
-    // 1일부터 31일까지 다중 선택 체크박스 생성
     let monthDayCheckboxes = '';
     for (let d = 1; d <= 31; d++) {
         monthDayCheckboxes += `
@@ -99,7 +98,7 @@ const RecurringEventModule = {
     `;
   },
 
-  open: function() {
+  open: async function() {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
         id: 'recurring-event-modal',
@@ -109,6 +108,9 @@ const RecurringEventModule = {
       });
     }
     this.modalInstance.open();
+    
+    // 💡 열 때 환경설정을 불러와서 정확한 2학기 날짜를 기반으로 기간 세팅
+    await window.loadGlobalPreferences();
     this.setQuickRange('sem1'); 
   },
 
@@ -131,23 +133,21 @@ const RecurringEventModule = {
     });
   },
 
+  // 💡 전역 엔진을 사용해 1학기/2학기 기간 자동 지정
   setQuickRange: function(type) {
-    const y = window.currentDate.getFullYear();
-    const m = window.currentDate.getMonth();
-    const startYear = m <= 1 ? y - 1 : y;
-
+    const dates = window.getSemesterDates();
     const startInput = document.getElementById('rec-start-date');
     const endInput = document.getElementById('rec-end-date');
 
     if (type === 'sem1') {
-      startInput.value = `${startYear}-03-01`;
-      endInput.value = `${startYear}-08-15`;
+      startInput.value = window.formatDate(dates.sem1Start);
+      endInput.value = window.formatDate(dates.sem1End);
     } else if (type === 'sem2') {
-      startInput.value = `${startYear}-08-16`;
-      endInput.value = `${startYear + 1}-02-28`;
+      startInput.value = window.formatDate(dates.sem2Start);
+      endInput.value = window.formatDate(dates.sem2End);
     } else if (type === 'year') {
-      startInput.value = `${startYear}-03-01`;
-      endInput.value = `${startYear + 1}-02-28`;
+      startInput.value = window.formatDate(dates.yearStart);
+      endInput.value = window.formatDate(dates.yearEnd);
     }
   },
 
@@ -173,7 +173,6 @@ const RecurringEventModule = {
       const selectedDays = Array.from(document.querySelectorAll('.rec-day-check:checked')).map(cb => parseInt(cb.value, 10));
       if (selectedDays.length === 0) return alert("반복할 요일을 하나 이상 선택해주세요.");
 
-      // 주차 기준 계산용 시작 일요일 구하기
       const startSun = new Date(startDate);
       startSun.setDate(startDate.getDate() - startDate.getDay());
 
@@ -182,7 +181,6 @@ const RecurringEventModule = {
           if (recType === 'weekly') {
             targetDates.push(window.formatDate(cur));
           } else if (recType === 'biweekly') {
-            // 시작주부터 2주(14일) 간격 계산
             const tempSun = new Date(cur);
             tempSun.setDate(cur.getDate() - cur.getDay());
             const weekDiff = Math.floor(Math.round((tempSun - startSun) / (1000 * 60 * 60 * 24)) / 7);
