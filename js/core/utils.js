@@ -65,7 +65,6 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 💡 뱃지 렌더링 시 dateStr을 함께 받아 뱃지 자체에 클릭 이벤트(토글) 부여
 window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -80,7 +79,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
         const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
 
-        // 완료 여부에 따른 뱃지 스타일 (완료 시 회색 취소선)
         let badgeStyle = isCompleted 
             ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through; cursor:pointer;`
             : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; cursor:pointer;`;
@@ -90,7 +88,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        // 💡 뱃지 클릭 시 상태 변경 이벤트 (달력 이동 방지를 위해 event.stopPropagation() 사용)
         const onClickAttr = dateStr ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
         html += `
@@ -103,7 +100,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     return html;
 };
 
-// 💡 뱃지 클릭 시 즉시 클라우드에 완료 상태를 동기화하고 화면을 그리는 핵심 엔진
 window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
     try {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
@@ -111,13 +107,12 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
         const data = eventDoc.data();
         let eventList = data.eventList || [];
 
-        // 혹시 예전 데이터(텍스트)라면 리스트로 변환
         if (eventList.length === 0 && data.eventText) {
             eventList = window.parseRawEventTextToEventList(data.eventText);
         }
 
         if (eventList[index]) {
-            eventList[index].completed = !currentStatus; // 상태 뒤집기 (토글)
+            eventList[index].completed = !currentStatus;
             const newText = window.formatEventListToText(eventList);
             
             await window.getUserCol('events').doc(dateStr).set({
@@ -126,7 +121,6 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
                 updatedAt: Date.now()
             }, { merge: true });
 
-            // 변경 후 화면 즉시 갱신
             if (window.render) window.render(); 
         }
     } catch (error) {
@@ -190,4 +184,51 @@ window.getJournalLabels = function() {
         localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
     }
     return labels;
+};
+
+// ==========================================================================
+// 🎓 전역 학기 계산 엔진 (Semester Calculation Engine) 추가
+// ==========================================================================
+window.sem2StartMMDD = '08-16'; // 기본값 설정
+window.isPreferencesLoaded = false;
+
+// 모달을 열 때마다 DB에서 사용자 설정을 불러오는 전역 함수
+window.loadGlobalPreferences = async function() {
+    if (window.isPreferencesLoaded || !window.db) return;
+    try {
+        const doc = await window.getUserCol('settings').doc('preferences').get();
+        if (doc.exists && doc.data().sem2StartDate) {
+            window.sem2StartMMDD = doc.data().sem2StartDate;
+        }
+        window.isPreferencesLoaded = true;
+    } catch (e) { console.warn("설정 로드 실패", e); }
+};
+
+// 언제 어디서든 현재 기준일자를 넣으면 학사일정 범위를 정확히 계산해 반환
+window.getSemesterDates = function(baseDate = window.currentDate) {
+    const y = baseDate.getFullYear();
+    const m = baseDate.getMonth();
+    const acYear = m <= 1 ? y - 1 : y; // 1~2월이면 이전 연도가 학년도 기준
+
+    const sem2Parts = window.sem2StartMMDD.split('-');
+    const sem2Month = parseInt(sem2Parts[0], 10) - 1;
+    const sem2Day = parseInt(sem2Parts[1], 10);
+
+    const yearStart = new Date(acYear, 2, 1); // 3월 1일 시작
+    const yearEnd = new Date(acYear + 1, 2, 0); // 다음해 2월 마지막 날
+    
+    const sem2Start = new Date(acYear, sem2Month, sem2Day);
+    
+    const sem1End = new Date(sem2Start);
+    sem1End.setDate(sem1End.getDate() - 1); // 2학기 시작 전날이 1학기 종료
+
+    return {
+        acYear: acYear,
+        yearStart: yearStart,
+        yearEnd: yearEnd,
+        sem1Start: yearStart,
+        sem1End: sem1End,
+        sem2Start: sem2Start,
+        sem2End: yearEnd
+    };
 };
