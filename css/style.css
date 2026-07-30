@@ -1,325 +1,355 @@
-/* css/style.css - 업무 및 수업 계획표 전체 통합 스타일시트 */
+/* css/style.css */
 
 /* ==========================================================================
-   ⚙️ 1. 디자인 컨트롤 타워 (CSS 변수 모음)
+   ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
+   이곳의 수치와 색상만 변경하시면 앱 전체 디자인이 일괄 적용됩니다.
    ========================================================================== */
 :root {
-  /* 🎨 기본 브랜드 색상 */
-  --primary-color: #1a73e8;
-  --primary-hover: #1557b0;
-  --border-color: #cbd5e1;
-  --bg-body: #f8fafc;
-  --bg-card: #ffffff;
-  --hover-bg: #f1f5f9;
-  --edit-focus-bg: #ffffcc;
-  --tag-bg: #dbeafe;
-  --tag-color: #1e40af;
+  /* 🎨 1. 기본 브랜드 색상 */
+  --primary-color: #1a73e8;       /* 메인 테마 파란색 */
+  --border-color: #cbd5e1;        /* 기본 테두리 색상 */
+  --bg-body: #f8fafc;              /* 전체 배경색 */
+  --bg-card: #ffffff;              /* 카드 및 테이블 배경색 */
+  --hover-bg: #f1f5f9;             /* 마우스 호버 배경색 */
+  --edit-focus-bg: #ffffcc;       /* 셀 수정 클릭 시 포커스 배경색 (연노랑) */
+  --tag-bg: #dbeafe;               /* 과목 배지 배경색 */
+  --tag-color: #1e40af;            /* 과목 배지 글자색 */
 
-  /* 🎯 '오늘' 강조 스타일 설정 */
-  --today-bg-color: #eff6ff;
-  --today-border-color: #2563eb;
-  --today-border-width: 3px;
+  /* 🎯 2. '오늘' 강조 스타일 설정 */
+  --today-bg-color: #eff6ff;      /* 오늘 날짜 칸 배경색 (연푸른색) */
+  --today-border-color: #2563eb;  /* 오늘 날짜 칸 테두리 강조색 (진한 파랑) */
+  --today-border-width: 3px;      /* 오늘 날짜 칸 테두리 두께 */
 
-  /* 📌 기본 폰트 크기 및 높이 */
-  --font-base: 1rem;
-  --day-event-min-height: 80px;
+  /* 📏 3. 헤더 & 공통 글자 크기 설정 */
+  --font-header-title: 1.5rem;    /* 메인 제목 글자 크기 */
+  --font-header-btn: 1.5rem;      /* 헤더 버튼 글자 크기 */
+  --font-date-range: 1.5rem;      /* 날짜 범위 표시 글자 크기 */
+  --font-base: 1.5rem;            /* 일반 표/셀 기본 글자 크기 */
+
+  /* 📌 4. 주(Week) 보기 전용 레이아웃 설정 */
+  --week-table-min-width: 500px;  /* 주간 보기 표 최소 가로 너비 */
+  --week-cell-height: 50px;       /* 1~6교시 칸 최소 세로 높이 */
+  --week-date-font-size: 1.5rem;  /* 요일 밑 날짜 글자 크기 */
+  --week-event-font-size: 1.5rem; /* 주간 상단 일정 글자 크기 */
+
+  /* 📌 5. 월(Month) 보기 전용 레이아웃 설정 */
+  --month-date-align: left;       /* 월간 달력 날짜 숫자 정렬 (left, center, right) */
+  --month-date-font-size: 1.1rem; /* 월간 달력 날짜 숫자 크기 */
+  --month-event-font-size: 0.95rem;/* 월간 달력 일정 글자 크기 */
+  --month-cell-min-height: 85px;  /* 월간 달력 날짜 칸 최소 높이 */
+
+  /* 📌 6. 일(Day) 보기 전용 레이아웃 설정 */
+  --day-title-font-size: 1.5rem;  /* 일간 보기 제목 글자 크기 */
+  --day-content-font-size: 1.3rem;/* 일간 보기 내용 글자 크기 */
+  --day-event-min-height: 70px;  
 }
 
 /* ==========================================================================
-   🧹 2. 기본 리셋 및 전체 기본 스타일
+   🌐 [공통 초기화 및 리셋]
    ========================================================================== */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+  background-color: var(--bg-body); 
+  color: #0f172a; 
+  padding: 0; 
+  margin: 0; 
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: var(--bg-body);
-  color: #0f172a;
-  line-height: 1.5;
-  min-width: 800px;
+/* 📝 여러 줄 입력 시 엔터(Enter) 줄바꿈 형식을 화면에 그대로 유지 */
+.editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* ==========================================================================
-   🔒 3. 로그인 화면
+   🔝 [최상단 고정 헤더 영역]
    ========================================================================== */
-#login-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-body);
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+.app-header { 
+  position: sticky; 
+  top: 0; 
+  z-index: 1000; 
+  background: var(--bg-card); 
+  padding: 10px 16px; 
+  border-bottom: 1px solid var(--border-color); 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
 }
-
-/* ==========================================================================
-   🎛️ 4. 상단 네비게이션 및 메뉴 컨트롤 바 (위아래 2줄 배치 정밀 수정)
-   ========================================================================== */
-/* 4-1. index.html의 .controls 구조 완벽 대응 */
-.controls {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background: #ffffff;
-  border-bottom: 1px solid var(--border-color);
-  padding: 12px 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column; /* 💡 1행(.left-controls)과 2행(.right-controls)을 위아래 2줄로 분리 */
-  gap: 10px;
+.header-top { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  flex-wrap: wrap; 
+  gap: 10px; 
 }
-
-.left-controls {
-  display: flex;
-  justify-content: space-between; /* 💡 1행: 제목, 스코프버튼, 날짜이동, 뷰어/수정을 좌우 균등 정렬 */
-  align-items: center;
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 10px;
+.title-group h1 { font-size: var(--font-header-title); font-weight: 700; color: #1e293b; }
+.control-panel { display: flex; align-items: center; gap: 10px; }
+.btn-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; gap: 2px; }
+.btn-scope { 
+  border: none; background: transparent; padding: 5px 10px; 
+  font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
+  border-radius: 6px; cursor: pointer; transition: all 0.2s; 
 }
-
-.right-controls {
-  display: flex;
-  justify-content: flex-end; /* 💡 2행: 검색, 수업보기, 주말보기, 더보기[⋮] 버튼을 2행 우측 정렬 */
-  align-items: center;
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 10px;
+.btn-scope.active { background-color: #ffffff; color: var(--primary-color); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; border-left: 2px solid #cbd5e1; padding-left: 6px; }
+.btn-mode { 
+  border: none; background: transparent; padding: 5px 12px; 
+  font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; 
 }
+.btn-mode.active-viewer { background-color: #3b82f6; color: #ffffff; }
 
-/* 4-2. .app-header 구조 호환 대응 */
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background: #ffffff;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.header-bottom {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  width: 100%;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-/* 상단 하위 그룹 공통 스타일 */
-.title-area, .scope-group, .date-nav, .mode-group, .nav-group, .action-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.app-title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--primary-color);
-  margin: 0;
-  white-space: nowrap;
-}
-
-#date-range-text {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #1e293b;
-  min-width: 220px;
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* 상단 버튼 공통 디자인 */
-.nav-btn, .btn-scope, .btn-mode, .btn-action {
-  padding: 6px 12px;
-  border: 1px solid var(--border-color);
-  background: #ffffff;
-  color: #334155;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.nav-btn:hover, .btn-scope:hover, .btn-mode:hover, .btn-action:hover {
-  background: var(--hover-bg);
-  border-color: #94a3b8;
-}
-
-.btn-scope.active {
-  background: var(--primary-color);
-  color: #ffffff;
-  border-color: var(--primary-color);
-}
-
-.btn-mode.active-viewer {
-  background: #059669;
-  color: #ffffff;
-  border-color: #059669;
-}
-
+/* 🎯 수정 버튼 -> 저장 버튼 변신 스타일 */
 .btn-mode.save-mode {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
+.btn-mode.save-mode:hover { background-color: #15803d !important; }
 
-/* 점 세개 [⋮] 더보기 드롭다운 메뉴 */
-.dropdown-container {
-  position: relative;
-  display: inline-block;
-}
-
-.dropdown-menu {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 6px;
-  background: #ffffff;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  min-width: 180px;
-  z-index: 2000;
-  overflow: hidden;
-}
-
-.dropdown-item {
+/* 💡 날짜 표시부는 무조건 아래쪽에 독립 배치 */
+.header-bottom { 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
   width: 100%;
-  padding: 10px 16px;
-  text-align: left;
-  border: none;
-  background: none;
-  font-size: 0.95rem;
-  color: #334155;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 0.2s;
-  white-space: nowrap;
 }
+.nav-bar { display: flex; align-items: center; gap: 10px; }
+.nav-btn { 
+  border: 1px solid var(--border-color); background: #ffffff; padding: 5px 12px; 
+  border-radius: 6px; font-size: var(--font-header-btn); font-weight: 600; cursor: pointer; color: #334155; 
+}
+.current-range { font-weight: 700; font-size: var(--font-date-range); color: #0f172a; min-width: 250px; text-align: center; }
 
-.dropdown-item:hover {
-  background: var(--hover-bg);
-  color: var(--primary-color);
-}
+/* 메인 컨텐츠 감싸는 용기 */
+.main-container { padding: 12px; max-width: 1200px; margin: 0 auto; }
 
 /* ==========================================================================
-   🖼️ 5. 메인 화면 뷰어 및 표/달력 양식
+   📊 [공통 테이블 및 에디터 셀 스타일]
    ========================================================================== */
-#main-view {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+.table-container { 
+  background: var(--bg-card); 
+  border-radius: 8px; 
+  border: 1px solid var(--border-color); 
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+  max-height: calc(100vh - 130px); 
+  overflow: auto; 
+  -webkit-overflow-scrolling: touch; 
 }
+table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: var(--week-table-min-width); table-layout: fixed; }
+thead th { position: sticky; top: 0; z-index: 100; background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: center; padding: 10px 4px; border-bottom: 2px solid var(--border-color); border-right: 1px solid var(--border-color); }
+th, td { border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); padding: 6px; font-size: var(--font-base); word-break: break-all; }
+td.date-cell { background-color: #f8fafc; text-align: center; vertical-align: middle; font-weight: 700; }
+td.period-cell { background-color: #fafafa; text-align: center; vertical-align: middle; font-weight: 600; color: #475569; }
 
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid var(--border-color);
+/* 수정 가능 셀 Focus 효과 */
+.editable-cell[contenteditable="true"]:focus { background-color: var(--edit-focus-bg); box-shadow: inset 0 0 0 2px #eab308; outline: none; }
+.badge-tag { display: inline-block; padding: 3px 6px; background-color: var(--tag-bg); color: var(--tag-color); border-radius: 4px; font-size: var(--font-base); font-weight: 700; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+/* ==========================================================================
+   📅 [주간 뷰어 스타일]
+   ========================================================================== */
+.clean-viewer-board { 
+  background: #ffffff; 
+  border: 2px solid var(--border-color); 
+  border-radius: 6px; 
+  max-height: calc(100vh - 130px); 
+  overflow-x: auto; 
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; 
 }
+.clean-viewer-board table { border-collapse: collapse; min-width: var(--week-table-min-width); }
+.clean-viewer-board thead th { background: #f8fafc; color: #0f172a; padding: 12px; font-size: var(--font-base); border: 1px solid var(--border-color); }
+.clean-viewer-board th, .clean-viewer-board td { border: 1px solid var(--border-color); }
+.clean-viewer-board .day-header { background: #f1f5f9; text-align: center; font-weight: bold; color: #1e293b; vertical-align: middle; }
+.clean-viewer-board .event-cell { background: #fdf8f6; color: #d97706; font-size: var(--week-event-font-size); font-weight: 600; padding: 8px; }
+.clean-cell-content { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+.clean-cell-memo { font-size: var(--font-base); color: #334155; line-height: 1.4; }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: center;
-  font-size: 0.95rem;
-}
-
-th, td {
-  border: 1px solid var(--border-color);
-  padding: 8px;
-  vertical-align: middle;
-}
-
-th {
-  background-color: #f1f5f9;
-  font-weight: bold;
-  color: #334155;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-/* 달력 격자 (Month/Year View) */
-.calendar-grid {
-  display: grid;
-  gap: 1px;
-  background: var(--border-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.day-cell {
-  background: #ffffff;
-  min-height: 100px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-}
-
-.day-cell.today-highlight {
+/* 오늘 날짜 주간 셀 강조 클래스 */
+.week-today-cell {
   background-color: var(--today-bg-color) !important;
   border: var(--today-border-width) solid var(--today-border-color) !important;
 }
 
-.date-num {
-  font-weight: bold;
-  font-size: 0.9rem;
-  margin-bottom: 4px;
-}
+/* ==========================================================================
+   🗓️ [일/월/년 뷰어 스타일]
+   ========================================================================== */
+.day-viewer-container { display: flex; flex-direction: column; gap: 14px; }
 
-/* 일간 뷰 카드 서식 */
 .day-event-card {
-  min-height: var(--day-event-min-height);
-  background: #ffffff;
-  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-left: 5px solid #2563eb;
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 15px;
+  margin-bottom: 16px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  min-height: var(--day-event-min-height);
 }
 
-/* 시간표 입력용 테이블 */
-.timetable-input-table {
-  width: 100%;
-  border-collapse: collapse;
+.daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
+.period-card-list { display: flex; flex-direction: column; gap: 10px; }
+.period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 12px 14px; }
+.period-card-header { 
+  display: flex; 
+  justify-content: flex-start; 
+  gap: 8px; 
+  align-items: center; 
+  margin-bottom: 8px; 
+  border-bottom: 1px dashed #e2e8f0; 
+  padding-bottom: 6px; 
 }
 
-.timetable-input-table th, .timetable-input-table td {
-  border: 1px solid var(--border-color);
-  padding: 6px;
+/* 월 보기 달력 그리드 (평일 5일 전용) */
+.calendar-grid { 
+  display: grid; 
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 4px; 
+  background: var(--bg-card); 
+  padding: 10px; 
+  border-radius: 8px; 
+  border: 1px solid var(--border-color); 
+}
+.cal-header { font-weight: 700; text-align: center; padding: 8px; background: #f1f5f9; border-radius: 4px; font-size: 1.2rem; }
+.cal-day { 
+  min-height: var(--month-cell-min-height); 
+  border: 1px solid #e2e8f0; 
+  border-radius: 4px; 
+  padding: 6px; 
+  font-size: var(--month-date-font-size); 
+  background: #fff; 
+  text-align: var(--month-date-align);
+}
+.cal-event { 
+  background: #e0f2fe; 
+  color: #0369a1; 
+  padding: 4px; 
+  border-radius: 4px; 
+  margin-top: 4px; 
+  font-size: var(--month-event-font-size); 
+  text-align: left;
+}
+
+/* 오늘 날짜 월간 셀 강조 클래스 */
+.month-today-cell {
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+  background-color: var(--today-bg-color) !important;
+  box-sizing: border-box;
+}
+
+/* 연 보기 그리드 */
+.year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.mini-month { background: #fff; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; text-align: left; }
+.mini-month h3 { font-size: var(--year-month-title-size); }
+
+/* 오늘 달 연간 카드 강조 클래스 */
+.year-today-card {
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+  background-color: #f8fafc !important;
+  box-shadow: 0 4px 6px rgba(37,99,235,0.1);
 }
 
 /* ==========================================================================
-   ✨ 6. 모달(팝업) 전역 공통 시스템 클래스
+   📱 [모바일 화면용 최적화 (viewport width=1000 대응)]
+   ========================================================================== */
+@media screen and (max-width: 1000px) {
+  table { font-size: var(--font-base); }
+  th, td { padding: 4px; }
+  .main-container { padding: 8px; }
+  .title-group h1 { font-size: var(--font-header-title); }
+  .current-range { font-size: var(--font-date-range); }
+  .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
+
+  table { min-width: var(--week-table-min-width) !important; }
+  .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
+
+  .year-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px;
+  }
+  .mini-month { padding: 8px; }
+}
+
+/* ==========================================================================
+   🛠️ 월간 에디터 레이아웃 최적화
+   ========================================================================== */
+.month-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.month-class-cell, .month-event-cell {
+  height: auto !important;
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  line-height: 1.5 !important;
+  outline: none;
+  word-break: break-all;
+}
+
+.month-class-cell {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-bottom: 1px dashed #cbd5e1 !important;
+}
+
+.month-event-cell {
+  background-color: #f0f9ff !important;
+  color: #0369a1 !important;
+}
+
+/* ==========================================================================
+   🎯 드롭다운 메뉴 스타일 (점 세 개 버튼용)
+   ========================================================================== */
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.dropdown-menu.hidden {
+  display: none !important;
+}
+
+.dropdown-item {
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 1.1rem;
+  color: #334155;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: #f1f5f9;
+  color: var(--primary-color);
+}
+
+/* ==========================================================================
+   ✨ [모달 및 팝업창 공통 시스템 클래스]
    ========================================================================== */
 .hidden { display: none !important; }
 
@@ -340,16 +370,14 @@ th {
   display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
 }
 
-.modal-body {
-  padding: 20px; overflow-y: auto;
-}
+.modal-body { padding: 20px; overflow-y: auto; }
 
 .btn-close-modal {
   background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;
 }
 
 /* ==========================================================================
-   🎨 7. 모달(팝업) 내부 다이어트 CSS (검색, 시간표, 환경설정, 라벨 등)
+   🎨 [모달(팝업) 내부 다이어트용 공통 클래스 모음]
    ========================================================================== */
 /* 안내 박스 */
 .modal-info-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6; font-size: 0.95rem; color: #334155; line-height: 1.5; }
