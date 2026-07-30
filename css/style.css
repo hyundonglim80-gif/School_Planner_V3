@@ -1,18 +1,330 @@
+/* css/style.css - 업무 및 수업 계획표 전체 통합 스타일시트 */
+
 /* ==========================================================================
-   ✨ [모달/팝업 공통 다이어트 CSS 클래스 - 전체 완성본]
+   ⚙️ 1. 디자인 컨트롤 타워 (CSS 변수 모음)
    ========================================================================== */
-/* 1. 안내 박스 */
+:root {
+  /* 🎨 기본 브랜드 색상 */
+  --primary-color: #1a73e8;
+  --primary-hover: #1557b0;
+  --border-color: #cbd5e1;
+  --bg-body: #f8fafc;
+  --bg-card: #ffffff;
+  --hover-bg: #f1f5f9;
+  --edit-focus-bg: #ffffcc;
+  --tag-bg: #dbeafe;
+  --tag-color: #1e40af;
+
+  /* 🎯 '오늘' 강조 스타일 설정 */
+  --today-bg-color: #eff6ff;
+  --today-border-color: #2563eb;
+  --today-border-width: 3px;
+
+  /* 📌 기본 폰트 크기 및 높이 */
+  --font-base: 1rem;
+  --day-event-min-height: 80px;
+}
+
+/* ==========================================================================
+   🧹 2. 기본 리셋 및 전체 기본 스타일
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-body);
+  color: #0f172a;
+  line-height: 1.5;
+  min-width: 800px;
+}
+
+/* ==========================================================================
+   🔒 3. 로그인 화면
+   ========================================================================== */
+#login-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-body);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   🎛️ 4. 상단 네비게이션 및 메뉴 컨트롤 바
+   ========================================================================== */
+.controls {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.left-controls, .right-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#date-range-text {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #1e293b;
+  min-width: 220px;
+  text-align: center;
+}
+
+.nav-btn, .btn-scope, .btn-mode {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  background: #ffffff;
+  color: #334155;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover, .btn-scope:hover, .btn-mode:hover {
+  background: var(--hover-bg);
+  border-color: #94a3b8;
+}
+
+.btn-scope.active {
+  background: var(--primary-color);
+  color: #ffffff;
+  border-color: var(--primary-color);
+}
+
+.btn-mode.active-viewer {
+  background: #059669;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+.btn-mode.save-mode {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* 점 세개 [⋮] 더보기 드롭다운 메뉴 */
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  border: none;
+  background: none;
+  font-size: 0.95rem;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+  background: var(--hover-bg);
+  color: var(--primary-color);
+}
+
+/* ==========================================================================
+   🖼️ 5. 메인 화면 뷰어 및 표/달력 양식
+   ========================================================================== */
+#main-view {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border-color);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+th, td {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  vertical-align: middle;
+}
+
+th {
+  background-color: #f1f5f9;
+  font-weight: bold;
+  color: #334155;
+  position: sticky;
+  top: 52px;
+  z-index: 10;
+}
+
+/* 달력 격자 (Month/Year View) */
+.calendar-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.day-cell {
+  background: #ffffff;
+  min-height: 100px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.day-cell.today-highlight {
+  background-color: var(--today-bg-color) !important;
+  border: var(--today-border-width) solid var(--today-border-color) !important;
+}
+
+.date-num {
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+/* 일간 뷰 카드 서식 */
+.day-event-card {
+  min-height: var(--day-event-min-height);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 15px;
+}
+
+/* 시간표 입력용 테이블 */
+.timetable-input-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.timetable-input-table th, .timetable-input-table td {
+  border: 1px solid var(--border-color);
+  padding: 6px;
+}
+
+/* ==========================================================================
+   ✨ 6. 모달 팝업창 전역 공통 클래스
+   ========================================================================== */
+.hidden {
+  display: none !important;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10005;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+/* 안내 박스 스타일 */
 .modal-info-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6; font-size: 0.95rem; color: #334155; line-height: 1.5; }
 .modal-info-box.alt { background: #eff6ff; color: #1e40af; }
 .modal-info-box.journal { background: #fdf2f8; border-left-color: #be185d; color: #831843; }
 
-/* 2. 리스트 및 행(Row) */
+/* 리스트 및 입력 행 스타일 */
 .modal-list-container { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 15px; padding-right: 5px; }
 .modal-input-row { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 6px; }
 .modal-input-row.alt { background: #f8fafc; padding: 10px; }
 .modal-input-row.journal { border-color: #fbcfe8; }
 
-/* 3. 버튼 류 */
+/* 모달 전용 버튼 스타일 */
 .modal-btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .modal-btn-primary:hover { background: #1d4ed8; }
 .modal-btn-primary.journal { background: #9d174d; }
@@ -28,7 +340,7 @@
 
 .modal-delete-btn { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; }
 
-/* 4. 텍스트 및 입력 폼 */
+/* 입력 폼 및 체크박스 라벨 */
 .modal-item-text { font-weight: bold; color: #1e40af; font-size: 1.05rem; }
 .modal-item-text.journal { color: #9d174d; }
 .modal-input-text { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; font-size: 1rem; }
@@ -37,7 +349,7 @@
 .modal-checkbox { accent-color: #ef4444; }
 .modal-footer-actions { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
 
-/* 5. 검색창 및 기준시간표 전용 */
+/* 검색 및 기준시간표 모듈 서식 */
 .search-execute-btn { width: 100%; padding: 12px; background: #1e40af; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
 .search-results-area { border-top: 1px solid #e2e8f0; padding-top: 15px; max-height: 350px; overflow-y: auto; }
 .search-result-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
@@ -45,3 +357,11 @@
 
 .tt-action-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .tt-apply-box { display: flex; gap: 10px; align-items: center; background: #f1f5f9; padding: 15px; border-radius: 8px; flex-wrap: wrap; }
+
+/* 도움말 모달 서식 */
+.modal-help-container { line-height: 1.6; color: #334155; font-size: 0.95rem; }
+.modal-help-title { color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 5px; margin-top: 15px; }
+.modal-help-title:first-child { margin-top: 0; }
+.modal-help-footer { display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #cbd5e1; margin-top: 20px; padding-top: 15px; }
+.modal-help-checkbox-label { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.95rem; font-weight: bold; color: #475569; }
+.modal-help-checkbox { accent-color: #3b82f6; width: 16px; height: 16px; }
