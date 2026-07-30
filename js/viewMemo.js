@@ -6,6 +6,11 @@ class MemoView extends window.BaseView {
     this.currentLinks = [];
     this.memoItems = [];
     this.draggedMemoId = null;
+    
+    // 💡 다중 라벨(중복 선택)을 위한 상태 변수 추가
+    this.currentNewLabels = []; 
+    // 기본으로 제공할 메모용 라벨 리스트 (추후 환경설정에서 통합 관리 가능)
+    this.AVAILABLE_LABELS = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
   }
 
   // ==========================================================================
@@ -103,6 +108,42 @@ class MemoView extends window.BaseView {
   }
 
   // ==========================================================================
+  // 🏷️ [신규] 다중 라벨 칩 렌더링 시스템
+  // ==========================================================================
+  renderLabelChips(containerElement, selectedLabelsArray, onChangeCallback) {
+    if (!containerElement) return;
+    containerElement.innerHTML = '';
+    
+    this.AVAILABLE_LABELS.forEach(labelText => {
+        const chip = document.createElement('div');
+        chip.className = 'label-chip';
+        chip.innerText = labelText;
+        
+        // 이미 선택된 라벨이면 색상 켜기
+        if (selectedLabelsArray.includes(labelText)) {
+            chip.classList.add('active');
+        }
+        
+        // 칩 클릭 이벤트 (토글)
+        chip.addEventListener('click', () => {
+            if (selectedLabelsArray.includes(labelText)) {
+                // 선택 해제
+                selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
+                chip.classList.remove('active');
+            } else {
+                // 선택 추가
+                selectedLabelsArray.push(labelText);
+                chip.classList.add('active');
+            }
+            // 부모 함수(콜백)에 변경된 배열 전달
+            if (onChangeCallback) onChangeCallback(selectedLabelsArray);
+        });
+        
+        containerElement.appendChild(chip);
+    });
+  }
+
+  // ==========================================================================
   // 📝 2. 메모(업무 체크리스트) 렌더링 및 제어 로직
   // ==========================================================================
   async renderViewer() {
@@ -124,13 +165,15 @@ class MemoView extends window.BaseView {
         </div>
 
         <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div style="display:flex; gap:8px; margin-bottom:20px; align-items:flex-start;">
+          
+          <div style="display:flex; gap:8px; margin-bottom:10px; align-items:flex-start;">
             <textarea id="memo-input-text" placeholder="새 할 일 추가 (Ctrl+Enter 저장 / 일반 Enter는 줄바꿈)" 
                    style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:44px; height:44px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
                    onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
                    oninput="this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
             <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
           </div>
+          <div id="memo-add-labels" class="label-chip-container" style="margin-bottom: 25px; padding-bottom: 10px; border-bottom: 1px solid #f1f5f9;"></div>
           
           <div class="section-title">진행 중인 업무 (${activeMemos.length})</div>
           <div id="active-memo-list">${activeMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.5rem;">모든 업무를 완료했습니다!</p>' : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
@@ -144,6 +187,13 @@ class MemoView extends window.BaseView {
       </div>
     `;
     this.container.innerHTML = html;
+    
+    // 💡 라벨 칩 렌더링 및 배열 바인딩
+    this.currentNewLabels = [];
+    this.renderLabelChips(document.getElementById('memo-add-labels'), this.currentNewLabels, (updatedLabels) => {
+        this.currentNewLabels = updatedLabels;
+    });
+
     this.renderLinks();
   }
 
@@ -151,9 +201,13 @@ class MemoView extends window.BaseView {
     this.renderViewer();
   }
 
-  // 💡 클릭해서 메모 수정이 가능하도록 contenteditable 적용 및 구조 분리
+  // 💡 메모를 화면에 예쁘게 그려주는 함수 (라벨 뱃지 포함)
   generateMemoHTML(item, isCompleted) {
-    const deleteBtnHtml = isCompleted ? `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` : ``;
+    const deleteBtnHtml = `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.3rem; cursor:pointer;" title="삭제">🗑️</button>`;
+    
+    // 💡 [신규] 편집 팝업 버튼 (완료되지 않은 메모에만 표시)
+    const editLabelBtnHtml = isCompleted ? '' : `<button onclick="window.memoViewInstance.openMemoLabelModal('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; margin-right:4px;" title="라벨 수정">🏷️</button>`;
+
     let dragHandleHtml = '';
     let dragAttributes = '';
     
@@ -164,19 +218,79 @@ class MemoView extends window.BaseView {
 
     const editableAttr = isCompleted ? '' : `contenteditable="true" onblur="window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
 
+    // 💡 저장된 다중 라벨 배열을 화면에 예쁜 뱃지로 출력
+    const labels = item.labels || [];
+    const labelsHtml = labels.length > 0 
+        ? `<div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">` + 
+          labels.map(l => `<span class="badge-tag" style="background-color: var(--tag-bg); color: var(--tag-color); font-size: 0.8rem; padding: 2px 8px; border-radius: 12px; font-weight: 600;">${l}</span>`).join('') + 
+          `</div>`
+        : '';
+
     return `
-      <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
+      <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 12px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
         <div style="display:flex; align-items:flex-start; gap:8px; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
           <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
-          <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+          
+          <div style="flex: 1; display: flex; flex-direction: column;">
+             <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+             ${labelsHtml}
+          </div>
         </div>
-        <div class="memo-controls" style="display: flex; justify-content: flex-end; padding-top:2px;">${deleteBtnHtml}</div>
+        
+        <div class="memo-controls" style="display: flex; justify-content: flex-end; padding-top:2px; align-items: flex-start;">
+            ${editLabelBtnHtml}
+            ${deleteBtnHtml}
+        </div>
       </div>
     `;
   }
 
-  // 💡 인라인 메모 수정 내용을 DB에 저장하는 함수 추가
+  // 💡 기존 메모의 라벨을 수정하는 모달창 열기
+  openMemoLabelModal(firestoreId) {
+      const item = this.memoItems.find(m => m.firestoreId === firestoreId);
+      if (!item) return;
+
+      // 원본 데이터 보호를 위해 배열 복사
+      let tempLabels = [...(item.labels || [])];
+
+      const modalHtml = `
+        <div id="memo-label-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10005; display:flex; justify-content:center; align-items:center;">
+            <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+                <h3 style="margin-top:0; color:#1e40af; border-bottom:2px solid #e2e8f0; padding-bottom:10px; margin-bottom: 15px;">🏷️ 라벨 수정</h3>
+                
+                <div id="modal-label-chips" class="label-chip-container" style="margin-bottom: 25px;"></div>
+                
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button onclick="document.getElementById('memo-label-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">취소</button>
+                    <button onclick="window.memoViewInstance.saveMemoLabels('${firestoreId}')" style="padding:8px 16px; border:none; background:#4CAF50; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;">저장</button>
+                </div>
+            </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      
+      // 모달창 안에 칩 렌더링
+      this.tempEditingLabels = tempLabels;
+      this.renderLabelChips(document.getElementById('modal-label-chips'), this.tempEditingLabels, (newLabels) => {
+          this.tempEditingLabels = newLabels;
+      });
+  }
+
+  // 💡 수정한 라벨을 DB에 저장
+  async saveMemoLabels(firestoreId) {
+      const newLabels = this.tempEditingLabels || [];
+      
+      try {
+          await window.dbAPI.updateMemo(firestoreId, { labels: newLabels });
+          document.getElementById('memo-label-modal').remove();
+          this.renderViewer(); // 화면 새로고침
+      } catch(e) {
+          console.error("라벨 저장 오류", e);
+          alert("라벨 저장에 실패했습니다.");
+      }
+  }
+
   async updateMemoText(firestoreId, newText) {
     const text = newText.trim();
     if (!text) {
@@ -231,10 +345,19 @@ class MemoView extends window.BaseView {
     const input = document.getElementById("memo-input-text");
     if (!input || !input.value.trim()) return;
 
-    const newMemo = { text: input.value.trim(), completed: false, order: -Date.now(), createdAt: Date.now() };
+    const newMemo = { 
+        text: input.value.trim(), 
+        completed: false, 
+        order: -Date.now(), 
+        createdAt: Date.now(),
+        labels: [...this.currentNewLabels] // 💡 다중 선택된 라벨 배열 통째로 저장!
+    };
     input.value = "저장 중..."; input.disabled = true;
 
     await window.dbAPI.addMemo(newMemo); 
+    
+    // 추가 완료 후 라벨 칩과 화면 초기화
+    this.currentNewLabels = []; 
     this.renderViewer(); 
   }
 
