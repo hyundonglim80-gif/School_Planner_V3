@@ -155,7 +155,7 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 🎨 컴팩트 에디터 그리기 (색상 동적 반영)
+  // 💡 컴팩트 에디터: 드롭다운과 텍스트 입력 칸 사이 완료 체크박스 배치
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labels = window.getEventLabels();
@@ -166,14 +166,19 @@ class WeekView extends window.BaseView {
           options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
 
           const style = window.getLabelStyle(e.label, 'event');
+          const isCompleted = !!e.completed;
+          const inputStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
-              <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid ${style.border}; border-radius:4px; background:${style.bg}; color:${style.text}; outline:none; font-weight:bold;">
+              <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid ${style.border}; border-radius:4px; background:${style.bg}; color:${style.text}; outline:none; font-weight:bold; flex-shrink:0;">
                   ${options}
               </select>
-              <input type="text" value="${e.content}" oninput="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
-              <button onclick="window.weekViewInstance.removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer;" title="삭제">✖</button>
+              
+              <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer; flex-shrink:0;" title="완료 체크">
+
+              <input type="text" value="${e.content}" oninput="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${inputStyle}">
+              <button onclick="window.weekViewInstance.removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer; flex-shrink:0;" title="삭제">✖</button>
           </div>`;
       });
       return html;
@@ -181,13 +186,15 @@ class WeekView extends window.BaseView {
 
   updateCompactEvent(dateStr, idx, field, value) {
       window.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`][idx][field] = value;
+      if (window[`tempEvents_${dateStr}`][idx]) {
+          window[`tempEvents_${dateStr}`][idx][field] = value;
+      }
   }
 
   addCompactEvent(dateStr) {
       window.hasUnsavedChanges = true;
       const defaultLabel = window.getEventLabels()[0]?.name || '일정';
-      window[`tempEvents_${dateStr}`].push({ label: defaultLabel, content: '' });
+      window[`tempEvents_${dateStr}`].push({ label: defaultLabel, content: '', completed: false });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
