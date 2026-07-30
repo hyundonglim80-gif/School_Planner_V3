@@ -9,7 +9,6 @@ window.formatDate = function(date) {
   return `${y}-${m}-${d}`;
 };
 
-// 🎨 무지개색(파스텔톤) 대표 팔레트 정의
 window.LABEL_PALETTE = {
     red: { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
     orange: { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
@@ -21,14 +20,11 @@ window.LABEL_PALETTE = {
     gray: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
 };
 
-// 🏷️ 라벨의 색상 스타일을 찾아주는 헬퍼 함수
 window.getLabelStyle = function(labelName, type = 'event') {
     const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
     const target = labels.find(l => l.name === labelName);
-    if (target && target.color && window.LABEL_PALETTE[target.color]) {
-        return window.LABEL_PALETTE[target.color];
-    }
-    // 색상이 없을 경우의 기본값 (수업삭제는 빨강, 일지는 보라, 일정은 파랑)
+    if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
+    
     if (type === 'event' && target && target.isSkip) return window.LABEL_PALETTE['red'];
     if (type === 'event') return window.LABEL_PALETTE['blue'];
     return window.LABEL_PALETTE['purple'];
@@ -69,17 +65,24 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🎨 뱃지 렌더링 시 팔레트 색상 동적 적용
+// 💡 안전장치: DB 업데이트 전이라도 화면에 그릴 때 없는 라벨은 '기본 라벨'로 대체해서 보여줌
 window.generateEventBadgesHTML = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
+    
+    const validLabels = window.getEventLabels().map(l => l.name);
+    const defaultLabel = validLabels[0] || '일정';
+
     eventList.forEach(e => {
-        const style = window.getLabelStyle(e.label, 'event');
-        let textStyle = window.isSkipLabel(e.label) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
+        let currentLabel = e.label;
+        if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel; // 안전장치 발동
+
+        const style = window.getLabelStyle(currentLabel, 'event');
+        let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
 
         html += `
         <div style="display:flex; align-items:flex-start; gap:4px; font-size:0.95rem; line-height:1.3;">
-            <span style="background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${e.label}</span>
+            <span style="background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0;">${currentLabel}</span>
             <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${e.content}</span>
         </div>`;
     });
@@ -116,7 +119,7 @@ window.parseRawEventTextToEventList = function(rawText) {
 
 window.formatEventListToText = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => `[${e.label}]${e.content}`).join('\n');
+    return eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
 };
 
 window.getJournalLabels = function() {
