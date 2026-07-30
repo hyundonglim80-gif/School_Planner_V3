@@ -10,6 +10,10 @@ class MemoView extends window.BaseView {
     this.currentNewLabels = []; 
     this.AVAILABLE_LABELS = [];
     this.currentFilter = '전체'; 
+    
+    // 💡 [신규] 사진 업로드 상태를 추적하기 위한 변수
+    this.pendingImageUrl = null;
+    this.isUploading = false;
   }
 
   loadMemoLabels() {
@@ -146,12 +150,70 @@ class MemoView extends window.BaseView {
     });
   }
 
+  // ==========================================================================
+  // 🖼️ [신규] 파일(이미지) 업로드 연동 로직
+  // ==========================================================================
+  async handleImageUpload(inputElement) {
+      const file = inputElement.files[0];
+      if (!file) return;
+      
+      // 이미지 파일인지 검사
+      if (!file.type.startsWith('image/')) {
+          alert('이미지 파일만 업로드할 수 있습니다.');
+          inputElement.value = '';
+          return;
+      }
+
+      this.isUploading = true;
+      this.renderViewer(); // 업로드 중 UI로 갱신 (로딩 스피너 등)
+
+      try {
+          // js/firebase.js 에 작성해둔 이미지 압축 및 업로드 API 호출
+          this.pendingImageUrl = await window.dbAPI.uploadImage(file);
+      } catch (error) {
+          console.error("이미지 업로드 실패:", error);
+          alert("이미지 업로드 중 오류가 발생했습니다.");
+          this.pendingImageUrl = null;
+      } finally {
+          this.isUploading = false;
+          inputElement.value = ''; // 입력 필드 초기화
+          this.renderViewer(); // 완료 후 UI 갱신
+      }
+  }
+  
+  // 업로드 중이던 썸네일 취소(삭제)
+  cancelPendingImage() {
+      if (this.pendingImageUrl) {
+          window.dbAPI.deleteImage(this.pendingImageUrl).catch(e => console.warn(e));
+          this.pendingImageUrl = null;
+          this.renderViewer();
+      }
+  }
+
+
+  // ==========================================================================
+  // 📝 메모(업무 체크리스트) 메인 렌더링
+  // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
+    // 최초 로딩 시에만 스피너를 띄우고, 필터 변경 등에는 부드럽게 넘어가도록 방어 코드
+    if (!this.memoItems || this.memoItems.length === 0) {
+        this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
+        this.memoItems = await window.dbAPI.loadMemos();
+    } else {
+        // 이미 데이터가 있으면 백그라운드 갱신만 수행
+        window.dbAPI.loadMemos().then(data => {
+            this.memoItems = data;
+            // 만약 업로드 중이 아니라면 백그라운드 데이터로 몰래 다시 그립니다.
+            if (!this.isUploading) this._drawHTML(); 
+        });
+    }
     
     this.loadMemoLabels();
-    this.memoItems = await window.dbAPI.loadMemos();
+    this._drawHTML();
+  }
 
+  // 💡 실제 HTML을 그리는 부분을 별도 함수로 분리 (화면 깜빡임 최소화)
+  _drawHTML() {
     let filteredMemos = this.memoItems;
     if (this.currentFilter !== '전체') {
         filteredMemos = filteredMemos.filter(m => m.labels && m.labels.includes(this.currentFilter));
@@ -167,6 +229,21 @@ class MemoView extends window.BaseView {
       </div>
     `;
 
+    // 💡 [신규] 사진 첨부 UI 구성
+    let imageAttachmentHtml = '';
+    if (this.isUploading) {
+        // 업로드 중 표시
+        imageAttachmentHtml = `<div style="padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #3b82f6; font-weight: bold; text-align: center; margin-top: 5px;">⏳ 사진 압축 및 업로드 중...</div>`;
+    } else if (this.pendingImageUrl) {
+        // 업로드 완료된 썸네일 표시
+        imageAttachmentHtml = `
+            <div style="position: relative; display: inline-block; margin-top: 8px;">
+                <img src="${this.pendingImageUrl}" style="height: 60px; border-radius: 6px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <button onclick="window.memoViewInstance.cancelPendingImage()" style="position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">✖</button>
+            </div>
+        `;
+    }
+
     let html = `
       <div style="max-width:800px; margin:0 auto; display:flex; flex-direction:column; gap:15px;">
         
@@ -180,15 +257,21 @@ class MemoView extends window.BaseView {
 
         <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
           
-          <div style="display:flex; gap:8px; margin-bottom:10px; align-items:flex-start;">
-            <textarea id="memo-input-text" placeholder="새 할 일 추가 (Ctrl+Enter 저장 / 일반 Enter는 줄바꿈)" 
+          <div style="display:flex; gap:8px; margin-bottom:5px; align-items:flex-start;">
+            <textarea id="memo-input-text" placeholder="새 할 일 추가 (Ctrl+Enter 저장 / 일반 Enter 줄바꿈)" 
                    style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:44px; height:44px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
                    onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
                    oninput="this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
+            
+            <button onclick="document.getElementById('memo-image-upload').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:0 12px; border-radius:8px; cursor:pointer; font-size:1.2rem; height:44px; display:flex; align-items:center; justify-content:center;" title="사진 첨부">🖼️</button>
+            <input type="file" id="memo-image-upload" accept="image/*" style="display:none;" onchange="window.memoViewInstance.handleImageUpload(this)">
+            
             <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
           </div>
+          
+          ${imageAttachmentHtml}
 
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 10px; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
               <div id="memo-add-labels" class="label-chip-container" style="flex: 1; margin: 0; padding-right: 10px;"></div>
               <button onclick="window.openMemoLabelModal()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s; flex-shrink: 0; margin-top: 2px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 설정</button>
           </div>
@@ -244,6 +327,13 @@ class MemoView extends window.BaseView {
           labels.map(l => `<span class="badge-tag" style="background-color: var(--tag-bg); color: var(--tag-color); font-size: 0.8rem; padding: 2px 8px; border-radius: 12px; font-weight: 600;">${l}</span>`).join('') + 
           `</div>`
         : '';
+        
+    // 💡 [신규] 이미지 첨부 렌더링 영역
+    const imageHtml = item.imageUrl 
+        ? `<div style="margin-top: 8px;">
+               <img src="${item.imageUrl}" onclick="window.openImageViewer('${item.imageUrl}')" style="max-height: 80px; border-radius: 6px; border: 1px solid #cbd5e1; cursor: zoom-in; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+           </div>` 
+        : '';
 
     return `
       <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 12px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
@@ -253,6 +343,7 @@ class MemoView extends window.BaseView {
           
           <div style="flex: 1; display: flex; flex-direction: column;">
              <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+             ${imageHtml}
              ${labelsHtml}
           </div>
         </div>
@@ -265,7 +356,6 @@ class MemoView extends window.BaseView {
     `;
   }
 
-  // 개별 메모 항목에 부착된 라벨을 토글/수정하는 모달
   openMemoItemLabelModal(firestoreId) {
       const item = this.memoItems.find(m => m.firestoreId === firestoreId);
       if (!item) return;
@@ -277,7 +367,7 @@ class MemoView extends window.BaseView {
                 <div id="modal-label-chips" class="label-chip-container" style="margin-bottom: 25px;"></div>
                 <div style="display:flex; justify-content:flex-end; gap:10px;">
                     <button onclick="document.getElementById('memo-item-label-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">취소</button>
-                    <button onclick="window.memoViewInstance.saveMemoLabels('${firestoreId}')" style="padding:8px 16px; border:none; background:#4CAF50; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;">저장</button>
+                    <button onclick="window.memoViewInstance.saveMemoItemLabels('${firestoreId}')" style="padding:8px 16px; border:none; background:#4CAF50; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;">저장</button>
                 </div>
             </div>
         </div>
@@ -289,13 +379,18 @@ class MemoView extends window.BaseView {
       });
   }
 
-  async saveMemoLabels(firestoreId) {
+  async saveMemoItemLabels(firestoreId) {
       const newLabels = this.tempEditingLabels || [];
       try {
           await window.dbAPI.updateMemo(firestoreId, { labels: newLabels });
           const modal = document.getElementById('memo-item-label-modal');
           if (modal) modal.remove();
-          this.renderViewer(); 
+          
+          // 화면 즉시 갱신 (서버 로드 대기 방지)
+          const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+          if (target) target.labels = newLabels;
+          this._drawHTML();
+          
       } catch(e) {
           console.error("라벨 저장 오류", e);
           alert("라벨 저장에 실패했습니다.");
@@ -341,7 +436,7 @@ class MemoView extends window.BaseView {
     activeMemos.splice(targetIndex, 0, draggedItem);
     activeMemos.forEach((memo, index) => { memo.order = index; });
 
-    this.renderViewer();
+    this._drawHTML();
     try {
       await Promise.all(activeMemos.map(memo => window.dbAPI.updateMemo(memo.firestoreId, { order: memo.order })));
     } catch (error) { console.error("순서 저장 중 오류 발생:", error); }
@@ -357,24 +452,47 @@ class MemoView extends window.BaseView {
         completed: false, 
         order: -Date.now(), 
         createdAt: Date.now(),
-        labels: [...this.currentNewLabels] 
+        labels: [...this.currentNewLabels],
+        imageUrl: this.pendingImageUrl // 💡 [신규] 업로드된 이미지 URL 함께 저장
     };
-    input.value = "저장 중..."; input.disabled = true;
+    
+    input.value = "저장 중..."; 
+    input.disabled = true;
 
-    await window.dbAPI.addMemo(newMemo); 
-    this.renderViewer(); 
+    try {
+        await window.dbAPI.addMemo(newMemo); 
+        this.pendingImageUrl = null; // 저장 완료 시 초기화
+        this.renderViewer(); 
+    } catch(e) {
+        console.error("메모 추가 오류:", e);
+        input.value = newMemo.text;
+        input.disabled = false;
+        alert("저장에 실패했습니다.");
+    }
   }
 
   async toggleMemoItem(firestoreId, currentStatus) {
     const isNowCompleted = !currentStatus;
+    
+    // 로컬 즉시 반영
+    const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+    if (target) {
+        target.completed = isNowCompleted;
+        target.completedAt = isNowCompleted ? Date.now() : null;
+        this._drawHTML();
+    }
+    
     await window.dbAPI.updateMemo(firestoreId, { completed: isNowCompleted, completedAt: isNowCompleted ? Date.now() : null });
-    this.renderViewer();
   }
 
   async deleteMemoItem(firestoreId) {
-    if(confirm("이 메모를 완전히 삭제하시겠습니까?")) {
+    if(confirm("이 메모를 완전히 삭제하시겠습니까? (첨부된 이미지도 함께 삭제됩니다)")) {
+      
+      // 로컬 화면 즉시 제거
+      this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
+      this._drawHTML();
+      
       await window.dbAPI.deleteMemo(firestoreId);
-      this.renderViewer();
     }
   }
 
@@ -382,8 +500,12 @@ class MemoView extends window.BaseView {
     const completedMemos = this.memoItems.filter(m => m.completed);
     if (completedMemos.length === 0) return;
     if(confirm(`완료된 업무 ${completedMemos.length}개를 모두 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
+      
+      // 로컬 즉시 제거
+      this.memoItems = this.memoItems.filter(m => !m.completed);
+      this._drawHTML();
+      
       await Promise.all(completedMemos.map(memo => window.dbAPI.deleteMemo(memo.firestoreId)));
-      this.renderViewer();
     }
   }
 
@@ -392,12 +514,23 @@ class MemoView extends window.BaseView {
 
 // 💡 덮어쓰기 방지: LabelManager의 openMemoModal을 안전하게 연동
 window.manageMemoLabels = function() {
-    if (typeof LabelManager !== 'undefined' && LabelManager.openMemoModal) {
-        LabelManager.openMemoModal();
+    if (typeof window.LabelManager !== 'undefined' && window.LabelManager.openMemoModal) {
+        window.LabelManager.openMemoModal();
     } else if (window.openMemoLabelModal) {
         window.openMemoLabelModal();
     }
 };
+
+// 💡 [신규] 이미지 원본 확대 뷰어 연결
+window.openImageViewer = function(url) {
+    const modal = document.getElementById('image-viewer-modal');
+    const img = document.getElementById('full-size-image');
+    if (modal && img) {
+        img.src = url;
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
+}
 
 window.memoViewInstance = new MemoView(document.getElementById("main-view"));
 
