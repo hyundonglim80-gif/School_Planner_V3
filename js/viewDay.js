@@ -1,13 +1,10 @@
-// js/viewDay.js
-
 class DayView extends window.BaseView {
   constructor(container) {
-    super(container); // 부모(BaseView)의 기능을 물려받음
+    super(container);
     this.currentEvents = [];
     this.currentJournals = [];
   }
 
-  // 1. 유틸리티 메서드
   parseEvents(docData) {
     if (!docData) return [];
     if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
@@ -15,13 +12,10 @@ class DayView extends window.BaseView {
     return [];
   }
 
-  // ==========================================================================
-  // 👁️ 2. 일간 뷰어 렌더링 (부모의 showLoading 활용)
-  // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드 데이터를 불러오는 중...'); // BaseView 상속 기능
+    this.showLoading('클라우드 데이터를 불러오는 중...'); 
 
-    const dateStr = this.dateStr; // BaseView 상속 기능
+    const dateStr = this.dateStr; 
     const dayData = await window.dbAPI.loadDayData(dateStr);
     const periods = dayData.periods || {};
     
@@ -44,7 +38,6 @@ class DayView extends window.BaseView {
     }
     html += `</div></div>`;
         
-    // 💡 수업 숨기기 적용
     if (window.showClass) {
       html += `<div class="period-card-list">`;
       for (let p = 1; p <= this.maxPeriod; p++) {
@@ -55,7 +48,7 @@ class DayView extends window.BaseView {
         const memo = pData.memo || '';
 
         const memoHtml = memo.trim() !== '' ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 메모: ${memo}</div>` : '';
-        const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem;">📌 비고: ${supplies}</div>` : '';
+        const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem; color: #b45309;">📌 비고: ${supplies}</div>` : '';
 
         html += `
           <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
@@ -72,10 +65,12 @@ class DayView extends window.BaseView {
       html += `<div class="day-journal-section" style="margin-top:20px;">
                 <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘의 일지</h3>`;
       journals.forEach(j => {
+        // 🎨 일지 블록에 색상 적용
+        const style = window.getLabelStyle(j.label, 'journal');
         html += `
-          <div style="background:#fdf2f8; border:1px solid #f472b6; border-left:5px solid #be185d; border-radius:8px; padding:12px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-              <div style="font-weight:bold; color:#9d174d; margin-bottom:6px; font-size:1.05rem;">[${j.label}]</div>
-              <div style="color:#831843; font-size:1.05rem; line-height:1.5; white-space:pre-wrap; word-break:break-all;">${j.content}</div>
+          <div style="background:${style.bg}; border:1px solid ${style.border}; border-left:5px solid ${style.text}; border-radius:8px; padding:12px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+              <div style="font-weight:bold; color:${style.text}; margin-bottom:6px; font-size:1.05rem;">[${j.label}]</div>
+              <div style="color:#1e293b; font-size:1.05rem; line-height:1.5; white-space:pre-wrap; word-break:break-all;">${j.content}</div>
           </div>`;
       });
       html += `</div>`;
@@ -85,9 +80,6 @@ class DayView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // ✏️ 3. 일간 에디터 렌더링
-  // ==========================================================================
   async renderEditor() {
     this.showLoading('편집 화면을 준비 중...');
 
@@ -101,7 +93,6 @@ class DayView extends window.BaseView {
     const validLabels = window.getEventLabels().map(l => l.name);
     const defaultLabel = validLabels[0] || '일정';
 
-    // 객체 내부에 상태 저장
     this.currentEvents = events.length > 0 ? events : [{ label: defaultLabel, content: '' }];
     
     const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
@@ -166,9 +157,6 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
-  // ==========================================================================
-  // ⚙️ 4. 에디터 내부 관리 기능 (일정 / 일지 / 맞바꾸기)
-  // ==========================================================================
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
@@ -182,13 +170,12 @@ class DayView extends window.BaseView {
         let options = labelObjs.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
         options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
         
-        const isSkip = window.isSkipLabel(e.label);
-        const selBg = isSkip ? '#fee2e2' : '#eff6ff';
-        const selColor = isSkip ? '#ef4444' : '#1e40af';
+        // 🎨 동적 색상 가져오기
+        const style = window.getLabelStyle(e.label, 'event');
         
         html += `
         <div class="event-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-            <select class="event-label-select" onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.dayViewInstance.syncEventInputs(); window.dayViewInstance.renderEventEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${selColor}; background:${selBg}; transition:0.2s;">
+            <select class="event-label-select" onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.dayViewInstance.syncEventInputs(); window.dayViewInstance.renderEventEntries(); }" style="padding:10px; border-radius:6px; border:1px solid ${style.border}; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${style.text}; background:${style.bg}; transition:0.2s;">
                 ${options}
             </select>
             <textarea class="event-content-input" placeholder="일정 내용을 입력하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${e.content}</textarea>
@@ -229,13 +216,17 @@ class DayView extends window.BaseView {
     if(!container) return;
     let labels = window.getJournalLabels().map(l => l.name);
     let html = '';
+    
     this.currentJournals.forEach((j, index) => {
         let options = labels.map(l => `<option value="${l}" ${j.label === l ? 'selected' : ''}>${l}</option>`).join('');
         options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
         
+        // 🎨 동적 색상 가져오기
+        const style = window.getLabelStyle(j.label, 'journal');
+        
         html += `
         <div class="journal-entry-block" data-index="${index}" style="display:flex; gap:10px; margin-bottom:10px; align-items:flex-start;">
-            <select class="journal-label-select" onchange="if(this.value === '__setting__') { window.openJournalLabelModal(); this.value='${j.label}'; } else { window.dayViewInstance.syncJournalInputs(); window.dayViewInstance.renderJournalEntries(); }" style="padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:#be185d; background:#fdf2f8;">
+            <select class="journal-label-select" onchange="if(this.value === '__setting__') { window.openJournalLabelModal(); this.value='${j.label}'; } else { window.dayViewInstance.syncJournalInputs(); window.dayViewInstance.renderJournalEntries(); }" style="padding:10px; border-radius:6px; border:1px solid ${style.border}; outline:none; font-size:1rem; width:110px; flex-shrink:0; font-weight:bold; color:${style.text}; background:${style.bg}; transition:0.2s;">
                 ${options}
             </select>
             <textarea class="journal-content-input" placeholder="사건이나 감상 등을 편하게 작성하세요." style="flex-grow:1; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; background:#f8fafc;" oninput="this.style.height=''; this.style.height = this.scrollHeight + 'px'">${j.content}</textarea>
@@ -358,9 +349,6 @@ class DayView extends window.BaseView {
     window.hasUnsavedChanges = true; 
   }
 
-  // ==========================================================================
-  // 💾 5. 데이터 최종 저장 (부모의 save 메서드 구현)
-  // ==========================================================================
   async save() {
     const dateStr = this.dateStr;
 
@@ -403,19 +391,7 @@ class DayView extends window.BaseView {
   }
 }
 
-// ==========================================================================
-// 🔌 하위 호환성 유지 브릿지 (app.js가 수정 없이 그대로 동작하도록 연결)
-// ==========================================================================
 window.dayViewInstance = new DayView(document.getElementById("main-view"));
-
-window.renderDayViewer = (container) => {
-  window.dayViewInstance.container = container;
-  window.dayViewInstance.renderViewer();
-};
-
-window.renderDayEditor = (container) => {
-  window.dayViewInstance.container = container;
-  window.dayViewInstance.renderEditor();
-};
-
+window.renderDayViewer = (container) => { window.dayViewInstance.container = container; window.dayViewInstance.renderViewer(); };
+window.renderDayEditor = (container) => { window.dayViewInstance.container = container; window.dayViewInstance.renderEditor(); };
 window.saveDayDataFromEditor = () => window.dayViewInstance.save();
