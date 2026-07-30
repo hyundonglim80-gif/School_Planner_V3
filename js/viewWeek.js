@@ -1,11 +1,8 @@
-// js/viewWeek.js
-
 class WeekView extends window.BaseView {
   constructor(container) {
-    super(container); // BaseView(부모) 상속
+    super(container); 
   }
 
-  // 📅 주간 날짜 배열 계산 (기존 getWeekDates)
   getWeekDates() {
     const dates = [];
     const tempDate = new Date(this.currentDate);
@@ -21,10 +18,8 @@ class WeekView extends window.BaseView {
         tempDate.setDate(tempDate.getDate() + 1);
         continue;
       }
-
       dates.push({
-        day: dayNames[i],
-        dayOfWeekNum: i,
+        day: dayNames[i], dayOfWeekNum: i,
         dateStr: window.formatDate(tempDate),
         dateDisplay: `${tempDate.getDate()}일`
       });
@@ -33,23 +28,14 @@ class WeekView extends window.BaseView {
     return dates;
   }
 
-  // ==========================================================================
-  // 👁️ 1. 주간 뷰어 렌더링
-  // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드에서 주간 데이터를 불러오는 중...'); // BaseView 기능 사용
+    this.showLoading('클라우드에서 주간 데이터를 불러오는 중...'); 
 
-    let html = `
-      <div class="clean-viewer-board">
-        <table>
-          <tbody>
-    `;
-
+    let html = `<div class="clean-viewer-board"><table><tbody>`;
     const realTodayStr = window.formatDate(new Date());
 
     for (const d of this.getWeekDates()) {
       const dayData = await window.dbAPI.loadDayData(d.dateStr);
-      
       const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
       let eventHtml = '<span style="color:#94a3b8;">-</span>';
       
@@ -57,10 +43,7 @@ class WeekView extends window.BaseView {
         const eData = eventDoc.data();
         const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
-        
-        if (finalEvents.length > 0) {
-            eventHtml = window.generateEventBadgesHTML(finalEvents); 
-        }
+        if (finalEvents.length > 0) eventHtml = window.generateEventBadgesHTML(finalEvents); 
       }
 
       const periods = dayData.periods || {};
@@ -100,23 +83,14 @@ class WeekView extends window.BaseView {
         </tr>
       `;
     }
-
     html += `</tbody></table></div>`;
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // ✏️ 2. 주간 에디터 렌더링
-  // ==========================================================================
   async renderEditor() {
     this.showLoading('편집 화면을 준비 중...');
 
-    let html = `
-      <div class="table-container">
-        <table>
-          <tbody>
-    `;
-
+    let html = `<div class="table-container"><table><tbody>`;
     const realTodayStr = window.formatDate(new Date());
 
     for (const d of this.getWeekDates()) {
@@ -133,7 +107,6 @@ class WeekView extends window.BaseView {
         }
       }
       
-      // 상태 저장
       window[`tempEvents_${d.dateStr}`] = eventList; 
       
       let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
@@ -178,14 +151,11 @@ class WeekView extends window.BaseView {
         </tr>
       `;
     }
-
     html += `</tbody></table></div>`;
     this.container.innerHTML = html;
   }
 
-  // ==========================================================================
-  // ⚙️ 3. 주간 컴팩트 에디터 제어 헬퍼
-  // ==========================================================================
+  // 🎨 컴팩트 에디터 그리기 (색상 동적 반영)
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labels = window.getEventLabels();
@@ -195,9 +165,11 @@ class WeekView extends window.BaseView {
           let options = labels.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
           options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
 
+          const style = window.getLabelStyle(e.label, 'event');
+
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
-              <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; background:#fff; color:#1e40af; outline:none;">
+              <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid ${style.border}; border-radius:4px; background:${style.bg}; color:${style.text}; outline:none; font-weight:bold;">
                   ${options}
               </select>
               <input type="text" value="${e.content}" oninput="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
@@ -225,9 +197,6 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // ==========================================================================
-  // 💾 4. 주간 일괄 저장 처리 (부모의 save 메서드 구현)
-  // ==========================================================================
   async save() {
     for (const d of this.getWeekDates()) {
       const rawList = window[`tempEvents_${d.dateStr}`] || [];
@@ -264,43 +233,23 @@ class WeekView extends window.BaseView {
           const p = cell.getAttribute('data-p');
           const text = (cell.innerText || cell.textContent || '').trim();
           
-          let subject = '';
-          let memo = text;
-
+          let subject = ''; let memo = text;
           const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-          if (match) {
-            subject = match[1];
-            memo = match[2];
-          }
-
+          if (match) { subject = match[1]; memo = match[2]; }
           if (isSkipDay) subject = '';
 
           periodsData[p] = { 
-            subject: subject, 
-            memo: memo, 
+            subject: subject, memo: memo, 
             supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
           };
         });
-
         await window.dbAPI.saveSchedule(d.dateStr, periodsData);
       }
     }
   }
 }
 
-// ==========================================================================
-// 🔌 하위 호환성 유지 브릿지 (app.js 연동)
-// ==========================================================================
 window.weekViewInstance = new WeekView(document.getElementById("main-view"));
-
-window.renderWeekViewer = (container) => {
-  window.weekViewInstance.container = container;
-  window.weekViewInstance.renderViewer();
-};
-
-window.renderWeekEditor = (container) => {
-  window.weekViewInstance.container = container;
-  window.weekViewInstance.renderEditor();
-};
-
+window.renderWeekViewer = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderViewer(); };
+window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
