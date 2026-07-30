@@ -1,6 +1,9 @@
+// js/modules/labels.js
+
 const LabelManager = {
   eventModal: null,
   journalModal: null,
+  memoModal: null, // 💡 메모 모달 추가
   
   // 드래그 앤 드롭 상태 관리
   draggedIdx: null,
@@ -61,20 +64,27 @@ const LabelManager = {
       if (this.draggedType !== type || this.draggedIdx === null) return;
       if (this.draggedIdx === targetIdx) return;
       
-      // 💡 1번(인덱스 0) 기본 라벨은 이동하거나 대체할 수 없도록 철통 방어!
+      // 💡 1번(인덱스 0) 기본 라벨 방어
       if (targetIdx === 0 || this.draggedIdx === 0) {
           alert("기본 라벨은 위치를 변경할 수 없습니다.");
-          if (type === 'event') this.renderEventLabels(); else this.renderJournalLabels();
+          if (type === 'event') this.renderEventLabels(); 
+          else if (type === 'journal') this.renderJournalLabels();
+          else this.renderMemoLabels();
           return;
       }
 
-      const arr = type === 'event' ? window.tempEditingLabels : window.tempEditingJournalLabels;
+      let arr;
+      if (type === 'event') arr = window.tempEditingLabels;
+      else if (type === 'journal') arr = window.tempEditingJournalLabels;
+      else arr = window.tempEditingMemoLabels;
+
       const item = arr.splice(this.draggedIdx, 1)[0];
       arr.splice(targetIdx, 0, item);
 
       this.draggedIdx = null;
       if (type === 'event') this.renderEventLabels();
-      else this.renderJournalLabels();
+      else if (type === 'journal') this.renderJournalLabels();
+      else this.renderMemoLabels();
   },
 
   // ====================================================
@@ -189,15 +199,12 @@ const LabelManager = {
   saveEventLabels: async function(e) {
     if (window.tempEditingLabels.length === 0) return alert("최소 1개의 라벨은 있어야 합니다.");
     
-    // 이름 빈칸 검사
     for (let i=0; i<window.tempEditingLabels.length; i++) {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
     const oldLabels = window.getEventLabels().map(l => l.name);
     const newLabels = window.tempEditingLabels.map(l => l.name);
-    
-    // 기존 이름 중 새 목록에 없는 것은 '수정' 또는 '삭제'된 것으로 간주 -> 기본 라벨로 강제 편입
     const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
     const defaultLabel = newLabels[0]; 
 
@@ -350,7 +357,6 @@ const LabelManager = {
   saveJournalLabels: async function(e) {
     if (window.tempEditingJournalLabels.length === 0) return alert("최소 1개의 일지 라벨은 있어야 합니다.");
     
-    // 이름 빈칸 검사
     for (let i=0; i<window.tempEditingJournalLabels.length; i++) {
         if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
@@ -405,8 +411,148 @@ const LabelManager = {
     this.journalModal.close();
     alert("일지 라벨 설정이 성공적으로 저장되었습니다.");
     window.render(); 
+  },
+
+  // ====================================================
+  // 📝 3. 메모 라벨 (Memo Labels) 관리 [신규 추가됨]
+  // ====================================================
+  // 💡 기존의 단순 문자열 배열을 {name, color} 객체 배열 형태로 업그레이드할 수 있는 구조입니다.
+  // 현재는 호환성을 위해 문자열 이름을 기반으로 저장하되 팝업에서는 동일한 레이아웃을 사용합니다.
+  
+  getMemoLabels: function() {
+      const saved = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
+      if (saved && saved.length > 0) {
+          // 기존에 문자열 배열(['긴급', '중요'])로 저장되었을 경우를 대비해 객체로 래핑해줍니다.
+          return saved.map(item => typeof item === 'string' ? { name: item, color: 'blue' } : item);
+      }
+      return [
+          { name: '긴급', color: 'red' }, { name: '중요', color: 'orange' },
+          { name: '학급운영', color: 'green' }, { name: '학부모상담', color: 'purple' },
+          { name: '수업준비', color: 'blue' }, { name: '행정업무', color: 'gray' }, { name: '개인', color: 'indigo' }
+      ];
+  },
+
+  getMemoContentHTML: function() {
+    return `
+      <div class="modal-info-box" style="background: #ecfdf5; border-left-color: #10b981; color: #065f46;">
+          <p style="margin:0;">
+              <strong>[메모 라벨]</strong> 메모를 분류할 태그(Chip)들을 관리합니다.<br>
+              삭제된 라벨을 사용 중이던 기존 메모는 라벨이 해제됩니다.
+          </p>
+      </div>
+      <div id="memo-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
+      
+      <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
+          <div style="display:flex; gap:10px; align-items:center; width:100%;">
+              <input type="text" id="new-memo-label-name" placeholder="새 메모 라벨 추가..." class="modal-input-text" onkeydown="if(event.key==='Enter') LabelManager.addNewMemoLabel()">
+              <button onclick="LabelManager.addNewMemoLabel()" class="modal-btn-secondary success" style="flex-shrink:0; background:#10b981;">추가</button>
+          </div>
+          <div style="padding-left:4px;">
+              <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 태그 색상 (향후 업데이트용):</span>
+              ${this.getColorPickerHTML('memo', 'green')}
+          </div>
+      </div>
+      
+      <div class="modal-footer-actions">
+          <button onclick="LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 적용</button>
+      </div>
+    `;
+  },
+
+  openMemoModal: function() {
+    if (!this.memoModal) {
+      this.memoModal = new window.Modal({
+        id: 'memo-label-modal-v4',
+        title: '📝 메모 라벨 설정',
+        width: '500px',
+        content: this.getMemoContentHTML()
+      });
+    }
+    window.tempEditingMemoLabels = JSON.parse(JSON.stringify(this.getMemoLabels()));
+    this.memoModal.open();
+    this.renderMemoLabels();
+  },
+
+  renderMemoLabels: function() {
+    const container = document.getElementById('memo-label-list-container');
+    if (!container) return;
+    
+    container.innerHTML = window.tempEditingMemoLabels.map((label, index) => {
+        const isDefault = index === 0;
+        const style = window.LABEL_PALETTE[label.color || 'blue'] || window.LABEL_PALETTE['blue'];
+        
+        const dragHandle = isDefault 
+            ? `<span style="width:20px; display:inline-block; text-align:center; color:#cbd5e1;">🔒</span>` 
+            : `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
+        
+        const dragAttrs = isDefault ? '' : `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'memo')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'memo')" ondragend="this.style.opacity='1';"`;
+        
+        const nameInputHTML = isDefault
+            ? `<input type="text" value="${label.name}" readonly title="기본 라벨은 이름을 변경할 수 없습니다." style="width:110px; padding:6px; border:none; background:transparent; font-weight:bold; color:#1e293b; outline:none; cursor:not-allowed;">`
+            : `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b; transition:0.2s;" onfocus="this.style.borderColor='#10b981';">`;
+
+        // 메모는 칩 기반이므로 색상 선택은 부가 기능으로 둡니다.
+        const colorSelectHTML = `
+            <select onchange="window.tempEditingMemoLabels[${index}].color = this.value; LabelManager.renderMemoLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
+                ${Object.keys(window.LABEL_PALETTE).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${LabelManager.colorNames[k]}</option>`).join('')}
+            </select>
+        `;
+
+        const actionHTML = isDefault 
+            ? `<span style="font-size:0.8rem; color:#94a3b8; font-weight:bold; background:#f1f5f9; padding:4px 6px; border-radius:4px;">기본</span>` 
+            : `<button onclick="window.tempEditingMemoLabels.splice(${index}, 1); LabelManager.renderMemoLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+
+        return `
+        <div class="modal-input-row" ${dragAttrs} style="transition:0.2s; border-left: 3px solid #10b981;">
+            <div style="display:flex; align-items:center;">${dragHandle}</div>
+            ${nameInputHTML}
+            ${colorSelectHTML}
+            <div style="flex:1;"></div>
+            ${actionHTML}
+        </div>`;
+    }).join('');
+  },
+
+  addNewMemoLabel: function() {
+    const nameInput = document.getElementById('new-memo-label-name');
+    const colorInput = document.getElementById('memo-selected-color');
+    const name = nameInput.value.trim();
+    const color = colorInput.value || 'blue';
+    
+    if (!name) return alert("라벨 이름을 입력하세요.");
+    if (window.tempEditingMemoLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
+    
+    window.tempEditingMemoLabels.push({ name: name, color: color });
+    nameInput.value = '';
+    this.renderMemoLabels();
+  },
+
+  saveMemoLabels: async function(e) {
+    if (window.tempEditingMemoLabels.length === 0) return alert("최소 1개의 메모 라벨은 있어야 합니다.");
+    
+    for (let i=0; i<window.tempEditingMemoLabels.length; i++) {
+        if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
+    }
+    
+    // 메모 라벨은 호환성을 위해 우선 '문자열 배열' 포맷도 지원할 수 있게끔 객체 전체를 저장합니다.
+    localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
+    
+    this.memoModal.close();
+    alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
+    
+    // 메모 화면에 있다면 즉시 새로고침 반영
+    if (window.currentScope === 'memo' && window.memoViewInstance) {
+        window.memoViewInstance.renderViewer();
+    }
   }
 };
 
+// ====================================================
+// 전역 브릿지 함수 (HTML에서 호출 가능하도록)
+// ====================================================
 window.openEventLabelModal = () => LabelManager.openEventModal();
 window.openJournalLabelModal = () => LabelManager.openJournalModal();
+window.openMemoLabelModal = () => LabelManager.openMemoModal(); // 💡 새로 추가!
+
+// 하위 호환성을 위해 남겨둠 (viewMemo.js의 라벨 설정 버튼 등에서 직접 호출)
+window.manageMemoLabels = () => LabelManager.openMemoModal();
