@@ -2,7 +2,7 @@
 
 class MemoView extends window.BaseView {
   constructor(container) {
-    super(container); // BaseView(부모) 상속
+    super(container);
     this.currentLinks = [];
     this.memoItems = [];
     this.draggedMemoId = null;
@@ -106,7 +106,7 @@ class MemoView extends window.BaseView {
   // 📝 2. 메모(업무 체크리스트) 렌더링 및 제어 로직
   // ==========================================================================
   async renderViewer() {
-    this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...'); // BaseView 기능
+    this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
     this.memoItems = await window.dbAPI.loadMemos();
 
     let activeMemos = this.memoItems.filter(m => !m.completed).sort((a, b) => a.order - b.order);
@@ -147,11 +147,11 @@ class MemoView extends window.BaseView {
     this.renderLinks();
   }
 
-  // (참고) 메모 뷰는 뷰어/에디터 구분이 없으므로 renderEditor도 똑같이 동작시킵니다.
   async renderEditor() {
     this.renderViewer();
   }
 
+  // 💡 클릭해서 메모 수정이 가능하도록 contenteditable 적용 및 구조 분리
   generateMemoHTML(item, isCompleted) {
     const deleteBtnHtml = isCompleted ? `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🗑️</button>` : ``;
     let dragHandleHtml = '';
@@ -162,16 +162,38 @@ class MemoView extends window.BaseView {
       dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
     }
 
+    const editableAttr = isCompleted ? '' : `contenteditable="true" onblur="window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+
     return `
       <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
-        <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
+        <div style="display:flex; align-items:flex-start; gap:8px; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
-          <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px;">
-          <span style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500;'}">${item.text}</span>
-        </label>
+          <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
+          <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+        </div>
         <div class="memo-controls" style="display: flex; justify-content: flex-end; padding-top:2px;">${deleteBtnHtml}</div>
       </div>
     `;
+  }
+
+  // 💡 인라인 메모 수정 내용을 DB에 저장하는 함수 추가
+  async updateMemoText(firestoreId, newText) {
+    const text = newText.trim();
+    if (!text) {
+        alert("메모 내용은 비워둘 수 없습니다.");
+        this.renderViewer(); 
+        return;
+    }
+
+    const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+    if (target && target.text !== text) {
+        target.text = text;
+        try {
+            await window.dbAPI.updateMemo(firestoreId, { text: text });
+        } catch (e) {
+            console.error("메모 수정 오류", e);
+        }
+    }
   }
 
   handleDragStart(event, id) {
