@@ -443,13 +443,17 @@ const LabelManager = {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    // 로컬 스토리지에 새 라벨 저장
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
     
+    // 모달창 닫기
     this.memoModal.close();
     alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
     
-    // 💡 여기서 화면 갱신 로직이 조건에 안 맞아서(currentScope 등) 실행 안 됨
-    if (window.currentScope === 'memo' && window.memoViewInstance) {
+    // 💡 핵심 해결책: 조건 없이 현재 화면(app.js의 전역 렌더링 함수)을 강제로 다시 그리도록 명령합니다.
+    if (typeof window.render === 'function') {
+        window.render(); 
+    } else if (window.memoViewInstance) {
         window.memoViewInstance.renderViewer();
     }
   }
