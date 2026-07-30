@@ -1,5 +1,3 @@
-//js/modules/search.js
-
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
@@ -59,7 +57,6 @@ const SearchModule = {
     }
     this.modalInstance.open();
     
-    // 모달 열 때 기본값을 항상 'year(해당 학년도 전체)'로 설정
     const select = document.getElementById('search-scope-select');
     if(select) { 
         select.value = 'year'; 
@@ -70,7 +67,7 @@ const SearchModule = {
     if (container) {
         container.innerHTML = ''; 
         this.filterIdCounter = 0;
-        this.addFilter(); // 기본 필터 1개 자동 생성
+        this.addFilter(); 
     }
     
     document.getElementById('search-results-count').innerText = '';
@@ -88,7 +85,6 @@ const SearchModule = {
     }
   },
 
-  // 💡 [수정됨] 오른쪽 끝으로 이동된 AND/OR 로직 선택 칸
   addFilter: function() {
     const container = document.getElementById('search-filters-container');
     if (!container) return;
@@ -96,6 +92,13 @@ const SearchModule = {
     const filterRow = document.createElement('div');
     filterRow.className = 'modal-input-row alt search-filter-row';
     
+    const logicHTML = this.filterIdCounter > 0 
+        ? `<select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer; flex-shrink:0;">
+             <option value="AND">AND</option>
+             <option value="OR">OR</option>
+           </select>`
+        : `<input type="hidden" class="filter-logic" value="AND"><div style="width:24px; flex-shrink:0;"></div>`; 
+
     const deleteBtnHTML = this.filterIdCounter > 0 
         ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
         : `<div style="width:24px; flex-shrink:0;"></div>`;
@@ -110,10 +113,7 @@ const SearchModule = {
            <option value="supplies">비고</option> 
          </select>
          <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력... (띄어쓰기 없이 '/'로 다중 검색)">
-         <select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer; flex-shrink:0;">
-           <option value="AND">AND</option>
-           <option value="OR">OR</option>
-         </select>
+         ${logicHTML}
          ${deleteBtnHTML}
     `;
     container.appendChild(filterRow);
@@ -125,7 +125,6 @@ const SearchModule = {
     const dates = [];
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // 1. 직접 지정
     if (targetScope === 'custom') {
       const startStr = document.getElementById('search-start-date').value;
       const endStr = document.getElementById('search-end-date').value;
@@ -142,12 +141,10 @@ const SearchModule = {
       return dates;
     }
 
-    // 2. 학년도 및 학기 관련 날짜 산출 (3월 시작 기준)
     const y = window.currentDate.getFullYear();
     const m = window.currentDate.getMonth(); 
     const startYear = m <= 1 ? y - 1 : y; 
 
-    // 2학기 개학식 찾기 (기본값 8월 16일)
     let sem2StartDate = new Date(startYear, 7, 16); 
     if (eventMap) {
        let found = false;
@@ -190,14 +187,13 @@ const SearchModule = {
         for (let i = 1; i <= lastDate; i++) pushDate(new Date(targetY, targetM - 1, i));
       }
     } else if (targetScope === 'sem1') {
-      let cur = new Date(startYear, 2, 1); // 3월 1일 시작
+      let cur = new Date(startYear, 2, 1); 
       while (cur < sem2StartDate) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     } else if (targetScope === 'sem2') {
-      let cur = new Date(sem2StartDate); // 개학일 시작
-      const endOfAcademicYear = new Date(startYear + 1, 2, 0); // 다음 해 2월 말일
+      let cur = new Date(sem2StartDate); 
+      const endOfAcademicYear = new Date(startYear + 1, 2, 0); 
       while (cur <= endOfAcademicYear) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     }
-
     return dates;
   },
 
@@ -206,7 +202,6 @@ const SearchModule = {
     const searchConditions = [];
     let allKeywords = [];
     
-    // 사용자가 입력한 검색 조건 수집
     rows.forEach(row => {
       const logic = row.querySelector('.filter-logic').value;
       const type = row.querySelector('.filter-type').value;
@@ -219,7 +214,7 @@ const SearchModule = {
     });
 
     if (searchConditions.length === 0) return alert("검색어를 한 글자 이상 입력해 주세요.");
-    allKeywords = [...new Set(allKeywords)]; // 하이라이트용 중복 제거
+    allKeywords = [...new Set(allKeywords)]; 
 
     const resultList = document.getElementById('search-results-area');
     const countText = document.getElementById('search-results-count');
@@ -281,14 +276,13 @@ const SearchModule = {
             'supplies': daySuppliesText.join(' ')
           };
 
-          // 💡 [수정됨] 우측에 있는 AND/OR 로직이 다음 줄과 결합되도록 평가 엔진 수정
           let isMatch = false;
           if (searchConditions.length > 0) {
               let currentResult = checkMatch(textMap[searchConditions[0].type], searchConditions[0].keyword);
               
               for (let i = 1; i < searchConditions.length; i++) {
                   const cond = searchConditions[i];
-                  const prevLogic = searchConditions[i - 1].logic; // 윗줄(이전)의 가장 우측에 있던 AND/OR 값
+                  const prevLogic = searchConditions[i - 1].logic;
                   const matchThis = checkMatch(textMap[cond.type], cond.keyword);
                   
                   if (prevLogic === 'AND') {
@@ -303,10 +297,8 @@ const SearchModule = {
           if (isMatch) matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
         });
 
-        // 최신 날짜가 위로 오도록 정렬
         matchedResults.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
 
-        // 하이라이트 함수
         const highlight = (text) => {
           if (!text) return '';
           let res = text;
@@ -359,9 +351,11 @@ const SearchModule = {
           if (res.dayJournals && res.dayJournals.length > 0) {
             res.dayJournals.forEach(j => {
               if (j.content || j.label) {
-                let jText = `<div style="display:flex; flex-direction:column; background:#fdf2f8; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #f472b6;">`;
-                jText += `<div style="font-weight:bold; color:#be185d; margin-bottom:4px;">[일지: ${highlight(j.label)}]</div>`;
-                jText += `<div style="font-size:0.95rem; color:#831843;">${highlight(j.content)}</div>`;
+                // 🎨 검색 결과에도 일지 색상 적용
+                const style = window.getLabelStyle(j.label, 'journal');
+                let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
+                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[일지: ${highlight(j.label)}]</div>`;
+                jText += `<div style="font-size:0.95rem; color:#1e293b;">${highlight(j.content)}</div>`;
                 jText += `</div>`;
                 cardHtml += jText;
               }
