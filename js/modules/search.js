@@ -1,5 +1,3 @@
-//js/modules/search.js
-
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
@@ -7,18 +5,25 @@ const SearchModule = {
   getContentHTML: function() {
     return `
       <div class="modal-info-box">
+         <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">➕ 검색 조건 설정 (다중 조건 AND/OR)</h4>
+         <p style="margin:0; margin-bottom:10px; font-size:0.85rem; color:#475569;">조건을 무한대로 추가하고 AND(그리고) / OR(또는)로 정밀하게 검색하세요.</p>
+         
+         <div id="search-filters-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
+         <button onclick="SearchModule.addFilter()" class="modal-btn-dashed" style="margin-top:0;">+ 검색 조건 추가</button>
+      </div>
+
+      <div class="modal-info-box alt">
          <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">📅 검색 기간 설정</h4>
          <div style="display:flex; flex-direction:column; gap:10px;">
            <div style="display:flex; align-items:center; gap:10px;">
              <span style="font-weight:bold; width:80px;">기간 범위:</span>
-             <select id="search-scope-select" onchange="SearchModule.toggleCustomDateSearch()" style="flex:1; padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff;">
-               <option value="current" id="search-scope-current-opt">현재 선택 범위 (기본)</option>
-               <option value="year">해당 학년도 전체</option>
-               <option value="sem1">1학기</option>
-               <option value="sem2">2학기</option>
-               <option value="month">해당 월 전체</option>
-               <option value="week">해당 주 전체</option>
+             <select id="search-scope-select" onchange="SearchModule.toggleCustomDateSearch()" style="flex:1; padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-size:1rem; font-weight:bold;">
                <option value="day">해당 일</option>
+               <option value="week">해당 주</option>
+               <option value="month">해당 월</option>
+               <option value="sem1">1학기 (3월 ~ 개학 전)</option>
+               <option value="sem2">2학기 (개학 ~ 2월 말)</option>
+               <option value="year">해당 학년도 전체</option>
                <option value="custom">직접 지정(Custom)...</option>
              </select>
            </div>
@@ -30,14 +35,6 @@ const SearchModule = {
              <input type="date" id="search-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
            </div>
          </div>
-      </div>
-
-      <div class="modal-info-box alt">
-         <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">➕ 검색 조건 설정 (다중 조건 가능)</h4>
-         <p style="margin:0; margin-bottom:10px; font-size:0.85rem;">[조건 추가] 버튼을 눌러 라벨명이나 내용으로 세부 검색 조건을 무한대로 조합할 수 있습니다.</p>
-         
-         <div id="search-filters-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
-         <button onclick="SearchModule.addFilter()" class="modal-btn-dashed" style="margin-top:0;">+ 검색 조건 추가</button>
       </div>
 
       <button onclick="SearchModule.executeSearch()" class="search-execute-btn">
@@ -54,31 +51,33 @@ const SearchModule = {
       this.modalInstance = new window.Modal({
         id: 'search-modal-v2',
         title: '🔍 통합 고급 검색',
-        width: '650px', // UI가 커져서 창 너비를 조금 늘렸습니다.
+        width: '650px',
         content: this.getContentHTML()
       });
     }
     this.modalInstance.open();
     
-    // 모달 열 때마다 초기화 (기존 기간 안내 텍스트 갱신 포함)
-    const scopeNames = { 'year': '해당 학년도', 'month': '해당 월', 'week': '해당 주', 'day': '해당 일', 'memo': '메모' };
-    const currentLabel = scopeNames[window.currentScope] ? `현재 화면 범위 (${scopeNames[window.currentScope]})` : '현재 선택 범위 (기본)';
-    const scopeOpt = document.getElementById('search-scope-current-opt');
-    if(scopeOpt) scopeOpt.innerText = currentLabel;
-
+    // 모달 열 때 현재 화면의 범위를 기본값으로 선택
     const select = document.getElementById('search-scope-select');
-    if(select) { select.value = 'current'; this.toggleCustomDateSearch(); }
+    if(select) {
+        if (['day', 'week', 'month', 'year'].includes(window.currentScope)) {
+            select.value = window.currentScope;
+        } else {
+            select.value = 'month'; // 기본값
+        }
+        this.toggleCustomDateSearch(); 
+    }
 
     const container = document.getElementById('search-filters-container');
     if (container) {
         container.innerHTML = ''; 
         this.filterIdCounter = 0;
-        this.addFilter(); // 기본 필터 1개 생성
+        this.addFilter(); // 기본 필터 1개 자동 생성
     }
     
     document.getElementById('search-results-count').innerText = '';
     const resultsArea = document.getElementById('search-results-area');
-    if(resultsArea) resultsArea.innerHTML = `<p style="text-align:center; color:#94a3b8; padding:20px;">위에서 기간과 항목을 설정한 뒤 '데이터 찾기'를 눌러주세요.</p>`;
+    if(resultsArea) resultsArea.innerHTML = `<p style="text-align:center; color:#94a3b8; padding:20px;">조건과 기간을 설정한 뒤 '데이터 찾기'를 눌러주세요.</p>`;
   },
 
   toggleCustomDateSearch: function() {
@@ -96,22 +95,32 @@ const SearchModule = {
     if (!container) return;
     
     const filterRow = document.createElement('div');
-    filterRow.className = 'modal-input-row alt';
+    filterRow.className = 'modal-input-row alt search-filter-row';
     
+    // 첫 번째 줄은 AND/OR 대신 [기본조건] 라벨 표시
+    const logicHTML = this.filterIdCounter > 0 
+        ? `<select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer;">
+             <option value="AND">AND (그리고)</option>
+             <option value="OR">OR (또는)</option>
+           </select>`
+        : `<input type="hidden" class="filter-logic" value="AND"><span style="width:115px; text-align:center; font-size:0.9rem; color:#64748b; font-weight:bold;">[기본 검색조건]</span>`;
+
     const deleteBtnHTML = this.filterIdCounter > 0 
         ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제">✖</button>`
-        : `<div style="width:24px;"></div>`; // 첫 번째 줄은 ✖ 버튼 자리 비우기
+        : `<div style="width:24px;"></div>`;
 
+    // 준비물 -> 비고 변경 완료
     filterRow.innerHTML = `
-         <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af;">
-           <option value="all">통합(라벨+내용)</option>
+         ${logicHTML}
+         <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer;">
+           <option value="all">전체</option>
            <option value="event">일정</option>
-           <option value="subject">과목명</option>
-           <option value="memo">수업 메모</option>
-           <option value="supplies">준비물</option>
            <option value="journal">일지</option>
+           <option value="subject">수업</option>
+           <option value="memo">메모(수업)</option>
+           <option value="supplies">비고</option> 
          </select>
-         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 입력... (띄어쓰기 없이 '/'로 여러 단어 구분 입력 가능)">
+         <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력...">
          ${deleteBtnHTML}
     `;
     container.appendChild(filterRow);
@@ -119,10 +128,7 @@ const SearchModule = {
   },
 
   getSearchTargetDates: function(eventMap) {
-    const scopeSelect = document.getElementById('search-scope-select');
-    let targetScope = scopeSelect ? scopeSelect.value : 'current';
-    if (targetScope === 'current') targetScope = window.currentScope;
-
+    const targetScope = document.getElementById('search-scope-select').value;
     const dates = [];
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -146,12 +152,13 @@ const SearchModule = {
     // 2. 학년도 및 학기 관련 날짜 산출 (3월 시작 기준)
     const y = window.currentDate.getFullYear();
     const m = window.currentDate.getMonth(); 
-    const startYear = m <= 1 ? y - 1 : y; // 1~2월이면 작년 3월이 시작년도
+    const startYear = m <= 1 ? y - 1 : y; // 1~2월이면 작년 3월이 학년도 시작
 
-    let sem2StartDate = new Date(startYear, 7, 16); // 기본 2학기 시작 (8월 16일)
+    // 2학기 개학식 찾기 (기본값 8월 16일)
+    let sem2StartDate = new Date(startYear, 7, 16); 
     if (eventMap) {
        let found = false;
-       for (let mth = 7; mth <= 8; mth++) { 
+       for (let mth = 7; mth <= 8; mth++) { // 8~9월 탐색
           const daysInMonth = new Date(startYear, mth + 1, 0).getDate();
           for (let d = 1; d <= daysInMonth; d++) {
              const checkDate = window.formatDate(new Date(startYear, mth, d));
@@ -190,11 +197,11 @@ const SearchModule = {
         for (let i = 1; i <= lastDate; i++) pushDate(new Date(targetY, targetM - 1, i));
       }
     } else if (targetScope === 'sem1') {
-      let cur = new Date(startYear, 2, 1); 
+      let cur = new Date(startYear, 2, 1); // 3월 1일 시작
       while (cur < sem2StartDate) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     } else if (targetScope === 'sem2') {
-      let cur = new Date(sem2StartDate);
-      const endOfAcademicYear = new Date(startYear + 1, 2, 0); 
+      let cur = new Date(sem2StartDate); // 개학일 시작
+      const endOfAcademicYear = new Date(startYear + 1, 2, 0); // 다음 해 2월 말일
       while (cur <= endOfAcademicYear) { pushDate(new Date(cur)); cur.setDate(cur.getDate() + 1); }
     }
 
@@ -202,32 +209,24 @@ const SearchModule = {
   },
 
   executeSearch: async function() {
-    const rows = document.querySelectorAll('#active-search-fields .modal-input-row, #search-filters-container .modal-input-row');
-    if (rows.length === 0) return alert("검색할 항목을 먼저 추가해 주세요.");
-
+    const rows = document.querySelectorAll('.search-filter-row');
     const searchConditions = [];
     let allKeywords = [];
     
+    // 사용자가 입력한 검색 조건 수집
     rows.forEach(row => {
-      const typeSelect = row.querySelector('.filter-type');
-      const keywordInput = row.querySelector('.filter-keyword');
-      if(!typeSelect || !keywordInput) return;
-
-      const type = typeSelect.value;
-      const inputVal = keywordInput.value;
+      const logic = row.querySelector('.filter-logic').value;
+      const type = row.querySelector('.filter-type').value;
+      const keyword = row.querySelector('.filter-keyword').value.trim().toLowerCase();
       
-      // 슬래시(/)를 기준으로 여러 단어 OR 검색 지원
-      const keywords = inputVal.split('/').map(k => k.trim()).filter(k => k !== '');
-      
-      if (keywords.length > 0) {
-        searchConditions.push({ type, keywords, logic: 'OR' });
-        allKeywords.push(...keywords);
+      if (keyword) {
+        searchConditions.push({ logic, type, keyword });
+        allKeywords.push(keyword);
       }
     });
 
     if (searchConditions.length === 0) return alert("검색어를 한 글자 이상 입력해 주세요.");
-    
-    allKeywords = [...new Set(allKeywords)]; // 중복 키워드 제거용 (하이라이트 용도)
+    allKeywords = [...new Set(allKeywords)]; // 하이라이트용 중복 제거
 
     const resultList = document.getElementById('search-results-area');
     const countText = document.getElementById('search-results-count');
@@ -256,11 +255,9 @@ const SearchModule = {
         
         const validDates = targetDatesObj.map(item => item.dateStr);
 
-        const checkMatch = (text, params) => {
+        const checkMatch = (text, keyword) => {
           if (!text) return false;
-          const lowerText = text.toLowerCase();
-          if (params.logic === 'OR') return params.keywords.some(k => lowerText.includes(k.toLowerCase()));
-          return false;
+          return text.toLowerCase().includes(keyword);
         };
 
         const matchedResults = [];
@@ -285,19 +282,30 @@ const SearchModule = {
           const textMap = {
             'all': [dayEvent, daySubjectText.join(' '), dayMemoText.join(' '), daySuppliesText.join(' '), dayJournalText].join(' '),
             'event': dayEvent,
+            'journal': dayJournalText,
             'subject': daySubjectText.join(' '),
             'memo': dayMemoText.join(' '),
-            'supplies': daySuppliesText.join(' '),
-            'journal': dayJournalText
+            'supplies': daySuppliesText.join(' ')
           };
 
-          // AND 조건 (추가된 필터를 모두 만족해야 함)
-          let isMatch = true;
-          for (const cond of searchConditions) {
-            const textToSearch = textMap[cond.type];
-            if (!checkMatch(textToSearch, cond)) {
-              isMatch = false; break; 
-            }
+          // 💡 AND / OR 다중 조건 동적 평가 엔진 (위에서 아래로 순차 평가)
+          let isMatch = false;
+          if (searchConditions.length > 0) {
+              // 첫 번째 조건 평가
+              let currentResult = checkMatch(textMap[searchConditions[0].type], searchConditions[0].keyword);
+              
+              // 두 번째 조건부터 AND/OR 결합
+              for (let i = 1; i < searchConditions.length; i++) {
+                  const cond = searchConditions[i];
+                  const matchThis = checkMatch(textMap[cond.type], cond.keyword);
+                  
+                  if (cond.logic === 'AND') {
+                      currentResult = currentResult && matchThis;
+                  } else if (cond.logic === 'OR') {
+                      currentResult = currentResult || matchThis;
+                  }
+              }
+              isMatch = currentResult;
           }
 
           if (isMatch) matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
@@ -350,7 +358,7 @@ const SearchModule = {
               let pText = `<div style="display:flex; flex-direction:column; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #cbd5e1;">`;
               pText += `<div style="font-weight:bold; color:#0f172a; margin-bottom:4px;">[${window.periodNames ? window.periodNames[p-1] : p+'교시'}] ${highlight(pData.subject)}</div>`;
               if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">📝 메모: ${highlight(pData.memo)}</div>`;
-              if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">🎒 준비물: ${highlight(pData.supplies)}</div>`;
+              if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">📌 비고: ${highlight(pData.supplies)}</div>`; // 비고로 출력 이름 변경 완료
               pText += `</div>`;
               cardHtml += pText;
             }
