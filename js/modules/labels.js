@@ -416,13 +416,9 @@ const LabelManager = {
   // ====================================================
   // 📝 3. 메모 라벨 (Memo Labels) 관리 [신규 추가됨]
   // ====================================================
-  // 💡 기존의 단순 문자열 배열을 {name, color} 객체 배열 형태로 업그레이드할 수 있는 구조입니다.
-  // 현재는 호환성을 위해 문자열 이름을 기반으로 저장하되 팝업에서는 동일한 레이아웃을 사용합니다.
-  
   getMemoLabels: function() {
       const saved = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
       if (saved && saved.length > 0) {
-          // 기존에 문자열 배열(['긴급', '중요'])로 저장되었을 경우를 대비해 객체로 래핑해줍니다.
           return saved.map(item => typeof item === 'string' ? { name: item, color: 'blue' } : item);
       }
       return [
@@ -491,7 +487,6 @@ const LabelManager = {
             ? `<input type="text" value="${label.name}" readonly title="기본 라벨은 이름을 변경할 수 없습니다." style="width:110px; padding:6px; border:none; background:transparent; font-weight:bold; color:#1e293b; outline:none; cursor:not-allowed;">`
             : `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b; transition:0.2s;" onfocus="this.style.borderColor='#10b981';">`;
 
-        // 메모는 칩 기반이므로 색상 선택은 부가 기능으로 둡니다.
         const colorSelectHTML = `
             <select onchange="window.tempEditingMemoLabels[${index}].color = this.value; LabelManager.renderMemoLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
                 ${Object.keys(window.LABEL_PALETTE).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${LabelManager.colorNames[k]}</option>`).join('')}
@@ -534,13 +529,11 @@ const LabelManager = {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
-    // 메모 라벨은 호환성을 위해 우선 '문자열 배열' 포맷도 지원할 수 있게끔 객체 전체를 저장합니다.
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
     
     this.memoModal.close();
     alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
     
-    // 메모 화면에 있다면 즉시 새로고침 반영
     if (window.currentScope === 'memo' && window.memoViewInstance) {
         window.memoViewInstance.renderViewer();
     }
@@ -554,5 +547,5 @@ window.openEventLabelModal = () => LabelManager.openEventModal();
 window.openJournalLabelModal = () => LabelManager.openJournalModal();
 window.openMemoLabelModal = () => LabelManager.openMemoModal(); // 💡 새로 추가!
 
-// 하위 호환성을 위해 남겨둠 (viewMemo.js의 라벨 설정 버튼 등에서 직접 호출)
+// 💡 메모 뷰의 [⚙️ 설정] 버튼과 연결되는 하위 호환성 브릿지
 window.manageMemoLabels = () => LabelManager.openMemoModal();
