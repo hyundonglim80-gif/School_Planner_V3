@@ -1,3 +1,5 @@
+//js/modules/search.js
+
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
