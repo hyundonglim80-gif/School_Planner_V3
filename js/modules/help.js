@@ -20,8 +20,8 @@ const HelpModule = {
         <h3 class="modal-help-title">🏷️ 일정 라벨과 '수업 삭제' 기능</h3>
         <p style="margin-bottom: 20px;">우측 상단 메뉴 <strong>[🏷️ 일정 라벨 관리]</strong>에서 자주 쓰는 태그를 만들 수 있습니다. 특히 <span style="color:#ef4444; font-weight:bold;">'수업삭제'</span> 속성이 체크된 라벨(예: 휴일, 전일행사)을 일정에 등록하면, 해당 날짜의 시간표는 자동으로 비워집니다.</p>
 
-        <h3 class="modal-help-title">🗓️ 기준시간표 일괄 적용</h3>
-        <p style="margin-bottom: 20px;">학기 초 <strong>[🗓️ 기준시간표 등록]</strong>에서 학급 시간표를 한 번만 저장해 두세요. 이후 적용할 기간을 선택하고 일괄 적용을 누르면, 휴일/행사 날짜를 똑똑하게 피해서 시간표가 자동으로 채워집니다.</p>
+        <h3 class="modal-help-title">🗓️ 기준 시간표 일괄 적용</h3>
+        <p style="margin-bottom: 20px;">학기 초 <strong>[🗓️ 기준 시간표 등록]</strong>에서 학급 시간표를 한 번만 저장해 두세요. 이후 적용할 기간을 선택하고 일괄 적용을 누르면, 휴일/행사 날짜를 똑똑하게 피해서 시간표가 자동으로 채워집니다.</p>
 
         <h3 class="modal-help-title">💾 데이터 동기화 및 백업</h3>
         <p style="margin-bottom: 20px;">모든 데이터는 클라우드에 실시간 저장되어 PC와 모바일에서 즉시 연동됩니다. <strong>[데이터 백업(CSV)]</strong>을 통해 엑셀 파일로 개인 보관하거나 대량 수정 후 업로드할 수 있습니다.</p>
