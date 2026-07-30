@@ -133,7 +133,7 @@ const BackupModule = {
     let header = "년도,월,일,요일,일정,";
     for(let p=1; p<=maxPeriod; p++) header += `${p}교시 과목,`;
     for(let p=1; p<=maxPeriod; p++) header += `${p}교시 메모,`;
-    for(let p=1; p<=maxPeriod; p++) header += `${p}교시 준비물,`;
+    for(let p=1; p<=maxPeriod; p++) header += `${p}교시 비고,`;
     header += "일지\n";
     
     let csv = header;
@@ -241,7 +241,7 @@ const BackupModule = {
           for (let p = 1; p <= maxPeriod; p++) {
             let subj = parseExcelText(row[4 + p]);
             if (isSkipDay) subj = '';
-            // 인덱스 계산: 과목(4+p), 메모(4+maxPeriod+p), 준비물(4+maxPeriod*2+p)
+            // 인덱스 계산: 과목(4+p), 메모(4+maxPeriod+p), 비고(4+maxPeriod*2+p)
             periodsData[p] = { 
                 subject: subj, 
                 memo: parseExcelText(row[4 + maxPeriod + p]), 
