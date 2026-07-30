@@ -81,7 +81,6 @@ const LabelManager = {
       if (this.draggedType !== type || this.draggedIdx === null) return;
       if (this.draggedIdx === targetIdx) return;
       
-      // 💡 [수정됨] 기존 1번(인덱스 0) 방어 로직 완전 삭제
       let arr;
       if (type === 'event') arr = window.tempEditingLabels;
       else if (type === 'journal') arr = window.tempEditingJournalLabels;
@@ -149,7 +148,6 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingLabels.map((label, index) => {
-        // 💡 [수정됨] 모든 항목을 자유롭게 드래그, 수정, 삭제 가능하도록 변경
         const skipChecked = label.isSkip ? 'checked' : '';
         const skipColor = label.isSkip ? '#ef4444' : '#64748b';
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
@@ -200,64 +198,74 @@ const LabelManager = {
   },
 
   saveEventLabels: async function(e) {
-    // 💡 [수정됨] 최소 개수 제한을 풀어서 라벨을 아예 다 삭제(0개)할 수도 있게 허용합니다.
     for (let i=0; i<window.tempEditingLabels.length; i++) {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    // 💡 변경/삭제 감지를 위해 기존 라벨 목록 불러오기
+    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
+    const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getEventLabels ? window.getEventLabels().map(l=>l.name) : []);
+    
     const newLabels = window.tempEditingLabels.map(l => l.name);
+    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
 
     localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(window.tempEditingLabels));
     
-    // 💡 [수정됨] 기존 라벨 중 삭제/수정된 라벨은 강제 통합하지 않고 단순히 해당 일정에서 '라벨 해제(배열에서 삭제)' 처리합니다.
-    const btn = e.target;
-    btn.textContent = "클라우드 갱신 중...";
-    btn.disabled = true;
-    
-    try {
-        const snap = await window.getUserCol('events').get();
-        let batch = window.db.batch();
-        let opCount = 0;
-        let batchPromises = [];
+    // 💡 삭제되거나 이름이 바뀐 라벨이 있다면 DB 전체를 돌며 해당 일정의 라벨을 '해제'합니다.
+    if (deletedLabels.length > 0) {
+        const btn = e.target;
+        const originalText = btn.textContent;
+        btn.textContent = "클라우드 갱신 중...";
+        btn.disabled = true;
+        
+        try {
+            const snap = await window.getUserCol('events').get();
+            let batch = window.db.batch();
+            let opCount = 0;
+            let batchPromises = [];
 
-        snap.forEach(doc => {
-            const data = doc.data();
-            let changed = false;
-            let list = data.eventList || [];
-            
-            // 기존 텍스트 데이터 파싱 호환 유지
-            if (list.length === 0 && data.eventText) list = window.parseRawEventTextToEventList(data.eventText);
+            snap.forEach(doc => {
+                const data = doc.data();
+                let changed = false;
+                let list = data.eventList || [];
+                
+                if (list.length === 0 && data.eventText && window.parseRawEventTextToEventList) {
+                    list = window.parseRawEventTextToEventList(data.eventText);
+                }
 
-            list.forEach(ev => {
-                // 단일 라벨 호환용
-                let evLabels = ev.labels || (ev.label ? [ev.label] : []);
-                const originalLength = evLabels.length;
-                
-                // 새 설정에 존재하지 않는 라벨은 모두 제거 (해제 처리)
-                evLabels = evLabels.filter(l => newLabels.includes(l));
-                
-                if (evLabels.length !== originalLength) {
-                    ev.labels = evLabels;
-                    ev.label = evLabels[0] || ''; // 단일 라벨 시스템을 위한 폴백
-                    changed = true;
+                list.forEach(ev => {
+                    let evLabels = ev.labels || (ev.label ? [ev.label] : []);
+                    const originalLength = evLabels.length;
+                    
+                    // 새 설정에 존재하지 않는 라벨은 모두 제거 (해제 처리)
+                    evLabels = evLabels.filter(l => newLabels.includes(l));
+                    
+                    if (evLabels.length !== originalLength) {
+                        ev.labels = evLabels;
+                        ev.label = evLabels[0] || ''; 
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    const updateData = { eventList: list, updatedAt: Date.now() };
+                    if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(list);
+                    batch.update(doc.ref, updateData);
+                    opCount++;
+                    if (opCount >= 400) { 
+                        batchPromises.push(batch.commit());
+                        batch = window.db.batch();
+                        opCount = 0;
+                    }
                 }
             });
-
-            if (changed) {
-                const newText = window.formatEventListToText(list);
-                batch.update(doc.ref, { eventList: list, eventText: newText, updatedAt: Date.now() });
-                opCount++;
-                if (opCount >= 400) { 
-                    batchPromises.push(batch.commit());
-                    batch = window.db.batch();
-                    opCount = 0;
-                }
-            }
-        });
-        if (opCount > 0) batchPromises.push(batch.commit());
-        await Promise.all(batchPromises);
-    } catch(err) {
-        console.error("일정 라벨 자동 업데이트 실패", err);
+            if (opCount > 0) batchPromises.push(batch.commit());
+            await Promise.all(batchPromises);
+        } catch(err) {
+            console.error("일정 라벨 자동 업데이트 실패", err);
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
     }
 
     this.eventModal.close();
@@ -315,7 +323,6 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingJournalLabels.map((label, index) => {
-        // 💡 [수정됨] 모든 항목 자유화
         const style = palette[label.color || 'purple'] || { border: '#d8b4fe', bg: '#f3e8ff', text: '#6b21a8' };
         
         const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;">≡</span>`;
@@ -361,51 +368,61 @@ const LabelManager = {
         if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
+    const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getJournalLabels ? window.getJournalLabels().map(l=>l.name) : []);
     const newLabels = window.tempEditingJournalLabels.map(l => l.name);
+    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
+
     localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(window.tempEditingJournalLabels));
     
-    const btn = e.target;
-    btn.textContent = "클라우드 갱신 중...";
-    btn.disabled = true;
+    if (deletedLabels.length > 0) {
+        const btn = e.target;
+        const originalText = btn.textContent;
+        btn.textContent = "클라우드 갱신 중...";
+        btn.disabled = true;
 
-    try {
-        const snap = await window.getUserCol('journals').get();
-        let batch = window.db.batch();
-        let opCount = 0;
-        let batchPromises = [];
+        try {
+            const snap = await window.getUserCol('journals').get();
+            let batch = window.db.batch();
+            let opCount = 0;
+            let batchPromises = [];
 
-        snap.forEach(doc => {
-            const data = doc.data();
-            let changed = false;
-            let list = data.entries || [];
+            snap.forEach(doc => {
+                const data = doc.data();
+                let changed = false;
+                let list = data.entries || [];
 
-            list.forEach(j => {
-                let jLabels = j.labels || (j.label ? [j.label] : []);
-                const originalLength = jLabels.length;
-                
-                jLabels = jLabels.filter(l => newLabels.includes(l));
-                
-                if (jLabels.length !== originalLength) {
-                    j.labels = jLabels;
-                    j.label = jLabels[0] || '';
-                    changed = true;
+                list.forEach(j => {
+                    let jLabels = j.labels || (j.label ? [j.label] : []);
+                    const originalLength = jLabels.length;
+                    
+                    // 새 목록에 없는 라벨 삭제
+                    jLabels = jLabels.filter(l => newLabels.includes(l));
+                    
+                    if (jLabels.length !== originalLength) {
+                        j.labels = jLabels;
+                        j.label = jLabels[0] || '';
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    batch.update(doc.ref, { entries: list, updatedAt: Date.now() });
+                    opCount++;
+                    if (opCount >= 400) {
+                        batchPromises.push(batch.commit());
+                        batch = window.db.batch();
+                        opCount = 0;
+                    }
                 }
             });
-
-            if (changed) {
-                batch.update(doc.ref, { entries: list, updatedAt: Date.now() });
-                opCount++;
-                if (opCount >= 400) {
-                    batchPromises.push(batch.commit());
-                    batch = window.db.batch();
-                    opCount = 0;
-                }
-            }
-        });
-        if (opCount > 0) batchPromises.push(batch.commit());
-        await Promise.all(batchPromises);
-    } catch(err) {
-        console.error("일지 라벨 자동 업데이트 실패", err);
+            if (opCount > 0) batchPromises.push(batch.commit());
+            await Promise.all(batchPromises);
+        } catch(err) {
+            console.error("일지 라벨 자동 업데이트 실패", err);
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
     }
 
     this.journalModal.close();
@@ -433,7 +450,7 @@ const LabelManager = {
       <div class="modal-info-box" style="background: #ecfdf5; border-left-color: #10b981; color: #065f46;">
           <p style="margin:0;">
               <strong>[메모 라벨]</strong> 메모를 분류할 태그(Chip)들을 관리합니다.<br>
-              왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 수정할 수 있습니다.
+              왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 수정할 수 있습니다. 삭제된 라벨은 기존 메모에서도 <strong>해제</strong>됩니다.
           </p>
       </div>
       <div id="memo-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -475,7 +492,6 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingMemoLabels.map((label, index) => {
-        // 💡 [수정됨] 메모 또한 1번 인덱스를 자유롭게 드래그 및 삭제 가능하도록 변경
         const style = palette[label.color || 'green'] || { border: '#86efac', bg: '#dcfce7', text: '#166534' };
         
         const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
@@ -521,13 +537,67 @@ const LabelManager = {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
+    let oldLabels = [];
+    if (oldLabelsData && oldLabelsData.length > 0) {
+        oldLabels = oldLabelsData.map(item => typeof item === 'string' ? item : item.name);
+    } else {
+        oldLabels = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
+    }
+    
+    const newLabels = window.tempEditingMemoLabels.map(l => l.name);
+    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
+
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
     
+    if (deletedLabels.length > 0) {
+        const btn = e.target;
+        const originalText = btn.textContent;
+        btn.textContent = "클라우드 갱신 중...";
+        btn.disabled = true;
+
+        try {
+            const snap = await window.getUserCol('tasks').get();
+            let batch = window.db.batch();
+            let opCount = 0;
+            let batchPromises = [];
+
+            snap.forEach(doc => {
+                const data = doc.data();
+                let changed = false;
+                let mLabels = data.labels || (data.label ? [data.label] : []);
+                const origLen = mLabels.length;
+
+                // 새 설정에 존재하지 않는 라벨은 메모에서 해제 처리
+                mLabels = mLabels.filter(l => newLabels.includes(l));
+
+                if (mLabels.length !== origLen) {
+                    batch.update(doc.ref, { labels: mLabels, updatedAt: Date.now() });
+                    opCount++;
+                    if (opCount >= 400) {
+                        batchPromises.push(batch.commit());
+                        batch = window.db.batch();
+                        opCount = 0;
+                    }
+                }
+            });
+            if (opCount > 0) batchPromises.push(batch.commit());
+            await Promise.all(batchPromises);
+        } catch(err) {
+            console.error("메모 라벨 자동 업데이트 실패", err);
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+
     this.memoModal.close();
     alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
     
-    if (typeof window.render === 'function') window.render(); 
-    else if (window.memoViewInstance) window.memoViewInstance.renderViewer();
+    if (typeof window.render === 'function') {
+        window.render(); 
+    } else if (window.memoViewInstance) {
+        window.memoViewInstance.renderViewer();
+    }
   }
 };
 
