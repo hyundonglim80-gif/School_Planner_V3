@@ -199,6 +199,7 @@ function updateButtonUI() {
 
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
+    viewerBtn.innerHTML = '👁️ 보기'; // '뷰어'에서 '보기'로 연동 수정
 
     if (currentMode === 'viewer') {
       editorBtn.innerHTML = '✏️ 수정';
