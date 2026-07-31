@@ -14,7 +14,6 @@ class DayView extends window.BaseView {
     return [];
   }
 
-  // 💡 [신규] 다중 라벨 칩 렌더링 헬퍼 함수
   renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
@@ -25,7 +24,6 @@ class DayView extends window.BaseView {
           const chip = document.createElement('div');
           chip.className = 'label-chip';
           chip.innerText = labelText;
-          // 선택된 라벨이면 active 클래스 적용
           if (selectedLabelsArray.includes(labelText)) {
               chip.classList.add('active');
           }
@@ -65,13 +63,12 @@ class DayView extends window.BaseView {
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
-      // (기존 generateEventBadgesHTML 함수가 배열을 지원하도록 내부 업데이트 필요. 여기서는 자체 렌더링)
-      html += events.map(e => {
-          let labels = e.labels || (e.label ? [e.label] : []); // 이전 단일 라벨 호환
-          const labelsHtml = labels.map(l => `<span class="badge-tag" style="background-color: var(--tag-bg); color: var(--tag-color); font-size: 0.85rem; padding: 2px 8px; border-radius: 12px; margin-right: 4px;">${l}</span>`).join('');
-          const isCompleted = e.completed ? 'text-decoration:line-through; color:#94a3b8;' : '';
-          return `<div style="margin-bottom:6px;"><span style="${isCompleted}">${e.content}</span> <div style="display:inline-block; margin-left:6px;">${labelsHtml}</div></div>`;
-      }).join('');
+      // 💡 [수정] 월 뷰어와 동일하게 generateEventBadgesHTML 사용, 라벨 없으면 '기타' 부여
+      let processedEvents = events.map(e => ({
+          ...e,
+          labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+      }));
+      html += window.generateEventBadgesHTML(processedEvents, dateStr);
     } else {
       html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
     }
@@ -107,10 +104,9 @@ class DayView extends window.BaseView {
                 <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘의 일지</h3>`;
       
       journals.forEach(j => {
-        let labels = j.labels || (j.label ? [j.label] : []); // 이전 단일 라벨 데이터 호환 유지
+        let labels = j.labels || (j.label ? [j.label] : []); 
         if (labels.length === 0) labels = ['참고'];
 
-        // 대표 라벨(첫번째)의 색상을 가져와 테두리에 적용
         const mainStyle = window.getLabelStyle(labels[0], 'journal');
         
         const labelsHtml = labels.map(l => {
@@ -141,7 +137,6 @@ class DayView extends window.BaseView {
     const eventDoc = await window.getUserCol('events').doc(dateStr).get();
     const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
     
-    // 데이터 형식 업그레이드 (단일 label -> 배열 labels)
     this.currentEvents = events.map(e => ({
         ...e,
         labels: e.labels || (e.label ? [e.label] : [])
@@ -160,10 +155,11 @@ class DayView extends window.BaseView {
     let html = `<div class="day-viewer-container">`;
 
     // --- 1. 일정 에디터 영역 ---
+    // 💡 [수정] '오늘의 일정/행사' -> '오늘 할 일'
     html += `
       <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-          <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘의 일정/행사</h3>
+          <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
           <button onclick="window.openEventLabelModal()" style="background:#f8fafc; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold;">⚙️ 설정</button>
         </div>
         <div id="event-entries-container"></div>
@@ -200,10 +196,11 @@ class DayView extends window.BaseView {
     html += `</tbody></table></div>`;
 
     // --- 3. 일지 에디터 영역 ---
+    // 💡 [수정] '오늘의 일지 기록' -> '오늘 기록'
     html += `
       <div class="day-journal-editor-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-          <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘의 일지 기록</h3>
+          <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록</h3>
           <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
         </div>
         <div id="journal-entries-container"></div>
@@ -219,7 +216,6 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
-  // 💡 [수정] 다중 칩 기반 일정 렌더링
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
@@ -232,7 +228,6 @@ class DayView extends window.BaseView {
         block.className = "event-entry-block";
         block.style.cssText = "border:1px solid #cbd5e1; border-radius:8px; padding:10px; margin-bottom:12px; background:#f8fafc;";
         
-        // 상단: 칩 컨테이너와 기능 버튼
         const topRow = document.createElement('div');
         topRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;";
         
@@ -240,7 +235,6 @@ class DayView extends window.BaseView {
         chipContainer.className = "label-chip-container";
         chipContainer.style.margin = "0";
         
-        // 칩 렌더링 호출
         this.renderLabelChips(chipContainer, labelObjs, e.labels, (newLabels) => {
             this.currentEvents[index].labels = newLabels;
         });
@@ -263,14 +257,12 @@ class DayView extends window.BaseView {
         topRow.appendChild(chipContainer);
         topRow.appendChild(actions);
         
-        // 하단: 텍스트 입력창
         const ta = document.createElement('textarea');
         ta.className = "event-content-input";
         ta.placeholder = "일정 내용을 입력하세요.";
         ta.style.cssText = `width:100%; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
         ta.value = e.content;
         
-        // 이벤트 바인딩
         ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
         ta.addEventListener('change', () => this.syncEventInputs());
         actions.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
@@ -280,7 +272,6 @@ class DayView extends window.BaseView {
         block.appendChild(ta);
         container.appendChild(block);
         
-        // 높이 조절 트리거
         setTimeout(() => { ta.style.height = ta.scrollHeight + 'px'; }, 0);
     });
   }
@@ -307,7 +298,6 @@ class DayView extends window.BaseView {
     this.renderEventEntries();
   }
 
-  // 💡 [수정] 다중 칩 기반 일지 렌더링
   renderJournalEntries() {
     const container = document.getElementById('journal-entries-container');
     if(!container) return;
@@ -469,7 +459,7 @@ class DayView extends window.BaseView {
 
     this.syncEventInputs();
     const validEvents = this.currentEvents.filter(e => e.content.trim() !== '');
-    // 기존 호환용 텍스트 필드 업데이트
+    
     const eventTextForLegacy = validEvents.map(e => {
        const labels = e.labels && e.labels.length > 0 ? e.labels.map(l => `[${l}]`).join(' ') : '';
        return `${labels} ${e.content}`;
@@ -481,7 +471,6 @@ class DayView extends window.BaseView {
         updatedAt: Date.now()
     });
 
-    // skip 라벨 여부 체크
     let isSkipDay = false;
     for (const e of validEvents) {
         if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
