@@ -6,30 +6,47 @@ const HelpModule = {
   getContentHTML: function() {
     return `
       <div class="modal-help-container">
-        <h3 class="modal-help-title">⌨️ 핵심 단축키</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px;">
+        <div class="modal-info-box" style="margin-bottom: 20px; background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px;">
+            <p style="margin:0; font-weight:bold; color:#1e40af; font-size:1.05rem;">🎉 School Planner V3 최신 가이드</p>
+            <p style="margin:5px 0 0 0; font-size:0.95rem; color:#334155; line-height:1.5;">화면 레이아웃 개편, '기록(구 일지)' 명칭 변경, 메모 자동 저장 및 다중 고급 검색 등 더욱 강력하고 편리해진 최신 기능들을 확인해 보세요!</p>
+        </div>
+
+        <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>Ctrl + 방향키(좌/우):</strong> 이전/다음 날짜(또는 주, 월)로 빠르게 이동</li>
-          <li><strong>Ctrl + 방향키(상/하):</strong> 보기 모드(상) / 에디터 모드(하) 전환</li>
-          <li><strong>Ctrl + Enter:</strong> 현재 작성 중인 내용 즉시 저장</li>
-          <li><strong>Shift + 방향키(좌/우):</strong> 일/주/월/년 보기 형식 빠르게 넘기기</li>
-          <li><strong>/ (슬래시):</strong> 통합 검색창 열기</li>
+          <li><strong>Ctrl + 방향키(상/하):</strong> 보기 모드(상) / 수정 모드(하) 전환</li>
+          <li><strong>Shift + 방향키(좌/우):</strong> 메모/년/월/주/일 보기 탭 간 빠른 이동</li>
+          <li><strong>/ (슬래시):</strong> 통합 다중 검색창 열기</li>
           <li><strong>Esc:</strong> 열려있는 팝업창 모두 닫기</li>
+          <li><strong>📱 모바일 스와이프:</strong> 스마트폰 화면에서 좌우로 밀어 날짜나 보기 형식을 부드럽게 넘기기</li>
         </ul>
 
-        <h3 class="modal-help-title">⚙️ 화면 분할 및 수업 시수 설정</h3>
-        <p style="margin-bottom: 20px;">우측 상단 <strong>[⋮] 메뉴 > [⚙️ 환경 설정]</strong>에서 '아침활동', '1교시', '방과후' 등 학교에 맞는 수업 시간 명칭과 개수를 자유롭게 추가하세요. 설정된 개수에 맞춰 화면 칸이 자동으로 분할됩니다.</p>
+        <h3 class="modal-help-title">📝 더욱 스마트해진 '메모' 탭 활용법</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
+          <li><strong>스마트 레이아웃:</strong> 화면 좌측의 '라벨 필터(개수 표시)'와 우측의 '진행/완료 목록'으로 공간이 나뉘어 할 일을 직관적으로 파악할 수 있습니다.</li>
+          <li><strong>자동 저장:</strong> 메모 창에 글을 쓰거나 사진을 올리다가 다른 탭(주, 월 등)으로 이동해도 <strong>자동으로 내용이 추가(저장)</strong>되어 데이터가 날아가지 않습니다.</li>
+          <li><strong>문서/링크 모음:</strong> 최상단의 '자주 쓰는 문서/링크'에 나이스(NEIS), 쿨메신저 등 자주 접속하는 사이트를 등록해두고 클릭 한 번에 이동하세요.</li>
+        </ul>
 
-        <h3 class="modal-help-title">🏷️ 일정 라벨과 '수업 삭제' 기능</h3>
-        <p style="margin-bottom: 20px;">우측 상단 메뉴 <strong>[🏷️ 일정 라벨 관리]</strong>에서 자주 쓰는 태그를 만들 수 있습니다. 특히 <span style="color:#ef4444; font-weight:bold;">'수업삭제'</span> 속성이 체크된 라벨(예: 휴일, 전일행사)을 일정에 등록하면, 해당 날짜의 시간표는 자동으로 비워집니다.</p>
+        <h3 class="modal-help-title">🗓️ 시간표 관리 및 '수업 교환'</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
+          <li><strong>수업 시수 자유 설정:</strong> 우측 상단 [⋮] 메뉴 > [⚙️ 환경 설정]에서 아침활동, 1교시, 방과후 등 학교 운영에 맞는 명칭과 교시 개수를 설정하세요.</li>
+          <li><strong>기준 시간표 일괄 적용:</strong> 학기 초 1/2학기 기준 시간표를 등록해두고 기간을 적용하면, 행사나 휴일(수업 삭제 라벨)을 똑똑하게 피해서 시간표를 자동으로 채워줍니다.</li>
+          <li><strong>🔄 수업 교환 (일간 보기):</strong> '일(Day)' 보기 수정 화면에서 교시명(예: 1교시)을 클릭하면, 다른 날짜나 시간의 수업과 서로 내용을 간편하게 맞바꿀 수 있습니다.</li>
+        </ul>
 
-        <h3 class="modal-help-title">🗓️ 기준 시간표 일괄 적용</h3>
-        <p style="margin-bottom: 20px;">학기 초 <strong>[🗓️ 기준 시간표 등록]</strong>에서 학급 시간표를 한 번만 저장해 두세요. 이후 적용할 기간을 선택하고 일괄 적용을 누르면, 휴일/행사 날짜를 똑똑하게 피해서 시간표가 자동으로 채워집니다.</p>
+        <h3 class="modal-help-title">🏷️ 라벨 커스텀 및 '기록(구 일지)'</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
+          <li><strong>명칭 변경:</strong> 기존의 '일지' 메뉴가 범용적인 활용을 위해 <strong>'기록'</strong>으로 변경되었습니다. 학급의 하루나 상담 내용을 자유롭게 남겨보세요.</li>
+          <li><strong>수업 삭제 라벨:</strong> 일정 라벨 설정 시 <span style="color:#ef4444; font-weight:bold;">'수업삭제'</span>에 체크한 라벨(예: 휴일, 전일행사)을 등록하면 해당 날짜의 시간표 칸이 자동으로 비워집니다.</li>
+          <li><strong>라벨 순서 변경:</strong> 모든 라벨 설정 모달창에서 왼쪽의 '≡' 아이콘을 드래그하여 나만의 순서대로 라벨을 재배치할 수 있습니다.</li>
+        </ul>
 
-        <h3 class="modal-help-title">💾 데이터 동기화 및 백업</h3>
-        <p style="margin-bottom: 20px;">모든 데이터는 클라우드에 실시간 저장되어 PC와 모바일에서 즉시 연동됩니다. <strong>[데이터 백업(CSV)]</strong>을 통해 엑셀 파일로 개인 보관하거나 대량 수정 후 업로드할 수 있습니다.</p>
-
-        <h3 class="modal-help-title">📱 모바일 스와이프 제스처</h3>
-        <p style="margin-bottom: 20px;">스마트폰 화면에서는 <strong>좌우로 밀기(스와이프)</strong>를 통해 이전/다음 날짜나 다른 보기 형식으로 부드럽게 화면을 넘길 수 있습니다.</p>
+        <h3 class="modal-help-title">🔍 다중 조건 검색 및 💾 데이터 백업</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
+          <li><strong>고급 통합 검색:</strong> 단축키 [ / ]를 눌러 일정, 기록, 수업, 수업 메모 등 검색 분야를 지정하고 AND / OR 조건을 무한대로 엮어 원하는 데이터를 정확히 찾아냅니다.</li>
+          <li><strong>안전한 백업/복원:</strong> [일정 및 기록]은 물론, [메모 및 문서/링크] 데이터까지 언제든 엑셀(CSV) 파일로 안전하게 개인 PC에 다운로드하고 복원할 수 있습니다.</li>
+        </ul>
         
         <div class="modal-help-footer">
             <label class="modal-help-checkbox-label">
@@ -44,14 +61,14 @@ const HelpModule = {
   open: function() {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
-        id: 'help-modal-v2',
-        title: '📖 사용 설명서 및 단축키 안내',
-        width: '600px',
+        id: 'help-modal-v4', // ID를 변경하여 업데이트된 설명서가 무조건 한 번 뜨게 유도
+        title: '📖 사용 설명서 및 핵심 기능 안내',
+        width: '650px',
         content: this.getContentHTML(),
         onClose: () => {
           const chk = document.getElementById('chk-hide-help');
           if (chk && chk.checked) {
-            localStorage.setItem('workCalendar_hideHelp_v3', 'true');
+            localStorage.setItem('workCalendar_hideHelp_v4', 'true');
           }
         }
       });
@@ -60,7 +77,7 @@ const HelpModule = {
     this.modalInstance.open();
     const chk = document.getElementById('chk-hide-help');
     if (chk) {
-      chk.checked = localStorage.getItem('workCalendar_hideHelp_v3') === 'true';
+      chk.checked = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
     }
   }
 };
