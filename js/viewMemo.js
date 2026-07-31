@@ -55,8 +55,8 @@ class MemoView extends window.BaseView {
       links.forEach((link, index) => {
         html += `
           <div class="quick-link-item" style="position:relative; display:inline-flex; align-items:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:20px; padding:6px 14px; margin-right:8px; margin-bottom:8px; transition:0.2s; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05);"
-               onmouseenter="this.querySelector('.link-controls').style.display='flex';"
-               onmouseleave="this.querySelector('.link-controls').style.display='none';">
+                onmouseenter="this.querySelector('.link-controls').style.display='flex';"
+                onmouseleave="this.querySelector('.link-controls').style.display='none';">
             <a href="${link.url}" target="_blank" style="text-decoration:none; color:#1e40af; font-weight:700; font-size:1.05rem; display:flex; align-items:center; gap:6px;">🔗 ${link.name}</a>
             <div class="link-controls" style="display:none; position:absolute; right:-10px; top:-10px; background:#fff; border:1px solid #cbd5e1; border-radius:12px; padding:2px 4px; box-shadow:0 2px 4px rgba(0,0,0,0.1); gap:4px; z-index:10;">
               <button onclick="window.memoViewInstance.openAddLinkModal(${index})" style="background:none; border:none; cursor:pointer; font-size:1rem; padding:2px;" title="수정">✏️</button>
@@ -164,6 +164,7 @@ class MemoView extends window.BaseView {
 
       try {
           this.pendingImageUrl = await window.dbAPI.uploadImage(file);
+          window.hasUnsavedChanges = true;
       } catch (error) {
           console.error("이미지 업로드 실패:", error);
           alert("이미지 업로드 중 오류가 발생했습니다.");
@@ -179,6 +180,8 @@ class MemoView extends window.BaseView {
       if (this.pendingImageUrl) {
           window.dbAPI.deleteImage(this.pendingImageUrl).catch(e => console.warn(e));
           this.pendingImageUrl = null;
+          const input = document.getElementById("memo-input-text");
+          window.hasUnsavedChanges = (input && input.value.trim() !== '');
           this.renderViewer();
       }
   }
@@ -207,12 +210,12 @@ class MemoView extends window.BaseView {
     let activeMemos = filteredMemos.filter(m => !m.completed).sort((a, b) => a.order - b.order);
     let completedMemos = filteredMemos.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
-    const filterHtml = `
-      <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:10px;">
-          <div class="label-chip ${this.currentFilter === '전체' ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('전체')">👀 전체보기</div>
-          ${this.AVAILABLE_LABELS.map(l => `<div class="label-chip ${this.currentFilter === l ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('${l}')">${l}</div>`).join('')}
-      </div>
-    `;
+    // 라벨별 메모 개수 계산
+    const allCount = this.memoItems.length;
+    const labelCounts = {};
+    this.AVAILABLE_LABELS.forEach(l => {
+        labelCounts[l] = this.memoItems.filter(m => m.labels && m.labels.includes(l)).length;
+    });
 
     let imageAttachmentHtml = '';
     if (this.isUploading) {
@@ -226,50 +229,63 @@ class MemoView extends window.BaseView {
         `;
     }
 
+    // 💡 [수정] 라벨 필터가 화면 좌측에 세로로 나오도록 2단 컬럼 레이아웃 적용
     let html = `
-      <div style="max-width:800px; margin:0 auto; display:flex; flex-direction:column; gap:15px;">
+      <div style="max-width:1050px; margin:0 auto; display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start;">
         
-        <div style="background:#fff; padding:15px 20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #f1f5f9; padding-bottom:8px;">
-            <h3 style="margin:0; font-size:1.2rem; color:#1e40af; display:flex; align-items:center; gap:6px;">🔗 자주 쓰는 문서/링크</h3>
-            <button onclick="window.memoViewInstance.openAddLinkModal(-1)" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem; transition:0.2s;">+ 링크 추가</button>
-          </div>
-          <div id="quick-links-container" style="display:flex; flex-wrap:wrap; align-items:center;"></div>
+        <div style="flex: 1 1 180px; max-width: 220px; min-width: 150px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 80px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-weight:bold; color:#1e40af; border-bottom:2px solid #f1f5f9; padding-bottom:8px; margin-bottom:4px;">📁 라벨 필터</div>
+            <div class="label-chip ${this.currentFilter === '전체' ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('전체')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer;">
+                <span>👀 전체</span>
+                <span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${allCount}</span>
+            </div>
+            ${this.AVAILABLE_LABELS.map(l => `
+                <div class="label-chip ${this.currentFilter === l ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('${l}')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer;">
+                    <span>${l}</span>
+                    <span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${labelCounts[l]}</span>
+                </div>
+            `).join('')}
         </div>
 
-        <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          
-          <div style="display:flex; gap:8px; margin-bottom:5px; align-items:flex-start;">
-            <textarea id="memo-input-text" placeholder="새 할 일 추가 (사진만 올릴 때는 글씨를 안 써도 됩니다!)" 
-                   style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:44px; height:44px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
-                   onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
-                   oninput="this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
-            
-            <button onclick="document.getElementById('memo-image-upload').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:0 12px; border-radius:8px; cursor:pointer; font-size:1.2rem; height:44px; display:flex; align-items:center; justify-content:center;" title="사진 첨부">🖼️</button>
-            <input type="file" id="memo-image-upload" accept="image/*" style="display:none;" onchange="window.memoViewInstance.handleImageUpload(this)">
-            
-            <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
-          </div>
-          
-          ${imageAttachmentHtml}
+        <div style="flex: 3 1 500px; display:flex; flex-direction:column; gap:15px; min-width:0;">
+            <div style="background:#fff; padding:15px 20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #f1f5f9; padding-bottom:8px;">
+                <h3 style="margin:0; font-size:1.2rem; color:#1e40af; display:flex; align-items:center; gap:6px;">🔗 자주 쓰는 문서/링크</h3>
+                <button onclick="window.memoViewInstance.openAddLinkModal(-1)" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem; transition:0.2s;">+ 링크 추가</button>
+              </div>
+              <div id="quick-links-container" style="display:flex; flex-wrap:wrap; align-items:center;"></div>
+            </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 10px; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
-              <div id="memo-add-labels" class="label-chip-container" style="flex: 1; margin: 0; padding-right: 10px;"></div>
-              <button onclick="window.openMemoLabelModal()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s; flex-shrink: 0; margin-top: 2px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 설정</button>
-          </div>
-          
-          <div style="margin-top:10px; margin-bottom:5px;">
-              ${filterHtml}
-          </div>
+            <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+              
+              <div style="display:flex; gap:8px; margin-bottom:5px; align-items:flex-start;">
+                <textarea id="memo-input-text" placeholder="새 할 일 추가 (사진만 올릴 때는 글씨를 안 써도 됩니다!)" 
+                       style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:44px; height:44px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
+                       onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
+                       oninput="window.hasUnsavedChanges = (this.value.trim() !== '' || window.memoViewInstance.pendingImageUrl !== null); this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
+                
+                <button onclick="document.getElementById('memo-image-upload').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:0 12px; border-radius:8px; cursor:pointer; font-size:1.2rem; height:44px; display:flex; align-items:center; justify-content:center;" title="사진 첨부">🖼️</button>
+                <input type="file" id="memo-image-upload" accept="image/*" style="display:none;" onchange="window.memoViewInstance.handleImageUpload(this)">
+                
+                <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:44px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
+              </div>
+              
+              ${imageAttachmentHtml}
 
-          <div class="section-title" style="margin-bottom:5px;">진행 중인 업무 (${activeMemos.length})</div>
-          <div id="active-memo-list">${activeMemos.length === 0 ? `<p style="text-align:center; color:#94a3b8; font-size:1.2rem; padding: 20px 0;">${this.currentFilter !== '전체' ? '해당 라벨의 업무가 없습니다.' : '모든 업무를 완료했습니다!'}</p>` : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 10px; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
+                  <div id="memo-add-labels" class="label-chip-container" style="flex: 1; margin: 0; padding-right: 10px;"></div>
+                  <button onclick="window.openMemoLabelModal()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s; flex-shrink: 0; margin-top: 2px;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 설정</button>
+              </div>
+              
+              <div class="section-title" style="margin-bottom:5px; font-weight:bold; font-size:1.1rem; color:#0f172a;">진행 (${activeMemos.length})</div>
+              <div id="active-memo-list">${activeMemos.length === 0 ? `<p style="text-align:center; color:#94a3b8; font-size:1.1rem; padding: 20px 0;">${this.currentFilter !== '전체' ? '해당 라벨의 업무가 없습니다.' : '모든 업무를 완료했습니다!'}</p>` : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
 
-          <div class="section-title" style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">
-            <span>완료된 업무 (${completedMemos.length})</span>
-            ${completedMemos.length > 0 ? `<button onclick="window.memoViewInstance.clearCompletedMemos()" style="background:#ef4444; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:1.2rem; cursor:pointer;">🗑️ 전체 비우기</button>` : ''}
-          </div>
-          <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.2rem; margin-top:20px;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => this.generateMemoHTML(item, true)).join('')}</div>
+              <div class="section-title" style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; font-weight:bold; font-size:1.1rem; color:#0f172a;">
+                <span>완료 (${completedMemos.length})</span>
+                ${completedMemos.length > 0 ? `<button onclick="window.memoViewInstance.clearCompletedMemos()" style="background:#ef4444; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:1rem; cursor:pointer;">🗑️ 전체 비우기</button>` : ''}
+              </div>
+              <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.1rem; margin-top:20px;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => this.generateMemoHTML(item, true)).join('')}</div>
+            </div>
         </div>
       </div>
     `;
@@ -316,7 +332,6 @@ class MemoView extends window.BaseView {
            </div>` 
         : '';
 
-    // 💡 [핵심] display: block; min-height: 1.5rem 설정으로 빈 글자여도 나중에 클릭해서 수정할 수 있도록 공간 확보!
     return `
       <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 12px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
         <div style="display:flex; align-items:flex-start; gap:8px; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
@@ -378,12 +393,10 @@ class MemoView extends window.BaseView {
       }
   }
 
-  // 💡 [핵심 수정] 글자가 지워져도 사진이 있으면 막지 않도록 조건 완화!
   async updateMemoText(firestoreId, newText) {
     const text = newText.trim();
     const target = this.memoItems.find(m => m.firestoreId === firestoreId);
     
-    // 텍스트도 비어있고, 사진도 없으면 저장을 막음
     if (!text && target && !target.imageUrl) {
         alert("메모 내용이나 이미지는 필수입니다. (비워둘 수 없습니다)");
         this.renderViewer(); 
@@ -428,14 +441,12 @@ class MemoView extends window.BaseView {
     this.draggedMemoId = null;
   }
 
-  // 💡 [핵심 수정] 텍스트가 없더라도 사진이 대기 중이면 등록 통과!
   async addMemoItem() {
     const input = document.getElementById("memo-input-text");
     if (!input) return;
     
     const text = input.value.trim();
 
-    // 글자도 안 썼고, 올린 사진도 없으면 아무 반응 없음
     if (!text && !this.pendingImageUrl) return;
 
     const newMemo = { 
@@ -455,6 +466,7 @@ class MemoView extends window.BaseView {
     try {
         await window.dbAPI.addMemo(newMemo); 
         this.pendingImageUrl = null;
+        window.hasUnsavedChanges = false; // 저장 완료 시 unsaved 상태 해제
         this.renderViewer(); 
     } catch(e) {
         console.error("메모 추가 오류:", e);
@@ -497,7 +509,13 @@ class MemoView extends window.BaseView {
     }
   }
 
-  async save() {}
+  // 💡 [핵심] 페이지 전환 시 자동 저장 연동
+  async save() {
+    const input = document.getElementById("memo-input-text");
+    if (input && (input.value.trim() !== '' || this.pendingImageUrl)) {
+      await this.addMemoItem();
+    }
+  }
 }
 
 window.manageMemoLabels = function() {
