@@ -58,12 +58,12 @@ class DayView extends window.BaseView {
     let html = `<div class="day-viewer-container">`;
 
     // --- 1. 일정 뷰어 영역 ---
+    // 💡 [수정] '📌 일정' -> '📌 오늘 할 일' 로 변경 및 너비(width) 110px로 조정
     html += `<div class="day-event-card" style="display: flex; align-items: flex-start; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-              <div style="width: 80px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 일정</div>
+              <div style="width: 110px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 오늘 할 일</div>
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
-      // 💡 [수정] 월 뷰어와 동일하게 generateEventBadgesHTML 사용, 라벨 없으면 '기타' 부여
       let processedEvents = events.map(e => ({
           ...e,
           labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
@@ -99,9 +99,10 @@ class DayView extends window.BaseView {
     }
 
     // --- 3. 일지 뷰어 영역 ---
+    // 💡 [수정] '📔 오늘의 일지' -> '📔 오늘 기록' 으로 변경
     if (journals.length > 0) {
       html += `<div class="day-journal-section" style="margin-top:20px;">
-                <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘의 일지</h3>`;
+                <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘 기록</h3>`;
       
       journals.forEach(j => {
         let labels = j.labels || (j.label ? [j.label] : []); 
@@ -155,7 +156,6 @@ class DayView extends window.BaseView {
     let html = `<div class="day-viewer-container">`;
 
     // --- 1. 일정 에디터 영역 ---
-    // 💡 [수정] '오늘의 일정/행사' -> '오늘 할 일'
     html += `
       <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
@@ -196,7 +196,6 @@ class DayView extends window.BaseView {
     html += `</tbody></table></div>`;
 
     // --- 3. 일지 에디터 영역 ---
-    // 💡 [수정] '오늘의 일지 기록' -> '오늘 기록'
     html += `
       <div class="day-journal-editor-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
