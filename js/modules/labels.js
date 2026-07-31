@@ -202,7 +202,6 @@ const LabelManager = {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
-    // 💡 변경/삭제 감지를 위해 기존 라벨 목록 불러오기
     const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getEventLabels ? window.getEventLabels().map(l=>l.name) : []);
     
@@ -211,7 +210,6 @@ const LabelManager = {
 
     localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(window.tempEditingLabels));
     
-    // 💡 삭제되거나 이름이 바뀐 라벨이 있다면 DB 전체를 돌며 해당 일정의 라벨을 '해제'합니다.
     if (deletedLabels.length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
@@ -237,7 +235,6 @@ const LabelManager = {
                     let evLabels = ev.labels || (ev.label ? [ev.label] : []);
                     const originalLength = evLabels.length;
                     
-                    // 새 설정에 존재하지 않는 라벨은 모두 제거 (해제 처리)
                     evLabels = evLabels.filter(l => newLabels.includes(l));
                     
                     if (evLabels.length !== originalLength) {
@@ -274,21 +271,21 @@ const LabelManager = {
   },
 
   // ====================================================
-  // 📔 2. 일지 라벨 관리
+  // 📔 2. 기록 라벨 관리
   // ====================================================
   getJournalContentHTML: function() {
     return `
       <div class="modal-info-box journal">
           <p style="margin:0;">
-              <strong>[일지 라벨]</strong> 왼쪽 '≡' 아이콘을 끌어서 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
-              삭제/수정된 라벨을 쓰던 기존 일지는 라벨이 <strong>해제</strong>됩니다.
+              <strong>[기록 라벨]</strong> 왼쪽 '≡' 아이콘을 끌어서 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
+              삭제/수정된 라벨을 쓰던 기존 기록은 라벨이 <strong>해제</strong>됩니다.
           </p>
       </div>
       <div id="journal-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
       
       <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
           <div style="display:flex; gap:10px; align-items:center; width:100%;">
-              <input type="text" id="new-journal-label-name" placeholder="새 일지 라벨 이름 추가..." class="modal-input-text">
+              <input type="text" id="new-journal-label-name" placeholder="새 기록 라벨 이름 추가..." class="modal-input-text">
               <button onclick="LabelManager.addNewJournalLabel()" class="modal-btn-secondary journal" style="flex-shrink:0;">추가</button>
           </div>
           <div style="padding-left:4px;">
@@ -307,7 +304,7 @@ const LabelManager = {
     if (!this.journalModal) {
       this.journalModal = new window.Modal({
         id: 'journal-label-modal-v4',
-        title: '📔 일지 라벨 설정',
+        title: '📔 기록 라벨 설정',
         width: '500px',
         content: this.getJournalContentHTML()
       });
@@ -419,14 +416,14 @@ const LabelManager = {
             if (opCount > 0) batchPromises.push(batch.commit());
             await Promise.all(batchPromises);
         } catch(err) {
-            console.error("일지 라벨 자동 업데이트 실패", err);
+            console.error("기록 라벨 자동 업데이트 실패", err);
         }
         btn.textContent = originalText;
         btn.disabled = false;
     }
 
     this.journalModal.close();
-    alert("일지 라벨 설정이 저장되었습니다.");
+    alert("기록 라벨 설정이 저장되었습니다.");
     if (typeof window.render === 'function') window.render(); 
   },
 
