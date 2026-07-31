@@ -1,3 +1,5 @@
+// js/viewYear.js
+
 class YearView extends window.BaseView {
   constructor(container) {
     super(container); 
@@ -17,12 +19,20 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
-          // 💡 클릭 이벤트 토글을 위해 doc.id(dateStr) 넘기기
-          htmlOutput = window.generateEventBadgesHTML(data.eventList, doc.id);
+          // 💡 [수정] 라벨 없는 일정은 '기타' 라벨 부여
+          let processed = data.eventList.map(e => ({
+              ...e,
+              labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+          }));
+          htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
           hasContent = true;
         } else if (data.eventText && data.eventText.trim() !== '') {
           const parsed = window.parseRawEventTextToEventList(data.eventText);
-          htmlOutput = window.generateEventBadgesHTML(parsed, doc.id);
+          let processed = parsed.map(e => ({
+              ...e,
+              labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+          }));
+          htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
           hasContent = true;
         }
         
