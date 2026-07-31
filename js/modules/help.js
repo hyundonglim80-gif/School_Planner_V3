@@ -8,7 +8,7 @@ const HelpModule = {
       <div class="modal-help-container">
         <div class="modal-info-box" style="margin-bottom: 20px; background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px;">
             <p style="margin:0; font-weight:bold; color:#1e40af; font-size:1.05rem;">🎉 School Planner V3 최신 가이드</p>
-            <p style="margin:5px 0 0 0; font-size:0.95rem; color:#334155; line-height:1.5;">화면 레이아웃 개편, '기록(구 일지)' 명칭 변경, 메모 자동 저장 및 다중 고급 검색 등 더욱 강력하고 편리해진 최신 기능들을 확인해 보세요!</p>
+            <p style="margin:5px 0 0 0; font-size:0.95rem; color:#334155; line-height:1.5;">화면 레이아웃 개편, '기록' 명칭 변경, 메모 자동 저장 및 다중 고급 검색 등 더욱 강력하고 편리해진 최신 기능들을 확인해 보세요!</p>
         </div>
 
         <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
