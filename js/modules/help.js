@@ -9,7 +9,7 @@ const HelpModule = {
         <h3 class="modal-help-title">⌨️ 핵심 단축키</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px;">
           <li><strong>Ctrl + 방향키(좌/우):</strong> 이전/다음 날짜(또는 주, 월)로 빠르게 이동</li>
-          <li><strong>Ctrl + 방향키(상/하):</strong> 뷰어 모드(상) / 에디터 모드(하) 전환</li>
+          <li><strong>Ctrl + 방향키(상/하):</strong> 보기 모드(상) / 에디터 모드(하) 전환</li>
           <li><strong>Ctrl + Enter:</strong> 현재 작성 중인 내용 즉시 저장</li>
           <li><strong>Shift + 방향키(좌/우):</strong> 일/주/월/년 보기 형식 빠르게 넘기기</li>
           <li><strong>/ (슬래시):</strong> 통합 검색창 열기</li>
