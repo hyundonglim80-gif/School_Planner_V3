@@ -47,7 +47,6 @@ class WeekView extends window.BaseView {
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
         
         if (finalEvents.length > 0) {
-            // 💡 [수정] 라벨 없는 일정은 '기타' 라벨 부여
             let processedEvents = finalEvents.map(e => ({
                 ...e,
                 labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
@@ -165,7 +164,6 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 💡 [수정] 일(Day) 수정 화면의 UI와 일치하도록 다중 라벨 칩과 에디터 형태로 완전히 교체합니다!
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = window.getEventLabels();
@@ -180,7 +178,6 @@ class WeekView extends window.BaseView {
               const isActive = eLabels.includes(lName);
               const activeClass = isActive ? 'active' : '';
               
-              // window.weekViewInstance 에 접근하도록 설정 (월/년 뷰에서도 이 로직을 빌려 사용함)
               const clickCode = `window.weekViewInstance ? window.weekViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}') : window.monthViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}')`;
               
               chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto;">${lName}</div>`;
@@ -205,7 +202,6 @@ class WeekView extends window.BaseView {
       return html;
   }
 
-  // 💡 [신규] 컴팩트 에디터에서 라벨 칩 클릭 시 즉각 토글
   toggleCompactEventLabel(dateStr, idx, labelName) {
       window.hasUnsavedChanges = true;
       const ev = window[`tempEvents_${dateStr}`][idx];
