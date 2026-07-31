@@ -1,3 +1,5 @@
+// js/viewWeek.js
+
 class WeekView extends window.BaseView {
   constructor(container) {
     super(container); 
@@ -44,8 +46,14 @@ class WeekView extends window.BaseView {
         const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
         
-        // 💡 dateStr을 넘겨주어 뷰어에서도 라벨 클릭 토글 가능하게 적용!
-        if (finalEvents.length > 0) eventHtml = window.generateEventBadgesHTML(finalEvents, d.dateStr); 
+        if (finalEvents.length > 0) {
+            // 💡 [수정] 라벨 없는 일정은 '기타' 라벨 부여
+            let processedEvents = finalEvents.map(e => ({
+                ...e,
+                labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+            }));
+            eventHtml = window.generateEventBadgesHTML(processedEvents, d.dateStr); 
+        }
       }
 
       const periods = dayData.periods || {};
@@ -157,32 +165,58 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
+  // 💡 [수정] 일(Day) 수정 화면의 UI와 일치하도록 다중 라벨 칩과 에디터 형태로 완전히 교체합니다!
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
-      const labels = window.getEventLabels();
+      const labelObjs = window.getEventLabels();
       let html = '';
       
       list.forEach((e, idx) => {
-          let options = labels.map(l => `<option value="${l.name}" ${e.label === l.name ? 'selected' : ''}>${l.name}</option>`).join('');
-          options += `<option disabled>──────────</option><option value="__setting__">⚙️ 라벨 설정...</option>`;
+          const eLabels = (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : []);
+          
+          let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;">`;
+          labelObjs.forEach(labelObj => {
+              const lName = labelObj.name;
+              const isActive = eLabels.includes(lName);
+              const activeClass = isActive ? 'active' : '';
+              
+              // window.weekViewInstance 에 접근하도록 설정 (월/년 뷰에서도 이 로직을 빌려 사용함)
+              const clickCode = `window.weekViewInstance ? window.weekViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}') : window.monthViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}')`;
+              
+              chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto;">${lName}</div>`;
+          });
+          chipsHtml += `</div>`;
 
-          const style = window.getLabelStyle(e.label, 'event');
           const isCompleted = !!e.completed;
           const inputStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
           html += `
-          <div class="compact-event-row" data-idx="${idx}" style="display:flex; gap:4px; align-items:center;">
-              <select onchange="if(this.value === '__setting__') { window.openEventLabelModal(); this.value='${e.label}'; } else { window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'label', this.value); }" style="padding:2px; font-size:0.85rem; border:1px solid ${style.border}; border-radius:4px; background:${style.bg}; color:${style.text}; outline:none; font-weight:bold; flex-shrink:0;">
-                  ${options}
-              </select>
-              
-              <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer; flex-shrink:0;" title="완료 체크">
-
-              <input type="text" value="${e.content}" oninput="window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)" placeholder="일정 입력" style="flex:1; padding:2px 4px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${inputStyle}">
-              <button onclick="window.weekViewInstance.removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer; flex-shrink:0;" title="삭제">✖</button>
+          <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                  ${chipsHtml}
+                  <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                      <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:16px; cursor:pointer;" title="완료 체크">
+                      <button onclick="window.weekViewInstance ? window.weekViewInstance.removeCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
+                  </div>
+              </div>
+              <textarea placeholder="일정 내용을 입력하세요." style="width:100%; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
           </div>`;
       });
       return html;
+  }
+
+  // 💡 [신규] 컴팩트 에디터에서 라벨 칩 클릭 시 즉각 토글
+  toggleCompactEventLabel(dateStr, idx, labelName) {
+      window.hasUnsavedChanges = true;
+      const ev = window[`tempEvents_${dateStr}`][idx];
+      if (!ev) return;
+      ev.labels = ev.labels || (ev.label ? [ev.label] : []);
+      if (ev.labels.includes(labelName)) {
+          ev.labels = ev.labels.filter(l => l !== labelName);
+      } else {
+          ev.labels.push(labelName);
+      }
+      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
   updateCompactEvent(dateStr, idx, field, value) {
@@ -194,8 +228,8 @@ class WeekView extends window.BaseView {
 
   addCompactEvent(dateStr) {
       window.hasUnsavedChanges = true;
-      const defaultLabel = window.getEventLabels()[0]?.name || '일정';
-      window[`tempEvents_${dateStr}`].push({ label: defaultLabel, content: '', completed: false });
+      if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
+      window[`tempEvents_${dateStr}`].push({ labels: [], content: '', completed: false });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
@@ -219,7 +253,7 @@ class WeekView extends window.BaseView {
 
       let isSkipDay = false;
       for (const e of validEvents) {
-          if (window.isSkipLabel(e.label)) {
+          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
               isSkipDay = true;
               break;
           }
