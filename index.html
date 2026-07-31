@@ -46,11 +46,9 @@
               <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정 (수업 명칭/시수)</button>
               <button class="dropdown-item" onclick="window.openRecurringEventModal()">🔄 반복 일정 등록</button>
               <button class="dropdown-item" onclick="openTimetableModal()">🗓️ 기준 시간표 등록/적용</button>
-              <button class="dropdown-item" onclick="downloadCSV()">📥 백업 다운로드 (CSV)</button>
-              <button class="dropdown-item" onclick="document.getElementById('upload-csv-file').click()">📤 업로드/동기화 (CSV)</button>
+              <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">💾 데이터 백업 및 복원 (CSV)</button>
               <button class="dropdown-item" onclick="openHelpModal()">📖 사용 설명서 및 단축키 안내</button>
           </div>
-          <input type="file" id="upload-csv-file" accept=".csv" style="display:none;" onchange="uploadCSV(this)">
         </div>
 
         <div id="user-info" style="display:none; align-items:center; gap:8px; margin-left:10px; padding-left:12px; border-left:2px solid #cbd5e1;">
