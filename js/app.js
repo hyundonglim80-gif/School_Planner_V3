@@ -12,28 +12,28 @@ window.hasUnsavedChanges = false;
 
 // 💡 [핵심] 화면 이동 시 '무음 자동 저장(silent=true)' 처리 
 window.toggleWeekend = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
   window.render();
 };
 
 window.toggleClass = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.showClass = !window.showClass;
   localStorage.setItem('workCalendar_showClass', window.showClass);
   window.render();
 };
 
 window.setScope = async function(scope) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   currentScope = scope;
   localStorage.setItem('workCalendar_scope', scope);
   window.render();
 };
 
 window.setMode = async function(mode) {
-  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
+  if (mode === 'viewer' && window.hasUnsavedChanges) {
     await window.saveCurrentViewData(true);
   }
   currentMode = mode;
@@ -51,7 +51,7 @@ window.handleEditSaveClick = function() {
 };
 
 window.moveDate = async function(dir) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
   else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
   else if (currentScope === 'month') window.currentDate.setMonth(window.currentDate.getMonth() + dir);
@@ -60,7 +60,7 @@ window.moveDate = async function(dir) {
 };
 
 window.goToToday = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
 };
@@ -171,12 +171,10 @@ function updateButtonUI() {
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
 
-  // 💡 [수정] 메모 탭에서도 점 세개(⋮) 메뉴가 보이도록 modeGroup은 항상 유지합니다.
   if (modeGroup) {
     modeGroup.style.display = 'flex';
   }
 
-  // 💡 [신규] 대신 메모 탭에서는 '보기', '수정' 버튼만 개별적으로 숨깁니다.
   if (viewerBtn) {
       viewerBtn.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
@@ -184,27 +182,15 @@ function updateButtonUI() {
       editorBtn.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
-  const searchBtn = document.getElementById('btn-search');
-  if (searchBtn) {
-    searchBtn.style.display = (currentScope !== 'memo') ? 'inline-block' : 'none';
-  }
-
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
-    // 💡 [수정] 메모 탭을 포함한 모든 탭에서 점 세개 메뉴가 항상 보이도록 변경합니다.
     moreBtn.style.display = 'inline-flex';
   }
 
-  const weekendBtn = document.getElementById('btn-toggle-weekend');
-  if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보기';
-    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
-  }
-
-  const classBtn = document.getElementById('btn-toggle-class');
-  if (classBtn) {
-    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보기';
-    classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
+  // 💡 [수정] 메모 탭에서는 검색, 주말 숨기기, 이전/다음 버튼이 있는 하단 행 전체를 숨깁니다.
+  const headerBottom = document.querySelector('.header-bottom');
+  if (headerBottom) {
+    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
   if (viewerBtn && editorBtn) {
@@ -239,6 +225,7 @@ window.saveCurrentViewData = async function(silent = false) {
   else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+  else if (currentScope === 'memo' && window.memoViewInstance) await window.memoViewInstance.save();
 
   if (editorBtn && !silent) {
     editorBtn.innerHTML = '✅ 저장 완료';
@@ -268,7 +255,11 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const markUnsaved = () => { if (currentMode === 'editor') window.hasUnsavedChanges = true; };
+  const markUnsaved = () => { 
+      if (currentMode === 'editor' || currentScope === 'memo') {
+          window.hasUnsavedChanges = true; 
+      }
+  };
   document.addEventListener('input', markUnsaved);
   document.addEventListener('change', markUnsaved);
 
