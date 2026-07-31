@@ -11,15 +11,15 @@ window.BackupManager = {
                 <p style="margin:0;"><strong>[데이터 백업/복원]</strong> 클라우드 데이터를 엑셀(CSV) 파일로 저장하거나 복원합니다.</p>
             </div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <button id="backup-tab-schedule" onclick="window.BackupManager.setTab('schedule')" style="flex:1; padding:10px; border:2px solid #3b82f6; background:#eff6ff; color:#1e40af; border-radius:8px; font-weight:bold; cursor:pointer;">📅 일정 및 일지</button>
-                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모 (체크리스트)</button>
+                <button id="backup-tab-schedule" onclick="window.BackupManager.setTab('schedule')" style="flex:1; padding:10px; border:2px solid #3b82f6; background:#eff6ff; color:#1e40af; border-radius:8px; font-weight:bold; cursor:pointer;">📅 일정 및 기록</button>
+                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모 / 문서·링크</button>
             </div>
 
             <div id="backup-schedule-section">
                 <label style="display:block; font-weight:bold; margin-bottom:5px; color:#475569;">백업/복원 기간 선택</label>
                 <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:15px; font-size:1rem; outline:none;">
-                    <option value="sem1">1학기 (3월 ~ 8월 중순)</option>
-                    <option value="sem2">2학기 (8월 중순 ~ 2월 말)</option>
+                    <option value="sem1">1학기 (3월 ~ 개학 전)</option>
+                    <option value="sem2">2학기 (개학 ~ 2월 말)</option>
                     <option value="year" selected>1학년도 전체 (3월 ~ 다음 해 2월)</option>
                     <option value="custom">직접 기간 설정</option>
                 </select>
@@ -33,8 +33,8 @@ window.BackupManager = {
 
             <div id="backup-memo-section" style="display:none; margin-bottom:15px; padding:15px; background:#f1f5f9; border-radius:8px; border: 1px dashed #cbd5e1;">
                 <p style="margin:0; color:#475569; font-size:0.95rem; line-height:1.5;">
-                    저장된 <strong>모든 메모 데이터(라벨, 체크 여부, 첨부된 사진 URL 등)</strong>를 안전하게 추출합니다.<br><br>
-                    * CSV 파일을 수정 후 업로드 시, 기존 메모는 유지되며 새로운 ID를 가진 메모들은 추가(병합)됩니다.
+                    저장된 <strong>모든 메모 데이터</strong>와 <strong>자주 쓰는 문서/링크</strong> 목록을 추출합니다.<br><br>
+                    * CSV 파일을 수정 후 업로드 시, 기존 메모/링크는 유지되며 새로운 항목들은 추가(병합)됩니다.
                 </p>
             </div>
 
@@ -77,13 +77,11 @@ window.BackupManager = {
     },
 
     setDefaultDates: function() {
-        const y = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
-        const m = window.currentDate ? window.currentDate.getMonth() + 1 : new Date().getMonth() + 1;
-        const acYear = m <= 2 ? y - 1 : y;
-        const lastDayFeb = new Date(acYear + 1, 2, 0).getDate();
-
-        document.getElementById('backup-start-date').value = `${acYear}-03-01`;
-        document.getElementById('backup-end-date').value = `${acYear + 1}-02-${lastDayFeb}`;
+        const dates = window.getSemesterDates ? window.getSemesterDates() : null;
+        if(dates) {
+            document.getElementById('backup-start-date').value = window.formatDate(dates.yearStart);
+            document.getElementById('backup-end-date').value = window.formatDate(dates.yearEnd);
+        }
     },
 
     onPeriodChange: function() {
@@ -92,24 +90,22 @@ window.BackupManager = {
         const startInput = document.getElementById('backup-start-date');
         const endInput = document.getElementById('backup-end-date');
 
-        const y = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
-        const m = window.currentDate ? window.currentDate.getMonth() + 1 : new Date().getMonth() + 1;
-        const acYear = m <= 2 ? y - 1 : y;
-        const lastDayFeb = new Date(acYear + 1, 2, 0).getDate();
+        const dates = window.getSemesterDates ? window.getSemesterDates() : null;
+        if (!dates) return;
 
         if (val === 'custom') {
             customSec.style.display = 'flex';
         } else {
             customSec.style.display = 'none';
             if (val === 'sem1') {
-                startInput.value = `${acYear}-03-01`;
-                endInput.value = `${acYear}-08-15`;
+                startInput.value = window.formatDate(dates.sem1Start);
+                endInput.value = window.formatDate(dates.sem1End);
             } else if (val === 'sem2') {
-                startInput.value = `${acYear}-08-16`;
-                endInput.value = `${acYear + 1}-02-${lastDayFeb}`;
+                startInput.value = window.formatDate(dates.sem2Start);
+                endInput.value = window.formatDate(dates.sem2End);
             } else if (val === 'year') {
-                startInput.value = `${acYear}-03-01`;
-                endInput.value = `${acYear + 1}-02-${lastDayFeb}`;
+                startInput.value = window.formatDate(dates.yearStart);
+                endInput.value = window.formatDate(dates.yearEnd);
             }
         }
     },
@@ -215,7 +211,7 @@ window.BackupManager = {
         const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
 
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
-        let csvContent = "\uFEFF날짜,일정," + pNames.join(",") + ",일지\n"; 
+        let csvContent = "\uFEFF날짜,일정," + pNames.join(",") + ",기록\n"; 
 
         let curr = new Date(startStr);
         const end = new Date(endStr);
@@ -257,17 +253,29 @@ window.BackupManager = {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `업무계획표_일정백업_${startStr}_${endStr}.csv`;
+        link.download = `업무계획표_일정기록_백업_${startStr}_${endStr}.csv`;
         link.click();
     },
 
     downloadMemoCSV: async function() {
         const snap = await window.getUserCol('tasks').orderBy('createdAt').get();
-        let csvContent = "\uFEFF메모ID,메모내용,완료여부(O/X),라벨,첨부이미지주소,생성일자(타임스탬프)\n";
+        let csvContent = "\uFEFF데이터분류,ID,내용/이름,완료여부(O/X),라벨,주소/URL,생성일자(타임스탬프)\n";
         
+        // 1. 링크 데이터 추출
+        const linkDoc = await window.getUserCol('settings').doc('user_links').get();
+        if (linkDoc.exists) {
+            const links = linkDoc.data().links || [];
+            links.forEach((l, idx) => {
+                let row = ['LINK', `LINK_${idx}`, this.escapeCSV(l.name), '', '', this.escapeCSV(l.url), ''];
+                csvContent += row.join(',') + "\n";
+            });
+        }
+
+        // 2. 메모 데이터 추출
         snap.forEach(doc => {
             const d = doc.data();
             let row = [
+                'MEMO',
                 doc.id,
                 this.escapeCSV(d.text || ''),
                 d.completed ? 'O' : 'X',
@@ -281,7 +289,7 @@ window.BackupManager = {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `업무계획표_메모체크리스트_전체백업.csv`;
+        link.download = `업무계획표_메모및링크_백업.csv`;
         link.click();
     },
 
@@ -355,34 +363,51 @@ window.BackupManager = {
                     const batchPromises = [];
                     let batch = window.db.batch();
                     let opCount = 0;
+                    
+                    let newLinks = [];
 
                     for (let i=1; i<rows.length; i++) {
                         const r = rows[i];
-                        if(r.length < 2 || !r[1]) continue; 
+                        if(r.length < 3 || !r[2]) continue; 
                         
-                        let id = r[0] || window.getUserCol('tasks').doc().id; 
-                        const completed = r[2] === 'O';
-                        const labels = r[3] ? r[3].split(',').filter(x=>x.trim()) : [];
-                        const imageUrl = r[4] || '';
-                        const createdAt = parseInt(r[5], 10) || Date.now();
+                        const dataType = r[0] || 'MEMO';
+                        
+                        if (dataType === 'LINK') {
+                            newLinks.push({ name: r[2], url: r[5] });
+                        } else {
+                            let id = r[1] && !r[1].startsWith('LINK_') ? r[1] : window.getUserCol('tasks').doc().id; 
+                            const completed = r[3] === 'O';
+                            const labels = r[4] ? r[4].split(',').filter(x=>x.trim()) : [];
+                            const imageUrl = r[5] || '';
+                            const createdAt = parseInt(r[6], 10) || Date.now();
 
-                        batch.set(window.getUserCol('tasks').doc(id), {
-                            text: r[1],
-                            completed: completed,
-                            labels: labels,
-                            imageUrl: imageUrl,
-                            createdAt: createdAt,
-                            updatedAt: Date.now(),
-                            order: -createdAt 
-                        }, { merge: true });
-                        
-                        opCount++;
-                        if (opCount > 400) {
-                            batchPromises.push(batch.commit());
-                            batch = window.db.batch();
-                            opCount = 0;
+                            batch.set(window.getUserCol('tasks').doc(id), {
+                                text: r[2],
+                                completed: completed,
+                                labels: labels,
+                                imageUrl: imageUrl,
+                                createdAt: createdAt,
+                                updatedAt: Date.now(),
+                                order: -createdAt 
+                            }, { merge: true });
+                            
+                            opCount++;
+                            if (opCount > 400) {
+                                batchPromises.push(batch.commit());
+                                batch = window.db.batch();
+                                opCount = 0;
+                            }
                         }
                     }
+                    
+                    if (newLinks.length > 0) {
+                        const linkDoc = await window.getUserCol('settings').doc('user_links').get();
+                        let existingLinks = linkDoc.exists ? (linkDoc.data().links || []) : [];
+                        const mergedLinks = [...existingLinks, ...newLinks];
+                        batch.set(window.getUserCol('settings').doc('user_links'), { links: mergedLinks }, { merge: true });
+                        opCount++;
+                    }
+
                     if(opCount > 0) batchPromises.push(batch.commit());
                     await Promise.all(batchPromises);
                     resolve();
