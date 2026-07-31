@@ -171,8 +171,17 @@ function updateButtonUI() {
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
 
+  // 💡 [수정] 메모 탭에서도 점 세개(⋮) 메뉴가 보이도록 modeGroup은 항상 유지합니다.
   if (modeGroup) {
-    modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
+    modeGroup.style.display = 'flex';
+  }
+
+  // 💡 [신규] 대신 메모 탭에서는 '보기', '수정' 버튼만 개별적으로 숨깁니다.
+  if (viewerBtn) {
+      viewerBtn.style.display = (currentScope === 'memo') ? 'none' : 'flex';
+  }
+  if (editorBtn) {
+      editorBtn.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
   const searchBtn = document.getElementById('btn-search');
@@ -182,7 +191,8 @@ function updateButtonUI() {
 
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
-    moreBtn.style.display = (currentScope !== 'memo') ? 'inline-flex' : 'none';
+    // 💡 [수정] 메모 탭을 포함한 모든 탭에서 점 세개 메뉴가 항상 보이도록 변경합니다.
+    moreBtn.style.display = 'inline-flex';
   }
 
   const weekendBtn = document.getElementById('btn-toggle-weekend');
