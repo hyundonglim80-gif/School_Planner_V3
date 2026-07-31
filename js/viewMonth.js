@@ -1,3 +1,5 @@
+// js/viewMonth.js
+
 class MonthView extends window.BaseView {
   constructor(container) {
     super(container); 
@@ -66,12 +68,20 @@ class MonthView extends window.BaseView {
       const dateStr = item.dateStr;
       
       let eventHtml = '';
+      let finalEvents = [];
       if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-        // 💡 클릭 이벤트 토글을 위해 dateStr 함께 넘기기
-        eventHtml = window.generateEventBadgesHTML(item.eventData.eventList, dateStr);
+        finalEvents = item.eventData.eventList;
       } else if (item.eventData.eventText) {
-        const parsed = window.parseRawEventTextToEventList(item.eventData.eventText);
-        eventHtml = window.generateEventBadgesHTML(parsed, dateStr);
+        finalEvents = window.parseRawEventTextToEventList(item.eventData.eventText);
+      }
+      
+      if (finalEvents.length > 0) {
+        // 💡 [수정] 라벨이 없는 경우 '기타'를 부여하여 배지 생성기로 넘깁니다.
+        let processedEvents = finalEvents.map(e => ({
+            ...e,
+            labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+        }));
+        eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr);
       }
       
       const dateObj = new Date(y, m, d);
@@ -207,6 +217,17 @@ class MonthView extends window.BaseView {
 
     html += `</tbody></table></div>`;
     this.container.innerHTML = html;
+  }
+
+  // 💡 weekViewInstance에서 빌려쓰는 토글 함수 처리
+  toggleCompactEventLabel(dateStr, idx, labelName) {
+      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelName);
+  }
+  updateCompactEvent(dateStr, idx, field, value) {
+      if(window.weekViewInstance) window.weekViewInstance.updateCompactEvent(dateStr, idx, field, value);
+  }
+  removeCompactEvent(dateStr, idx) {
+      if(window.weekViewInstance) window.weekViewInstance.removeCompactEvent(dateStr, idx);
   }
 
   async save() {
