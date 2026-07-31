@@ -1,285 +1,394 @@
-const BackupModule = {
-  // 1. 백업할 날짜 목록 추출기
-  getTargetDateList: function() {
-    const dates = [];
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-    const y = window.currentDate.getFullYear();
-    const m = window.currentDate.getMonth();
-    const d = window.currentDate.getDate();
+// js/modules/backup.js
 
-    if (currentScope === 'day') {
-      const dateObj = new Date(y, m, d);
-      dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: d, dayOfWeek: dayNames[dateObj.getDay()] });
-    } else if (currentScope === 'week') {
-      const tempDate = new Date(window.currentDate);
-      const dayOfWeek = tempDate.getDay();
-      const diffToSun = tempDate.getDate() - dayOfWeek;
-      tempDate.setDate(diffToSun);
-      for (let i = 0; i < 7; i++) {
-        if (!window.showWeekend && (i === 0 || i === 6)) { tempDate.setDate(tempDate.getDate() + 1); continue; }
-        dates.push({ dateStr: window.formatDate(tempDate), year: tempDate.getFullYear(), month: tempDate.getMonth() + 1, day: tempDate.getDate(), dayOfWeek: dayNames[tempDate.getDay()] });
-        tempDate.setDate(tempDate.getDate() + 1);
-      }
-    } else if (currentScope === 'month') {
-      const lastDate = new Date(y, m + 1, 0).getDate();
-      for (let i = 1; i <= lastDate; i++) {
-        const dateObj = new Date(y, m, i);
-        dates.push({ dateStr: window.formatDate(dateObj), year: y, month: m + 1, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
-      }
-    } else {
-      const startYear = y;
-      for (let monthIdx = 3; monthIdx <= 14; monthIdx++) { 
-        let targetY = startYear;
-        let targetM = monthIdx;
-        if (monthIdx > 12) { targetY = startYear + 1; targetM = monthIdx - 12; }
-        const lastDate = new Date(targetY, targetM, 0).getDate();
-        for (let i = 1; i <= lastDate; i++) {
-          const dateObj = new Date(targetY, targetM - 1, i);
-          dates.push({ dateStr: window.formatDate(dateObj), year: targetY, month: targetM, day: i, dayOfWeek: dayNames[dateObj.getDay()] });
+window.BackupManager = {
+    modal: null,
+    currentTab: 'schedule',
+
+    openModal: function() {
+        if (!this.modal) {
+            const html = `
+            <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6;">
+                <p style="margin:0;"><strong>[데이터 백업/복원]</strong> 클라우드 데이터를 엑셀(CSV) 파일로 저장하거나 복원합니다.</p>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button id="backup-tab-schedule" onclick="window.BackupManager.setTab('schedule')" style="flex:1; padding:10px; border:2px solid #3b82f6; background:#eff6ff; color:#1e40af; border-radius:8px; font-weight:bold; cursor:pointer;">📅 일정 및 일지</button>
+                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모 (체크리스트)</button>
+            </div>
+
+            <div id="backup-schedule-section">
+                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#475569;">백업/복원 기간 선택</label>
+                <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:15px; font-size:1rem; outline:none;">
+                    <option value="sem1">1학기 (3월 ~ 8월 중순)</option>
+                    <option value="sem2">2학기 (8월 중순 ~ 2월 말)</option>
+                    <option value="year" selected>1학년도 전체 (3월 ~ 다음 해 2월)</option>
+                    <option value="custom">직접 기간 설정</option>
+                </select>
+
+                <div id="backup-custom-date-section" style="display:none; gap:10px; align-items:center; margin-bottom:15px;">
+                    <input type="date" id="backup-start-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+                    <span style="font-weight:bold; color:#64748b;">~</span>
+                    <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+                </div>
+            </div>
+
+            <div id="backup-memo-section" style="display:none; margin-bottom:15px; padding:15px; background:#f1f5f9; border-radius:8px; border: 1px dashed #cbd5e1;">
+                <p style="margin:0; color:#475569; font-size:0.95rem; line-height:1.5;">
+                    저장된 <strong>모든 메모 데이터(라벨, 체크 여부, 첨부된 사진 URL 등)</strong>를 안전하게 추출합니다.<br><br>
+                    * CSV 파일을 수정 후 업로드 시, 기존 메모는 유지되며 새로운 ID를 가진 메모들은 추가(병합)됩니다.
+                </p>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; gap:10px; margin-top:20px; padding-top:15px; border-top:1px solid #e2e8f0;">
+                <input type="file" id="backup-upload-file" accept=".csv" style="display:none;" onchange="window.BackupManager.handleUpload(this)">
+                <button onclick="document.getElementById('backup-upload-file').click()" class="modal-btn-secondary" style="flex:1; background:#fff; border-color:#10b981; color:#047857; font-size:1.05rem;">📤 파일에서 복원</button>
+                <button id="btn-backup-download" onclick="window.BackupManager.handleDownload()" class="modal-btn-primary" style="flex:1; font-size:1.05rem;">📥 CSV 다운로드</button>
+            </div>
+            `;
+            this.modal = new window.Modal({
+                id: 'backup-modal-v5',
+                title: '💾 데이터 통합 백업소',
+                width: '500px',
+                content: html
+            });
         }
-      }
-    }
-    return dates;
-  },
+        this.modal.open();
+        this.setTab('schedule');
+        this.setDefaultDates();
+    },
 
-  // 2. CSV 다운로드 실행기
-  downloadCSVFile: function(filename, csvData) {
-    const bom = "\uFEFF";
-    const blob = new Blob([bom + csvData], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-  },
+    setTab: function(tab) {
+        this.currentTab = tab;
+        const schBtn = document.getElementById('backup-tab-schedule');
+        const memoBtn = document.getElementById('backup-tab-memo');
+        const schSec = document.getElementById('backup-schedule-section');
+        const memoSec = document.getElementById('backup-memo-section');
 
-  // 3. 엑셀 특수문자 이스케이프 처리
-  escapeCSV: function(str) {
-    if (!str && str !== 0) return '';
-    let s = String(str);
-    let trimmed = s.trim();
-    if (/^\d+[-/:]\d+$/.test(trimmed)) { return `'${trimmed}`; }
-    s = s.replace(/"/g, '""');
-    if (s.includes(',') || s.includes('\n') || s.includes('"')) { s = `"${s}"`; }
-    return s;
-  },
-
-  // 4. CSV 파서 (줄바꿈 완벽 인식)
-  parseCSV: function(str) {
-    const arr = [];
-    let quote = false;
-    let col = 0, row = 0;
-    for (let c = 0; c < str.length; c++) {
-      let cc = str[c], nc = str[c+1];
-      arr[row] = arr[row] || [];
-      arr[row][col] = arr[row][col] || '';
-      if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
-      if (cc == '"') { quote = !quote; continue; }
-      if (cc == ',' && !quote) { ++col; continue; }
-      if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
-      if (cc == '\n' && !quote) { ++row; col = 0; continue; }
-      if (cc == '\r' && !quote) { ++row; col = 0; continue; }
-      arr[row][col] += cc;
-    }
-    return arr;
-  },
-
-  // 5. DB 대량 업데이트(Batch) 실행기
-  executeBatchOperations: async function(operations) {
-    const chunkSize = 400; 
-    for (let i = 0; i < operations.length; i += chunkSize) {
-      const chunk = operations.slice(i, i + chunkSize);
-      const batch = window.db.batch();
-      chunk.forEach(op => {
-        if (op.type === 'delete') batch.delete(op.ref);
-        else if (op.type === 'set') batch.set(op.ref, op.data);
-      });
-      await batch.commit();
-    }
-  },
-
-  // 6. 다운로드 메인 로직
-  downloadCSV: async function() {
-    const eventSnap = await window.getUserCol('events').get();
-    const scheduleSnap = await window.getUserCol('schedules').get();
-    const journalSnap = await window.getUserCol('journals').get();
-
-    const eventMap = {};
-    eventSnap.forEach(doc => { 
-      const data = doc.data();
-      let eList = [];
-      if (data.eventList && Array.isArray(data.eventList) && data.eventList.length > 0) {
-        eList = data.eventList;
-      } else if (data.eventText && data.eventText.trim() !== '') {
-        eList = window.parseRawEventTextToEventList(data.eventText);
-      }
-      eventMap[doc.id] = eList.map(e => `[${e.label}] ${e.content}`).join('\n');
-    });
-
-    const scheduleMap = {};
-    scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
-
-    const journalMap = {};
-    journalSnap.forEach(doc => { 
-      const data = doc.data();
-      let jList = [];
-      if (data.entries && Array.isArray(data.entries) && data.entries.length > 0) {
-        jList = data.entries;
-      }
-      journalMap[doc.id] = jList.map(j => `[${j.label}] ${j.content}`).join('\n');
-    });
-
-    // 💡 환경설정 시수에 맞게 엑셀 헤더 동적 생성
-    const maxPeriod = window.periodNames ? window.periodNames.length : 6;
-    let header = "년도,월,일,요일,일정,";
-    for(let p=1; p<=maxPeriod; p++) header += `${p}교시 과목,`;
-    for(let p=1; p<=maxPeriod; p++) header += `${p}교시 메모,`;
-    for(let p=1; p<=maxPeriod; p++) header += `${p}교시 비고,`;
-    header += "일지\n";
-    
-    let csv = header;
-    const targetDates = this.getTargetDateList();
-
-    targetDates.forEach(item => {
-      const eventText = eventMap[item.dateStr] || '';
-      const journalText = journalMap[item.dateStr] || '';
-      const periods = scheduleMap[item.dateStr] || {};
-      
-      let rowStr = `${item.year},${item.month},${item.day},${item.dayOfWeek},${this.escapeCSV(eventText)}`;
-      let subjects = []; let memos = []; let supplies = [];
-
-      for (let p = 1; p <= maxPeriod; p++) {
-        subjects.push(this.escapeCSV(periods[p]?.subject || ''));
-        memos.push(this.escapeCSV(periods[p]?.memo || ''));
-        supplies.push(this.escapeCSV(periods[p]?.supplies || ''));
-      }
-      rowStr += `,${subjects.join(',')},${memos.join(',')},${supplies.join(',')},${this.escapeCSV(journalText)}`;
-      csv += rowStr + "\n";
-    });
-
-    let titlePrefix = `${window.currentDate.getFullYear()}학년도`;
-    if (currentScope === 'day') {
-      titlePrefix = `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월_${window.currentDate.getDate()}일`;
-    } else if (currentScope === 'week') {
-      const temp = new Date(window.currentDate);
-      const day = temp.getDay();
-      const sun = new Date(temp.setDate(temp.getDate() - day));
-      const endDay = new Date(sun);
-      endDay.setDate(sun.getDate() + 6);
-      const mStr1 = String(sun.getMonth()+1).padStart(2,'0');
-      const dStr1 = String(sun.getDate()).padStart(2,'0');
-      const mStr2 = String(endDay.getMonth()+1).padStart(2,'0');
-      const dStr2 = String(endDay.getDate()).padStart(2,'0');
-      titlePrefix = `${window.currentDate.getFullYear()}년_${mStr1}${dStr1}_${mStr2}${dStr2}_주간`;
-    } else if (currentScope === 'month') {
-      titlePrefix = `${window.currentDate.getFullYear()}년_${window.currentDate.getMonth()+1}월`;
-    }
-
-    this.downloadCSVFile(`${titlePrefix}_백업.csv`, csv);
-  },
-
-  // 7. 업로드 및 복원 메인 로직
-  uploadCSV: async function(input) {
-    const file = input.files[0];
-    if(!file) return;
-    if(!confirm("⚠️ [안내] 업로드하는 파일에 포함된 '해당 날짜'의 데이터만 수정됩니다.\n(파일에 없는 다른 달의 데이터는 그대로 안전하게 유지됩니다.)\n진행하시겠습니까?")) {
-      input.value = ''; return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target.result;
-      const rows = this.parseCSV(text);
-      const operations = [];
-      const maxPeriod = window.periodNames ? window.periodNames.length : 6;
-
-      const parseExcelText = (val) => {
-        let v = (val || '').trim();
-        if (v.startsWith('=')) v = v.substring(1);
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-          v = v.substring(1, v.length - 1);
+        if (tab === 'schedule') {
+            schBtn.style.background = '#eff6ff'; schBtn.style.borderColor = '#3b82f6'; schBtn.style.color = '#1e40af';
+            memoBtn.style.background = '#f8fafc'; memoBtn.style.borderColor = '#cbd5e1'; memoBtn.style.color = '#64748b';
+            schSec.style.display = 'block';
+            memoSec.style.display = 'none';
+        } else {
+            memoBtn.style.background = '#eff6ff'; memoBtn.style.borderColor = '#3b82f6'; memoBtn.style.color = '#1e40af';
+            schBtn.style.background = '#f8fafc'; schBtn.style.borderColor = '#cbd5e1'; schBtn.style.color = '#64748b';
+            schSec.style.display = 'none';
+            memoSec.style.display = 'block';
         }
-        if (v.startsWith("'")) v = v.substring(1);
-        return v;
-      };
+    },
 
-      const parseStructuredList = (rawStr, defaultLabel) => {
-          const text = parseExcelText(rawStr);
-          if (!text) return [];
-          const regex = /\[(.*?)\]/g;
-          const matches = [...text.matchAll(regex)];
-          
-          if (matches.length === 0) return [{ label: defaultLabel, content: text }];
+    setDefaultDates: function() {
+        const y = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
+        const m = window.currentDate ? window.currentDate.getMonth() + 1 : new Date().getMonth() + 1;
+        const acYear = m <= 2 ? y - 1 : y;
+        const lastDayFeb = new Date(acYear + 1, 2, 0).getDate();
 
-          const items = [];
-          for (let i = 0; i < matches.length; i++) {
-              const currentMatch = matches[i];
-              const label = currentMatch[1].trim();
-              const startIndex = currentMatch.index + currentMatch[0].length;
-              let endIndex = text.length;
-              if (i + 1 < matches.length) endIndex = matches[i + 1].index;
-              
-              const content = text.substring(startIndex, endIndex).trim();
-              items.push({ label: label, content: content });
-          }
-          return items;
-      };
+        document.getElementById('backup-start-date').value = `${acYear}-03-01`;
+        document.getElementById('backup-end-date').value = `${acYear + 1}-02-${lastDayFeb}`;
+    },
 
-      for(let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if(row.length >= 5 && row[0].trim() && row[1].trim() && row[2].trim()) {
-          const y = row[0].trim();
-          const m = String(row[1].trim()).padStart(2, '0');
-          const d = String(row[2].trim()).padStart(2, '0');
-          const dateStr = `${y}-${m}-${d}`;
-          
-          const eventTextRaw = parseExcelText(row[4]);
-          const eventList = parseStructuredList(eventTextRaw, '일정');
-          const cleanEventText = eventList.map(e => `[${e.label}] ${e.content}`).join('\n');
-          const isSkipDay = window.checkSkipConditionFromText(cleanEventText);
-          
-          const periodsData = {};
-          for (let p = 1; p <= maxPeriod; p++) {
-            let subj = parseExcelText(row[4 + p]);
-            if (isSkipDay) subj = '';
-            // 인덱스 계산: 과목(4+p), 메모(4+maxPeriod+p), 비고(4+maxPeriod*2+p)
-            periodsData[p] = { 
-                subject: subj, 
-                memo: parseExcelText(row[4 + maxPeriod + p]), 
-                supplies: parseExcelText(row[4 + maxPeriod * 2 + p]) 
+    onPeriodChange: function() {
+        const val = document.getElementById('backup-period-select').value;
+        const customSec = document.getElementById('backup-custom-date-section');
+        const startInput = document.getElementById('backup-start-date');
+        const endInput = document.getElementById('backup-end-date');
+
+        const y = window.currentDate ? window.currentDate.getFullYear() : new Date().getFullYear();
+        const m = window.currentDate ? window.currentDate.getMonth() + 1 : new Date().getMonth() + 1;
+        const acYear = m <= 2 ? y - 1 : y;
+        const lastDayFeb = new Date(acYear + 1, 2, 0).getDate();
+
+        if (val === 'custom') {
+            customSec.style.display = 'flex';
+        } else {
+            customSec.style.display = 'none';
+            if (val === 'sem1') {
+                startInput.value = `${acYear}-03-01`;
+                endInput.value = `${acYear}-08-15`;
+            } else if (val === 'sem2') {
+                startInput.value = `${acYear}-08-16`;
+                endInput.value = `${acYear + 1}-02-${lastDayFeb}`;
+            } else if (val === 'year') {
+                startInput.value = `${acYear}-03-01`;
+                endInput.value = `${acYear + 1}-02-${lastDayFeb}`;
+            }
+        }
+    },
+
+    escapeCSV: function(str) {
+        if (str == null) return "";
+        let s = String(str);
+        if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+            s = '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+    },
+
+    parseCSV: function(csvText) {
+        const rows = [];
+        let row = [];
+        let inQuotes = false;
+        let val = '';
+        for (let i = 0; i < csvText.length; i++) {
+            let c = csvText[i];
+            let nc = csvText[i+1];
+            if (c === '"' && inQuotes && nc === '"') {
+                val += '"'; i++;
+            } else if (c === '"') {
+                inQuotes = !inQuotes;
+            } else if (c === ',' && !inQuotes) {
+                row.push(val); val = '';
+            } else if (c === '\n' && !inQuotes) {
+                row.push(val); rows.push(row); row = []; val = '';
+            } else if (c === '\r' && !inQuotes) {
+            } else {
+                val += c;
+            }
+        }
+        if (val || row.length > 0) { row.push(val); rows.push(row); }
+        return rows;
+    },
+
+    handleDownload: async function() {
+        const btn = document.getElementById('btn-backup-download');
+        const oldText = btn.textContent;
+        btn.textContent = "⏳ 집계 중...";
+        btn.disabled = true;
+
+        try {
+            if (this.currentTab === 'memo') {
+                await this.downloadMemoCSV();
+            } else {
+                await this.downloadScheduleCSV();
+            }
+        } catch (e) {
+            console.error(e);
+            alert("다운로드 중 오류가 발생했습니다.");
+        } finally {
+            btn.textContent = oldText;
+            btn.disabled = false;
+        }
+    },
+
+    handleUpload: async function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        if(!confirm(`선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+            input.value = ''; return;
+        }
+
+        const btn = input.nextElementSibling;
+        const oldText = btn.textContent;
+        btn.textContent = "⏳ 업로드 적용 중...";
+        btn.disabled = true;
+
+        try {
+            if (this.currentTab === 'memo') {
+                await this.uploadMemoCSV(file);
+            } else {
+                await this.uploadScheduleCSV(file);
+            }
+            alert("데이터가 성공적으로 복원되었습니다!");
+            this.modal.close();
+            if(window.render) window.render();
+        } catch (e) {
+            console.error(e);
+            alert("업로드 처리 중 오류가 발생했습니다.");
+        } finally {
+            btn.textContent = oldText;
+            btn.disabled = false;
+            input.value = ''; 
+        }
+    },
+
+    downloadScheduleCSV: async function() {
+        let startStr = document.getElementById('backup-start-date').value;
+        let endStr = document.getElementById('backup-end-date').value;
+        if (!startStr || !endStr) return alert("시작일과 종료일을 올바르게 설정해 주세요.");
+
+        const eventsSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
+        const schedSnap = await window.getUserCol('schedules').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
+        const jourSnap = await window.getUserCol('journals').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
+
+        const evMap = {}; eventsSnap.forEach(d => evMap[d.id] = d.data());
+        const scMap = {}; schedSnap.forEach(d => scMap[d.id] = d.data());
+        const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
+
+        const pNames = window.periodNames || ["1","2","3","4","5","6"];
+        let csvContent = "\uFEFF날짜,일정," + pNames.join(",") + ",일지\n"; 
+
+        let curr = new Date(startStr);
+        const end = new Date(endStr);
+        
+        while(curr <= end) {
+            const dStr = window.formatDate(curr);
+            let row = [dStr];
+
+            let evText = "";
+            if (evMap[dStr]) {
+                const list = evMap[dStr].eventList;
+                if (list && list.length > 0) {
+                    evText = list.map(e => `[${(e.labels||[]).join(' ')}] ${e.content}`).join('\n');
+                } else if (evMap[dStr].eventText) {
+                    evText = evMap[dStr].eventText;
+                }
+            }
+            row.push(this.escapeCSV(evText));
+
+            const periods = scMap[dStr] ? (scMap[dStr].periods || {}) : {};
+            for(let p=1; p<=pNames.length; p++) {
+                const pData = periods[p] || {};
+                let pText = pData.subject ? `[${pData.subject}] ` : "";
+                if(pData.memo) pText += pData.memo;
+                row.push(this.escapeCSV(pText.trim()));
+            }
+
+            let joText = "";
+            if (joMap[dStr]) {
+                const entries = joMap[dStr].entries || [];
+                joText = entries.map(j => `[${(j.labels||[]).join(' ')}] ${j.content}`).join('\n');
+            }
+            row.push(this.escapeCSV(joText));
+
+            csvContent += row.join(',') + "\n";
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `업무계획표_일정백업_${startStr}_${endStr}.csv`;
+        link.click();
+    },
+
+    downloadMemoCSV: async function() {
+        const snap = await window.getUserCol('tasks').orderBy('createdAt').get();
+        let csvContent = "\uFEFF메모ID,메모내용,완료여부(O/X),라벨,첨부이미지주소,생성일자(타임스탬프)\n";
+        
+        snap.forEach(doc => {
+            const d = doc.data();
+            let row = [
+                doc.id,
+                this.escapeCSV(d.text || ''),
+                d.completed ? 'O' : 'X',
+                this.escapeCSV((d.labels || []).join(',')),
+                this.escapeCSV(d.imageUrl || ''),
+                d.createdAt || Date.now()
+            ];
+            csvContent += row.join(',') + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `업무계획표_메모체크리스트_전체백업.csv`;
+        link.click();
+    },
+
+    uploadScheduleCSV: function(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const csvText = e.target.result;
+                    const rows = this.parseCSV(csvText);
+                    if (rows.length < 2) return resolve();
+
+                    const pNames = window.periodNames || ["1","2","3","4","5","6"];
+                    const batchPromises = [];
+                    let batch = window.db.batch();
+                    let opCount = 0;
+
+                    for (let i=1; i<rows.length; i++) {
+                        const row = rows[i];
+                        const dStr = row[0];
+                        if(!dStr || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+
+                        const evText = row[1] || "";
+                        const eventList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
+                        batch.set(window.getUserCol('events').doc(dStr), { eventList: eventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
+                        opCount++;
+
+                        const periodsData = {};
+                        let isSkipDay = eventList.some(ev => ev.labels && ev.labels.some(l => window.isSkipLabel(l)));
+
+                        for(let p=1; p<=pNames.length; p++) {
+                            const pText = row[1+p] || "";
+                            let subj = "", memo = pText;
+                            const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
+                            if(match) { subj = match[1]; memo = match[2]; }
+                            if(isSkipDay) subj = '';
+                            periodsData[p] = { subject: subj, memo: memo, supplies: "" };
+                        }
+                        batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
+                        opCount++;
+
+                        const joText = row[row.length - 1] || ""; 
+                        const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
+                        batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
+                        opCount++;
+
+                        if (opCount > 400) {
+                            batchPromises.push(batch.commit());
+                            batch = window.db.batch();
+                            opCount = 0;
+                        }
+                    }
+                    if(opCount > 0) batchPromises.push(batch.commit());
+                    await Promise.all(batchPromises);
+                    resolve();
+                } catch(err) { reject(err); }
             };
-          }
+            reader.readAsText(file);
+        });
+    },
 
-          // 일지 인덱스: 5 + maxPeriod * 3
-          const journalIndex = 4 + maxPeriod * 3 + 1;
-          const journalTextRaw = parseExcelText(row[journalIndex] || '');
-          const journalList = parseStructuredList(journalTextRaw, '참고');
+    uploadMemoCSV: function(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const csvText = e.target.result;
+                    const rows = this.parseCSV(csvText);
+                    if (rows.length < 2) return resolve();
 
-          const eRef = window.getUserCol('events').doc(dateStr);
-          operations.push({ type: 'set', ref: eRef, data: { eventList: eventList, eventText: cleanEventText, updatedAt: Date.now() } });
-          
-          const sRef = window.getUserCol('schedules').doc(dateStr);
-          operations.push({ type: 'set', ref: sRef, data: { periods: periodsData, updatedAt: Date.now() } });
+                    const batchPromises = [];
+                    let batch = window.db.batch();
+                    let opCount = 0;
 
-          const jRef = window.getUserCol('journals').doc(dateStr);
-          if (journalList.length > 0) {
-              operations.push({ type: 'set', ref: jRef, data: { entries: journalList, updatedAt: Date.now() } });
-          } else {
-              operations.push({ type: 'delete', ref: jRef });
-          }
-        }
-      }
+                    for (let i=1; i<rows.length; i++) {
+                        const r = rows[i];
+                        if(r.length < 2 || !r[1]) continue; 
+                        
+                        let id = r[0] || window.getUserCol('tasks').doc().id; 
+                        const completed = r[2] === 'O';
+                        const labels = r[3] ? r[3].split(',').filter(x=>x.trim()) : [];
+                        const imageUrl = r[4] || '';
+                        const createdAt = parseInt(r[5], 10) || Date.now();
 
-      await this.executeBatchOperations(operations);
-      alert("✅ 데이터가 성공적으로 동기화 및 업데이트되었습니다!");
-      window.render();
-    };
-    reader.readAsText(file, 'utf-8');
-    input.value = '';
-  }
+                        batch.set(window.getUserCol('tasks').doc(id), {
+                            text: r[1],
+                            completed: completed,
+                            labels: labels,
+                            imageUrl: imageUrl,
+                            createdAt: createdAt,
+                            updatedAt: Date.now(),
+                            order: -createdAt 
+                        }, { merge: true });
+                        
+                        opCount++;
+                        if (opCount > 400) {
+                            batchPromises.push(batch.commit());
+                            batch = window.db.batch();
+                            opCount = 0;
+                        }
+                    }
+                    if(opCount > 0) batchPromises.push(batch.commit());
+                    await Promise.all(batchPromises);
+                    resolve();
+                } catch(err) { reject(err); }
+            };
+            reader.readAsText(file);
+        });
+    }
 };
-
-// 기존 로직과 호환되도록 전역 함수로 연결
-window.downloadCSV = () => BackupModule.downloadCSV();
-window.uploadCSV = (input) => BackupModule.uploadCSV(input);
-// timetable.js 등 다른 모듈에서도 Batch 연산을 쓸 수 있게 노출
-window.executeBatchOperations = (ops) => BackupModule.executeBatchOperations(ops);
