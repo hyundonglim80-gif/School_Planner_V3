@@ -20,25 +20,49 @@ if (typeof firebase !== 'undefined') {
 }
 
 const provider = new firebase.auth.GoogleAuthProvider();
+// 💡 구글 계정 선택 화면을 무조건 강제로 띄우도록 설정 (계정 꼬임 방지)
+provider.setCustomParameters({
+  prompt: 'select_account'
+});
 
-// 💡 [핵심] 리디렉션 방식 로그인 및 UI 상태 방어 처리
+// ==========================================================
+// 🚨 [핵심 수정] 가장 안정적인 팝업 로그인 방식으로 복구
+// (사용자 클릭 이벤트 안에서 즉시 실행되어 브라우저 차단을 피합니다)
+// ==========================================================
 window.signInWithGoogle = function() {
     const loginBtn = document.querySelector('#login-screen button');
+    let originalHtml = '';
+    
     if (loginBtn) {
-        loginBtn.innerHTML = '⏳ 구글 인증으로 이동 중...';
+        originalHtml = loginBtn.innerHTML;
+        loginBtn.innerHTML = '⏳ 팝업창에서 로그인해주세요...';
         loginBtn.disabled = true;
     }
 
-    // 확실하게 로컬(브라우저)에 인증 정보를 기억하도록 강제한 뒤 리디렉션
+    // 기본 세션 유지 방식(브라우저 닫아도 유지)을 명시적으로 선언한 후 팝업 띄우기
     window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
         .then(() => {
-            return window.auth.signInWithRedirect(provider);
+            return window.auth.signInWithPopup(provider);
+        })
+        .then((result) => {
+            console.log("✅ 로그인 성공:", result.user.displayName);
+            // 💡 로그인이 성공하면 onAuthStateChanged 가 발동하여 화면이 전환되므로
+            // 여기서 별도의 화면 전환 코드를 넣지 않습니다.
         })
         .catch(error => {
-            console.error("로그인 리디렉션 실패:", error);
-            alert("로그인 중 문제가 발생했습니다: " + error.message);
+            console.error("로그인 실패:", error);
+            // 팝업이 차단당했거나 사용자가 닫은 경우의 에러 메시지
+            if (error.code === 'auth/popup-closed-by-user') {
+                alert("로그인 팝업창을 닫으셨습니다. 다시 시도해 주세요.");
+            } else if (error.code === 'auth/popup-blocked') {
+                alert("브라우저에서 팝업이 차단되었습니다. 주소창 오른쪽의 팝업 차단 해제 아이콘을 눌러 허용해 주세요.");
+            } else {
+                alert("로그인 중 문제가 발생했습니다: " + error.message);
+            }
+            
+            // 버튼 상태 원상 복구
             if (loginBtn) {
-                loginBtn.innerHTML = 'Google 계정으로 로그인';
+                loginBtn.innerHTML = originalHtml;
                 loginBtn.disabled = false;
             }
         });
@@ -46,7 +70,8 @@ window.signInWithGoogle = function() {
 
 window.signOut = function() {
   window.auth.signOut().then(() => {
-    window.location.reload(); 
+    // 로그아웃 시 캐시를 무시하고 서버에서 강제로 새 페이지를 받아오도록 처리
+    window.location.href = window.location.href.split('#')[0];
   });
 };
 
