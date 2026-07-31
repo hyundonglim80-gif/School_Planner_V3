@@ -1,3 +1,5 @@
+//js/components/BaseView.js
+
 class BaseView {
   constructor(container) {
     this.container = container; // 화면이 그려질 도화지 (#main-view)
