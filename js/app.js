@@ -38,7 +38,6 @@ window.tempPeriodNames = [];
 
 window.loadSettings = async function() {
     try {
-        // 💡 만약 권한이 없어서 에러가 나면 여기서 걸러집니다.
         const doc = await window.getUserCol('settings').doc('preferences').get();
         if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
             window.periodNames = doc.data().periodNames;
@@ -46,7 +45,7 @@ window.loadSettings = async function() {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
         }
     } catch (error) {
-        console.warn("⚠️ [경고] 설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
+        console.warn("⚠️ 설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
         window.periodNames = ["1", "2", "3", "4", "5", "6"];
     }
 };
@@ -283,16 +282,27 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   if (window.auth) {
+    const loginBtn = document.querySelector('#login-screen button');
+    let originalBtnHtml = '';
+    
+    if (loginBtn) {
+        originalBtnHtml = loginBtn.innerHTML;
+        loginBtn.innerHTML = '⏳ 로그인 상태 확인 중...';
+        loginBtn.disabled = true;
+    }
+
+    // 💡 [핵심] 화면 전환 후 돌아온 결과를 가장 먼저 체크합니다!
+    window.auth.getRedirectResult().catch(error => {
+        console.error("리디렉트 처리 에러:", error);
+    });
+
     window.auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-info').style.display = 'flex';
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
-        // 💡 설정 로딩 실패를 무시하고 넘어가도록 개선
         await window.loadSettings();
-        
-        // 💡 화면 렌더링 시도
         window.render();
         
         setTimeout(() => {
@@ -305,9 +315,15 @@ window.addEventListener('DOMContentLoaded', () => {
         }, 500); 
 
       } else {
+        // 유저가 진짜로 로그인되어 있지 않을 때만 창 띄우기
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('user-info').style.display = 'none';
         document.getElementById("main-view").innerHTML = ""; 
+        
+        if (loginBtn) {
+            loginBtn.innerHTML = originalBtnHtml || 'Google 계정으로 로그인';
+            loginBtn.disabled = false;
+        }
       }
     });
   }
