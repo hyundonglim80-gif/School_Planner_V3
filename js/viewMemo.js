@@ -229,7 +229,7 @@ class MemoView extends window.BaseView {
         `;
     }
 
-    // 💡 새 레이아웃: 상단 전체 폭 (링크 + 메모 추가) / 하단 2분할 (좌측: 필터, 우측: 목록)
+    // 💡 [수정] 좌측 라벨 필터의 가로 길이 축소 (flex-basis 및 max-width 감소)
     let html = `
       <div style="max-width:1050px; margin:0 auto; display:flex; flex-direction:column; gap:20px;">
         
@@ -264,7 +264,7 @@ class MemoView extends window.BaseView {
 
         <div style="display:flex; align-items:flex-start; gap:20px; width:100%; flex-wrap:wrap;">
             
-            <div style="flex: 1 1 180px; max-width: 220px; min-width: 150px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 80px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="flex: 1 1 120px; max-width: 150px; min-width: 100px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 80px; display: flex; flex-direction: column; gap: 8px;">
                 <div style="font-weight:bold; color:#1e40af; border-bottom:2px solid #f1f5f9; padding-bottom:8px; margin-bottom:4px;">📁 라벨 필터</div>
                 <div class="label-chip ${this.currentFilter === '전체' ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('전체')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer;">
                     <span>👀 전체</span>
