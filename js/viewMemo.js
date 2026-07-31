@@ -11,7 +11,6 @@ class MemoView extends window.BaseView {
     this.AVAILABLE_LABELS = [];
     this.currentFilter = '전체'; 
     
-    // 💡 [신규] 사진 업로드 상태를 추적하기 위한 변수
     this.pendingImageUrl = null;
     this.isUploading = false;
   }
@@ -150,14 +149,10 @@ class MemoView extends window.BaseView {
     });
   }
 
-  // ==========================================================================
-  // 🖼️ [신규] 파일(이미지) 업로드 연동 로직
-  // ==========================================================================
   async handleImageUpload(inputElement) {
       const file = inputElement.files[0];
       if (!file) return;
       
-      // 이미지 파일인지 검사
       if (!file.type.startsWith('image/')) {
           alert('이미지 파일만 업로드할 수 있습니다.');
           inputElement.value = '';
@@ -165,10 +160,9 @@ class MemoView extends window.BaseView {
       }
 
       this.isUploading = true;
-      this.renderViewer(); // 업로드 중 UI로 갱신 (로딩 스피너 등)
+      this.renderViewer(); 
 
       try {
-          // js/firebase.js 에 작성해둔 이미지 압축 및 업로드 API 호출
           this.pendingImageUrl = await window.dbAPI.uploadImage(file);
       } catch (error) {
           console.error("이미지 업로드 실패:", error);
@@ -176,12 +170,11 @@ class MemoView extends window.BaseView {
           this.pendingImageUrl = null;
       } finally {
           this.isUploading = false;
-          inputElement.value = ''; // 입력 필드 초기화
-          this.renderViewer(); // 완료 후 UI 갱신
+          inputElement.value = ''; 
+          this.renderViewer(); 
       }
   }
   
-  // 업로드 중이던 썸네일 취소(삭제)
   cancelPendingImage() {
       if (this.pendingImageUrl) {
           window.dbAPI.deleteImage(this.pendingImageUrl).catch(e => console.warn(e));
@@ -190,20 +183,13 @@ class MemoView extends window.BaseView {
       }
   }
 
-
-  // ==========================================================================
-  // 📝 메모(업무 체크리스트) 메인 렌더링
-  // ==========================================================================
   async renderViewer() {
-    // 최초 로딩 시에만 스피너를 띄우고, 필터 변경 등에는 부드럽게 넘어가도록 방어 코드
     if (!this.memoItems || this.memoItems.length === 0) {
         this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
         this.memoItems = await window.dbAPI.loadMemos();
     } else {
-        // 이미 데이터가 있으면 백그라운드 갱신만 수행
         window.dbAPI.loadMemos().then(data => {
             this.memoItems = data;
-            // 만약 업로드 중이 아니라면 백그라운드 데이터로 몰래 다시 그립니다.
             if (!this.isUploading) this._drawHTML(); 
         });
     }
@@ -212,7 +198,6 @@ class MemoView extends window.BaseView {
     this._drawHTML();
   }
 
-  // 💡 실제 HTML을 그리는 부분을 별도 함수로 분리 (화면 깜빡임 최소화)
   _drawHTML() {
     let filteredMemos = this.memoItems;
     if (this.currentFilter !== '전체') {
@@ -229,13 +214,10 @@ class MemoView extends window.BaseView {
       </div>
     `;
 
-    // 💡 [신규] 사진 첨부 UI 구성
     let imageAttachmentHtml = '';
     if (this.isUploading) {
-        // 업로드 중 표시
         imageAttachmentHtml = `<div style="padding: 10px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; color: #3b82f6; font-weight: bold; text-align: center; margin-top: 5px;">⏳ 사진 압축 및 업로드 중...</div>`;
     } else if (this.pendingImageUrl) {
-        // 업로드 완료된 썸네일 표시
         imageAttachmentHtml = `
             <div style="position: relative; display: inline-block; margin-top: 8px;">
                 <img src="${this.pendingImageUrl}" style="height: 60px; border-radius: 6px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -258,7 +240,7 @@ class MemoView extends window.BaseView {
         <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow:0 1px 3px rgba(0,0,0,0.05);">
           
           <div style="display:flex; gap:8px; margin-bottom:5px; align-items:flex-start;">
-            <textarea id="memo-input-text" placeholder="새 할 일 추가 (Ctrl+Enter 저장 / 일반 Enter 줄바꿈)" 
+            <textarea id="memo-input-text" placeholder="새 할 일 추가 (사진만 올릴 때는 글씨를 안 써도 됩니다!)" 
                    style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:44px; height:44px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
                    onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
                    oninput="this.style.height='44px'; this.style.height = (this.scrollHeight > 44 ? this.scrollHeight : 44) + 'px'"></textarea>
@@ -328,13 +310,13 @@ class MemoView extends window.BaseView {
           `</div>`
         : '';
         
-    // 💡 [신규] 이미지 첨부 렌더링 영역
     const imageHtml = item.imageUrl 
         ? `<div style="margin-top: 8px;">
                <img src="${item.imageUrl}" onclick="window.openImageViewer('${item.imageUrl}')" style="max-height: 80px; border-radius: 6px; border: 1px solid #cbd5e1; cursor: zoom-in; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
            </div>` 
         : '';
 
+    // 💡 [핵심] display: block; min-height: 1.5rem 설정으로 빈 글자여도 나중에 클릭해서 수정할 수 있도록 공간 확보!
     return `
       <div class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 12px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
         <div style="display:flex; align-items:flex-start; gap:8px; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
@@ -342,7 +324,7 @@ class MemoView extends window.BaseView {
           <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
           
           <div style="flex: 1; display: flex; flex-direction: column;">
-             <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+             <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; display:block; min-height:1.5rem; width:100%; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
              ${imageHtml}
              ${labelsHtml}
           </div>
@@ -386,7 +368,6 @@ class MemoView extends window.BaseView {
           const modal = document.getElementById('memo-item-label-modal');
           if (modal) modal.remove();
           
-          // 화면 즉시 갱신 (서버 로드 대기 방지)
           const target = this.memoItems.find(m => m.firestoreId === firestoreId);
           if (target) target.labels = newLabels;
           this._drawHTML();
@@ -397,14 +378,18 @@ class MemoView extends window.BaseView {
       }
   }
 
+  // 💡 [핵심 수정] 글자가 지워져도 사진이 있으면 막지 않도록 조건 완화!
   async updateMemoText(firestoreId, newText) {
     const text = newText.trim();
-    if (!text) {
-        alert("메모 내용은 비워둘 수 없습니다.");
+    const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+    
+    // 텍스트도 비어있고, 사진도 없으면 저장을 막음
+    if (!text && target && !target.imageUrl) {
+        alert("메모 내용이나 이미지는 필수입니다. (비워둘 수 없습니다)");
         this.renderViewer(); 
         return;
     }
-    const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+
     if (target && target.text !== text) {
         target.text = text;
         try { await window.dbAPI.updateMemo(firestoreId, { text: text }); } 
@@ -443,38 +428,47 @@ class MemoView extends window.BaseView {
     this.draggedMemoId = null;
   }
 
+  // 💡 [핵심 수정] 텍스트가 없더라도 사진이 대기 중이면 등록 통과!
   async addMemoItem() {
     const input = document.getElementById("memo-input-text");
-    if (!input || !input.value.trim()) return;
+    if (!input) return;
+    
+    const text = input.value.trim();
+
+    // 글자도 안 썼고, 올린 사진도 없으면 아무 반응 없음
+    if (!text && !this.pendingImageUrl) return;
 
     const newMemo = { 
-        text: input.value.trim(), 
+        text: text, 
         completed: false, 
         order: -Date.now(), 
         createdAt: Date.now(),
         labels: [...this.currentNewLabels],
-        imageUrl: this.pendingImageUrl // 💡 [신규] 업로드된 이미지 URL 함께 저장
+        imageUrl: this.pendingImageUrl
     };
     
-    input.value = "저장 중..."; 
+    const originalPlaceholder = input.placeholder;
+    input.value = "";
+    input.placeholder = "저장 중..."; 
     input.disabled = true;
 
     try {
         await window.dbAPI.addMemo(newMemo); 
-        this.pendingImageUrl = null; // 저장 완료 시 초기화
+        this.pendingImageUrl = null;
         this.renderViewer(); 
     } catch(e) {
         console.error("메모 추가 오류:", e);
-        input.value = newMemo.text;
-        input.disabled = false;
+        input.value = text;
         alert("저장에 실패했습니다.");
+    } finally {
+        input.placeholder = originalPlaceholder;
+        input.disabled = false;
     }
   }
 
   async toggleMemoItem(firestoreId, currentStatus) {
     const isNowCompleted = !currentStatus;
     
-    // 로컬 즉시 반영
     const target = this.memoItems.find(m => m.firestoreId === firestoreId);
     if (target) {
         target.completed = isNowCompleted;
@@ -487,11 +481,8 @@ class MemoView extends window.BaseView {
 
   async deleteMemoItem(firestoreId) {
     if(confirm("이 메모를 완전히 삭제하시겠습니까? (첨부된 이미지도 함께 삭제됩니다)")) {
-      
-      // 로컬 화면 즉시 제거
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
-      
       await window.dbAPI.deleteMemo(firestoreId);
     }
   }
@@ -500,11 +491,8 @@ class MemoView extends window.BaseView {
     const completedMemos = this.memoItems.filter(m => m.completed);
     if (completedMemos.length === 0) return;
     if(confirm(`완료된 업무 ${completedMemos.length}개를 모두 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
-      
-      // 로컬 즉시 제거
       this.memoItems = this.memoItems.filter(m => !m.completed);
       this._drawHTML();
-      
       await Promise.all(completedMemos.map(memo => window.dbAPI.deleteMemo(memo.firestoreId)));
     }
   }
@@ -512,7 +500,6 @@ class MemoView extends window.BaseView {
   async save() {}
 }
 
-// 💡 덮어쓰기 방지: LabelManager의 openMemoModal을 안전하게 연동
 window.manageMemoLabels = function() {
     if (typeof window.LabelManager !== 'undefined' && window.LabelManager.openMemoModal) {
         window.LabelManager.openMemoModal();
@@ -521,7 +508,6 @@ window.manageMemoLabels = function() {
     }
 };
 
-// 💡 [신규] 이미지 원본 확대 뷰어 연결
 window.openImageViewer = function(url) {
     const modal = document.getElementById('image-viewer-modal');
     const img = document.getElementById('full-size-image');
