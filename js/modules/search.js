@@ -58,7 +58,6 @@ const SearchModule = {
       });
     }
     
-    // 💡 전역 환경설정(2학기 시작일 등) 로드
     await window.loadGlobalPreferences();
     this.modalInstance.open();
     
@@ -112,9 +111,9 @@ const SearchModule = {
          <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer; flex-shrink:0;">
            <option value="all">전체</option>
            <option value="event">일정</option>
-           <option value="journal">일지</option>
+           <option value="journal">기록</option>
            <option value="subject">수업</option>
-           <option value="memo">메모(수업)</option>
+           <option value="memo">수업 메모</option>
            <option value="supplies">비고</option> 
          </select>
          <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력... (띄어쓰기 없이 '/'로 다중 검색)">
@@ -125,11 +124,10 @@ const SearchModule = {
     this.filterIdCounter++;
   },
 
-  // 💡 검색 날짜를 전역 엔진(getSemesterDates)에서 100% 동일하게 가져오도록 수정
   getSearchTargetDates: function() {
     const targetScope = document.getElementById('search-scope-select').value;
     const dates = [];
-    const datesInfo = window.getSemesterDates(); // 전역 엔진 호출
+    const datesInfo = window.getSemesterDates(); 
 
     if (targetScope === 'custom') {
       const startStr = document.getElementById('search-start-date').value;
@@ -216,7 +214,7 @@ const SearchModule = {
         const journalMap = {};
         journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
-        const targetDatesObj = this.getSearchTargetDates(); // 변경됨
+        const targetDatesObj = this.getSearchTargetDates();
         if (targetDatesObj.length === 0) {
             resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-weight:bold; padding:20px;">검색할 기간에 포함되는 날짜가 없습니다.</p>`;
             return; 
@@ -322,7 +320,7 @@ const SearchModule = {
             if (pData && (pData.subject || pData.memo || pData.supplies)) {
               let pText = `<div style="display:flex; flex-direction:column; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #cbd5e1;">`;
               pText += `<div style="font-weight:bold; color:#0f172a; margin-bottom:4px;">[${window.periodNames ? window.periodNames[p-1] : p+'교시'}] ${highlight(pData.subject)}</div>`;
-              if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">📝 메모: ${highlight(pData.memo)}</div>`;
+              if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">📝 수업 메모: ${highlight(pData.memo)}</div>`;
               if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">📌 비고: ${highlight(pData.supplies)}</div>`;
               pText += `</div>`;
               cardHtml += pText;
@@ -334,7 +332,7 @@ const SearchModule = {
               if (j.content || j.label) {
                 const style = window.getLabelStyle(j.label, 'journal');
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
-                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[일지: ${highlight(j.label)}]</div>`;
+                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[기록: ${highlight(j.label)}]</div>`;
                 jText += `<div style="font-size:0.95rem; color:#1e293b;">${highlight(j.content)}</div>`;
                 jText += `</div>`;
                 cardHtml += jText;
