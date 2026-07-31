@@ -10,23 +10,58 @@ window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false';
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
-window.toggleWeekend = function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
-  }
+// 💡 [핵심] 화면 이동 시 '무음 자동 저장(silent=true)' 처리 
+window.toggleWeekend = async function() {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.showWeekend = !window.showWeekend;
   localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
-  window.hasUnsavedChanges = false;
   window.render();
 };
 
-window.toggleClass = function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 이동하시겠습니까?")) return;
-  }
+window.toggleClass = async function() {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.showClass = !window.showClass;
   localStorage.setItem('workCalendar_showClass', window.showClass);
-  window.hasUnsavedChanges = false;
+  window.render();
+};
+
+window.setScope = async function(scope) {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  currentScope = scope;
+  localStorage.setItem('workCalendar_scope', scope);
+  window.render();
+};
+
+window.setMode = async function(mode) {
+  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
+    await window.saveCurrentViewData(true);
+  }
+  currentMode = mode;
+  localStorage.setItem('workCalendar_mode', mode);
+  if (mode === 'viewer') window.hasUnsavedChanges = false;
+  window.render();
+};
+
+window.handleEditSaveClick = function() {
+  if (currentMode === 'viewer') {
+    window.setMode('editor');
+  } else {
+    window.saveCurrentViewData(false); // 수동 저장이므로 UI 피드백 표시
+  }
+};
+
+window.moveDate = async function(dir) {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
+  else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+  else if (currentScope === 'month') window.currentDate.setMonth(window.currentDate.getMonth() + dir);
+  else if (currentScope === 'year') window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  window.render();
+};
+
+window.goToToday = async function() {
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  window.currentDate = new Date();
   window.render();
 };
 
@@ -108,34 +143,6 @@ function updateTitle() {
   }
 }
 
-window.setScope = function(scope) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 다른 보기로 이동하시겠습니까?")) return;
-  }
-  currentScope = scope;
-  localStorage.setItem('workCalendar_scope', scope);
-  window.hasUnsavedChanges = false;
-  window.render();
-};
-
-window.setMode = function(mode) {
-  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 뷰어 모드로 전환하시겠습니까?")) return;
-  }
-  currentMode = mode;
-  localStorage.setItem('workCalendar_mode', mode);
-  if (mode === 'viewer') window.hasUnsavedChanges = false;
-  window.render();
-};
-
-window.handleEditSaveClick = function() {
-  if (currentMode === 'viewer') {
-    window.setMode('editor');
-  } else {
-    window.saveCurrentViewData();
-  }
-};
-
 window.toggleMoreMenu = function() {
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.toggle('hidden');
@@ -208,9 +215,11 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
-window.saveCurrentViewData = async function() {
+// 💡 [핵심] silent 파라미터를 받아, true면 조용히 저장만 하고 UI 변경 없음
+window.saveCurrentViewData = async function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
-  if (editorBtn) {
+  
+  if (editorBtn && !silent) {
     editorBtn.innerHTML = "⏳ 저장중..";
     editorBtn.disabled = true;
   }
@@ -220,7 +229,7 @@ window.saveCurrentViewData = async function() {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  if (editorBtn) {
+  if (editorBtn && !silent) {
     editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
       if (currentMode === 'editor') {
@@ -231,28 +240,6 @@ window.saveCurrentViewData = async function() {
   }
   
   window.hasUnsavedChanges = false; 
-};
-
-window.moveDate = function(dir) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 날짜를 이동하시겠습니까?")) return;
-  }
-  if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
-  else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  else if (currentScope === 'month') window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-  else if (currentScope === 'year') window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
-  
-  window.hasUnsavedChanges = false;
-  window.render();
-};
-
-window.goToToday = function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) {
-    if (!confirm("작성 중인 데이터가 저장되지 않았습니다. 정말 오늘 날짜로 돌아가시겠습니까?")) return;
-  }
-  window.currentDate = new Date();
-  window.hasUnsavedChanges = false;
-  window.render();
 };
 
 // ==========================================================================
@@ -266,7 +253,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (editorBtn) {
     editorBtn.addEventListener('click', () => {
       if (currentMode === 'viewer') window.setMode('editor');
-      else window.saveCurrentViewData();
+      else window.saveCurrentViewData(false);
     });
   }
 
@@ -291,11 +278,6 @@ window.addEventListener('DOMContentLoaded', () => {
         loginBtn.disabled = true;
     }
 
-    // 💡 [핵심] 화면 전환 후 돌아온 결과를 가장 먼저 체크합니다!
-    window.auth.getRedirectResult().catch(error => {
-        console.error("리디렉트 처리 에러:", error);
-    });
-
     window.auth.onAuthStateChanged(async user => {
       if (user) {
         document.getElementById('login-screen').style.display = 'none';
@@ -315,7 +297,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }, 500); 
 
       } else {
-        // 유저가 진짜로 로그인되어 있지 않을 때만 창 띄우기
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('user-info').style.display = 'none';
         document.getElementById("main-view").innerHTML = ""; 
