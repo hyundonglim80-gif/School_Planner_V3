@@ -1,3 +1,5 @@
+//js/components/Modal.js
+
 // 모든 팝업창을 통제하는 전역 관리자
 class ModalManager {
   static stack = [];
