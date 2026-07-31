@@ -1,3 +1,5 @@
+// js/modules/help.js
+
 const HelpModule = {
   modalInstance: null,
   
