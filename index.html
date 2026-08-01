@@ -44,6 +44,8 @@
           <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 5px 10px; justify-content: center; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
+              <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="color:#2563eb; font-weight:bold;">📅 구글 서비스 동기화</button>
+              
               <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
