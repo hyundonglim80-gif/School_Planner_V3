@@ -107,11 +107,13 @@ const SearchModule = {
         ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
         : `<div style="width:24px; flex-shrink:0;"></div>`;
 
+    // 💡 검색 필터에 '메모/할일' 드롭다운 추가
     filterRow.innerHTML = `
          <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer; flex-shrink:0;">
            <option value="all">전체</option>
            <option value="event">일정</option>
            <option value="journal">기록</option>
+           <option value="task">메모/할일</option>
            <option value="subject">수업</option>
            <option value="memo">수업 메모</option>
            <option value="supplies">비고</option> 
@@ -197,13 +199,14 @@ const SearchModule = {
 
     const resultList = document.getElementById('search-results-area');
     const countText = document.getElementById('search-results-count');
-    resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; padding:30px;">⏳ 클라우드에서 검색 기간의 일정을 분석 중입니다...</p>`;
+    resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; padding:30px;">⏳ 클라우드에서 데이터를 분석 중입니다...</p>`;
     countText.innerText = '';
 
     try {
         const eventSnap = await window.getUserCol('events').get();
         const scheduleSnap = await window.getUserCol('schedules').get();
         const journalSnap = await window.getUserCol('journals').get();
+        const taskSnap = await window.getUserCol('tasks').get(); // 💡 메모(tasks) 가져오기
 
         const eventMap = {};
         eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
@@ -214,12 +217,20 @@ const SearchModule = {
         const journalMap = {};
         journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
+        const taskList = [];
+        taskSnap.forEach(doc => {
+          const data = doc.data();
+          if (data) {
+            taskList.push({
+              id: doc.id,
+              content: data.content || '',
+              labels: data.labels || (data.label ? [data.label] : []),
+              completed: !!data.completed
+            });
+          }
+        });
+
         const targetDatesObj = this.getSearchTargetDates();
-        if (targetDatesObj.length === 0) {
-            resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-weight:bold; padding:20px;">검색할 기간에 포함되는 날짜가 없습니다.</p>`;
-            return; 
-        }
-        
         const validDates = targetDatesObj.map(item => item.dateStr);
 
         const checkMatch = (text, keyword) => {
@@ -227,6 +238,7 @@ const SearchModule = {
           return text.toLowerCase().includes(keyword);
         };
 
+        // 1. 일정/수업/기록 검색
         const matchedResults = [];
         const maxPeriod = window.periodNames ? window.periodNames.length : 6;
 
@@ -252,7 +264,8 @@ const SearchModule = {
             'journal': dayJournalText,
             'subject': daySubjectText.join(' '),
             'memo': dayMemoText.join(' '),
-            'supplies': daySuppliesText.join(' ')
+            'supplies': daySuppliesText.join(' '),
+            'task': ''
           };
 
           let isMatch = false;
@@ -276,6 +289,31 @@ const SearchModule = {
           if (isMatch) matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
         });
 
+        // 2. 메모(tasks) 검색
+        const matchedTasks = [];
+        taskList.forEach(task => {
+          const taskText = [task.content, (task.labels || []).join(' ')].join(' ');
+          const taskTextMap = {
+            'all': taskText,
+            'task': taskText,
+            'event': '', 'journal': '', 'subject': '', 'memo': '', 'supplies': ''
+          };
+
+          let isMatch = false;
+          if (searchConditions.length > 0) {
+            let currentResult = checkMatch(taskTextMap[searchConditions[0].type], searchConditions[0].keyword);
+            for (let i = 1; i < searchConditions.length; i++) {
+              const cond = searchConditions[i];
+              const prevLogic = searchConditions[i - 1].logic;
+              const matchThis = checkMatch(taskTextMap[cond.type], cond.keyword);
+              if (prevLogic === 'AND') currentResult = currentResult && matchThis;
+              else if (prevLogic === 'OR') currentResult = currentResult || matchThis;
+            }
+            isMatch = currentResult;
+          }
+          if (isMatch) matchedTasks.push(task);
+        });
+
         matchedResults.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
 
         const highlight = (text) => {
@@ -289,23 +327,46 @@ const SearchModule = {
           return res;
         };
 
-        countText.innerText = `💡 총 ${matchedResults.length}건의 데이터를 찾았습니다.`;
+        const totalCount = matchedResults.length + matchedTasks.length;
+        countText.innerText = `💡 총 ${totalCount}건의 데이터를 찾았습니다.`;
         resultList.innerHTML = '';
 
-        if (matchedResults.length === 0) {
-          resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-size:1.1rem; padding:30px; font-weight:bold;">❌ 지정한 기간 내에 일치하는 결과가 없습니다.</p>`;
+        if (totalCount === 0) {
+          resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-size:1.1rem; padding:30px; font-weight:bold;">❌ 지정한 조건에 일치하는 결과가 없습니다.</p>`;
           return;
         }
 
-        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        // 💡 메모(Tasks) 검색 결과 먼저 표시
+        if (matchedTasks.length > 0) {
+          matchedTasks.forEach(task => {
+            const labelsHtml = (task.labels || []).map(l => {
+              const style = window.getLabelStyle ? window.getLabelStyle(l, 'memo') : { bg: '#dcfce7', text: '#166534', border: '#86efac' };
+              return `<span style="display:inline-block; font-weight:bold; color:${style.text}; background:${style.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.85rem; border:1px solid ${style.border};">${l}</span>`;
+            }).join('');
 
+            let taskCardHtml = `
+              <div class="search-result-card" onclick="window.setScope('memo'); window.ModalManager ? window.ModalManager.closeTop() : SearchModule.modalInstance.close();" style="border-left: 5px solid #10b981;">
+                <div style="font-size:1.05rem; font-weight:900; color:#059669; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:6px; display:flex; justify-content:space-between;">
+                  <span>📝 메모 / 할 일</span>
+                  <span style="font-size:0.85rem; font-weight:normal; color:#64748b;">${task.completed ? '✅ 완료됨' : '⏳ 진행중'}</span>
+                </div>
+                <div style="margin-bottom:6px;">${labelsHtml}</div>
+                <div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(task.content)}</div>
+              </div>
+            `;
+            resultList.innerHTML += taskCardHtml;
+          });
+        }
+
+        // 💡 일정/수업/기록 검색 결과 표시
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         matchedResults.forEach(res => {
           const dObj = new Date(res.dateStr);
           const dayName = dayNames[dObj.getDay()];
           const dateColor = dObj.getDay() === 0 ? '#ef4444' : dObj.getDay() === 6 ? '#3b82f6' : '#1e40af';
 
           let cardHtml = `
-            <div class="search-result-card" onclick="window.goToDay('${res.dateStr}'); window.ModalManager.closeTop();">
+            <div class="search-result-card" onclick="window.goToDay('${res.dateStr}'); window.ModalManager ? window.ModalManager.closeTop() : SearchModule.modalInstance.close();">
               <div style="font-size:1.1rem; font-weight:900; color:${dateColor}; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:8px;">
                 📅 ${res.dateStr.replace(/-/g, '. ')} (${dayName})
               </div>
@@ -330,7 +391,7 @@ const SearchModule = {
           if (res.dayJournals && res.dayJournals.length > 0) {
             res.dayJournals.forEach(j => {
               if (j.content || j.label) {
-                const style = window.getLabelStyle(j.label, 'journal');
+                const style = window.getLabelStyle ? window.getLabelStyle(j.label, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
                 jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[기록: ${highlight(j.label)}]</div>`;
                 jText += `<div style="font-size:0.95rem; color:#1e293b;">${highlight(j.content)}</div>`;
