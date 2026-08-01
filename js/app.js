@@ -201,11 +201,12 @@ function updateButtonUI() {
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
+  // 💡 버튼 명칭 '작성' 적용
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
     if (currentMode === 'viewer') {
-      editorBtn.innerHTML = '수정';
+      editorBtn.innerHTML = '작성';
       editorBtn.title = '단축키: Ctrl + ↓';
       editorBtn.className = 'btn-mode';
     } else {
