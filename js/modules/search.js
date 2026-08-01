@@ -7,11 +7,11 @@ const SearchModule = {
   getContentHTML: function() {
     return `
       <div class="modal-info-box">
-         <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">➕ 검색 조건 설정 (다중 조건 AND/OR)</h4>
-         <p style="margin:0; margin-bottom:10px; font-size:0.85rem; color:#475569;">조건을 무한대로 추가하고 AND / OR 로 정밀하게 검색하세요.</p>
+         <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">➕ 검색 조건 설정 (다중 항목 선택 가능)</h4>
+         <p style="margin:0; margin-bottom:10px; font-size:0.85rem; color:#475569;">원하는 항목 버튼을 여러 개 클릭하여 켜고 끌 수 있습니다.</p>
          
-         <div id="search-filters-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
-         <button onclick="SearchModule.addFilter()" class="modal-btn-dashed" style="margin-top:0;">+ 검색 조건 추가</button>
+         <div id="search-filters-container" style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px;"></div>
+         <button onclick="SearchModule.addFilter()" class="modal-btn-dashed" style="margin-top:0;">+ 다른 검색어 조건 추가 (AND / OR)</button>
       </div>
 
       <div class="modal-info-box alt">
@@ -76,7 +76,7 @@ const SearchModule = {
     
     document.getElementById('search-results-count').innerText = '';
     const resultsArea = document.getElementById('search-results-area');
-    if(resultsArea) resultsArea.innerHTML = `<p style="text-align:center; color:#94a3b8; padding:20px;">조건과 기간을 설정한 뒤 '데이터 찾기'를 눌러주세요.</p>`;
+    if(resultsArea) resultsArea.innerHTML = `<p style="text-align:center; color:#94a3b8; padding:20px;">항목과 기간을 설정한 뒤 '데이터 찾기'를 눌러주세요.</p>`;
   },
 
   toggleCustomDateSearch: function() {
@@ -89,38 +89,70 @@ const SearchModule = {
     }
   },
 
+  // 💡 [신규 로직] 다중 선택 버튼 클릭 시 처리
+  toggleFilterChip: function(clickedChip) {
+    const container = clickedChip.parentElement;
+    const val = clickedChip.dataset.val;
+
+    if (val === 'all') {
+      // 전체를 눌렀을 때: 전체가 꺼져있었다면 전부 다 켜기, 켜져있었다면 전부 다 끄기
+      const isNowActive = !clickedChip.classList.contains('active');
+      container.querySelectorAll('.label-chip').forEach(chip => {
+        if (isNowActive) chip.classList.add('active');
+        else chip.classList.remove('active');
+      });
+    } else {
+      // 개별 항목을 눌렀을 때
+      clickedChip.classList.toggle('active');
+      const allChip = container.querySelector('[data-val="all"]');
+      const otherChips = Array.from(container.querySelectorAll('.label-chip:not([data-val="all"])'));
+      
+      // 개별 항목들이 모두 켜져있으면 '전체'도 켜기, 하나라도 꺼지면 '전체' 끄기
+      const allActive = otherChips.every(c => c.classList.contains('active'));
+      if (allActive) allChip.classList.add('active');
+      else allChip.classList.remove('active');
+    }
+  },
+
   addFilter: function() {
     const container = document.getElementById('search-filters-container');
     if (!container) return;
     
     const filterRow = document.createElement('div');
+    // 세로 정렬로 변경하여 모바일에서도 깨지지 않게 디자인 (버튼줄 / 검색어줄)
     filterRow.className = 'modal-input-row alt search-filter-row';
+    filterRow.style.flexDirection = 'column';
+    filterRow.style.alignItems = 'stretch';
+    filterRow.style.gap = '8px';
     
     const logicHTML = this.filterIdCounter > 0 
-        ? `<select class="filter-logic" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer; flex-shrink:0;">
+        ? `<select class="filter-logic" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#f8fafc; font-weight:bold; color:#0f172a; cursor:pointer; flex-shrink:0;">
              <option value="AND">AND</option>
              <option value="OR">OR</option>
            </select>`
-        : `<input type="hidden" class="filter-logic" value="AND"><div style="width:24px; flex-shrink:0;"></div>`; 
+        : `<input type="hidden" class="filter-logic" value="AND">`; 
 
     const deleteBtnHTML = this.filterIdCounter > 0 
-        ? `<button onclick="this.parentElement.remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
-        : `<div style="width:24px; flex-shrink:0;"></div>`;
+        ? `<button onclick="this.closest('.search-filter-row').remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
+        : ``;
 
-    // 💡 검색 필터에 '메모/할일' 드롭다운 추가
     filterRow.innerHTML = `
-         <select class="filter-type" style="padding:8px; border-radius:4px; border:1px solid #cbd5e1; outline:none; background:#fff; font-weight:bold; color:#1e40af; cursor:pointer; flex-shrink:0;">
-           <option value="all">전체</option>
-           <option value="event">일정</option>
-           <option value="journal">기록</option>
-           <option value="task">메모/할일</option>
-           <option value="subject">수업</option>
-           <option value="memo">수업 메모</option>
-           <option value="supplies">비고</option> 
-         </select>
-         <input type="text" class="filter-keyword modal-input-text" placeholder="키워드 입력... (띄어쓰기 없이 '/'로 다중 검색)">
-         ${logicHTML}
-         ${deleteBtnHTML}
+         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+             <div class="filter-type-chips label-chip-container" style="margin:0; flex:1;">
+               <span class="label-chip active" data-val="all" onclick="SearchModule.toggleFilterChip(this)">전체</span>
+               <span class="label-chip active" data-val="event" onclick="SearchModule.toggleFilterChip(this)">일정</span>
+               <span class="label-chip active" data-val="journal" onclick="SearchModule.toggleFilterChip(this)">기록</span>
+               <span class="label-chip active" data-val="task" onclick="SearchModule.toggleFilterChip(this)">메모/할일</span>
+               <span class="label-chip active" data-val="subject" onclick="SearchModule.toggleFilterChip(this)">수업</span>
+               <span class="label-chip active" data-val="memo" onclick="SearchModule.toggleFilterChip(this)">수업 메모</span>
+               <span class="label-chip active" data-val="supplies" onclick="SearchModule.toggleFilterChip(this)">비고</span>
+             </div>
+             <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
+                 ${logicHTML}
+                 ${deleteBtnHTML}
+             </div>
+         </div>
+         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 키워드 입력..." style="width:100%;">
     `;
     container.appendChild(filterRow);
     this.filterIdCounter++;
@@ -185,11 +217,18 @@ const SearchModule = {
     
     rows.forEach(row => {
       const logic = row.querySelector('.filter-logic').value;
-      const type = row.querySelector('.filter-type').value;
       const keyword = row.querySelector('.filter-keyword').value.trim().toLowerCase();
+      // 현재 줄에서 켜져있는(.active) 버튼들의 data-val 값을 배열로 추출
+      const activeChips = Array.from(row.querySelectorAll('.filter-type-chips .label-chip.active'));
+      const types = activeChips.map(c => c.dataset.val);
+      
+      if (types.length === 0) {
+          alert("검색할 항목(일정, 기록 등)을 하나 이상 켜주세요.");
+          return;
+      }
       
       if (keyword) {
-        searchConditions.push({ logic, type, keyword });
+        searchConditions.push({ logic, types, keyword });
         allKeywords.push(keyword);
       }
     });
@@ -206,7 +245,7 @@ const SearchModule = {
         const eventSnap = await window.getUserCol('events').get();
         const scheduleSnap = await window.getUserCol('schedules').get();
         const journalSnap = await window.getUserCol('journals').get();
-        const taskSnap = await window.getUserCol('tasks').get(); // 💡 메모(tasks) 가져오기
+        const taskSnap = await window.getUserCol('tasks').get(); 
 
         const eventMap = {};
         eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
@@ -265,22 +304,34 @@ const SearchModule = {
             'subject': daySubjectText.join(' '),
             'memo': dayMemoText.join(' '),
             'supplies': daySuppliesText.join(' '),
-            'task': ''
+            'task': '' // 날짜에는 메모/할일이 없으므로 빈값
           };
 
           let isMatch = false;
           if (searchConditions.length > 0) {
-              let currentResult = checkMatch(textMap[searchConditions[0].type], searchConditions[0].keyword);
+              let currentResult = false;
               
+              // 첫 번째 조건 평가 (다중 항목 OR 연결)
+              searchConditions[0].types.forEach(t => {
+                  if (t === 'all') currentResult = currentResult || checkMatch(textMap['all'], searchConditions[0].keyword);
+                  else currentResult = currentResult || checkMatch(textMap[t], searchConditions[0].keyword);
+              });
+              
+              // 이후 조건들 AND/OR 평가
               for (let i = 1; i < searchConditions.length; i++) {
                   const cond = searchConditions[i];
                   const prevLogic = searchConditions[i - 1].logic;
-                  const matchThis = checkMatch(textMap[cond.type], cond.keyword);
+                  
+                  let matchThisCond = false;
+                  cond.types.forEach(t => {
+                      if (t === 'all') matchThisCond = matchThisCond || checkMatch(textMap['all'], cond.keyword);
+                      else matchThisCond = matchThisCond || checkMatch(textMap[t], cond.keyword);
+                  });
                   
                   if (prevLogic === 'AND') {
-                      currentResult = currentResult && matchThis;
+                      currentResult = currentResult && matchThisCond;
                   } else if (prevLogic === 'OR') {
-                      currentResult = currentResult || matchThis;
+                      currentResult = currentResult || matchThisCond;
                   }
               }
               isMatch = currentResult;
@@ -289,7 +340,7 @@ const SearchModule = {
           if (isMatch) matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
         });
 
-        // 2. 메모(tasks) 검색
+        // 2. 메모(tasks) 검색 로직 추가 (날짜와 무관하게 전체 메모 검색)
         const matchedTasks = [];
         taskList.forEach(task => {
           const taskText = [task.content, (task.labels || []).join(' ')].join(' ');
@@ -301,13 +352,23 @@ const SearchModule = {
 
           let isMatch = false;
           if (searchConditions.length > 0) {
-            let currentResult = checkMatch(taskTextMap[searchConditions[0].type], searchConditions[0].keyword);
+            let currentResult = false;
+            
+            searchConditions[0].types.forEach(t => {
+                if (t === 'all' || t === 'task') currentResult = currentResult || checkMatch(taskTextMap[t], searchConditions[0].keyword);
+            });
+            
             for (let i = 1; i < searchConditions.length; i++) {
               const cond = searchConditions[i];
               const prevLogic = searchConditions[i - 1].logic;
-              const matchThis = checkMatch(taskTextMap[cond.type], cond.keyword);
-              if (prevLogic === 'AND') currentResult = currentResult && matchThis;
-              else if (prevLogic === 'OR') currentResult = currentResult || matchThis;
+              
+              let matchThisCond = false;
+              cond.types.forEach(t => {
+                  if (t === 'all' || t === 'task') matchThisCond = matchThisCond || checkMatch(taskTextMap[t], cond.keyword);
+              });
+              
+              if (prevLogic === 'AND') currentResult = currentResult && matchThisCond;
+              else if (prevLogic === 'OR') currentResult = currentResult || matchThisCond;
             }
             isMatch = currentResult;
           }
