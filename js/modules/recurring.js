@@ -161,8 +161,8 @@ const RecurringEventModule = {
     if (!content) return alert("일정 내용을 입력해주세요.");
     if (!startStr || !endStr) return alert("시작 날짜와 종료 날짜를 모두 선택해주세요.");
 
-    const startDate = new Date(startStr);
-    const endDate = new Date(endStr);
+    const startDate = window.parseLocalDate(startStr);
+    const endDate = window.parseLocalDate(endStr);
     if (startDate > endDate) return alert("시작 날짜가 종료 날짜보다 늦을 수 없습니다.");
 
     const recType = document.querySelector('input[name="rec-type"]:checked').value;
