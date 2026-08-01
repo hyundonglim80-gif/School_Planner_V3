@@ -1,5 +1,3 @@
-// js/modules/search.js
-
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
@@ -131,7 +129,6 @@ const SearchModule = {
         ? `<button onclick="this.closest('.search-filter-row').remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
         : ``;
 
-    // 💡 엔터키 이벤트(onkeydown) 추가: 엔터를 치면 즉시 검색 실행
     filterRow.innerHTML = `
          <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
              <div class="filter-type-chips label-chip-container" style="margin:0; flex:1;">
@@ -301,7 +298,6 @@ const SearchModule = {
             let text = '';
             let items = [];
             
-            // 💡 [핵심] 일정을 개별 박스로 출력하기 위해 배열 형태(items)를 그대로 유지하며 저장
             if (data.eventList && Array.isArray(data.eventList)) {
                 items = data.eventList;
                 text = data.eventList.map(e => {
@@ -345,7 +341,7 @@ const SearchModule = {
           const dayJournals = journalMap[dateStr] || [];
           
           let daySubjectText = []; let dayMemoText = []; let daySuppliesText = [];
-          let dayJournalText = dayJournals.map(j => `[${j.label}] ${j.content}`).join(' ');
+          let dayJournalText = dayJournals.map(j => `[${j.label || ''}] ${j.content}`).join(' ');
 
           for (let p = 1; p <= maxPeriod; p++) {
             if (dayPeriods[p]) {
@@ -490,7 +486,7 @@ const SearchModule = {
               </div>
           `;
 
-          // 💡 [핵심 개선] 일정을 각각의 박스로 분리 출력하여 디자인 일관성 확보
+          // 💡 [수정] 라벨이 공백이거나 지워졌을 때 기형적으로 출력되는 문제 방지
           if (res.dayEventObj && res.dayEventObj.items && res.dayEventObj.items.length > 0) {
             res.dayEventObj.items.forEach(e => {
               if (!e.content) return;
@@ -501,7 +497,6 @@ const SearchModule = {
                   l = e.label;
               }
               
-              // getLabelStyle 함수를 이용하여 색상 동적 매칭 (없을 경우 기본 파란색 점선 박스 테마)
               const style = window.getLabelStyle ? window.getLabelStyle(l.split(',')[0], 'event') : { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' };
               
               let eText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
@@ -533,7 +528,14 @@ const SearchModule = {
               if (j.content || j.label) {
                 const style = window.getLabelStyle ? window.getLabelStyle(j.label, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
-                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(j.label)}):</div>`;
+                
+                // 💡 [수정] 기록 라벨이 없을 경우 "기록():" 로 뜨는 버그 수정
+                if (j.label && j.label !== '기타') {
+                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(j.label)}):</div>`;
+                } else {
+                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록:</div>`;
+                }
+                
                 jText += `<div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(j.content)}</div>`;
                 jText += `</div>`;
                 cardHtml += jText;
