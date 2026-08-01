@@ -10,6 +10,22 @@ window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false';
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
+// 🌙 다크 모드 초기화 설정
+window.isDarkMode = localStorage.getItem('workCalendar_darkMode') === 'true';
+if (window.isDarkMode) document.body.classList.add('dark-mode');
+
+window.toggleDarkMode = function() {
+    window.isDarkMode = !window.isDarkMode;
+    localStorage.setItem('workCalendar_darkMode', window.isDarkMode);
+    if (window.isDarkMode) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
+    }
+    const dropdown = document.getElementById('more-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+};
+
 // 💡 [핵심] 화면 이동 시 '무음 자동 저장(silent=true)' 처리 
 window.toggleWeekend = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
@@ -139,7 +155,7 @@ function updateTitle() {
   } else if (currentScope === 'year') { 
     titleEl.textContent = `${y}학년도`;
   } else if (currentScope === 'memo') { 
-    titleEl.textContent = "📋 업무 및 수업 체크리스트";
+    titleEl.textContent = "📋 할일 및 메모";
   }
 }
 
@@ -167,7 +183,6 @@ function updateButtonUI() {
     }
   });
 
-  // 💡 [신규 추가] 메모 화면에서는 <이전 / 제목 / 다음> 이 있는 header-bottom 줄 전체를 숨김
   const headerBottom = document.querySelector('.header-bottom');
   if (headerBottom) {
     headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
@@ -193,13 +208,13 @@ function updateButtonUI() {
 
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보기';
+    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보이기';
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
   const classBtn = document.getElementById('btn-toggle-class');
   if (classBtn) {
-    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보기';
+    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보이기';
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
