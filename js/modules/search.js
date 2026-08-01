@@ -239,11 +239,10 @@ const SearchModule = {
         const eventSnap = await window.getUserCol('events').get();
         const scheduleSnap = await window.getUserCol('schedules').get();
         const journalSnap = await window.getUserCol('journals').get();
-        
-        // 💡 2. 강력한 메모/할 일 수집기 (Omni-fetch Logic)
+        const taskSnap = await window.getUserCol('tasks').get(); 
+
         const taskList = [];
         const processMemoData = (doc, data) => {
-            // 구조가 배열로 들어있을 경우 (entries, tasks 등)
             const arrayFields = ['tasks', 'memos', 'entries', 'list', 'items'];
             let hasArray = false;
             for (let field of arrayFields) {
@@ -265,7 +264,6 @@ const SearchModule = {
                 }
             }
             
-            // 구조가 단일 문서 형태일 경우 (무조건 모든 문자열을 긁어옴)
             if (!hasArray) {
                 let contentParts = [];
                 if (data.content) contentParts.push(data.content);
@@ -273,7 +271,6 @@ const SearchModule = {
                 if (data.memo) contentParts.push(data.memo);
                 if (data.title) contentParts.push(data.title);
                 
-                // 정해진 필드 이름이 없다면 문자열인 데이터 전부 강제 수집
                 if (contentParts.length === 0) {
                     for (const key in data) {
                         if (typeof data[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
@@ -294,11 +291,10 @@ const SearchModule = {
             }
         };
 
-        // 컬렉션 이름이 'tasks'인지 'memos'인지 알 수 없으므로 양쪽 모두 강제 조회하여 안전성 확보
         try {
-            const taskSnap = await window.getUserCol('tasks').get();
             taskSnap.forEach(doc => processMemoData(doc, doc.data()));
         } catch(e) {}
+        
         try {
             const memoSnap = await window.getUserCol('memos').get();
             memoSnap.forEach(doc => processMemoData(doc, doc.data()));
@@ -308,7 +304,6 @@ const SearchModule = {
         eventSnap.forEach(doc => { 
             const data = doc.data();
             let text = '';
-            // 💡 3. 배열 형태에서 저장된 빈 괄호 및 데이터 정리
             if (data.eventList && Array.isArray(data.eventList)) {
                 text = data.eventList.map(e => {
                     let l = '';
@@ -322,7 +317,6 @@ const SearchModule = {
             } else {
                 text = data.eventText || '';
             }
-            // 클라우드에 잘못 저장된 불필요한 '[] ' 찌꺼기를 화면 표시 전 완벽 제거!
             text = text.replace(/\[\]\s*/g, '').trim(); 
             eventMap[doc.id] = text; 
         });
@@ -495,9 +489,13 @@ const SearchModule = {
               </div>
           `;
 
-          // 💡 3. 화면 표시 시 '[일정]' 같은 접두어를 완전히 제거, 자연스럽게 출력되도록 수정
+          // 💡 [핵심] 일정도 기록과 동일하게 점선 박스 형태 레이아웃 적용
           if (res.dayEvent) {
-            cardHtml += `<div style="margin-bottom:6px; color:#0369a1; font-weight:bold;">일정: <span style="font-weight:normal; color:#334155;">${highlight(res.dayEvent)}</span></div>`;
+            let eText = `<div style="display:flex; flex-direction:column; background:#f0f9ff; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #bae6fd;">`;
+            eText += `<div style="font-weight:bold; color:#0369a1; margin-bottom:4px;">일정:</div>`;
+            eText += `<div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(res.dayEvent)}</div>`;
+            eText += `</div>`;
+            cardHtml += eText;
           }
 
           for (let p = 1; p <= maxPeriod; p++) {
