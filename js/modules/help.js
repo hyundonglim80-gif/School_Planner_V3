@@ -7,8 +7,9 @@ const HelpModule = {
     return `
       <div class="modal-help-container">
         
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1;">
-            <label style="cursor: pointer; font-size: 0.95rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: #1e40af; font-weight: bold;">📖 사용 설명서 및 핵심 기능 안내</h3>
+            <label style="cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
                 <input type="checkbox" id="chk-hide-help" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;"> 
                 이 창을 다시 보지 않기
             </label>
@@ -58,24 +59,33 @@ const HelpModule = {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
         id: 'help-modal-v4', 
-        title: '📖 사용 설명서 및 핵심 기능 안내',
+        title: '📖 사용 설명서',
         width: '650px',
         content: this.getContentHTML(),
         onClose: () => {
           const chk = document.getElementById('chk-hide-help');
           if (chk && chk.checked) {
-            localStorage.setItem('workCalendar_hideHelp_v4', 'true'); // v4 버전으로 저장
+            localStorage.setItem('workCalendar_hideHelp_v4', 'true');
           } else {
-            localStorage.removeItem('workCalendar_hideHelp_v4'); // 체크 해제 시 다시 보이게
+            localStorage.removeItem('workCalendar_hideHelp_v4');
           }
         }
       });
     }
     
     this.modalInstance.open();
+    
     const chk = document.getElementById('chk-hide-help');
     if (chk) {
       chk.checked = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
+      // 💡 클릭 즉시 저장소에 즉각 반영되도록 이벤트 추가
+      chk.onchange = () => {
+        if (chk.checked) {
+          localStorage.setItem('workCalendar_hideHelp_v4', 'true');
+        } else {
+          localStorage.removeItem('workCalendar_hideHelp_v4');
+        }
+      };
     }
   }
 };
