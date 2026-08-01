@@ -16,7 +16,8 @@ class WeekView extends window.BaseView {
     const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
     
     for (let i = 0; i < 7; i++) {
-      if (!this.isWeekendVisible && (i === 0 || i === 6)) {
+      // 💡 [핵심 버그 수정] this.isWeekendVisible이 아닌 전역 변수 window.showWeekend를 참조하도록 수정
+      if (!window.showWeekend && (i === 0 || i === 6)) {
         tempDate.setDate(tempDate.getDate() + 1);
         continue;
       }
@@ -238,7 +239,8 @@ class WeekView extends window.BaseView {
   async save() {
     for (const d of this.getWeekDates()) {
       const rawList = window[`tempEvents_${d.dateStr}`] || [];
-      const validEvents = rawList.filter(e => e.content.trim() !== '');
+      // 💡 [핵심 버그 수정] 내용이 비어 있어도 라벨(태그)이 하나라도 체크되어 있다면 날아가지 않고 저장되도록 수정
+      const validEvents = rawList.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
       const cleanEventText = window.formatEventListToText(validEvents);
 
       await window.getUserCol('events').doc(d.dateStr).set({
