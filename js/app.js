@@ -167,6 +167,12 @@ function updateButtonUI() {
     }
   });
 
+  // 💡 [신규 추가] 메모 화면에서는 <이전 / 제목 / 다음> 이 있는 header-bottom 줄 전체를 숨김
+  const headerBottom = document.querySelector('.header-bottom');
+  if (headerBottom) {
+    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
+  }
+
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
