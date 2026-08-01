@@ -10,22 +10,6 @@ window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false';
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
-// 🌙 다크 모드 초기화 설정
-window.isDarkMode = localStorage.getItem('workCalendar_darkMode') === 'true';
-if (window.isDarkMode) document.body.classList.add('dark-mode');
-
-window.toggleDarkMode = function() {
-    window.isDarkMode = !window.isDarkMode;
-    localStorage.setItem('workCalendar_darkMode', window.isDarkMode);
-    if (window.isDarkMode) {
-        document.body.classList.add('dark-mode');
-    } else {
-        document.body.classList.remove('dark-mode');
-    }
-    const dropdown = document.getElementById('more-dropdown');
-    if (dropdown) dropdown.classList.add('hidden');
-};
-
 // 💡 [핵심] 화면 이동 시 '무음 자동 저장(silent=true)' 처리 
 window.toggleWeekend = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
@@ -196,14 +180,16 @@ function updateButtonUI() {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
+  // 💡 검색 버튼: 메모 탭 포함 항상 노출
   const searchBtn = document.getElementById('btn-search');
   if (searchBtn) {
-    searchBtn.style.display = (currentScope !== 'memo') ? 'inline-block' : 'none';
+    searchBtn.style.display = 'inline-block';
   }
 
+  // 💡 더보기(점 세개) 버튼: 메모 탭 포함 항상 노출
   const moreBtn = document.getElementById('btn-more-menu');
   if (moreBtn) {
-    moreBtn.style.display = (currentScope !== 'memo') ? 'inline-flex' : 'none';
+    moreBtn.style.display = 'inline-flex';
   }
 
   const weekendBtn = document.getElementById('btn-toggle-weekend');
@@ -222,7 +208,7 @@ function updateButtonUI() {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
     if (currentMode === 'viewer') {
-      editorBtn.innerHTML = '✏️ 수정';
+      editorBtn.innerHTML = '수정';
       editorBtn.title = '단축키: Ctrl + ↓';
       editorBtn.className = 'btn-mode';
     } else {
@@ -253,14 +239,11 @@ window.saveCurrentViewData = async function(silent = false) {
   if (editorBtn && !silent) {
     editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
-          try {
-            // 💡 해결: v4로 일치시켜줍니다!
-            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4'); 
-            if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
-              window.openHelpModal();
-            }
-          } catch(e) {}
-    }, 500);
+      if (currentMode === 'editor') {
+        editorBtn.innerHTML = '💾 저장';
+        editorBtn.disabled = false;
+      }
+    }, 1500); 
   }
   
   window.hasUnsavedChanges = false; 
@@ -313,7 +296,8 @@ window.addEventListener('DOMContentLoaded', () => {
         
         setTimeout(() => {
           try {
-            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
+            // 💡 [수정] v4 버전 키와 정확하게 일치시켜 새로고침 시 원치 않는 팝업 방지
+            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4');
             if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
               window.openHelpModal();
             }
