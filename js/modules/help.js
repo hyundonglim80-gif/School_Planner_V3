@@ -5,16 +5,7 @@ const HelpModule = {
   
   getContentHTML: function() {
     return `
-      <div class="modal-help-container">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1;">
-            <h3 style="margin: 0; font-size: 1.1rem; color: #1e40af; font-weight: bold;">📖 사용 설명서 및 핵심 기능 안내</h3>
-            <label style="cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
-                <input type="checkbox" id="chk-hide-help" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;"> 
-                이 창을 다시 보지 않기
-            </label>
-        </div>
-
+      <div class="modal-help-container" style="padding-top: 5px;">
         <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>Ctrl + 방향키(좌/우):</strong> 이전/다음 날짜(또는 주, 월)로 빠르게 이동</li>
@@ -62,30 +53,37 @@ const HelpModule = {
         title: '📖 사용 설명서',
         width: '650px',
         content: this.getContentHTML(),
-        onClose: () => {
-          const chk = document.getElementById('chk-hide-help');
-          if (chk && chk.checked) {
-            localStorage.setItem('workCalendar_hideHelp_v4', 'true');
-          } else {
-            localStorage.removeItem('workCalendar_hideHelp_v4');
-          }
-        }
       });
     }
     
     this.modalInstance.open();
     
-    const chk = document.getElementById('chk-hide-help');
-    if (chk) {
-      chk.checked = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
-      // 💡 클릭 즉시 저장소에 즉각 반영되도록 이벤트 추가
-      chk.onchange = () => {
-        if (chk.checked) {
-          localStorage.setItem('workCalendar_hideHelp_v4', 'true');
-        } else {
-          localStorage.removeItem('workCalendar_hideHelp_v4');
+    // 💡 [핵심] 모달창이 열린 직후, 제목줄(header)을 찾아 X버튼 왼쪽에 체크박스 삽입
+    const modalEl = document.getElementById('help-modal-v4');
+    if (modalEl) {
+        const header = modalEl.querySelector('.modal-header');
+        // 아직 체크박스가 안 들어갔다면 추가
+        if (header && !document.getElementById('chk-hide-help')) {
+            const chkContainer = document.createElement('div');
+            // 제목과 X버튼 사이 우측으로 정렬
+            chkContainer.style.cssText = "display:flex; align-items:center; margin-right:15px; margin-left:auto;";
+            chkContainer.innerHTML = `
+                <label style="cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
+                    <input type="checkbox" id="chk-hide-help" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;"> 
+                    이 창을 다시 보지 않기
+                </label>
+            `;
+            const closeBtn = header.querySelector('.btn-close-modal');
+            header.insertBefore(chkContainer, closeBtn);
+
+            // 이벤트 바인딩
+            const chk = document.getElementById('chk-hide-help');
+            chk.checked = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
+            chk.onchange = () => {
+                if (chk.checked) localStorage.setItem('workCalendar_hideHelp_v4', 'true');
+                else localStorage.removeItem('workCalendar_hideHelp_v4');
+            };
         }
-      };
     }
   }
 };
