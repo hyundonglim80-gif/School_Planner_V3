@@ -253,11 +253,14 @@ window.saveCurrentViewData = async function(silent = false) {
   if (editorBtn && !silent) {
     editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
-      if (currentMode === 'editor') {
-        editorBtn.innerHTML = '💾 저장';
-        editorBtn.disabled = false;
-      }
-    }, 1500); 
+          try {
+            // 💡 해결: v4로 일치시켜줍니다!
+            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4'); 
+            if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
+              window.openHelpModal();
+            }
+          } catch(e) {}
+    }, 500);
   }
   
   window.hasUnsavedChanges = false; 
