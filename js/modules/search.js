@@ -161,8 +161,8 @@ const SearchModule = {
       const endStr = document.getElementById('search-end-date').value;
       if (!startStr || !endStr) { alert('검색할 시작 날짜와 종료 날짜를 모두 지정해주세요.'); return []; }
       
-      let curDate = new Date(startStr);
-      const endDate = new Date(endStr);
+      let curDate = window.parseLocalDate(startStr);
+      const endDate = window.parseLocalDate(endStr);
       if (curDate > endDate) { alert('시작 날짜가 종료 날짜보다 늦을 수 없습니다.'); return []; }
       
       while (curDate <= endDate) {
@@ -341,7 +341,10 @@ const SearchModule = {
           const dayJournals = journalMap[dateStr] || [];
           
           let daySubjectText = []; let dayMemoText = []; let daySuppliesText = [];
-          let dayJournalText = dayJournals.map(j => `[${j.label || ''}] ${j.content}`).join(' ');
+          let dayJournalText = dayJournals.map(j => {
+            let l = (j.labels && j.labels.length > 0) ? j.labels.join(', ') : (j.label || '');
+            return `[${l}] ${j.content}`;
+          }).join(' ');
 
           for (let p = 1; p <= maxPeriod; p++) {
             if (dayPeriods[p]) {
@@ -475,7 +478,7 @@ const SearchModule = {
 
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         matchedResults.forEach(res => {
-          const dObj = new Date(res.dateStr);
+          const dObj = window.parseLocalDate(res.dateStr);
           const dayName = dayNames[dObj.getDay()];
           const dateColor = dObj.getDay() === 0 ? '#ef4444' : dObj.getDay() === 6 ? '#3b82f6' : '#1e40af';
 
@@ -525,13 +528,18 @@ const SearchModule = {
           
           if (res.dayJournals && res.dayJournals.length > 0) {
             res.dayJournals.forEach(j => {
-              if (j.content || j.label) {
-                const style = window.getLabelStyle ? window.getLabelStyle(j.label, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+              if (j.content || (j.labels && j.labels.length > 0) || j.label) {
+                let l = '';
+                if (j.labels && j.labels.length > 0) l = j.labels.join(', ');
+                else if (j.label) l = j.label;
+                
+                let mainLabel = l ? l.split(',')[0] : '기타';
+                const style = window.getLabelStyle ? window.getLabelStyle(mainLabel, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+                
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
                 
-                // 💡 [수정] 기록 라벨이 없을 경우 "기록():" 로 뜨는 버그 수정
-                if (j.label && j.label !== '기타') {
-                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(j.label)}):</div>`;
+                if (l && l !== '기타') {
+                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(l)}):</div>`;
                 } else {
                     jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록:</div>`;
                 }
