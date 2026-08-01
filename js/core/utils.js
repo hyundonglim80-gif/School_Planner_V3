@@ -4,6 +4,16 @@
 // 🛠️ 공통 유틸리티 및 데이터 가공 (Labels & Format) 엔진
 // ==========================================================================
 
+// 추가할 함수
+window.parseLocalDate = function(dateString) {
+  if (!dateString) return new Date();
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+  return new Date(dateString);
+};
+
 window.formatDate = function(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
