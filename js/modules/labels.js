@@ -1,5 +1,3 @@
-// js/modules/labels.js
-
 const LabelManager = {
   eventModal: null,
   journalModal: null,
@@ -103,7 +101,7 @@ const LabelManager = {
       <div class="modal-info-box">
           <p style="margin:0;">
               <strong>[일정 라벨]</strong> 왼쪽의 '≡' 아이콘을 드래그하여 순서를 바꾸거나, 이름을 클릭해 바로 수정할 수 있습니다.<br>
-              수정되거나 삭제된 라벨을 사용 중이던 기존 일정은 라벨이 모두 <strong>해제</strong>됩니다.
+              수정되거나 삭제된 라벨을 사용 중이던 기존 일정은 자동으로 새 라벨로 <strong>변경되거나 해제</strong>됩니다.
           </p>
       </div>
       <div id="event-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -137,7 +135,8 @@ const LabelManager = {
         content: this.getEventContentHTML()
       });
     }
-    window.tempEditingLabels = JSON.parse(JSON.stringify(window.getEventLabels()));
+    // 💡 [핵심] 기존 이름을 추적하여 덮어씌울 수 있도록 originalName 추가
+    window.tempEditingLabels = window.getEventLabels().map(l => ({...l, originalName: l.name}));
     this.eventModal.open();
     this.renderEventLabels();
   },
@@ -191,7 +190,7 @@ const LabelManager = {
     if (!name) return alert("라벨 이름을 입력하세요.");
     if (window.tempEditingLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingLabels.push({ name: name, isSkip: skipCheck.checked, color: color });
+    window.tempEditingLabels.push({ name: name, isSkip: skipCheck.checked, color: color, originalName: null });
     nameInput.value = '';
     skipCheck.checked = false;
     this.renderEventLabels();
@@ -202,15 +201,27 @@ const LabelManager = {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    // 💡 변경된 이름 추적 맵 생성
+    const renameMap = {};
+    window.tempEditingLabels.forEach(l => {
+        if (l.originalName && l.originalName !== l.name) {
+            renameMap[l.originalName] = l.name;
+        }
+    });
+
+    const newLabels = window.tempEditingLabels.map(l => l.name);
     const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getEventLabels ? window.getEventLabels().map(l=>l.name) : []);
     
-    const newLabels = window.tempEditingLabels.map(l => l.name);
-    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
+    // 완전히 삭제된 라벨 찾기 (이름 변경 대상 제외)
+    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
-    localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(window.tempEditingLabels));
+    // LocalStorage 저장용 데이터 정제 (originalName 제거)
+    const dataToSave = window.tempEditingLabels.map(({originalName, ...rest}) => rest);
+    localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
     
-    if (deletedLabels.length > 0) {
+    // 💡 변경 사항이 있거나 완전 삭제된 항목이 있을 때만 클라우드 업데이트 실행
+    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
         btn.textContent = "클라우드 갱신 중...";
@@ -234,10 +245,22 @@ const LabelManager = {
                 list.forEach(ev => {
                     let evLabels = ev.labels || (ev.label ? [ev.label] : []);
                     const originalLength = evLabels.length;
+                    let changedThisEv = false;
                     
-                    evLabels = evLabels.filter(l => newLabels.includes(l));
+                    // 1. 이름이 바뀐 라벨 적용
+                    evLabels = evLabels.map(l => {
+                        if (renameMap[l]) { changedThisEv = true; return renameMap[l]; }
+                        return l;
+                    });
                     
-                    if (evLabels.length !== originalLength) {
+                    // 2. 삭제된 라벨 제거
+                    const filteredLabels = evLabels.filter(l => !deletedLabels.includes(l));
+                    if (filteredLabels.length !== evLabels.length) {
+                        changedThisEv = true;
+                        evLabels = filteredLabels;
+                    }
+                    
+                    if (changedThisEv || evLabels.length !== originalLength) {
                         ev.labels = evLabels;
                         ev.label = evLabels[0] || ''; 
                         changed = true;
@@ -278,7 +301,7 @@ const LabelManager = {
       <div class="modal-info-box journal">
           <p style="margin:0;">
               <strong>[기록 라벨]</strong> 왼쪽 '≡' 아이콘을 끌어서 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
-              삭제/수정된 라벨을 쓰던 기존 기록은 라벨이 <strong>해제</strong>됩니다.
+              수정되거나 삭제된 라벨을 사용 중이던 기존 기록은 자동으로 새 라벨로 <strong>변경되거나 해제</strong>됩니다.
           </p>
       </div>
       <div id="journal-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -309,7 +332,7 @@ const LabelManager = {
         content: this.getJournalContentHTML()
       });
     }
-    window.tempEditingJournalLabels = JSON.parse(JSON.stringify(window.getJournalLabels()));
+    window.tempEditingJournalLabels = window.getJournalLabels().map(l => ({...l, originalName: l.name}));
     this.journalModal.open();
     this.renderJournalLabels();
   },
@@ -355,7 +378,7 @@ const LabelManager = {
     if (!name) return alert("라벨 이름을 입력하세요.");
     if (window.tempEditingJournalLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingJournalLabels.push({ name: name, color: color });
+    window.tempEditingJournalLabels.push({ name: name, color: color, originalName: null });
     nameInput.value = '';
     this.renderJournalLabels();
   },
@@ -365,14 +388,22 @@ const LabelManager = {
         if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    const renameMap = {};
+    window.tempEditingJournalLabels.forEach(l => {
+        if (l.originalName && l.originalName !== l.name) {
+            renameMap[l.originalName] = l.name;
+        }
+    });
+
+    const newLabels = window.tempEditingJournalLabels.map(l => l.name);
     const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
     const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getJournalLabels ? window.getJournalLabels().map(l=>l.name) : []);
-    const newLabels = window.tempEditingJournalLabels.map(l => l.name);
-    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
+    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
-    localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(window.tempEditingJournalLabels));
+    const dataToSave = window.tempEditingJournalLabels.map(({originalName, ...rest}) => rest);
+    localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
     
-    if (deletedLabels.length > 0) {
+    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
         btn.textContent = "클라우드 갱신 중...";
@@ -392,11 +423,20 @@ const LabelManager = {
                 list.forEach(j => {
                     let jLabels = j.labels || (j.label ? [j.label] : []);
                     const originalLength = jLabels.length;
+                    let changedThisEv = false;
                     
-                    // 새 목록에 없는 라벨 삭제
-                    jLabels = jLabels.filter(l => newLabels.includes(l));
+                    jLabels = jLabels.map(l => {
+                        if (renameMap[l]) { changedThisEv = true; return renameMap[l]; }
+                        return l;
+                    });
                     
-                    if (jLabels.length !== originalLength) {
+                    const filteredLabels = jLabels.filter(l => !deletedLabels.includes(l));
+                    if (filteredLabels.length !== jLabels.length) {
+                        changedThisEv = true;
+                        jLabels = filteredLabels;
+                    }
+                    
+                    if (changedThisEv || jLabels.length !== originalLength) {
                         j.labels = jLabels;
                         j.label = jLabels[0] || '';
                         changed = true;
@@ -447,7 +487,7 @@ const LabelManager = {
       <div class="modal-info-box" style="background: #ecfdf5; border-left-color: #10b981; color: #065f46;">
           <p style="margin:0;">
               <strong>[메모 라벨]</strong> 메모를 분류할 태그(Chip)들을 관리합니다.<br>
-              왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 수정할 수 있습니다. 삭제된 라벨은 기존 메모에서도 <strong>해제</strong>됩니다.
+              왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 수정할 수 있습니다. 수정/삭제된 라벨은 기존 메모에서도 <strong>변경/해제</strong>됩니다.
           </p>
       </div>
       <div id="memo-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -478,7 +518,7 @@ const LabelManager = {
         content: this.getMemoContentHTML()
       });
     }
-    window.tempEditingMemoLabels = JSON.parse(JSON.stringify(this.getMemoLabels()));
+    window.tempEditingMemoLabels = this.getMemoLabels().map(l => ({...l, originalName: l.name}));
     this.memoModal.open();
     this.renderMemoLabels();
   },
@@ -524,7 +564,7 @@ const LabelManager = {
     if (!name) return alert("라벨 이름을 입력하세요.");
     if (window.tempEditingMemoLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingMemoLabels.push({ name: name, color: color });
+    window.tempEditingMemoLabels.push({ name: name, color: color, originalName: null });
     nameInput.value = '';
     this.renderMemoLabels();
   },
@@ -534,6 +574,14 @@ const LabelManager = {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
+    const renameMap = {};
+    window.tempEditingMemoLabels.forEach(l => {
+        if (l.originalName && l.originalName !== l.name) {
+            renameMap[l.originalName] = l.name;
+        }
+    });
+
+    const newLabels = window.tempEditingMemoLabels.map(l => l.name);
     const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
     let oldLabels = [];
     if (oldLabelsData && oldLabelsData.length > 0) {
@@ -542,12 +590,12 @@ const LabelManager = {
         oldLabels = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
     }
     
-    const newLabels = window.tempEditingMemoLabels.map(l => l.name);
-    const deletedLabels = oldLabels.filter(l => !newLabels.includes(l));
+    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
-    localStorage.setItem('workCalendar_memoLabels', JSON.stringify(window.tempEditingMemoLabels));
+    const dataToSave = window.tempEditingMemoLabels.map(({originalName, ...rest}) => rest);
+    localStorage.setItem('workCalendar_memoLabels', JSON.stringify(dataToSave));
     
-    if (deletedLabels.length > 0) {
+    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
         btn.textContent = "클라우드 갱신 중...";
@@ -561,14 +609,22 @@ const LabelManager = {
 
             snap.forEach(doc => {
                 const data = doc.data();
-                let changed = false;
                 let mLabels = data.labels || (data.label ? [data.label] : []);
                 const origLen = mLabels.length;
+                let changedThis = false;
 
-                // 새 설정에 존재하지 않는 라벨은 메모에서 해제 처리
-                mLabels = mLabels.filter(l => newLabels.includes(l));
+                mLabels = mLabels.map(l => {
+                    if (renameMap[l]) { changedThis = true; return renameMap[l]; }
+                    return l;
+                });
 
-                if (mLabels.length !== origLen) {
+                const filtered = mLabels.filter(l => !deletedLabels.includes(l));
+                if (filtered.length !== mLabels.length) {
+                    changedThis = true;
+                    mLabels = filtered;
+                }
+
+                if (changedThis) {
                     batch.update(doc.ref, { labels: mLabels, updatedAt: Date.now() });
                     opCount++;
                     if (opCount >= 400) {
