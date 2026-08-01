@@ -7,6 +7,12 @@ const HelpModule = {
     return `
       <div class="modal-help-container">
         
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1;">
+            <label style="cursor: pointer; font-size: 0.95rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
+                <input type="checkbox" id="chk-hide-help" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;"> 
+                이 창을 다시 보지 않기
+            </label>
+        </div>
 
         <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
@@ -32,25 +38,18 @@ const HelpModule = {
           <li><strong>🔄 수업 교환 (일간 보기):</strong> '일(Day)' 보기 수정 화면에서 교시명(예: 1교시)을 클릭하면, 다른 날짜나 시간의 수업과 서로 내용을 간편하게 맞바꿀 수 있습니다.</li>
         </ul>
 
-        <h3 class="modal-help-title">🏷️ 라벨 커스텀 및 '기록(구 일지)'</h3>
+        <h3 class="modal-help-title">🏷️ 라벨 커스텀 및 '기록'</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>명칭 변경:</strong> 기존의 '일지' 메뉴가 범용적인 활용을 위해 <strong>'기록'</strong>으로 변경되었습니다. 학급의 하루나 상담 내용을 자유롭게 남겨보세요.</li>
           <li><strong>수업 삭제 라벨:</strong> 일정 라벨 설정 시 <span style="color:#ef4444; font-weight:bold;">'수업삭제'</span>에 체크한 라벨(예: 휴일, 전일행사)을 등록하면 해당 날짜의 시간표 칸이 자동으로 비워집니다.</li>
           <li><strong>라벨 순서 변경:</strong> 모든 라벨 설정 모달창에서 왼쪽의 '≡' 아이콘을 드래그하여 나만의 순서대로 라벨을 재배치할 수 있습니다.</li>
         </ul>
 
-        <h3 class="modal-help-title">🔍 다중 조건 검색 및 💾 데이터 백업</h3>
+        <h3 class="modal-help-title">🔍 다중 조건 검색 및 💾 데이터 내보내기</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>고급 통합 검색:</strong> 단축키 [ / ]를 눌러 일정, 기록, 수업, 수업 메모 등 검색 분야를 지정하고 AND / OR 조건을 무한대로 엮어 원하는 데이터를 정확히 찾아냅니다.</li>
-          <li><strong>안전한 백업/복원:</strong> [일정 및 기록]은 물론, [메모 및 문서/링크] 데이터까지 언제든 엑셀(CSV) 파일로 안전하게 개인 PC에 다운로드하고 복원할 수 있습니다.</li>
+          <li><strong>안전한 백업/복원:</strong> [일정 및 기록]은 물론, [할일 및 메모] 데이터까지 언제든 엑셀(CSV) 파일로 안전하게 개인 PC에 다운로드하고 복원할 수 있습니다.</li>
         </ul>
-        
-        <div class="modal-help-footer">
-            <label class="modal-help-checkbox-label">
-                <input type="checkbox" id="chk-hide-help" class="modal-help-checkbox"> 
-                이 창을 다시 보지 않기
-            </label>
-        </div>
       </div>
     `;
   },
@@ -58,14 +57,16 @@ const HelpModule = {
   open: function() {
     if (!this.modalInstance) {
       this.modalInstance = new window.Modal({
-        id: 'help-modal-v4', // ID를 변경하여 업데이트된 설명서가 무조건 한 번 뜨게 유도
+        id: 'help-modal-v4', 
         title: '📖 사용 설명서 및 핵심 기능 안내',
         width: '650px',
         content: this.getContentHTML(),
         onClose: () => {
           const chk = document.getElementById('chk-hide-help');
           if (chk && chk.checked) {
-            localStorage.setItem('workCalendar_hideHelp_v4', 'true');
+            localStorage.setItem('workCalendar_hideHelp_v4', 'true'); // v4 버전으로 저장
+          } else {
+            localStorage.removeItem('workCalendar_hideHelp_v4'); // 체크 해제 시 다시 보이게
           }
         }
       });
