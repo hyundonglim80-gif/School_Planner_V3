@@ -319,9 +319,13 @@ async function syncMemosToGoogleTasks(token) {
     // 2. DB에서 모든 메모 로드 후 Tasks로 일괄 전송
     const webMemos = await window.dbAPI.loadMemos();
     for (const memo of webMemos) {
+        // 💡 [에러 방지] 내용이 비어있거나 없는(undefined) 메모에 대한 안전 장치 추가
+        const contentStr = memo.content || ""; 
+        const titleSnippet = contentStr ? contentStr.split('\n')[0].substring(0, 30) + "..." : "내용 없음";
+
         const payload = {
-            title: `[${memo.label || '일반'}] ${memo.content.split('\n')[0].substring(0, 30)}...`, // 첫 줄 30자 제목
-            notes: memo.content, // 전체 내용을 설명(메모)란에 삽입
+            title: `[${memo.label || '일반'}] ${titleSnippet}`, 
+            notes: contentStr, 
             status: memo.completed ? 'completed' : 'needsAction'
         };
         await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks`, 'POST', token, payload);
