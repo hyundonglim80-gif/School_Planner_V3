@@ -131,7 +131,6 @@ const SearchModule = {
         ? `<button onclick="this.closest('.search-filter-row').remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
         : ``;
 
-    // 💡 버튼 명칭(전체/메모/일정/기록/수업/메모(수업)/비고) 완벽 반영
     filterRow.innerHTML = `
          <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
              <div class="filter-type-chips label-chip-container" style="margin:0; flex:1;">
@@ -240,30 +239,99 @@ const SearchModule = {
         const eventSnap = await window.getUserCol('events').get();
         const scheduleSnap = await window.getUserCol('schedules').get();
         const journalSnap = await window.getUserCol('journals').get();
-        // 💡 모든 메모(체크/미체크 구분 없이)를 가져옵니다.
-        const taskSnap = await window.getUserCol('tasks').get(); 
+        
+        // 💡 2. 강력한 메모/할 일 수집기 (Omni-fetch Logic)
+        const taskList = [];
+        const processMemoData = (doc, data) => {
+            // 구조가 배열로 들어있을 경우 (entries, tasks 등)
+            const arrayFields = ['tasks', 'memos', 'entries', 'list', 'items'];
+            let hasArray = false;
+            for (let field of arrayFields) {
+                if (data[field] && Array.isArray(data[field])) {
+                    hasArray = true;
+                    data[field].forEach(item => {
+                        if (item) {
+                            const content = item.content || item.text || item.memo || item.title || '';
+                            if (content.trim()) {
+                                taskList.push({
+                                    id: item.id || doc.id,
+                                    content: content,
+                                    labels: item.labels || (item.label ? [item.label] : []),
+                                    completed: !!(item.completed || item.isDone || item.done || item.checked)
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // 구조가 단일 문서 형태일 경우 (무조건 모든 문자열을 긁어옴)
+            if (!hasArray) {
+                let contentParts = [];
+                if (data.content) contentParts.push(data.content);
+                if (data.text) contentParts.push(data.text);
+                if (data.memo) contentParts.push(data.memo);
+                if (data.title) contentParts.push(data.title);
+                
+                // 정해진 필드 이름이 없다면 문자열인 데이터 전부 강제 수집
+                if (contentParts.length === 0) {
+                    for (const key in data) {
+                        if (typeof data[key] === 'string' && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+                            contentParts.push(data[key]);
+                        }
+                    }
+                }
+                
+                const content = contentParts.join(' ');
+                if (content.trim()) {
+                    taskList.push({
+                        id: doc.id,
+                        content: content,
+                        labels: data.labels || (data.label ? [data.label] : []),
+                        completed: !!(data.completed || data.isDone || data.done || data.checked)
+                    });
+                }
+            }
+        };
+
+        // 컬렉션 이름이 'tasks'인지 'memos'인지 알 수 없으므로 양쪽 모두 강제 조회하여 안전성 확보
+        try {
+            const taskSnap = await window.getUserCol('tasks').get();
+            taskSnap.forEach(doc => processMemoData(doc, doc.data()));
+        } catch(e) {}
+        try {
+            const memoSnap = await window.getUserCol('memos').get();
+            memoSnap.forEach(doc => processMemoData(doc, doc.data()));
+        } catch(e) {}
 
         const eventMap = {};
-        eventSnap.forEach(doc => { eventMap[doc.id] = doc.data().eventText || ''; });
+        eventSnap.forEach(doc => { 
+            const data = doc.data();
+            let text = '';
+            // 💡 3. 배열 형태에서 저장된 빈 괄호 및 데이터 정리
+            if (data.eventList && Array.isArray(data.eventList)) {
+                text = data.eventList.map(e => {
+                    let l = '';
+                    if (e.labels && e.labels.length > 0 && e.labels[0] && e.labels[0] !== '기타') {
+                        l = `[${e.labels.join(',')}] `;
+                    } else if (e.label && e.label !== '기타') {
+                        l = `[${e.label}] `;
+                    }
+                    return `${l}${e.content}`;
+                }).join(' / ');
+            } else {
+                text = data.eventText || '';
+            }
+            // 클라우드에 잘못 저장된 불필요한 '[] ' 찌꺼기를 화면 표시 전 완벽 제거!
+            text = text.replace(/\[\]\s*/g, '').trim(); 
+            eventMap[doc.id] = text; 
+        });
         
         const scheduleMap = {};
         scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
         
         const journalMap = {};
         journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
-
-        const taskList = [];
-        taskSnap.forEach(doc => {
-          const data = doc.data();
-          if (data) {
-            taskList.push({
-              id: doc.id,
-              content: data.content || '',
-              labels: data.labels || (data.label ? [data.label] : []),
-              completed: !!data.completed // 💡 완료 여부 저장
-            });
-          }
-        });
 
         const targetDatesObj = this.getSearchTargetDates();
         const validDates = targetDatesObj.map(item => item.dateStr);
@@ -389,7 +457,6 @@ const SearchModule = {
           return;
         }
 
-        // 💡 1. 메모 검색 결과 출력 (완료 여부에 따라 줄긋기 및 텍스트 표시)
         if (matchedTasks.length > 0) {
           matchedTasks.forEach(task => {
             const labelsHtml = (task.labels || []).map(l => {
@@ -397,7 +464,6 @@ const SearchModule = {
               return `<span style="display:inline-block; font-weight:bold; color:${style.text}; background:${style.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.85rem; border:1px solid ${style.border};">${l}</span>`;
             }).join('');
 
-            // 완료된 메모는 글씨를 흐리게 하고 취소선을 그어줌
             const textStyle = task.completed ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;';
             const statusText = task.completed ? '[완료]' : '[진행 중]';
             const statusColor = task.completed ? '#64748b' : '#ef4444';
@@ -416,7 +482,6 @@ const SearchModule = {
           });
         }
 
-        // 💡 2. 일정/수업/기록 검색 결과 출력 (이모지 완전 제거)
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         matchedResults.forEach(res => {
           const dObj = new Date(res.dateStr);
@@ -430,17 +495,18 @@ const SearchModule = {
               </div>
           `;
 
+          // 💡 3. 화면 표시 시 '[일정]' 같은 접두어를 완전히 제거, 자연스럽게 출력되도록 수정
           if (res.dayEvent) {
-            cardHtml += `<div style="margin-bottom:6px; color:#0369a1; font-weight:bold;">[일정] <span style="font-weight:normal; color:#334155;">${highlight(res.dayEvent)}</span></div>`;
+            cardHtml += `<div style="margin-bottom:6px; color:#0369a1; font-weight:bold;">일정: <span style="font-weight:normal; color:#334155;">${highlight(res.dayEvent)}</span></div>`;
           }
 
           for (let p = 1; p <= maxPeriod; p++) {
             const pData = res.dayPeriods[p];
             if (pData && (pData.subject || pData.memo || pData.supplies)) {
               let pText = `<div style="display:flex; flex-direction:column; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #cbd5e1;">`;
-              pText += `<div style="font-weight:bold; color:#0f172a; margin-bottom:4px;">[${window.periodNames ? window.periodNames[p-1] : p+'교시'}] ${highlight(pData.subject)}</div>`;
-              if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">[메모(수업)] ${highlight(pData.memo)}</div>`;
-              if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">[비고] ${highlight(pData.supplies)}</div>`;
+              pText += `<div style="font-weight:bold; color:#0f172a; margin-bottom:4px;">${window.periodNames ? window.periodNames[p-1] : p+'교시'}: ${highlight(pData.subject)}</div>`;
+              if (pData.memo) pText += `<div style="font-size:0.9rem; color:#475569; margin-bottom:2px;">수업 메모: ${highlight(pData.memo)}</div>`;
+              if (pData.supplies) pText += `<div style="font-size:0.9rem; color:#b45309;">비고: ${highlight(pData.supplies)}</div>`;
               pText += `</div>`;
               cardHtml += pText;
             }
@@ -451,7 +517,7 @@ const SearchModule = {
               if (j.content || j.label) {
                 const style = window.getLabelStyle ? window.getLabelStyle(j.label, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
-                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">[기록: ${highlight(j.label)}]</div>`;
+                jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(j.label)}):</div>`;
                 jText += `<div style="font-size:0.95rem; color:#1e293b;">${highlight(j.content)}</div>`;
                 jText += `</div>`;
                 cardHtml += jText;
