@@ -5,51 +5,6 @@
   <meta name="viewport" content="width=1000">
   <title>업무 및 수업 계획표</title>
   <link rel="stylesheet" href="css/style.css?v=5">
-  
-  <style>
-    body.dark-mode {
-      --bg-body: #0f172a;
-      --bg-card: #1e293b;
-      --primary-color: #3b82f6;
-      background-color: var(--bg-body);
-      color: #f1f5f9;
-    }
-    body.dark-mode .app-header {
-      background: var(--bg-card);
-      border-bottom: 1px solid #334155;
-    }
-    body.dark-mode #login-screen { background: var(--bg-body); }
-    body.dark-mode #login-screen > div { background: var(--bg-card); color: #f1f5f9; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-    body.dark-mode .day-event-card, 
-    body.dark-mode .day-period-card, 
-    body.dark-mode .day-journal-section > div,
-    body.dark-mode .day-event-editor-section,
-    body.dark-mode .day-journal-editor-section,
-    body.dark-mode .event-entry-block,
-    body.dark-mode .journal-entry-block,
-    body.dark-mode .dropdown-menu {
-      background: var(--bg-card) !important;
-      border-color: #334155 !important;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
-    }
-    body.dark-mode .current-range, 
-    body.dark-mode .period-title,
-    body.dark-mode h1, 
-    body.dark-mode h3 { color: #f8fafc !important; }
-    body.dark-mode input, body.dark-mode textarea, body.dark-mode select {
-      background: #334155 !important;
-      color: #f8fafc !important;
-      border-color: #475569 !important;
-    }
-    body.dark-mode .nav-btn, body.dark-mode .btn-mode {
-      background: #334155 !important;
-      color: #f8fafc !important;
-      border-color: #475569 !important;
-    }
-    body.dark-mode td, body.dark-mode .editable-cell { border-color: #334155 !important; color: #cbd5e1 !important; }
-    body.dark-mode th { background: #334155 !important; color: #f8fafc !important; border-color: #334155 !important; }
-    body.dark-mode .modal-info-box { background: #334155 !important; border-color: #475569 !important; color: #f8fafc !important; }
-  </style>
 </head>
 <body>
 
@@ -70,6 +25,13 @@
         <h1>🗓️ 업무 및 수업 계획표</h1>
       </div>
       <div class="control-panel">
+        <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">🔍 검색</button>
+
+        <div class="mode-group">
+          <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
+          <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 80px; justify-content: center; white-space: nowrap;">수정</button>
+        </div>
+
         <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
           <button class="btn-scope" onclick="setScope('memo')">메모</button>
           <button class="btn-scope" onclick="setScope('year')">년간</button>
@@ -78,14 +40,10 @@
           <button class="btn-scope" onclick="setScope('day')">하루</button>
         </div>
         
-        <div class="mode-group" style="position: relative;">
-          <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">👁️ 뷰어</button>
-          <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 120px; justify-content: center; white-space: nowrap;">✏️ 수정</button>
-          
-          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="display: none; padding: 5px 10px; justify-content: center;" title="더보기 및 메뉴">⋮</button>
+        <div style="position: relative;">
+          <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 5px 10px; justify-content: center;" title="더보기 및 메뉴">⋮</button>
           
           <div id="more-dropdown" class="dropdown-menu hidden">
-              <button class="dropdown-item" onclick="toggleDarkMode()">🌙 다크 모드 (켜기/끄기)</button>
               <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">📝 메모 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openEventLabelModal()">🏷️ 일정 라벨 관리</button>
               <button class="dropdown-item" onclick="window.openJournalLabelModal()">📔 기록 라벨 관리</button>
@@ -106,9 +64,7 @@
     
     <div class="header-bottom">
       <div class="nav-bar" style="display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%;">
-        
         <div style="display: flex; gap: 8px;">
-          <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="display: none; background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">🔍 검색</button>
           <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">📅 주말 숨기기</button>
           <button class="nav-btn" id="btn-toggle-class" onclick="toggleClass()" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">🎒 수업 숨기기</button>
         </div>
