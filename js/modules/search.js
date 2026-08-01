@@ -131,6 +131,7 @@ const SearchModule = {
         ? `<button onclick="this.closest('.search-filter-row').remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0;">✖</button>`
         : ``;
 
+    // 💡 엔터키 이벤트(onkeydown) 추가: 엔터를 치면 즉시 검색 실행
     filterRow.innerHTML = `
          <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
              <div class="filter-type-chips label-chip-container" style="margin:0; flex:1;">
@@ -147,7 +148,7 @@ const SearchModule = {
                  ${deleteBtnHTML}
              </div>
          </div>
-         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 키워드 입력..." style="width:100%;">
+         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 키워드 입력 후 엔터(Enter)..." style="width:100%;" onkeydown="if(event.key === 'Enter') { SearchModule.executeSearch(); event.preventDefault(); }">
     `;
     container.appendChild(filterRow);
     this.filterIdCounter++;
@@ -232,7 +233,7 @@ const SearchModule = {
 
     const resultList = document.getElementById('search-results-area');
     const countText = document.getElementById('search-results-count');
-    resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; padding:30px;">클라우드에서 데이터를 분석 중입니다...</p>`;
+    resultList.innerHTML = `<p style="text-align:center; color:#64748b; font-weight:bold; padding:30px;">⏳ 클라우드에서 데이터를 분석 중입니다...</p>`;
     countText.innerText = '';
 
     try {
@@ -291,20 +292,18 @@ const SearchModule = {
             }
         };
 
-        try {
-            taskSnap.forEach(doc => processMemoData(doc, doc.data()));
-        } catch(e) {}
-        
-        try {
-            const memoSnap = await window.getUserCol('memos').get();
-            memoSnap.forEach(doc => processMemoData(doc, doc.data()));
-        } catch(e) {}
+        try { taskSnap.forEach(doc => processMemoData(doc, doc.data())); } catch(e) {}
+        try { const memoSnap = await window.getUserCol('memos').get(); memoSnap.forEach(doc => processMemoData(doc, doc.data())); } catch(e) {}
 
         const eventMap = {};
         eventSnap.forEach(doc => { 
             const data = doc.data();
             let text = '';
+            let items = [];
+            
+            // 💡 [핵심] 일정을 개별 박스로 출력하기 위해 배열 형태(items)를 그대로 유지하며 저장
             if (data.eventList && Array.isArray(data.eventList)) {
+                items = data.eventList;
                 text = data.eventList.map(e => {
                     let l = '';
                     if (e.labels && e.labels.length > 0 && e.labels[0] && e.labels[0] !== '기타') {
@@ -316,9 +315,10 @@ const SearchModule = {
                 }).join(' / ');
             } else {
                 text = data.eventText || '';
+                if(text) items = [{content: text, labels: []}];
             }
             text = text.replace(/\[\]\s*/g, '').trim(); 
-            eventMap[doc.id] = text; 
+            eventMap[doc.id] = { text: text, items: items }; 
         });
         
         const scheduleMap = {};
@@ -339,7 +339,8 @@ const SearchModule = {
         const maxPeriod = window.periodNames ? window.periodNames.length : 6;
 
         validDates.forEach(dateStr => {
-          const dayEvent = eventMap[dateStr] || '';
+          const dayEventObj = eventMap[dateStr] || {text: '', items: []};
+          const dayEvent = dayEventObj.text;
           const dayPeriods = scheduleMap[dateStr] || {};
           const dayJournals = journalMap[dateStr] || [];
           
@@ -392,7 +393,7 @@ const SearchModule = {
               isMatch = currentResult;
           }
 
-          if (isMatch) matchedResults.push({ dateStr, dayEvent, dayPeriods, dayJournals });
+          if (isMatch) matchedResults.push({ dateStr, dayEventObj, dayPeriods, dayJournals });
         });
 
         const matchedTasks = [];
@@ -489,13 +490,30 @@ const SearchModule = {
               </div>
           `;
 
-          // 💡 [핵심] 일정도 기록과 동일하게 점선 박스 형태 레이아웃 적용
-          if (res.dayEvent) {
-            let eText = `<div style="display:flex; flex-direction:column; background:#f0f9ff; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed #bae6fd;">`;
-            eText += `<div style="font-weight:bold; color:#0369a1; margin-bottom:4px;">일정:</div>`;
-            eText += `<div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(res.dayEvent)}</div>`;
-            eText += `</div>`;
-            cardHtml += eText;
+          // 💡 [핵심 개선] 일정을 각각의 박스로 분리 출력하여 디자인 일관성 확보
+          if (res.dayEventObj && res.dayEventObj.items && res.dayEventObj.items.length > 0) {
+            res.dayEventObj.items.forEach(e => {
+              if (!e.content) return;
+              let l = '';
+              if (e.labels && e.labels.length > 0 && e.labels[0] && e.labels[0] !== '기타') {
+                  l = e.labels.join(', ');
+              } else if (e.label && e.label !== '기타') {
+                  l = e.label;
+              }
+              
+              // getLabelStyle 함수를 이용하여 색상 동적 매칭 (없을 경우 기본 파란색 점선 박스 테마)
+              const style = window.getLabelStyle ? window.getLabelStyle(l.split(',')[0], 'event') : { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' };
+              
+              let eText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
+              if (l) {
+                  eText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">일정(${highlight(l)}):</div>`;
+              } else {
+                  eText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">일정:</div>`;
+              }
+              eText += `<div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(e.content)}</div>`;
+              eText += `</div>`;
+              cardHtml += eText;
+            });
           }
 
           for (let p = 1; p <= maxPeriod; p++) {
@@ -516,7 +534,7 @@ const SearchModule = {
                 const style = window.getLabelStyle ? window.getLabelStyle(j.label, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
                 jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(j.label)}):</div>`;
-                jText += `<div style="font-size:0.95rem; color:#1e293b;">${highlight(j.content)}</div>`;
+                jText += `<div style="font-size:0.95rem; color:#1e293b; white-space:pre-wrap;">${highlight(j.content)}</div>`;
                 jText += `</div>`;
                 cardHtml += jText;
               }
