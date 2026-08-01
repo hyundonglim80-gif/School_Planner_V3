@@ -51,10 +51,21 @@ window.handleEditSaveClick = function() {
 
 window.moveDate = async function(dir) {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
-  else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  else if (currentScope === 'month') window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-  else if (currentScope === 'year') window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  
+  if (currentScope === 'day') {
+      window.currentDate.setDate(window.currentDate.getDate() + dir);
+  } else if (currentScope === 'week') {
+      window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+  } else if (currentScope === 'month') {
+      // 💡 [핵심 버그 수정] 월(Month) 이동 시 31일 -> 30일 달로 이동할 때 날짜가 1일로 튀는 현상(롤오버) 완벽 방지
+      const currentDay = window.currentDate.getDate();
+      window.currentDate.setMonth(window.currentDate.getMonth() + dir);
+      if (window.currentDate.getDate() < currentDay) {
+          window.currentDate.setDate(0); 
+      }
+  } else if (currentScope === 'year') {
+      window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  }
   window.render();
 };
 
@@ -201,7 +212,6 @@ function updateButtonUI() {
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
-  // 💡 버튼 명칭 '작성' 적용
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
