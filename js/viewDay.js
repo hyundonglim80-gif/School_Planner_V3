@@ -455,7 +455,8 @@ class DayView extends window.BaseView {
     const dateStr = this.dateStr;
 
     this.syncEventInputs();
-    const validEvents = this.currentEvents.filter(e => e.content.trim() !== '');
+    // 💡 [핵심 버그 수정] 내용이 비어 있어도 라벨(태그)이 하나라도 체크되어 있다면 날아가지 않고 저장되도록 수정
+    const validEvents = this.currentEvents.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
     
     const eventTextForLegacy = validEvents.map(e => {
        const labels = e.labels && e.labels.length > 0 ? e.labels.map(l => `[${l}]`).join(' ') : '';
@@ -492,7 +493,8 @@ class DayView extends window.BaseView {
     await window.dbAPI.saveSchedule(dateStr, periodsData);
     
     this.syncJournalInputs();
-    const validJournals = this.currentJournals.filter(j => j.content.trim() !== '');
+    // 💡 [핵심 버그 수정] 기록 역시 라벨만 지정해두면 저장되도록 수정
+    const validJournals = this.currentJournals.filter(j => j.content.trim() !== '' || (j.labels && j.labels.length > 0));
     await window.getUserCol('journals').doc(dateStr).set({ entries: validJournals, updatedAt: Date.now() });
   }
 }
