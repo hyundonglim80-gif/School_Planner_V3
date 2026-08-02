@@ -17,17 +17,22 @@ window.BackupManager = {
 
             <div id="backup-schedule-section">
                 <label style="display:block; font-weight:bold; margin-bottom:5px; color:#475569;">백업/복원 기간 선택</label>
-                <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:15px; font-size:1rem; outline:none;">
-                    <option value="sem1">1학기 (3월 ~ 개학 전)</option>
-                    <option value="sem2">2학기 (개학 ~ 2월 말)</option>
-                    <option value="year" selected>1학년도 전체 (3월 ~ 다음 해 2월)</option>
-                    <option value="custom">직접 기간 설정</option>
-                </select>
-
-                <div id="backup-custom-date-section" style="display:none; gap:10px; align-items:center; margin-bottom:15px;">
-                    <input type="date" id="backup-start-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
-                    <span style="font-weight:bold; color:#64748b;">~</span>
-                    <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold;">
+                        <option value="today">오늘</option>
+                        <option value="week">해당 주 (이번 주)</option>
+                        <option value="month">해당 월 (이번 달)</option>
+                        <option value="sem1">1학기 전체</option>
+                        <option value="sem2">2학기 전체</option>
+                        <option value="year" selected>해당 학년도 전체</option>
+                        <option value="custom">기간 직접 설정</option>
+                    </select>
+                    
+                    <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
+                        <input type="date" id="backup-start-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
+                        <span style="font-weight:bold; color:#64748b;">~</span>
+                        <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
+                    </div>
                 </div>
             </div>
 
@@ -59,7 +64,7 @@ window.BackupManager = {
         }
         this.modal.open();
         this.setTab('schedule');
-        this.setDefaultDates();
+        this.setDefaultDates(); // 모달이 열릴 때 자동으로 현재 날짜 옵션을 세팅
     },
 
     setTab: function(tab) {
@@ -81,29 +86,68 @@ window.BackupManager = {
     },
 
     setDefaultDates: function() {
-        const dates = window.getSemesterDates ? window.getSemesterDates() : null;
-        if(dates) {
-            document.getElementById('backup-start-date').value = window.formatDate(dates.yearStart);
-            document.getElementById('backup-end-date').value = window.formatDate(dates.yearEnd);
+        const select = document.getElementById('backup-period-select');
+        if (select) {
+            select.value = 'year';
+            this.onPeriodChange(); 
         }
     },
 
+    // 🌟 수정된 기간 변경 함수 (sync.js와 동일한 스마트 계산 로직 적용)
     onPeriodChange: function() {
         const val = document.getElementById('backup-period-select').value;
-        const customSec = document.getElementById('backup-custom-date-section');
         const startInput = document.getElementById('backup-start-date');
         const endInput = document.getElementById('backup-end-date');
-        const dates = window.getSemesterDates ? window.getSemesterDates() : null;
-        if (!dates) return;
+
+        const d = window.currentDate ? new Date(window.currentDate) : new Date();
+        const y = d.getFullYear();
+        const m = d.getMonth();
+
+        let sDate = new Date(d);
+        let eDate = new Date(d);
 
         if (val === 'custom') {
-            customSec.style.display = 'flex';
+            startInput.disabled = false;
+            endInput.disabled = false;
+            startInput.focus();
+            return;
         } else {
-            customSec.style.display = 'none';
-            if (val === 'sem1') { startInput.value = window.formatDate(dates.sem1Start); endInput.value = window.formatDate(dates.sem1End); } 
-            else if (val === 'sem2') { startInput.value = window.formatDate(dates.sem2Start); endInput.value = window.formatDate(dates.sem2End); } 
-            else if (val === 'year') { startInput.value = window.formatDate(dates.yearStart); endInput.value = window.formatDate(dates.yearEnd); }
+            startInput.disabled = true;
+            endInput.disabled = true;
         }
+
+        if (val === 'today') {
+            // sDate, eDate 변경 없이 오늘 유지
+        } else if (val === 'week') {
+            const day = d.getDay();
+            sDate.setDate(d.getDate() - day);
+            eDate.setDate(sDate.getDate() + 6);
+        } else if (val === 'month') {
+            sDate = new Date(y, m, 1);
+            eDate = new Date(y, m + 1, 0);
+        } else if (val === 'sem1' || val === 'sem2' || val === 'year') {
+            let datesInfo = {
+                sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
+                sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
+            };
+            if (typeof window.getSemesterDates === 'function') {
+                datesInfo = window.getSemesterDates();
+            }
+
+            if (val === 'sem1') {
+                sDate = new Date(datesInfo.sem1Start);
+                eDate = new Date(datesInfo.sem1End);
+            } else if (val === 'sem2') {
+                sDate = new Date(datesInfo.sem2Start);
+                eDate = new Date(datesInfo.sem2End);
+            } else if (val === 'year') {
+                sDate = new Date(datesInfo.sem1Start);
+                eDate = new Date(datesInfo.sem2End);
+            }
+        }
+
+        startInput.value = window.formatDate(sDate);
+        endInput.value = window.formatDate(eDate);
     },
 
     // =========================================================================
@@ -132,11 +176,18 @@ window.BackupManager = {
             const dStr = window.formatDate(curr);
             let row = [dStr];
 
+            // 🌟 수정됨: 일정(Event)에 라벨이 없을 때는 껍데기 [] 대괄호가 나오지 않도록 처리
             let evText = "";
             if (evMap[dStr]) {
                 const list = evMap[dStr].eventList;
-                if (list && list.length > 0) evText = list.map(e => `[${(e.labels||[]).join(' ')}] ${e.content}`).join('\n');
-                else if (evMap[dStr].eventText) evText = evMap[dStr].eventText;
+                if (list && list.length > 0) {
+                    evText = list.map(e => {
+                        const lbls = e.labels || [];
+                        return lbls.length > 0 ? `[${lbls.join(', ')}] ${e.content}` : e.content;
+                    }).join('\n');
+                } else if (evMap[dStr].eventText) {
+                    evText = evMap[dStr].eventText;
+                }
             }
             row.push(evText);
 
@@ -148,10 +199,14 @@ window.BackupManager = {
                 row.push(pText.trim());
             }
 
+            // 🌟 수정됨: 기록(Journal)에 라벨이 없을 때는 껍데기 [] 대괄호가 나오지 않도록 처리
             let joText = "";
             if (joMap[dStr]) {
                 const entries = joMap[dStr].entries || [];
-                joText = entries.map(j => `[${(j.labels||[]).join(' ')}] ${j.content}`).join('\n');
+                joText = entries.map(j => {
+                    const lbls = j.labels || [];
+                    return lbls.length > 0 ? `[${lbls.join(', ')}] ${j.content}` : j.content;
+                }).join('\n');
             }
             row.push(joText);
 
@@ -287,7 +342,6 @@ window.BackupManager = {
         const doc = await configRef.get();
         let spreadsheetId = doc.exists ? doc.data().spreadsheetId : null;
 
-        // 시트가 없으면 API를 통해 새로 생성
         if (!spreadsheetId) {
             const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
                 method: 'POST',
@@ -318,12 +372,10 @@ window.BackupManager = {
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
             const rows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
 
-            // 1. 기존 데이터 초기화 (덮어쓰기)
             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            // 2. 새로운 데이터 쓰기
             const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -381,7 +433,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // 💾 [로컬 CSV 파일 처리 모듈] - (유지 및 리팩토링)
+    // 💾 [로컬 CSV 파일 처리 모듈]
     // =========================================================================
     escapeCSV: function(str) {
         if (str == null) return "";
