@@ -139,3 +139,51 @@ window.dbAPI = {
       try { const storageRef = window.storage.refFromURL(imageUrl); await storageRef.delete(); } catch(e) { console.warn("이미지 삭제 실패", e); }
   }
 };
+
+// ==========================================================
+// 🔄 구글 API 토큰(열쇠) 스마트 자동 연장 시스템 추가
+// ==========================================================
+window.getValidGoogleToken = async function() {
+    let token = sessionStorage.getItem('google_api_token');
+
+    // 1. 토큰이 아예 없는 경우
+    if (!token) {
+        alert("구글 서비스 연동 권한이 없습니다.\n[확인]을 누르시면 즉시 권한을 갱신합니다.");
+        return await window.forceRenewToken();
+    }
+
+    // 2. 토큰이 살아있는지 구글 서버에 0.1초 만에 물어보기
+    try {
+        const res = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + token);
+        if (res.ok) return token; // 유효하면 딜레이 없이 그대로 통과!
+    } catch (e) {
+        console.warn("토큰 검증 실패 (만료됨)");
+    }
+
+    // 3. 1시간이 지나 만료된 경우 (스마트 연장 실행)
+    alert("보안 정책(1시간 제한)으로 구글 연결이 만료되었습니다.\n[확인]을 누르시면 화면 이동 없이 1초 만에 자동으로 1시간 연장됩니다!");
+    return await window.forceRenewToken();
+};
+
+window.forceRenewToken = async function() {
+    const renewProvider = new firebase.auth.GoogleAuthProvider();
+    renewProvider.addScope('https://www.googleapis.com/auth/calendar');
+    renewProvider.addScope('https://www.googleapis.com/auth/tasks');
+    renewProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
+    // 💡 [핵심] 계정 선택(prompt) 옵션을 뺐기 때문에, 팝업이 번쩍! 하고 1초 만에 스스로 닫히며 갱신됩니다.
+
+    try {
+        const result = await window.auth.signInWithPopup(renewProvider);
+        if (result.credential && result.credential.accessToken) {
+            sessionStorage.setItem('google_api_token', result.credential.accessToken);
+            return result.credential.accessToken;
+        }
+    } catch (error) {
+        console.error("권한 연장 에러:", error);
+        if (error.code === 'auth/popup-blocked') {
+            throw new Error("팝업 차단이 감지되었습니다. 브라우저 주소창 우측에서 '팝업 차단 해제'를 해주세요.");
+        }
+        throw new Error("권한 연장에 실패했습니다. 우측 상단의 로그아웃 후 다시 로그인해 주세요.");
+    }
+    return null;
+};
