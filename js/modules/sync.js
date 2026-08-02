@@ -1,11 +1,6 @@
 // js/modules/sync.js
 
-// ==========================================================================
-// 🔄 구글 캘린더 & Tasks 단방향 동기화 모듈 (Web -> Google)
-// ==========================================================================
-
 window.openGoogleSyncModal = function() {
-    // 1. 구글 API 토큰 유무 확인 (보안)
     const token = sessionStorage.getItem('google_api_token');
     if (!token) {
         if (confirm("구글 캘린더/Tasks 동기화를 위한 권한(토큰)이 없습니다.\n안전한 데이터 전송을 위해 확인을 눌러 다시 한 번 로그인해 주세요.\n(로그인 창에서 '캘린더' 및 'Tasks' 권한 체크박스를 반드시 선택해주세요.)")) {
@@ -14,7 +9,6 @@ window.openGoogleSyncModal = function() {
         return;
     }
 
-    // 2. 모달창 UI 생성
     let existingModal = document.getElementById('google-sync-modal');
     if (existingModal) existingModal.remove();
 
@@ -29,8 +23,7 @@ window.openGoogleSyncModal = function() {
             <div class="modal-body">
                 <div class="modal-info-box" style="margin-bottom: 20px;">
                     웹사이트의 데이터를 선생님의 <b>개인 구글 계정</b>으로 동기화합니다.<br>
-                    - 일정/수업/일지 ➔ <b>[School Planner V3] 전용 캘린더</b><br>
-                    - 메모 ➔ <b>[School Planner 메모] 구글 Tasks</b>
+                    - 각 수업과 일정이 <b>개별 블록</b>으로 분리되어 깔끔하게 쌓입니다.
                 </div>
                 
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택 (캘린더용)</h3>
@@ -77,9 +70,6 @@ window.openGoogleSyncModal = function() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 };
 
-// --------------------------------------------------------------------------
-// 🛠️ 실제 API 통신 및 동기화 로직
-// --------------------------------------------------------------------------
 window.executeGoogleSync = async function() {
     const token = sessionStorage.getItem('google_api_token');
     if (!token) { alert("토큰이 만료되었습니다. 다시 로그인해주세요."); return; }
@@ -93,7 +83,6 @@ window.executeGoogleSync = async function() {
     const syncTasks = document.getElementById('sync-chk-tasks').checked;
 
     if (!syncEvent && !syncClass && !syncJournal && !syncTasks) { alert("동기화할 항목을 1개 이상 선택해 주세요."); return; }
-    
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
@@ -103,9 +92,214 @@ window.executeGoogleSync = async function() {
     const progressBar = document.getElementById('sync-progress-bar');
 
     try {
-        // [1] 구글 Tasks 메모 동기화
         if (syncTasks) {
             statusText.innerText = "📝 구글 Tasks 목록 확인 및 동기화 중...";
+            progressBar.style.width = "10%";
+            await syncMemosToGoogleTasks(token);
+        }
+
+        if (syncEvent || syncClass || syncJournal) {
+            statusText.innerText = "📅 전용 캘린더(School Planner V3) 준비 중...";
+            progressBar.style.width = "20%";
+            const calId = await getOrCreateDedicatedCalendar(token);
+            
+            let datesToSync = [];
+            let curD = new Date(startD);
+            while (curD <= endD) {
+                datesToSync.push(window.formatDate(curD));
+                curD.setDate(curD.getDate() + 1);
+            }
+
+            const total = datesToSync.length;
+            for (let i = 0; i < total; i++) {
+                const dateStr = datesToSync[i];
+                statusText.innerText = `📅 캘린더 동기화 중... (${dateStr}) [${i+1}/${total}]`;
+                progressBar.style.width = `${20 + (80 * ((i+1)/total))}%`;
+                await syncSingleDateToCalendar(token, calId, dateStr, syncEvent, syncClass, syncJournal);
+            }
+        }
+
+        statusText.innerText = "🎉 동기화가 성공적으로 완료되었습니다!";
+        statusText.style.color = "#059669";
+        progressBar.style.background = "#059669";
+        progressBar.style.width = "100%";
+        setTimeout(() => document.getElementById('google-sync-modal').remove(), 2500);
+
+    } catch (error) {
+        console.error("동기화 에러:", error);
+        statusText.innerText = "❌ 오류 발생: " + error.message;
+        statusText.style.color = "#ef4444";
+        document.getElementById('btn-run-sync').disabled = false;
+    }
+};
+
+async function googleFetch(url, method, token, body = null) {
+    const options = {
+        method: method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    };
+    if (body) options.body = JSON.stringify(body);
+    
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(`API 에러 (${response.status}): ${errData.error?.message || '알 수 없는 오류'}`);
+    }
+    if (response.status === 204) return null;
+    return await response.json();
+}
+
+async function getOrCreateDedicatedCalendar(token) {
+    const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+    const data = await googleFetch(listUrl, 'GET', token);
+    
+    let targetCal = data.items.find(cal => cal.summary === 'School Planner V3');
+    if (targetCal) return targetCal.id;
+
+    const createUrl = "https://www.googleapis.com/calendar/v3/calendars";
+    const newCal = await googleFetch(createUrl, 'POST', token, {
+        summary: 'School Planner V3',
+        description: '업무 및 수업 계획표(웹)에서 동기화된 전용 캘린더입니다.',
+        timeZone: 'Asia/Seoul'
+    });
+    return newCal.id;
+}
+
+// 🌟 [핵심 변경] 각 수업과 일정을 독립된 블록으로 생성합니다.
+async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
+    let payloadsToCreate = [];
+
+    // 1. 일정 데이터 (라벨 포함)
+    if (incEvent) {
+        const eDoc = await window.getUserCol('events').doc(dateStr).get();
+        if (eDoc.exists && eDoc.data().eventList) {
+            const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '');
+            list.forEach(e => {
+                payloadsToCreate.push({
+                    summary: `[${e.label || '일정'}] ${e.content}`,
+                    description: `📌 (웹사이트에서 동기화된 일정/행사입니다)`,
+                    start: { date: dateStr },
+                    end: { date: getNextDayStr(dateStr) },
+                    extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
+                });
+            });
+        }
+    }
+
+    // 2. 시간표 & 수업 메모
+    if (incClass) {
+        const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
+        if (sDoc.exists && sDoc.data().periods) {
+            const periods = sDoc.data().periods;
+            for (let i = 1; i <= 6; i++) {
+                let p = periods[i];
+                if (p && p.subject && p.subject.trim() !== '' && p.subject.toUpperCase() !== 'X') {
+                    let desc = `🎒 [수업 정보]\n`;
+                    if (p.memo) desc += `- 메모: ${p.memo}\n`;
+                    if (p.supplies) desc += `- 준비물: ${p.supplies}\n`;
+                    if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
+
+                    payloadsToCreate.push({
+                        summary: `[${i}교시] ${p.subject}`,
+                        description: desc.trim(),
+                        start: { date: dateStr },
+                        end: { date: getNextDayStr(dateStr) },
+                        extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
+                    });
+                }
+            }
+        }
+    }
+
+    // 3. 기록(일지) 데이터 (라벨 포함)
+    if (incJournal) {
+        const jDoc = await window.getUserCol('journals').doc(dateStr).get();
+        if (jDoc.exists && jDoc.data().entries) {
+            const journals = jDoc.data().entries.filter(j => j.content && j.content.trim() !== '');
+            journals.forEach(j => {
+                payloadsToCreate.push({
+                    summary: `[${j.label || '기록'}] ${j.content}`,
+                    description: `📝 (웹사이트에서 동기화된 일지 기록입니다)`,
+                    start: { date: dateStr },
+                    end: { date: getNextDayStr(dateStr) },
+                    extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
+                });
+            });
+        }
+    }
+
+    // 기존 동기화된 이벤트(태그 기반) 모두 일괄 삭제 후 새 블록들 추가
+    const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=app%3DSchoolPlannerV3&privateExtendedProperty=dateStr%3D${dateStr}`;
+    const searchResult = await googleFetch(searchUrl, 'GET', token);
+    const existingEvents = searchResult.items || [];
+
+    for (const ev of existingEvents) {
+        await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
+    }
+
+    for (const payload of payloadsToCreate) {
+        await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
+        await new Promise(res => setTimeout(res, 30)); // 과부하 방지 약간 대기
+    }
+}
+
+function getNextDayStr(dateStr) {
+    let d = new Date(dateStr);
+    d.setDate(d.getDate() + 1);
+    return window.formatDate(d);
+}
+
+// 🌟 [핵심 변경] Tasks 사진 링크 지원, 라벨, 완료 상태 완벽 동기화
+async function syncMemosToGoogleTasks(token) {
+    const listUrl = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
+    const data = await googleFetch(listUrl, 'GET', token);
+    
+    let targetList = (data.items || []).find(list => list.title === 'School Planner 메모');
+    let taskListId;
+    
+    if (targetList) {
+        taskListId = targetList.id;
+        let pageToken = '';
+        do {
+            const tasksData = await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks${pageToken ? '?pageToken='+pageToken : ''}`, 'GET', token);
+            const existingTasks = tasksData.items || [];
+            for (const task of existingTasks) {
+                if (task.id) await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${task.id}`, 'DELETE', token);
+            }
+            pageToken = tasksData.nextPageToken;
+        } while(pageToken);
+    } else {
+        const newList = await googleFetch(listUrl, 'POST', token, { title: 'School Planner 메모' });
+        taskListId = newList.id;
+    }
+
+    const webMemos = await window.dbAPI.loadMemos();
+    for (const memo of webMemos) {
+        const contentStr = memo.content || ""; 
+        const titleSnippet = contentStr ? contentStr.split('\n')[0].substring(0, 30) : "내용 없음";
+        
+        let labelStr = '일반';
+        if (Array.isArray(memo.labels) && memo.labels.length > 0) {
+            labelStr = memo.labels.join(', ');
+        } else if (memo.label) {
+            labelStr = memo.label;
+        }
+
+        let finalNotes = contentStr;
+        // 🌟 첨부 이미지가 있는 경우 구글 Tasks 설명란에 URL 링크 추가
+        if (memo.imageUrl) {
+            finalNotes += `\n\n🖼️ [첨부 이미지 다운로드/보기]\n${memo.imageUrl}`;
+        }
+
+        const payload = {
+            title: `[${labelStr}] ${titleSnippet}`, 
+            notes: finalNotes, 
+            status: memo.completed ? 'completed' : 'needsAction'
+        };
+        await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks`, 'POST', token, payload);
+        await new Promise(res => setTimeout(res, 30));
+    }
+}
             progressBar.style.width = "10%";
             await syncMemosToGoogleTasks(token);
         }
