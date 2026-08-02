@@ -249,7 +249,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // 📥 [데이터 주입 모듈] - 스마트 헤더 파싱 및 오류 차단 로직 적용
+    // 📥 [데이터 주입 모듈] - 완벽한 방어막으로 잘못된 열(Column) 짐작 차단
     // =========================================================================
     processScheduleRows: async function(rows) {
         if (rows.length < 2) return;
@@ -261,12 +261,9 @@ window.BackupManager = {
         
         if (dateIdx === -1) dateIdx = 0;
         if (eventIdx === -1) eventIdx = 1;
-        if (journalIdx === -1) journalIdx = header.length > 2 ? header.length - 1 : -1;
-
-        // 🛑 [치명적 버그 원천 차단] 
-        // 만약 빈칸 잘림 현상으로 인해 기록(journalIdx) 위치가 일정(eventIdx)과 같거나 작아졌다면 
-        // 데이터 오염 방지를 위해 기록 칸 자체를 무효화(-1) 합니다.
-        if (journalIdx <= eventIdx) journalIdx = -1;
+        
+        // 🛑 [강력 방어막] 헤더에 '기록'이 명시되어 있지 않으면 아예 기록 열을 없는 것으로 간주합니다. (-1 유지)
+        if (journalIdx !== -1 && journalIdx <= eventIdx) journalIdx = -1;
 
         const batchPromises = [];
         let batch = window.db.batch();
@@ -299,10 +296,13 @@ window.BackupManager = {
             batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            const joText = journalIdx !== -1 ? (row[journalIdx] || "") : ""; 
-            const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
-            batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
-            opCount++;
+            // 💡 journalIdx가 확실하게 지정된 경우에만 덮어쓰기를 시도합니다.
+            if (journalIdx !== -1) {
+                const joText = row[journalIdx] || ""; 
+                const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
+                batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
+                opCount++;
+            }
 
             if (opCount > 400) {
                 batchPromises.push(batch.commit());
@@ -362,7 +362,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // ☁️ [Google Sheets API 동기화] - 스마트 병합 엔진 방어막 강화
+    // ☁️ [Google Sheets API 동기화] - 스마트 병합 시에도 추측 차단
     // =========================================================================
     getGoogleToken: function() {
         const token = sessionStorage.getItem('google_api_token');
@@ -450,14 +450,9 @@ window.BackupManager = {
                 const oldHeader = existingRows[0];
                 oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
                 oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
-                
-                let tempJournalIdx = oldHeader.indexOf("기록");
-                if (tempJournalIdx === -1) tempJournalIdx = oldHeader.length > 2 ? oldHeader.length - 1 : -1;
-                
-                // 🛑 [치명적 버그 원천 차단] 빈칸 무시 현상으로 인해 기록 열의 순번이 일정 열과 겹치면 절대 침범 못하게 차단
-                if (tempJournalIdx > oldEventIdx) {
-                    oldJournalIdx = tempJournalIdx;
-                } else {
+                oldJournalIdx = oldHeader.indexOf("기록"); // 못 찾으면 -1로 둠 (어림짐작 차단)
+
+                if (oldJournalIdx !== -1 && oldJournalIdx <= oldEventIdx) {
                     oldJournalIdx = -1;
                 }
             }
