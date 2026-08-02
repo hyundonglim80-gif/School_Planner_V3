@@ -3,6 +3,7 @@
 window.BackupManager = {
     modal: null,
     currentTab: 'schedule',
+    currentSpreadsheetId: null,
 
     openModal: function() {
         if (!this.modal) {
@@ -46,9 +47,10 @@ window.BackupManager = {
             <div style="background:#eef2ff; padding:15px; border-radius:8px; border:1px solid #c7d2fe; margin-top:20px;">
                 <p style="margin:0 0 10px 0; font-weight:bold; color:#3730a3; font-size:1.05rem;">☁️ 구글 스프레드시트 동기화</p>
                 <div style="display:flex; justify-content:space-between; gap:10px;">
-                    <button id="btn-sheets-import" onclick="window.BackupManager.importFromSheets()" class="modal-btn-secondary" style="flex:1; background:#fff; border: 2px solid #0f9d58; color:#0f9d58; font-size:1rem;">📗 구글 시트에서 복원</button>
-                    <button id="btn-sheets-export" onclick="window.BackupManager.exportToSheets()" class="modal-btn-primary" style="flex:1; background:#0f9d58; font-size:1rem;">📗 구글 시트로 백업</button>
+                    <button id="btn-sheets-import" onclick="window.BackupManager.importFromSheets()" class="modal-btn-secondary" style="flex:1; background:#fff; border: 2px solid #0f9d58; color:#0f9d58; font-size:1rem;">📗 시트에서 복원</button>
+                    <button id="btn-sheets-export" onclick="window.BackupManager.exportToSheets()" class="modal-btn-primary" style="flex:1; background:#0f9d58; font-size:1rem;">📗 시트로 백업</button>
                 </div>
+                <div id="sheet-link-area"></div>
             </div>
 
             <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
@@ -65,6 +67,7 @@ window.BackupManager = {
         this.modal.open();
         this.setTab('schedule');
         this.setDefaultDates();
+        this.checkExistingSheet(); // 창 열릴 때 파일이 있는지 확인
     },
 
     setTab: function(tab) {
@@ -137,6 +140,36 @@ window.BackupManager = {
         }
         startInput.value = window.formatDate(sDate);
         endInput.value = window.formatDate(eDate);
+    },
+
+    // =========================================================================
+    // 🔗 [UI 기능] 백업 시트 링크 표시 및 강제 초기화
+    // =========================================================================
+    checkExistingSheet: async function() {
+        try {
+            const doc = await window.getUserCol('settings').doc('backup_config').get();
+            const linkArea = document.getElementById('sheet-link-area');
+            if (doc.exists && doc.data().spreadsheetId && linkArea) {
+                this.currentSpreadsheetId = doc.data().spreadsheetId;
+                linkArea.innerHTML = `
+                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; margin-top:15px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 백업 시트 파일 바로 열기</button>
+                    <div style="text-align:right; margin-top:8px;">
+                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">파일을 삭제하셨거나 못 찾으시나요? (연결 초기화)</span>
+                    </div>
+                `;
+            } else if (linkArea) {
+                linkArea.innerHTML = '';
+            }
+        } catch(e) {}
+    },
+
+    resetSheetConnection: async function() {
+        if(confirm("기존 구글 시트와의 연결을 강제로 끊고 완전히 새로운 파일을 생성하시겠습니까?\n\n(구글 드라이브에서 파일을 완전히 삭제했거나 찾을 수 없을 때 누르세요!)")) {
+            await window.getUserCol('settings').doc('backup_config').delete();
+            this.currentSpreadsheetId = null;
+            this.checkExistingSheet();
+            alert("초기화 완료!\n이제 [📗 시트로 백업] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
+        }
     },
 
     // =========================================================================
@@ -316,7 +349,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // ☁️ [Google Sheets API 동기화] - 생성 에러 검출 로직 강화
+    // ☁️ [Google Sheets API 동기화] - 에러 검증 및 강제 생성 추가
     // =========================================================================
     getGoogleToken: function() {
         const token = sessionStorage.getItem('google_api_token');
@@ -336,7 +369,6 @@ window.BackupManager = {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!checkRes.ok) {
-                    console.warn("기존 시트를 찾을 수 없습니다. 새 파일을 생성합니다.");
                     spreadsheetId = null; 
                 }
             } catch (error) {
@@ -344,7 +376,6 @@ window.BackupManager = {
             }
         }
 
-        // 🌟 파일 생성 실패 시 구글 서버가 보내는 정확한 원인을 분석하여 안내합니다.
         if (!spreadsheetId) {
             const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
                 method: 'POST',
@@ -360,9 +391,9 @@ window.BackupManager = {
                 try {
                     const errData = await res.json();
                     if (errData.error && errData.error.status === 'PERMISSION_DENIED') {
-                        errorMsg = "구글 스프레드시트 접근 권한이 없습니다.\n\n해결방법: 화면 우측 상단의 [로그아웃]을 클릭하신 후, 다시 구글 로그인 창이 뜰 때 반드시 'Google 스프레드시트 관련 권한' 체크박스에 체크해 주셔야 파일 생성이 가능합니다.";
+                        errorMsg = "구글 스프레드시트 접근 권한이 없습니다.\n\n해결방법: 화면 우측 상단의 [로그아웃]을 클릭하신 후, 다시 구글 로그인 창이 뜰 때 반드시 'Google 스프레드시트' 관련 체크박스에 체크해 주셔야 파일 생성이 가능합니다.";
                     } else if (errData.error && errData.error.message) {
-                        errorMsg = `구글 클라우드 오류: ${errData.error.message}\n\n(참고: Google Cloud Console에서 Google Sheets API가 '사용(Enable)' 상태인지 확인해 주세요.)`;
+                        errorMsg = `구글 클라우드 오류: ${errData.error.message}`;
                     }
                 } catch(e) {}
                 throw new Error(errorMsg);
@@ -397,7 +428,7 @@ window.BackupManager = {
                     method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (readRes.ok) existingRows = (await readRes.json()).values || [];
-            } catch (e) { console.warn("기존 시트 데이터 없음 (최초 백업일 가능성)"); }
+            } catch (e) {}
 
             const mergedMap = {};
             for (let i = 1; i < existingRows.length; i++) {
@@ -442,8 +473,14 @@ window.BackupManager = {
                 body: JSON.stringify({ values: finalRows })
             });
 
-            if(updateRes.ok) alert(`✅ 성공적으로 구글 시트 [${sheetName}] 탭에 동기화 백업되었습니다!\n(기존 데이터는 보존되며, 빈칸은 정상적으로 삭제 반영되었습니다.)`);
-            else throw new Error("업데이트 실패");
+            if(updateRes.ok) {
+                this.checkExistingSheet(); // 🌟 UI에 즉시 링크 버튼 생성
+                if(confirm(`✅ 구글 시트 백업이 완료되었습니다!\n\n파일이 구글 드라이브(또는 휴지통)에 생성되었습니다.\n지금 바로 백업된 시트 파일을 열어보시겠습니까?`)) {
+                    window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
+                }
+            } else {
+                throw new Error("업데이트 실패");
+            }
 
         } catch (e) {
             console.error(e);
