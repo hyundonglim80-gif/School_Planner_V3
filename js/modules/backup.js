@@ -449,4 +449,198 @@ window.BackupManager = {
             if (existingRows.length > 0) {
                 const oldHeader = existingRows[0];
                 oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
-                oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") :
+                oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
+                
+                let tempJournalIdx = oldHeader.indexOf("기록");
+                if (tempJournalIdx === -1) tempJournalIdx = oldHeader.length > 2 ? oldHeader.length - 1 : -1;
+                
+                // 🛑 [치명적 버그 원천 차단] 빈칸 무시 현상으로 인해 기록 열의 순번이 일정 열과 겹치면 절대 침범 못하게 차단
+                if (tempJournalIdx > oldEventIdx) {
+                    oldJournalIdx = tempJournalIdx;
+                } else {
+                    oldJournalIdx = -1;
+                }
+            }
+
+            for (let i = 1; i < existingRows.length; i++) {
+                const row = existingRows[i];
+                if (!row[keyIdx]) continue;
+                
+                if (this.currentTab === 'schedule') {
+                    const realignedRow = new Array(newHeader.length).fill("");
+                    realignedRow[0] = row[oldDateIdx] || ""; 
+                    realignedRow[1] = row[oldEventIdx] || ""; 
+                    
+                    let currentPCount = newHeader.length - 3; 
+                    let pNum = 1;
+                    let endPIdx = oldJournalIdx !== -1 ? oldJournalIdx : row.length;
+                    
+                    for (let p = oldEventIdx + 1; p < endPIdx && pNum <= currentPCount; p++) {
+                        realignedRow[1 + pNum] = row[p] || "";
+                        pNum++;
+                    }
+                    
+                    if (oldJournalIdx !== -1) {
+                        realignedRow[newHeader.length - 1] = row[oldJournalIdx] || "";
+                    }
+                    mergedMap[realignedRow[0]] = realignedRow;
+                } else {
+                    mergedMap[row[keyIdx]] = row;
+                }
+            }
+
+            for (let i = 1; i < newRows.length; i++) {
+                const row = newRows[i];
+                if (row[keyIdx]) {
+                    const paddedRow = new Array(newHeader.length).fill("");
+                    for (let j = 0; j < row.length; j++) {
+                        paddedRow[j] = row[j] || ""; 
+                    }
+                    mergedMap[row[keyIdx]] = paddedRow;
+                }
+            }
+
+            const finalRows = [newHeader];
+            let sortedKeys;
+            if (this.currentTab === 'schedule') {
+                sortedKeys = Object.keys(mergedMap).sort(); 
+            } else {
+                sortedKeys = Object.keys(mergedMap).sort((a, b) => {
+                    const tA = parseInt(mergedMap[a][6]) || 0;
+                    const tB = parseInt(mergedMap[b][6]) || 0;
+                    return tB - tA; 
+                });
+            }
+            
+            for (const k of sortedKeys) {
+                finalRows.push(mergedMap[k]);
+            }
+
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
+                method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ values: finalRows })
+            });
+
+            if(updateRes.ok) {
+                this.checkExistingSheet(); 
+                if(confirm(`✅ 구글 시트 백업이 완료되었습니다!\n\n파일이 구글 드라이브(또는 휴지통)에 생성되었습니다.\n지금 바로 백업된 시트 파일을 열어보시겠습니까?`)) {
+                    window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
+                }
+            } else {
+                throw new Error("업데이트 실패");
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("❌ 백업 실패:\n" + e.message);
+        } finally {
+            btn.textContent = oldText; btn.disabled = false;
+        }
+    },
+
+    importFromSheets: async function() {
+        const token = this.getGoogleToken();
+        if(!token) return;
+
+        if(!confirm(`구글 시트의 데이터로 현재 화면을 복원(덮어쓰기 및 병합)하시겠습니까?`)) return;
+
+        const btn = document.getElementById('btn-sheets-import');
+        const oldText = btn.textContent;
+        btn.textContent = "⏳ 불러오는 중..."; btn.disabled = true;
+
+        try {
+            const doc = await window.getUserCol('settings').doc('backup_config').get();
+            const spreadsheetId = doc.exists ? doc.data().spreadsheetId : null;
+            if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 백업'을 진행해주세요.");
+
+            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
+            const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
+                method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (파일이 구글 드라이브에서 삭제되었거나 접근 권한이 없습니다.)");
+            
+            const data = await res.json();
+            const rows = data.values || [];
+
+            if (this.currentTab === 'schedule') await this.processScheduleRows(rows);
+            else await this.processMemoRows(rows);
+
+            alert("✅ 구글 시트에서 성공적으로 복원되었습니다!");
+            this.modal.close();
+            if(window.render) window.render();
+
+        } catch (e) {
+            console.error(e);
+            alert("복원 중 오류 발생: " + e.message);
+        } finally {
+            btn.textContent = oldText; btn.disabled = false;
+        }
+    },
+
+    // =========================================================================
+    // 💾 [로컬 CSV 파일 처리 모듈]
+    // =========================================================================
+    escapeCSV: function(str) {
+        if (str == null) return "";
+        let s = String(str);
+        if (s.includes('"') || s.includes(',') || s.includes('\n')) s = '"' + s.replace(/"/g, '""') + '"';
+        return s;
+    },
+
+    parseCSV: function(csvText) {
+        const rows = []; let row = []; let inQuotes = false; let val = '';
+        for (let i = 0; i < csvText.length; i++) {
+            let c = csvText[i], nc = csvText[i+1];
+            if (c === '"' && inQuotes && nc === '"') { val += '"'; i++; }
+            else if (c === '"') { inQuotes = !inQuotes; }
+            else if (c === ',' && !inQuotes) { row.push(val); val = ''; }
+            else if (c === '\n' && !inQuotes) { row.push(val); rows.push(row); row = []; val = ''; }
+            else if (c === '\r' && !inQuotes) {} 
+            else { val += c; }
+        }
+        if (val || row.length > 0) { row.push(val); rows.push(row); }
+        return rows;
+    },
+
+    handleDownload: async function() {
+        const btn = document.getElementById('btn-backup-download');
+        const oldText = btn.textContent; btn.textContent = "⏳ 집계 중..."; btn.disabled = true;
+        try {
+            const rows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
+            const csvContent = "\uFEFF" + rows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = this.currentTab === 'schedule' ? `업무계획표_일정백업.csv` : `업무계획표_메모백업.csv`;
+            link.click();
+        } catch (e) { alert("다운로드 중 오류가 발생했습니다."); } 
+        finally { btn.textContent = oldText; btn.disabled = false; }
+    },
+
+    handleUpload: async function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        if(!confirm(`선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
+
+        const btn = input.nextElementSibling;
+        const oldText = btn.textContent; btn.textContent = "⏳ 업로드 적용 중..."; btn.disabled = true;
+
+        try {
+            const text = await file.text();
+            const rows = this.parseCSV(text);
+            if (this.currentTab === 'schedule') await this.processScheduleRows(rows);
+            else await this.processMemoRows(rows);
+            
+            alert("데이터가 성공적으로 복원되었습니다!");
+            this.modal.close();
+            if(window.render) window.render();
+        } catch (e) { alert("업로드 처리 중 오류가 발생했습니다."); } 
+        finally { btn.textContent = oldText; btn.disabled = false; input.value = ''; }
+    }
+};
