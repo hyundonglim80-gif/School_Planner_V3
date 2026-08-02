@@ -242,7 +242,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 수정] 숫자가 없는 "투명 문자(Zero-Width Character)" 트릭을 사용하여 정렬 보장!
+// 🌟 [핵심 수정] 숫자가 없는 "투명 문자" 트릭 유지 + 기록(일지) 말줄임표 스마트 처리
 async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
@@ -250,10 +250,8 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     d.setDate(d.getDate() + 1);
     const endStr = window.formatDate(d);
 
-    let seq = 1; // 캘린더 제목 정렬용 일련번호
+    let seq = 1; 
     
-    // 💡 투명 문자 생성기: 숫자를 5자리의 안 보이는 특수 문자로 변환합니다. 
-    // 구글 캘린더 시스템은 이 문자를 읽어서 가나다순으로 정렬하지만, 사람 눈에는 숫자가 전혀 보이지 않습니다!
     const getInvisiblePrefix = (num) => {
         return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
     };
@@ -305,7 +303,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [3단계] 기록(일지) 데이터
+    // [3단계] 기록(일지) 데이터 (말줄임표 개선 반영)
     if (incJournal) {
         const jDoc = await window.getUserCol('journals').doc(dateStr).get();
         if (jDoc.exists && jDoc.data().entries) {
@@ -313,8 +311,12 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
             journals.forEach(j => {
                 let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
                 let invisiblePrefix = getInvisiblePrefix(seq++);
+                
+                // 💡 [수정] 글자 수가 25자를 초과할 때만 뒤에 ... 을 붙이고, 그 외에는 원본 그대로 출력합니다.
+                let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
+                
                 payloadsToCreate.push({
-                    summary: `${invisiblePrefix}[${labelStr}] ${j.content.substring(0, 15)}...`,
+                    summary: `${invisiblePrefix}[${labelStr}] ${displayContent}`,
                     description: `📝 [전체 기록 내용]\n${j.content}`,
                     start: { date: dateStr },
                     end: { date: endStr },
@@ -366,7 +368,8 @@ async function syncMemosToGoogleTasks(token) {
     const webMemos = await window.dbAPI.loadMemos();
     for (const memo of webMemos) {
         const contentStr = memo.text || ""; 
-        const titleSnippet = contentStr ? contentStr.split('\n')[0].substring(0, 30) : "내용 없음";
+        // Tasks 동기화에서도 내용이 30자를 초과할 때만 ... 을 붙이도록 함께 수정 적용
+        const titleSnippet = contentStr ? (contentStr.length > 30 ? contentStr.substring(0, 30) + "..." : contentStr) : "내용 없음";
         
         let labelStr = '일반';
         if (Array.isArray(memo.labels) && memo.labels.length > 0) {
