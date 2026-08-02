@@ -1,13 +1,9 @@
 // js/modules/sync.js
 
-window.openGoogleSyncModal = function() {
-    const token = sessionStorage.getItem('google_api_token');
-    if (!token) {
-        if (confirm("구글 캘린더/Tasks 동기화를 위한 권한(토큰)이 없습니다.\n안전한 데이터 전송을 위해 확인을 눌러 다시 한 번 로그인해 주세요.\n(로그인 창에서 '캘린더' 및 'Tasks' 권한 체크박스를 반드시 선택해주세요.)")) {
-            window.signInWithGoogle();
-        }
-        return;
-    }
+window.openGoogleSyncModal = async function() {
+    // 🌟 동기화 모달을 열기 전에도 자동 연장 시스템으로 검사합니다.
+    const token = await window.getValidGoogleToken();
+    if (!token) return;
 
     let existingModal = document.getElementById('google-sync-modal');
     if (existingModal) existingModal.remove();
@@ -140,8 +136,9 @@ window.handleSyncPeriodChange = function() {
 };
 
 window.executeGoogleSync = async function() {
-    const token = sessionStorage.getItem('google_api_token');
-    if (!token) { alert("토큰이 만료되었습니다. 다시 로그인해주세요."); return; }
+    // 🌟 동기화를 시작할 때 한 번 더 최신 연장 토큰을 가져옵니다.
+    const token = await window.getValidGoogleToken();
+    if (!token) return;
 
     const startStr = document.getElementById('sync-start-date').value;
     const endStr = document.getElementById('sync-end-date').value;
@@ -242,7 +239,6 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 수정] 숫자가 없는 "투명 문자" 트릭 유지 + 기록(일지) 말줄임표 스마트 처리
 async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
@@ -256,7 +252,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
     };
 
-    // [1단계] 일정 데이터
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
@@ -275,7 +270,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [2단계] 시간표 & 수업 메모
     if (incClass) {
         const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
         if (sDoc.exists && sDoc.data().periods) {
@@ -303,7 +297,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [3단계] 기록(일지) 데이터 (말줄임표 개선 반영)
     if (incJournal) {
         const jDoc = await window.getUserCol('journals').doc(dateStr).get();
         if (jDoc.exists && jDoc.data().entries) {
@@ -312,7 +305,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
                 let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
                 let invisiblePrefix = getInvisiblePrefix(seq++);
                 
-                // 💡 [수정] 글자 수가 25자를 초과할 때만 뒤에 ... 을 붙이고, 그 외에는 원본 그대로 출력합니다.
                 let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
                 
                 payloadsToCreate.push({
@@ -326,7 +318,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // 기존 동기화된 이벤트 삭제
     const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=app%3DSchoolPlannerV3&privateExtendedProperty=dateStr%3D${dateStr}`;
     const searchResult = await googleFetch(searchUrl, 'GET', token);
     const existingEvents = searchResult.items || [];
@@ -335,7 +326,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
 
-    // 신규 생성 (투명 문자로 순서 완벽 보장)
     for (const payload of payloadsToCreate) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
         await new Promise(res => setTimeout(res, 50)); 
@@ -368,7 +358,6 @@ async function syncMemosToGoogleTasks(token) {
     const webMemos = await window.dbAPI.loadMemos();
     for (const memo of webMemos) {
         const contentStr = memo.text || ""; 
-        // Tasks 동기화에서도 내용이 30자를 초과할 때만 ... 을 붙이도록 함께 수정 적용
         const titleSnippet = contentStr ? (contentStr.length > 30 ? contentStr.substring(0, 30) + "..." : contentStr) : "내용 없음";
         
         let labelStr = '일반';
