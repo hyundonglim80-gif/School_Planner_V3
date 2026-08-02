@@ -18,7 +18,7 @@ const HelpModule = {
           </ul>
         </div>
 
-        <h3 class="modal-help-title">☁️ 클라우드 백업 및 동기화 (NEW)</h3>
+        <h3 class="modal-help-title">☁️ 클라우드 백업 및 동기화 </h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>스프레드시트 다이렉트 백업:</strong> 내보내기/가져오기 메뉴에서 [📗 시트로 백업]을 누르면, 선생님의 구글 드라이브에 전용 백업 엑셀 파일이 자동 생성되고 데이터가 안전하게 저장됩니다.</li>
           <li><strong>스마트 병합 복원:</strong> 기존에 저장된 백업 시트에서 데이터를 불러올 때, <strong>삭제된 내용은 비우고 추가된 내용은 합치는 스마트 병합</strong> 기술이 적용되어 데이터가 꼬이지 않습니다.</li>
