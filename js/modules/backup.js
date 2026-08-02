@@ -378,7 +378,8 @@ window.BackupManager = {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     properties: { title: '업무 및 수업 계획표 클라우드 백업' },
-                    sheets: [ { properties: { title: '일정기록' } }, { properties: { title: '메모링크' } } ]
+                    // 🌟 탭(시트) 이름을 '메모링크'에서 '메모'로 변경
+                    sheets: [ { properties: { title: '일정기록' } }, { properties: { title: '메모' } } ]
                 })
             });
             
@@ -402,7 +403,6 @@ window.BackupManager = {
         return spreadsheetId;
     },
 
-    // 🌟 핵심 변경: 내보내기/가져오기 시 스마트 연장 시스템(getValidGoogleToken)을 활용합니다.
     exportToSheets: async function() {
         const btn = document.getElementById('btn-sheets-export');
         const oldText = btn.textContent;
@@ -415,7 +415,8 @@ window.BackupManager = {
             btn.textContent = "⏳ 내보내는 중...";
 
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
-            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
+            // 🌟 참조하는 탭 이름을 '메모'로 변경
+            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             
             const newRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
             const newHeader = newRows[0];
@@ -530,7 +531,6 @@ window.BackupManager = {
         }
     },
 
-    // 🌟 핵심 변경: 내보내기/가져오기 시 스마트 연장 시스템(getValidGoogleToken)을 활용합니다.
     importFromSheets: async function() {
         if(!confirm(`구글 시트의 데이터로 현재 화면을 복원(덮어쓰기 및 병합)하시겠습니까?`)) return;
 
@@ -548,12 +548,13 @@ window.BackupManager = {
             const spreadsheetId = doc.exists ? doc.data().spreadsheetId : null;
             if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 백업'을 진행해주세요.");
 
-            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
+            // 🌟 참조하는 탭 이름을 '메모'로 변경
+            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
                 method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
             });
             
-            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (파일이 구글 드라이브에서 삭제되었거나 접근 권한이 없습니다.)");
+            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (파일이 구글 드라이브에서 삭제되었거나, 탭 이름이 다르거나 접근 권한이 없습니다.)");
             
             const data = await res.json();
             const rows = data.values || [];
