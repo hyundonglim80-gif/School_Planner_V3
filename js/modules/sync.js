@@ -12,7 +12,6 @@ window.openGoogleSyncModal = function() {
     let existingModal = document.getElementById('google-sync-modal');
     if (existingModal) existingModal.remove();
 
-    const todayStr = window.formatDate(window.currentDate);
     const modalHtml = `
     <div id="google-sync-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 500px;">
@@ -23,14 +22,25 @@ window.openGoogleSyncModal = function() {
             <div class="modal-body">
                 <div class="modal-info-box" style="margin-bottom: 20px;">
                     웹사이트의 데이터를 선생님의 <b>개인 구글 계정</b>으로 동기화합니다.<br>
-                    - 각 수업과 일정이 <b>개별 블록</b>으로 분리되어 깔끔하게 쌓입니다.
+                    - 각 수업과 일정, 기록이 <b>개별 블록</b>으로 분리되어 깔끔하게 쌓입니다.
                 </div>
                 
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택 (캘린더용)</h3>
-                <div style="display:flex; gap:10px; margin-bottom:20px;">
-                    <input type="date" id="sync-start-date" class="modal-input-text" value="${todayStr}">
-                    <span style="align-self:center;">~</span>
-                    <input type="date" id="sync-end-date" class="modal-input-text" value="${todayStr}">
+                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <select id="sync-period-select" class="modal-input-text" style="width:100%; cursor:pointer; font-weight:bold; font-size:1.05rem;" onchange="window.handleSyncPeriodChange()">
+                        <option value="today">오늘</option>
+                        <option value="week">해당 주 (이번 주)</option>
+                        <option value="month">해당 월 (이번 달)</option>
+                        <option value="sem1">1학기 전체</option>
+                        <option value="sem2">2학기 전체</option>
+                        <option value="year">해당 학년도 전체</option>
+                        <option value="custom">기간 직접 설정</option>
+                    </select>
+                    <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
+                        <input type="date" id="sync-start-date" class="modal-input-text">
+                        <span style="font-weight:bold; color:#64748b;">~</span>
+                        <input type="date" id="sync-end-date" class="modal-input-text">
+                    </div>
                 </div>
 
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">2. 동기화 항목 선택</h3>
@@ -45,7 +55,7 @@ window.openGoogleSyncModal = function() {
                     </label>
                     <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
                         <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [캘린더] 업무 일지 및 기록
+                        [캘린더] 업무 일지 및 교단 기록
                     </label>
                     <hr style="border:0; border-top:1px dashed #cbd5e1; margin:5px 0;">
                     <label class="modal-checkbox-label" style="font-size:1rem; color:#0f766e;">
@@ -67,7 +77,69 @@ window.openGoogleSyncModal = function() {
             </div>
         </div>
     </div>`;
+    
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 모달창이 열리면 자동으로 '오늘' 날짜를 세팅
+    setTimeout(() => {
+        if(window.handleSyncPeriodChange) window.handleSyncPeriodChange();
+    }, 10);
+};
+
+// 🌟 [신규 기능] 드롭다운 선택에 따라 날짜를 자동 계산하여 세팅하는 함수
+window.handleSyncPeriodChange = function() {
+    const val = document.getElementById('sync-period-select').value;
+    const startInput = document.getElementById('sync-start-date');
+    const endInput = document.getElementById('sync-end-date');
+
+    const d = window.currentDate ? new Date(window.currentDate) : new Date();
+    const y = d.getFullYear();
+    const m = d.getMonth();
+
+    let sDate = new Date(d);
+    let eDate = new Date(d);
+
+    if (val === 'today') {
+        // 기본값 (오늘) 유지
+    } else if (val === 'week') {
+        const day = d.getDay();
+        sDate.setDate(d.getDate() - day);
+        eDate.setDate(sDate.getDate() + 6);
+    } else if (val === 'month') {
+        sDate = new Date(y, m, 1);
+        eDate = new Date(y, m + 1, 0);
+    } else if (val === 'sem1' || val === 'sem2' || val === 'year') {
+        // app.js 등에 getSemesterDates 함수가 없으면 임시 방어 코드 작동
+        let datesInfo = {
+            sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
+            sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
+        };
+        if (typeof window.getSemesterDates === 'function') {
+            datesInfo = window.getSemesterDates();
+        }
+
+        if (val === 'sem1') {
+            sDate = new Date(datesInfo.sem1Start);
+            eDate = new Date(datesInfo.sem1End);
+        } else if (val === 'sem2') {
+            sDate = new Date(datesInfo.sem2Start);
+            eDate = new Date(datesInfo.sem2End);
+        } else if (val === 'year') {
+            sDate = new Date(datesInfo.sem1Start);
+            eDate = new Date(datesInfo.sem2End);
+        }
+    }
+
+    if (val === 'custom') {
+        startInput.disabled = false;
+        endInput.disabled = false;
+        startInput.focus();
+    } else {
+        startInput.value = window.formatDate(sDate);
+        endInput.value = window.formatDate(eDate);
+        startInput.disabled = true;
+        endInput.disabled = true;
+    }
 };
 
 window.executeGoogleSync = async function() {
@@ -101,7 +173,7 @@ window.executeGoogleSync = async function() {
 
         // [2] 구글 캘린더 동기화
         if (syncEvent || syncClass || syncJournal) {
-            statusText.innerText = "📅 전용 캘린더(School Planner V3) 확인 중...";
+            statusText.innerText = "📅 전용 캘린더(School Planner V3) 준비 중...";
             progressBar.style.width = "20%";
             const calId = await getOrCreateDedicatedCalendar(token);
             
@@ -182,7 +254,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 변경] 각 수업과 일정을 독립된 블록으로 생성합니다.
+// 🌟 [핵심 변경] 순서 보장: 일정 ➔ 시간표 ➔ 일지 순으로 배열을 정렬하여 순차 등록
 async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
@@ -191,7 +263,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     d.setDate(d.getDate() + 1);
     const endStr = window.formatDate(d);
 
-    // 1. 일정 데이터 
+    // [우선순위 1] 일정 데이터 
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
@@ -209,7 +281,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // 2. 시간표 & 수업 메모 (독립 블록화)
+    // [우선순위 2] 시간표 & 수업 메모 (독립 블록화)
     if (incClass) {
         const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
         if (sDoc.exists && sDoc.data().periods) {
@@ -234,7 +306,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // 3. 기록(일지) 데이터
+    // [우선순위 3] 기록(일지) 데이터 (일정과 같은 방식으로 독립 등록)
     if (incJournal) {
         const jDoc = await window.getUserCol('journals').doc(dateStr).get();
         if (jDoc.exists && jDoc.data().entries) {
@@ -261,10 +333,11 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
 
-    // 5. 새롭게 분리된 개별 블록들을 하나씩 캘린더에 추가 (과부하 방지를 위해 30ms 대기)
+    // 5. [중요] 일정 ➔ 시간표 ➔ 기록 순으로 캘린더에 순차 등록
+    // 구글 캘린더가 늦게 등록된 것을 캘린더 하단에 정렬하도록 50ms 대기 시간을 둡니다.
     for (const payload of payloadsToCreate) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
-        await new Promise(res => setTimeout(res, 30)); 
+        await new Promise(res => setTimeout(res, 50)); 
     }
 }
 
@@ -298,7 +371,6 @@ async function syncMemosToGoogleTasks(token) {
 
     const webMemos = await window.dbAPI.loadMemos();
     for (const memo of webMemos) {
-        // 🌟 [버그 수정] memo.content가 아닌 memo.text를 사용해야 정상적으로 텍스트를 불러옵니다.
         const contentStr = memo.text || ""; 
         const titleSnippet = contentStr ? contentStr.split('\n')[0].substring(0, 30) : "내용 없음";
         
