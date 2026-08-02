@@ -64,7 +64,7 @@ window.BackupManager = {
         }
         this.modal.open();
         this.setTab('schedule');
-        this.setDefaultDates(); // 모달이 열릴 때 자동으로 현재 날짜 옵션을 세팅
+        this.setDefaultDates();
     },
 
     setTab: function(tab) {
@@ -93,7 +93,6 @@ window.BackupManager = {
         }
     },
 
-    // 🌟 수정된 기간 변경 함수 (sync.js와 동일한 스마트 계산 로직 적용)
     onPeriodChange: function() {
         const val = document.getElementById('backup-period-select').value;
         const startInput = document.getElementById('backup-start-date');
@@ -117,7 +116,7 @@ window.BackupManager = {
         }
 
         if (val === 'today') {
-            // sDate, eDate 변경 없이 오늘 유지
+            // 유지
         } else if (val === 'week') {
             const day = d.getDay();
             sDate.setDate(d.getDate() - day);
@@ -130,28 +129,18 @@ window.BackupManager = {
                 sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
                 sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
             };
-            if (typeof window.getSemesterDates === 'function') {
-                datesInfo = window.getSemesterDates();
-            }
+            if (typeof window.getSemesterDates === 'function') datesInfo = window.getSemesterDates();
 
-            if (val === 'sem1') {
-                sDate = new Date(datesInfo.sem1Start);
-                eDate = new Date(datesInfo.sem1End);
-            } else if (val === 'sem2') {
-                sDate = new Date(datesInfo.sem2Start);
-                eDate = new Date(datesInfo.sem2End);
-            } else if (val === 'year') {
-                sDate = new Date(datesInfo.sem1Start);
-                eDate = new Date(datesInfo.sem2End);
-            }
+            if (val === 'sem1') { sDate = new Date(datesInfo.sem1Start); eDate = new Date(datesInfo.sem1End); } 
+            else if (val === 'sem2') { sDate = new Date(datesInfo.sem2Start); eDate = new Date(datesInfo.sem2End); } 
+            else if (val === 'year') { sDate = new Date(datesInfo.sem1Start); eDate = new Date(datesInfo.sem2End); }
         }
-
         startInput.value = window.formatDate(sDate);
         endInput.value = window.formatDate(eDate);
     },
 
     // =========================================================================
-    // 📊 [데이터 추출 및 처리 모듈] - CSV와 구글 시트가 공유하는 핵심 로직
+    // 📊 [데이터 추출 모듈] - 웹 앱 데이터를 배열로 변환
     // =========================================================================
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
@@ -176,7 +165,6 @@ window.BackupManager = {
             const dStr = window.formatDate(curr);
             let row = [dStr];
 
-            // 🌟 수정됨: 일정(Event)에 라벨이 없을 때는 껍데기 [] 대괄호가 나오지 않도록 처리
             let evText = "";
             if (evMap[dStr]) {
                 const list = evMap[dStr].eventList;
@@ -185,9 +173,7 @@ window.BackupManager = {
                         const lbls = e.labels || [];
                         return lbls.length > 0 ? `[${lbls.join(', ')}] ${e.content}` : e.content;
                     }).join('\n');
-                } else if (evMap[dStr].eventText) {
-                    evText = evMap[dStr].eventText;
-                }
+                } else if (evMap[dStr].eventText) evText = evMap[dStr].eventText;
             }
             row.push(evText);
 
@@ -199,7 +185,6 @@ window.BackupManager = {
                 row.push(pText.trim());
             }
 
-            // 🌟 수정됨: 기록(Journal)에 라벨이 없을 때는 껍데기 [] 대괄호가 나오지 않도록 처리
             let joText = "";
             if (joMap[dStr]) {
                 const entries = joMap[dStr].entries || [];
@@ -233,9 +218,13 @@ window.BackupManager = {
         return rows;
     },
 
+    // =========================================================================
+    // 📥 [데이터 주입 모듈] - 시트/CSV 데이터를 파이어베이스에 저장
+    // =========================================================================
     processScheduleRows: async function(rows) {
         if (rows.length < 2) return;
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
+        const pCount = pNames.length; // 교시 개수 파악
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
@@ -253,7 +242,7 @@ window.BackupManager = {
             const periodsData = {};
             let isSkipDay = eventList.some(ev => ev.labels && ev.labels.some(l => window.isSkipLabel && window.isSkipLabel(l)));
 
-            for(let p=1; p<=pNames.length; p++) {
+            for(let p=1; p<=pCount; p++) {
                 const pText = row[1+p] || "";
                 let subj = "", memo = pText;
                 const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
@@ -264,7 +253,9 @@ window.BackupManager = {
             batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            const joText = row[row.length - 1] || ""; 
+            // 💡 [핵심 버그 해결] row.length 대신 'pCount + 2' 고정 인덱스 사용!
+            // 이렇게 하면 데이터가 비어있어서 배열이 짧아져도 일정 내용이 기록으로 당겨져 들어오는 오류가 절대 발생하지 않습니다.
+            const joText = row[pCount + 2] || ""; 
             const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
             batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
             opCount++;
@@ -327,13 +318,11 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // ☁️ [Google Sheets API 동기화]
+    // ☁️ [Google Sheets API 동기화] - 스마트 병합 엔진 추가
     // =========================================================================
     getGoogleToken: function() {
         const token = sessionStorage.getItem('google_api_token');
-        if (!token) {
-            alert("구글 연동 권한이 없거나 만료되었습니다.\n우측 상단의 '로그아웃' 후 다시 로그인하여 권한을 승인해주세요.");
-        }
+        if (!token) alert("구글 연동 권한이 없거나 만료되었습니다.\n우측 상단의 '로그아웃' 후 다시 로그인하여 권한을 승인해주세요.");
         return token;
     },
 
@@ -370,8 +359,59 @@ window.BackupManager = {
         try {
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
-            const rows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
+            
+            // 1. 웹 앱에 있는 데이터 가져오기 (현재 선생님 화면에 있는 데이터)
+            const newRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
+            const newHeader = newRows[0];
+            const keyIdx = this.currentTab === 'schedule' ? 0 : 1; // 0=날짜, 1=메모ID
 
+            // 2. 구글 시트에 이미 저장되어 있던 데이터 읽어오기
+            let existingRows = [];
+            try {
+                const readRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
+                    method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (readRes.ok) existingRows = (await readRes.json()).values || [];
+            } catch (e) { console.warn("기존 시트 데이터 없음 (최초 백업일 가능성)"); }
+
+            // 3. 기존 데이터를 Map에 담아 안전하게 보존 (병합 준비)
+            const mergedMap = {};
+            for (let i = 1; i < existingRows.length; i++) {
+                const row = existingRows[i];
+                if (row[keyIdx]) mergedMap[row[keyIdx]] = row;
+            }
+
+            // 4. [핵심 기능] 웹 앱 데이터로 덮어쓰기 (빈칸 동기화 포함)
+            // 웹 앱에 데이터가 없으면 기존 구글 시트에 있던 데이터도 빈칸으로 삭제(덮어쓰기)합니다.
+            for (let i = 1; i < newRows.length; i++) {
+                const row = newRows[i];
+                if (row[keyIdx]) {
+                    const paddedRow = new Array(newHeader.length).fill("");
+                    for (let j = 0; j < row.length; j++) {
+                        paddedRow[j] = row[j] || ""; // 비어있는 칸은 명확하게 빈 문자열("")로 치환
+                    }
+                    mergedMap[row[keyIdx]] = paddedRow;
+                }
+            }
+
+            // 5. 최종 데이터 배열로 다시 조립 및 깔끔하게 정렬
+            const finalRows = [newHeader];
+            let sortedKeys;
+            if (this.currentTab === 'schedule') {
+                sortedKeys = Object.keys(mergedMap).sort(); // 날짜순 정렬
+            } else {
+                sortedKeys = Object.keys(mergedMap).sort((a, b) => {
+                    const tA = parseInt(mergedMap[a][6]) || 0;
+                    const tB = parseInt(mergedMap[b][6]) || 0;
+                    return tB - tA; // 최신 메모가 위로 오게 정렬
+                });
+            }
+            
+            for (const k of sortedKeys) {
+                finalRows.push(mergedMap[k]);
+            }
+
+            // 6. 구글 시트를 비우고 완벽하게 병합된 전체 데이터 쓰기
             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -379,10 +419,10 @@ window.BackupManager = {
             const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ values: rows })
+                body: JSON.stringify({ values: finalRows })
             });
 
-            if(updateRes.ok) alert(`✅ 성공적으로 구글 시트 [${sheetName}] 탭에 백업되었습니다!\n(내 구글 드라이브에서 '업무 및 수업 계획표 클라우드 백업' 파일을 확인하세요)`);
+            if(updateRes.ok) alert(`✅ 성공적으로 구글 시트 [${sheetName}] 탭에 동기화 백업되었습니다!\n(기존 데이터는 보존되며, 빈칸은 정상적으로 삭제 반영되었습니다.)`);
             else throw new Error("업데이트 실패");
 
         } catch (e) {
