@@ -22,7 +22,7 @@ window.openGoogleSyncModal = function() {
             <div class="modal-body">
                 <div class="modal-info-box" style="margin-bottom: 20px;">
                     웹사이트의 데이터를 선생님의 <b>개인 구글 계정</b>으로 동기화합니다.<br>
-                    - 일정 ➔ 수업 ➔ 기록 순서대로 <b>개별 블록</b>이 정렬되어 쌓입니다.
+                    - 일정 ➔ 수업 ➔ 기록 순서대로 <b>개별 블록</b>이 정렬되어 깔끔하게 쌓입니다.
                 </div>
                 
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택 (캘린더용)</h3>
@@ -161,14 +161,12 @@ window.executeGoogleSync = async function() {
     const progressBar = document.getElementById('sync-progress-bar');
 
     try {
-        // [1] 구글 Tasks (메모) 동기화
         if (syncTasks) {
             statusText.innerText = "📝 구글 Tasks 목록 확인 및 동기화 중...";
             progressBar.style.width = "10%";
             await syncMemosToGoogleTasks(token);
         }
 
-        // [2] 구글 캘린더 동기화
         if (syncEvent || syncClass || syncJournal) {
             statusText.innerText = "📅 전용 캘린더(School Planner V3) 준비 중...";
             progressBar.style.width = "20%";
@@ -244,7 +242,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 수정] 일정 -> 수업 -> 기록 순서 보장 및 구글 캘린더 UI 정렬용 번호Prefix(01., 02. 등) 부여
+// 🌟 [핵심 수정] 숫자가 없는 "투명 문자(Zero-Width Character)" 트릭을 사용하여 정렬 보장!
 async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
@@ -253,17 +251,23 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     const endStr = window.formatDate(d);
 
     let seq = 1; // 캘린더 제목 정렬용 일련번호
+    
+    // 💡 투명 문자 생성기: 숫자를 5자리의 안 보이는 특수 문자로 변환합니다. 
+    // 구글 캘린더 시스템은 이 문자를 읽어서 가나다순으로 정렬하지만, 사람 눈에는 숫자가 전혀 보이지 않습니다!
+    const getInvisiblePrefix = (num) => {
+        return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
+    };
 
-    // [1단계] 일정 데이터 (일정1 -> 일정2 -> ...)
+    // [1단계] 일정 데이터
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
             const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '');
             list.forEach(e => {
                 let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
-                let numPrefix = String(seq++).padStart(2, '0');
+                let invisiblePrefix = getInvisiblePrefix(seq++);
                 payloadsToCreate.push({
-                    summary: `${numPrefix}. [${labelStr}] ${e.content}`,
+                    summary: `${invisiblePrefix}[${labelStr}] ${e.content}`,
                     description: `📌 (웹사이트에서 동기화된 일정/행사입니다)`,
                     start: { date: dateStr },
                     end: { date: endStr },
@@ -273,7 +277,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [2단계] 시간표 & 수업 메모 (수업1 -> 수업2 -> ...)
+    // [2단계] 시간표 & 수업 메모
     if (incClass) {
         const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
         if (sDoc.exists && sDoc.data().periods) {
@@ -287,10 +291,10 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
                     if (p.supplies) desc += `- 비고: ${p.supplies}\n`;
                     if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
 
-                    let numPrefix = String(seq++).padStart(2, '0');
+                    let invisiblePrefix = getInvisiblePrefix(seq++);
                     let pName = (window.periodNames && window.periodNames[i - 1]) ? window.periodNames[i - 1] : `${i}교시`;
                     payloadsToCreate.push({
-                        summary: `${numPrefix}. [${pName}] ${p.subject}`,
+                        summary: `${invisiblePrefix}[${pName}] ${p.subject}`,
                         description: desc.trim(),
                         start: { date: dateStr },
                         end: { date: endStr },
@@ -301,16 +305,16 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [3단계] 기록(일지) 데이터 (기록1 -> 기록2 -> ...)
+    // [3단계] 기록(일지) 데이터
     if (incJournal) {
         const jDoc = await window.getUserCol('journals').doc(dateStr).get();
         if (jDoc.exists && jDoc.data().entries) {
             const journals = jDoc.data().entries.filter(j => j.content && j.content.trim() !== '');
             journals.forEach(j => {
                 let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
-                let numPrefix = String(seq++).padStart(2, '0');
+                let invisiblePrefix = getInvisiblePrefix(seq++);
                 payloadsToCreate.push({
-                    summary: `${numPrefix}. [${labelStr}] ${j.content.substring(0, 15)}...`,
+                    summary: `${invisiblePrefix}[${labelStr}] ${j.content.substring(0, 15)}...`,
                     description: `📝 [전체 기록 내용]\n${j.content}`,
                     start: { date: dateStr },
                     end: { date: endStr },
@@ -329,7 +333,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
 
-    // 신규 생성 (순서 보장)
+    // 신규 생성 (투명 문자로 순서 완벽 보장)
     for (const payload of payloadsToCreate) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
         await new Promise(res => setTimeout(res, 50)); 
