@@ -12,7 +12,7 @@ window.BackupManager = {
             </div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <button id="backup-tab-schedule" onclick="window.BackupManager.setTab('schedule')" style="flex:1; padding:10px; border:2px solid #3b82f6; background:#eff6ff; color:#1e40af; border-radius:8px; font-weight:bold; cursor:pointer;">📅 일정 및 기록</button>
-                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모 / 문서·링크</button>
+                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모</button>
             </div>
 
             <div id="backup-schedule-section">
@@ -316,7 +316,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // ☁️ [Google Sheets API 동기화]
+    // ☁️ [Google Sheets API 동기화] - 생성 에러 검출 로직 강화
     // =========================================================================
     getGoogleToken: function() {
         const token = sessionStorage.getItem('google_api_token');
@@ -344,6 +344,7 @@ window.BackupManager = {
             }
         }
 
+        // 🌟 파일 생성 실패 시 구글 서버가 보내는 정확한 원인을 분석하여 안내합니다.
         if (!spreadsheetId) {
             const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
                 method: 'POST',
@@ -353,7 +354,20 @@ window.BackupManager = {
                     sheets: [ { properties: { title: '일정기록' } }, { properties: { title: '메모링크' } } ]
                 })
             });
-            if (!res.ok) throw new Error("스프레드시트 생성에 실패했습니다.");
+            
+            if (!res.ok) {
+                let errorMsg = "알 수 없는 오류가 발생했습니다.";
+                try {
+                    const errData = await res.json();
+                    if (errData.error && errData.error.status === 'PERMISSION_DENIED') {
+                        errorMsg = "구글 스프레드시트 접근 권한이 없습니다.\n\n해결방법: 화면 우측 상단의 [로그아웃]을 클릭하신 후, 다시 구글 로그인 창이 뜰 때 반드시 'Google 스프레드시트 관련 권한' 체크박스에 체크해 주셔야 파일 생성이 가능합니다.";
+                    } else if (errData.error && errData.error.message) {
+                        errorMsg = `구글 클라우드 오류: ${errData.error.message}\n\n(참고: Google Cloud Console에서 Google Sheets API가 '사용(Enable)' 상태인지 확인해 주세요.)`;
+                    }
+                } catch(e) {}
+                throw new Error(errorMsg);
+            }
+            
             const data = await res.json();
             spreadsheetId = data.spreadsheetId;
             await configRef.set({ spreadsheetId });
@@ -433,7 +447,7 @@ window.BackupManager = {
 
         } catch (e) {
             console.error(e);
-            alert("구글 시트 내보내기 중 오류가 발생했습니다. (권한 만료 시 로그아웃 후 재로그인 해주세요)");
+            alert("❌ 백업 실패:\n" + e.message);
         } finally {
             btn.textContent = oldText; btn.disabled = false;
         }
