@@ -6,6 +6,25 @@ const HelpModule = {
   getContentHTML: function() {
     return `
       <div class="modal-help-container" style="padding-top: 5px;">
+        
+        <h3 class="modal-help-title" style="color:#0f766e; border-bottom-color:#99f6e4;">🔐 데이터 동기화 및 구글 로그인 안내</h3>
+        <div style="background:#f0fdfa; padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid #ccfbf1;">
+          <ul style="padding-left: 20px; margin-bottom: 0; line-height:1.6; color:#0f766e;">
+            <li><strong>구글 로그인 필수:</strong> School Planner는 선생님의 개인 구글 계정(드라이브, 캘린더, Tasks)과 직접 연동하여 모든 데이터를 <strong>선생님의 개인 클라우드에만 안전하게 저장</strong>합니다. 서버에 데이터를 수집하지 않으므로 구글 로그인이 필수입니다.</li>
+            <li><strong>⚠️ '확인되지 않은 앱' 경고 화면 대처법:</strong> 
+                <br>초기 로그인 시 구글에서 <span style="color:#ef4444; font-weight:bold;">'확인되지 않은 앱'</span> 또는 <span style="color:#ef4444; font-weight:bold;">'신뢰할 수 없는 사이트'</span>라는 경고 화면이 나타날 수 있습니다. 이는 개인 개발 앱에서 흔히 나타나는 구글의 기본 보안 알림입니다.
+                <br>👉 당황하지 마시고 화면 왼쪽 하단의 <strong>[고급]</strong> 글씨를 클릭한 후, 맨 아래에 나타나는 <strong>[School Planner V3(으)로 이동(안전하지 않음)]</strong>을 클릭하시면 정상적으로 로그인 및 연동이 완료됩니다.</li>
+            <li><strong>필수 권한 체크:</strong> 로그인 시 나타나는 팝업창에서 <strong>'구글 캘린더'</strong>, <strong>'Tasks(할 일)'</strong>, <strong>'Google 스프레드시트'</strong> 관련 권한 체크박스에 모두 체크해 주셔야 동기화 기능이 정상 작동합니다.</li>
+          </ul>
+        </div>
+
+        <h3 class="modal-help-title">☁️ 클라우드 백업 및 동기화 (NEW)</h3>
+        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
+          <li><strong>스프레드시트 다이렉트 백업:</strong> 내보내기/가져오기 메뉴에서 [📗 시트로 백업]을 누르면, 선생님의 구글 드라이브에 전용 백업 엑셀 파일이 자동 생성되고 데이터가 안전하게 저장됩니다.</li>
+          <li><strong>스마트 병합 복원:</strong> 기존에 저장된 백업 시트에서 데이터를 불러올 때, <strong>삭제된 내용은 비우고 추가된 내용은 합치는 스마트 병합</strong> 기술이 적용되어 데이터가 꼬이지 않습니다.</li>
+          <li><strong>구글 캘린더/Tasks 단방향 동기화:</strong> 웹 앱에 작성한 학사일정, 수업, 교단 일지를 구글 캘린더로 깔끔하게 전송하며, 메모는 구글 Tasks로 자동 연동됩니다.</li>
+        </ul>
+
         <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
         <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
           <li><strong>Ctrl + 방향키(좌/우):</strong> 이전/다음 날짜(또는 주, 월)로 빠르게 이동</li>
@@ -37,11 +56,6 @@ const HelpModule = {
           <li><strong>라벨 순서 변경:</strong> 모든 라벨 설정 모달창에서 왼쪽의 '≡' 아이콘을 드래그하여 나만의 순서대로 라벨을 재배치할 수 있습니다.</li>
         </ul>
 
-        <h3 class="modal-help-title">🔍 다중 조건 검색 및 💾 데이터 내보내기</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>고급 통합 검색:</strong> 단축키 [ / ]를 눌러 일정, 기록, 수업, 수업 메모 등 검색 분야를 지정하고 AND / OR 조건을 무한대로 엮어 원하는 데이터를 정확히 찾아냅니다.</li>
-          <li><strong>안전한 백업/복원:</strong> [일정 및 기록]은 물론, [할일 및 메모] 데이터까지 언제든 엑셀(CSV) 파일로 안전하게 개인 PC에 다운로드하고 복원할 수 있습니다.</li>
-        </ul>
       </div>
     `;
   },
