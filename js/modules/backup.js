@@ -118,9 +118,8 @@ window.BackupManager = {
             endInput.disabled = true;
         }
 
-        if (val === 'today') {
-            // 유지
-        } else if (val === 'week') {
+        if (val === 'today') { } 
+        else if (val === 'week') {
             const day = d.getDay();
             sDate.setDate(d.getDate() - day);
             eDate.setDate(sDate.getDate() + 6);
@@ -169,9 +168,6 @@ window.BackupManager = {
         }
     },
 
-    // =========================================================================
-    // 📊 [데이터 추출 모듈]
-    // =========================================================================
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -248,9 +244,6 @@ window.BackupManager = {
         return rows;
     },
 
-    // =========================================================================
-    // 📥 [데이터 주입 모듈] - 완벽한 방어막으로 잘못된 열(Column) 짐작 차단
-    // =========================================================================
     processScheduleRows: async function(rows) {
         if (rows.length < 2) return;
         
@@ -261,8 +254,8 @@ window.BackupManager = {
         
         if (dateIdx === -1) dateIdx = 0;
         if (eventIdx === -1) eventIdx = 1;
-        
-        // 🛑 [강력 방어막] 헤더에 '기록'이 명시되어 있지 않으면 아예 기록 열을 없는 것으로 간주합니다. (-1 유지)
+        if (journalIdx === -1) journalIdx = header.length > 2 ? header.length - 1 : -1;
+
         if (journalIdx !== -1 && journalIdx <= eventIdx) journalIdx = -1;
 
         const batchPromises = [];
@@ -296,7 +289,6 @@ window.BackupManager = {
             batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            // 💡 journalIdx가 확실하게 지정된 경우에만 덮어쓰기를 시도합니다.
             if (journalIdx !== -1) {
                 const joText = row[journalIdx] || ""; 
                 const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
@@ -361,15 +353,6 @@ window.BackupManager = {
         await Promise.all(batchPromises);
     },
 
-    // =========================================================================
-    // ☁️ [Google Sheets API 동기화] - 스마트 병합 시에도 추측 차단
-    // =========================================================================
-    getGoogleToken: function() {
-        const token = sessionStorage.getItem('google_api_token');
-        if (!token) alert("구글 연동 권한이 없거나 만료되었습니다.\n우측 상단의 '로그아웃' 후 다시 로그인하여 권한을 승인해주세요.");
-        return token;
-    },
-
     getOrCreateSpreadsheet: async function(token) {
         const configRef = window.getUserCol('settings').doc('backup_config');
         const doc = await configRef.get();
@@ -419,15 +402,18 @@ window.BackupManager = {
         return spreadsheetId;
     },
 
+    // 🌟 핵심 변경: 내보내기/가져오기 시 스마트 연장 시스템(getValidGoogleToken)을 활용합니다.
     exportToSheets: async function() {
-        const token = this.getGoogleToken();
-        if(!token) return;
-
         const btn = document.getElementById('btn-sheets-export');
         const oldText = btn.textContent;
-        btn.textContent = "⏳ 내보내는 중..."; btn.disabled = true;
+        btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
 
         try {
+            const token = await window.getValidGoogleToken();
+            if(!token) throw new Error("토큰 발급이 취소되었습니다.");
+            
+            btn.textContent = "⏳ 내보내는 중...";
+
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모링크';
             
@@ -450,9 +436,13 @@ window.BackupManager = {
                 const oldHeader = existingRows[0];
                 oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
                 oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
-                oldJournalIdx = oldHeader.indexOf("기록"); // 못 찾으면 -1로 둠 (어림짐작 차단)
-
-                if (oldJournalIdx !== -1 && oldJournalIdx <= oldEventIdx) {
+                
+                let tempJournalIdx = oldHeader.indexOf("기록");
+                if (tempJournalIdx === -1) tempJournalIdx = oldHeader.length > 2 ? oldHeader.length - 1 : -1;
+                
+                if (tempJournalIdx > oldEventIdx) {
+                    oldJournalIdx = tempJournalIdx;
+                } else {
                     oldJournalIdx = -1;
                 }
             }
@@ -523,32 +513,37 @@ window.BackupManager = {
 
             if(updateRes.ok) {
                 this.checkExistingSheet(); 
-                if(confirm(`✅ 구글 시트 백업이 완료되었습니다!\n\n파일이 구글 드라이브(또는 휴지통)에 생성되었습니다.\n지금 바로 백업된 시트 파일을 열어보시겠습니까?`)) {
-                    window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
-                }
+                btn.textContent = "✅ 백업 완료!";
+                setTimeout(() => {
+                    btn.textContent = oldText;
+                    btn.disabled = false;
+                }, 2000);
             } else {
                 throw new Error("업데이트 실패");
             }
 
         } catch (e) {
             console.error(e);
-            alert("❌ 백업 실패:\n" + e.message);
-        } finally {
-            btn.textContent = oldText; btn.disabled = false;
+            if(e.message !== "토큰 발급이 취소되었습니다.") alert("❌ 백업 실패:\n" + e.message);
+            btn.textContent = oldText; 
+            btn.disabled = false;
         }
     },
 
+    // 🌟 핵심 변경: 내보내기/가져오기 시 스마트 연장 시스템(getValidGoogleToken)을 활용합니다.
     importFromSheets: async function() {
-        const token = this.getGoogleToken();
-        if(!token) return;
-
         if(!confirm(`구글 시트의 데이터로 현재 화면을 복원(덮어쓰기 및 병합)하시겠습니까?`)) return;
 
         const btn = document.getElementById('btn-sheets-import');
         const oldText = btn.textContent;
-        btn.textContent = "⏳ 불러오는 중..."; btn.disabled = true;
+        btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
 
         try {
+            const token = await window.getValidGoogleToken();
+            if(!token) throw new Error("토큰 발급이 취소되었습니다.");
+            
+            btn.textContent = "⏳ 불러오는 중...";
+
             const doc = await window.getUserCol('settings').doc('backup_config').get();
             const spreadsheetId = doc.exists ? doc.data().spreadsheetId : null;
             if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 백업'을 진행해주세요.");
@@ -572,15 +567,12 @@ window.BackupManager = {
 
         } catch (e) {
             console.error(e);
-            alert("복원 중 오류 발생: " + e.message);
-        } finally {
-            btn.textContent = oldText; btn.disabled = false;
-        }
+            if(e.message !== "토큰 발급이 취소되었습니다.") alert("복원 중 오류 발생: " + e.message);
+            btn.textContent = oldText; 
+            btn.disabled = false;
+        } 
     },
 
-    // =========================================================================
-    // 💾 [로컬 CSV 파일 처리 모듈]
-    // =========================================================================
     escapeCSV: function(str) {
         if (str == null) return "";
         let s = String(str);
@@ -632,10 +624,13 @@ window.BackupManager = {
             if (this.currentTab === 'schedule') await this.processScheduleRows(rows);
             else await this.processMemoRows(rows);
             
-            alert("데이터가 성공적으로 복원되었습니다!");
             this.modal.close();
             if(window.render) window.render();
-        } catch (e) { alert("업로드 처리 중 오류가 발생했습니다."); } 
-        finally { btn.textContent = oldText; btn.disabled = false; input.value = ''; }
+        } catch (e) { 
+            alert("업로드 처리 중 오류가 발생했습니다."); 
+            btn.textContent = oldText; 
+            btn.disabled = false; 
+            input.value = '';
+        } 
     }
 };
