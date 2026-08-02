@@ -26,6 +26,7 @@ provider.setCustomParameters({ prompt: 'select_account' });
 // 🌟 [핵심 추가] 구글 캘린더 및 Tasks(할 일) 권한(Scope) 요청
 provider.addScope('https://www.googleapis.com/auth/calendar');
 provider.addScope('https://www.googleapis.com/auth/tasks');
+provider.addScope('https://www.googleapis.com/auth/spreadsheets'); // 🟢 새로 추가된 구글 시트 접근 권한
 
 window.signInWithGoogle = function() {
     const loginBtn = document.querySelector('#login-screen button');
