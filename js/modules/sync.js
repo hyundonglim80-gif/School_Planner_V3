@@ -22,7 +22,7 @@ window.openGoogleSyncModal = function() {
             <div class="modal-body">
                 <div class="modal-info-box" style="margin-bottom: 20px;">
                     웹사이트의 데이터를 선생님의 <b>개인 구글 계정</b>으로 동기화합니다.<br>
-                    - 각 수업과 일정, 기록이 <b>개별 블록</b>으로 분리되어 깔끔하게 쌓입니다.
+                    - 일정 ➔ 수업 ➔ 기록 순서대로 <b>개별 블록</b>이 정렬되어 쌓입니다.
                 </div>
                 
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택 (캘린더용)</h3>
@@ -51,7 +51,7 @@ window.openGoogleSyncModal = function() {
                     </label>
                     <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
                         <input type="checkbox" id="sync-chk-class" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [캘린더] 시간표 및 수업 메모/준비물
+                        [캘린더] 시간표 및 수업 메모/비고
                     </label>
                     <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
                         <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked style="width:18px; height:18px;">
@@ -80,13 +80,11 @@ window.openGoogleSyncModal = function() {
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
-    // 모달창이 열리면 자동으로 '오늘' 날짜를 세팅
     setTimeout(() => {
         if(window.handleSyncPeriodChange) window.handleSyncPeriodChange();
     }, 10);
 };
 
-// 🌟 [신규 기능] 드롭다운 선택에 따라 날짜를 자동 계산하여 세팅하는 함수
 window.handleSyncPeriodChange = function() {
     const val = document.getElementById('sync-period-select').value;
     const startInput = document.getElementById('sync-start-date');
@@ -100,7 +98,7 @@ window.handleSyncPeriodChange = function() {
     let eDate = new Date(d);
 
     if (val === 'today') {
-        // 기본값 (오늘) 유지
+        // 오늘 날짜 유지
     } else if (val === 'week') {
         const day = d.getDay();
         sDate.setDate(d.getDate() - day);
@@ -109,7 +107,6 @@ window.handleSyncPeriodChange = function() {
         sDate = new Date(y, m, 1);
         eDate = new Date(y, m + 1, 0);
     } else if (val === 'sem1' || val === 'sem2' || val === 'year') {
-        // app.js 등에 getSemesterDates 함수가 없으면 임시 방어 코드 작동
         let datesInfo = {
             sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
             sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
@@ -177,7 +174,6 @@ window.executeGoogleSync = async function() {
             progressBar.style.width = "20%";
             const calId = await getOrCreateDedicatedCalendar(token);
             
-            // 처리할 날짜 배열 생성
             let datesToSync = [];
             let curD = new Date(startD);
             while (curD <= endD) {
@@ -216,9 +212,6 @@ window.executeGoogleSync = async function() {
     }
 };
 
-// --------------------------------------------------------------------------
-// 🛠️ 구글 API 요청 헬퍼 함수
-// --------------------------------------------------------------------------
 async function googleFetch(url, method, token, body = null) {
     const options = {
         method: method,
@@ -235,9 +228,6 @@ async function googleFetch(url, method, token, body = null) {
     return await response.json();
 }
 
-// --------------------------------------------------------------------------
-// 🛠️ 구글 캘린더 처리 함수
-// --------------------------------------------------------------------------
 async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
     const data = await googleFetch(listUrl, 'GET', token);
@@ -254,24 +244,26 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 변경] 순서 보장: 일정 ➔ 시간표 ➔ 일지 순으로 배열을 정렬하여 순차 등록
+// 🌟 [핵심 수정] 일정 -> 수업 -> 기록 순서 보장 및 구글 캘린더 UI 정렬용 번호Prefix(01., 02. 등) 부여
 async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
-    // 종료일은 다음날짜 (종일 일정 구글 캘린더 기준)
     let d = new Date(dateStr);
     d.setDate(d.getDate() + 1);
     const endStr = window.formatDate(d);
 
-    // [우선순위 1] 일정 데이터 
+    let seq = 1; // 캘린더 제목 정렬용 일련번호
+
+    // [1단계] 일정 데이터 (일정1 -> 일정2 -> ...)
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
             const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '');
             list.forEach(e => {
                 let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
+                let numPrefix = String(seq++).padStart(2, '0');
                 payloadsToCreate.push({
-                    summary: `[${labelStr}] ${e.content}`,
+                    summary: `${numPrefix}. [${labelStr}] ${e.content}`,
                     description: `📌 (웹사이트에서 동기화된 일정/행사입니다)`,
                     start: { date: dateStr },
                     end: { date: endStr },
@@ -281,21 +273,24 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [우선순위 2] 시간표 & 수업 메모 (독립 블록화)
+    // [2단계] 시간표 & 수업 메모 (수업1 -> 수업2 -> ...)
     if (incClass) {
         const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
         if (sDoc.exists && sDoc.data().periods) {
             const periods = sDoc.data().periods;
-            for (let i = 1; i <= 6; i++) {
+            let periodCount = window.periodNames ? window.periodNames.length : 6;
+            for (let i = 1; i <= periodCount; i++) {
                 let p = periods[i];
                 if (p && p.subject && p.subject.trim() !== '' && p.subject.toUpperCase() !== 'X') {
                     let desc = `🎒 [수업 정보]\n`;
-                    if (p.memo) desc += `- 메모: ${p.memo}\n`;
-                    if (p.supplies) desc += `- 준비물: ${p.supplies}\n`;
+                    if (p.memo) desc += `- 수업 메모: ${p.memo}\n`;
+                    if (p.supplies) desc += `- 비고: ${p.supplies}\n`;
                     if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
 
+                    let numPrefix = String(seq++).padStart(2, '0');
+                    let pName = (window.periodNames && window.periodNames[i - 1]) ? window.periodNames[i - 1] : `${i}교시`;
                     payloadsToCreate.push({
-                        summary: `[${i}교시] ${p.subject}`,
+                        summary: `${numPrefix}. [${pName}] ${p.subject}`,
                         description: desc.trim(),
                         start: { date: dateStr },
                         end: { date: endStr },
@@ -306,15 +301,16 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // [우선순위 3] 기록(일지) 데이터 (일정과 같은 방식으로 독립 등록)
+    // [3단계] 기록(일지) 데이터 (기록1 -> 기록2 -> ...)
     if (incJournal) {
         const jDoc = await window.getUserCol('journals').doc(dateStr).get();
         if (jDoc.exists && jDoc.data().entries) {
             const journals = jDoc.data().entries.filter(j => j.content && j.content.trim() !== '');
             journals.forEach(j => {
                 let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
+                let numPrefix = String(seq++).padStart(2, '0');
                 payloadsToCreate.push({
-                    summary: `[${labelStr}] ${j.content.substring(0, 15)}...`,
+                    summary: `${numPrefix}. [${labelStr}] ${j.content.substring(0, 15)}...`,
                     description: `📝 [전체 기록 내용]\n${j.content}`,
                     start: { date: dateStr },
                     end: { date: endStr },
@@ -324,7 +320,7 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         }
     }
 
-    // 4. 기존 동기화된 이벤트(태그 기반) 먼저 모두 일괄 삭제
+    // 기존 동기화된 이벤트 삭제
     const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=app%3DSchoolPlannerV3&privateExtendedProperty=dateStr%3D${dateStr}`;
     const searchResult = await googleFetch(searchUrl, 'GET', token);
     const existingEvents = searchResult.items || [];
@@ -333,18 +329,13 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
 
-    // 5. [중요] 일정 ➔ 시간표 ➔ 기록 순으로 캘린더에 순차 등록
-    // 구글 캘린더가 늦게 등록된 것을 캘린더 하단에 정렬하도록 50ms 대기 시간을 둡니다.
+    // 신규 생성 (순서 보장)
     for (const payload of payloadsToCreate) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
         await new Promise(res => setTimeout(res, 50)); 
     }
 }
 
-
-// --------------------------------------------------------------------------
-// 🛠️ 구글 Tasks 처리 함수
-// --------------------------------------------------------------------------
 async function syncMemosToGoogleTasks(token) {
     const listUrl = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
     const data = await googleFetch(listUrl, 'GET', token);
@@ -354,7 +345,6 @@ async function syncMemosToGoogleTasks(token) {
     
     if (targetList) {
         taskListId = targetList.id;
-        // 단방향 덮어쓰기를 위해 기존 Tasks 모두 비우기
         let pageToken = '';
         do {
             const tasksData = await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks${pageToken ? '?pageToken='+pageToken : ''}`, 'GET', token);
@@ -382,7 +372,6 @@ async function syncMemosToGoogleTasks(token) {
         }
 
         let finalNotes = contentStr;
-        // 사진이 첨부된 경우 링크도 설명란에 포함
         if (memo.imageUrl) {
             finalNotes += `\n\n🖼️ [첨부 이미지 다운로드/보기]\n${memo.imageUrl}`;
         }
