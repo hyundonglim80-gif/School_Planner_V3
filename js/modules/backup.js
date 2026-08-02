@@ -67,7 +67,7 @@ window.BackupManager = {
         this.modal.open();
         this.setTab('schedule');
         this.setDefaultDates();
-        this.checkExistingSheet(); // 창 열릴 때 파일이 있는지 확인
+        this.checkExistingSheet(); 
     },
 
     setTab: function(tab) {
@@ -142,9 +142,6 @@ window.BackupManager = {
         endInput.value = window.formatDate(eDate);
     },
 
-    // =========================================================================
-    // 🔗 [UI 기능] 백업 시트 링크 표시 및 강제 초기화
-    // =========================================================================
     checkExistingSheet: async function() {
         try {
             const doc = await window.getUserCol('settings').doc('backup_config').get();
@@ -252,22 +249,32 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // 📥 [데이터 주입 모듈]
+    // 📥 [데이터 주입 모듈] - 복원 시 스마트 헤더 추적 로직 적용
     // =========================================================================
     processScheduleRows: async function(rows) {
         if (rows.length < 2) return;
-        const pNames = window.periodNames || ["1","2","3","4","5","6"];
-        const pCount = pNames.length;
+        
+        // 🌟 [핵심 변경] 파일 첫 줄(헤더)을 읽어 각 데이터의 실제 위치(인덱스)를 추적합니다.
+        const header = rows[0];
+        let dateIdx = header.indexOf("날짜");
+        let eventIdx = header.indexOf("일정");
+        let journalIdx = header.indexOf("기록");
+        
+        // 만약 헤더 명칭을 못 찾으면 일반적인 순서로 기본 매핑
+        if (dateIdx === -1) dateIdx = 0;
+        if (eventIdx === -1) eventIdx = 1;
+        if (journalIdx === -1) journalIdx = header.length > 2 ? header.length - 1 : 2;
+
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
 
-        for (let i=1; i<rows.length; i++) {
+        for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const dStr = row[0];
-            if(!dStr || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+            const dStr = row[dateIdx];
+            if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
 
-            const evText = row[1] || "";
+            const evText = row[eventIdx] || "";
             const eventList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
             batch.set(window.getUserCol('events').doc(dStr), { eventList: eventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
             opCount++;
@@ -275,18 +282,22 @@ window.BackupManager = {
             const periodsData = {};
             let isSkipDay = eventList.some(ev => ev.labels && ev.labels.some(l => window.isSkipLabel && window.isSkipLabel(l)));
 
-            for(let p=1; p<=pCount; p++) {
-                const pText = row[1+p] || "";
+            let pNum = 1;
+            // '일정' 칸과 '기록' 칸 사이에 있는 모든 데이터를 교시(수업) 데이터로 취급하여 안전하게 파싱합니다.
+            for(let p = eventIdx + 1; p < journalIdx; p++) {
+                const pText = row[p] || "";
                 let subj = "", memo = pText;
                 const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
                 if(match) { subj = match[1]; memo = match[2]; }
                 if(isSkipDay) subj = '';
-                periodsData[p] = { subject: subj, memo: memo, supplies: "" };
+                periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
+                pNum++;
             }
             batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            const joText = row[pCount + 2] || ""; 
+            // 💡 고정된 숫자가 아닌 위에서 찾은 journalIdx 위치에서 기록을 가져오므로 데이터 침범 원천 차단!
+            const joText = row[journalIdx] || ""; 
             const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
             batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
             opCount++;
@@ -349,7 +360,7 @@ window.BackupManager = {
     },
 
     // =========================================================================
-    // ☁️ [Google Sheets API 동기화] - 에러 검증 및 강제 생성 추가
+    // ☁️ [Google Sheets API 동기화] - 백업 병합 시 스마트 재정렬 기능 추가
     // =========================================================================
     getGoogleToken: function() {
         const token = sessionStorage.getItem('google_api_token');
@@ -431,9 +442,41 @@ window.BackupManager = {
             } catch (e) {}
 
             const mergedMap = {};
+
+            // 🌟 [핵심 변경] 기존 구글 시트의 헤더를 분석하여 각 데이터의 원래 위치를 파악합니다.
+            let oldDateIdx = 0, oldEventIdx = 1, oldJournalIdx = -1;
+            if (existingRows.length > 0) {
+                const oldHeader = existingRows[0];
+                oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
+                oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
+                oldJournalIdx = oldHeader.indexOf("기록") !== -1 ? oldHeader.indexOf("기록") : oldHeader.length - 1;
+            }
+
             for (let i = 1; i < existingRows.length; i++) {
                 const row = existingRows[i];
-                if (row[keyIdx]) mergedMap[row[keyIdx]] = row;
+                if (!row[keyIdx]) continue;
+                
+                if (this.currentTab === 'schedule') {
+                    // 구글 시트에 있던 예전 데이터를 현재의 시수(pNames) 설정에 맞게 "스마트 재정렬(Realignment)"
+                    const realignedRow = new Array(newHeader.length).fill("");
+                    realignedRow[0] = row[oldDateIdx] || ""; // Date
+                    realignedRow[1] = row[oldEventIdx] || ""; // Event
+                    
+                    // Periods 이식 (예전 시트의 교시들을 현재 설정된 개수 한도 내에서 복사)
+                    let currentPCount = newHeader.length - 3; 
+                    let pNum = 1;
+                    for (let p = oldEventIdx + 1; p < oldJournalIdx && pNum <= currentPCount; p++) {
+                        realignedRow[1 + pNum] = row[p] || "";
+                        pNum++;
+                    }
+                    
+                    // Journal(기록) 이식 (기존 기록 칸의 내용을 무조건 새로운 기록 칸 맨 끝으로 이동)
+                    realignedRow[newHeader.length - 1] = row[oldJournalIdx] || "";
+                    
+                    mergedMap[realignedRow[0]] = realignedRow;
+                } else {
+                    mergedMap[row[keyIdx]] = row;
+                }
             }
 
             for (let i = 1; i < newRows.length; i++) {
@@ -474,7 +517,7 @@ window.BackupManager = {
             });
 
             if(updateRes.ok) {
-                this.checkExistingSheet(); // 🌟 UI에 즉시 링크 버튼 생성
+                this.checkExistingSheet(); 
                 if(confirm(`✅ 구글 시트 백업이 완료되었습니다!\n\n파일이 구글 드라이브(또는 휴지통)에 생성되었습니다.\n지금 바로 백업된 시트 파일을 열어보시겠습니까?`)) {
                     window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
                 }
