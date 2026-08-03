@@ -179,21 +179,37 @@ class WeekView extends window.BaseView {
               const isActive = eLabels.includes(lName);
               const activeClass = isActive ? 'active' : '';
               
-              const clickCode = `window.weekViewInstance ? window.weekViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}') : window.monthViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}')`;
+              // 💡 핵심: 칩 클릭 코드에 isPeriod 분기 추가
+              const clickCode = `
+                  if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel('${lName}')) {
+                      const ta = document.querySelector('.compact-event-row[data-idx="${idx}"] textarea');
+                      window.openPeriodModal('${dateStr}', '${lName}', ta ? ta.value : '', function(isSaved){ if(isSaved) window.render(); });
+                  } else {
+                      window.weekViewInstance ? window.weekViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}') : window.monthViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lName}');
+                  }
+              `;
               
               chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto;">${lName}</div>`;
           });
           chipsHtml += `</div>`;
 
           const isCompleted = !!e.completed;
-          const inputStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+          // 💡 핵심: '완료(이월)' 속성을 가진 라벨만 체크박스 활성화 여부 판별
+          const canComplete = (typeof window.isForwardLabel === 'function' && eLabels.length > 0) ? window.isForwardLabel(eLabels[0]) : false;
+
+          const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+
+          // 💡 핵심: 완료 속성에 따라 체크박스 표시 여부 결정
+          const checkboxHtml = canComplete 
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:16px; cursor:pointer;" title="완료 체크">`
+              : '';
 
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                   ${chipsHtml}
                   <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                      <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:16px; cursor:pointer;" title="완료 체크">
+                      ${checkboxHtml}
                       <button onclick="window.weekViewInstance ? window.weekViewInstance.removeCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.removeCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
                   </div>
               </div>
