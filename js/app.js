@@ -68,19 +68,20 @@ window.moveDate = async function(dir) {
   window.render();
 };
 
-// 🚀 [수정] 오늘 날짜 이동 후 해당 위치로 자동 스크롤 점프
+// 🚀 [수정] 렌더링 직후 부드럽게 자동 스크롤 점프
 window.goToToday = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
   
-  // 렌더링이 완료된 직후 해당 위치로 스크롤을 이동
-  setTimeout(() => {
-      const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
-      if (todayEl) {
-          todayEl.scrollIntoView({ behavior: 'auto', block: 'center' });
-      }
-  }, 100);
+  requestAnimationFrame(() => {
+      setTimeout(() => {
+          const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+          if (todayEl) {
+              todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+      }, 50); // DOM이 완벽히 그려질 수 있도록 0.05초 대기 후 스크롤
+  });
 };
 
 // ==========================================================================
@@ -255,6 +256,7 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
+// 🚀 [수정] 작성 모드에서 저장 시 백그라운드로 이월 엔진 스캔
 window.saveCurrentViewData = async function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
@@ -267,6 +269,11 @@ window.saveCurrentViewData = async function(silent = false) {
   else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+
+  // 방금 수정한 과거의 내용이 오늘까지 연결될 수 있도록 저장 시점에 스캔엔진 구동!
+  if (window.autoForwardIncompleteEvents) {
+      await window.autoForwardIncompleteEvents();
+  }
 
   if (editorBtn && !silent) {
     editorBtn.innerHTML = '저장 완료';
@@ -352,100 +359,136 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [수정] 미접속 날짜의 공백을 메우며 연속적으로 이월하는 로직
+// 🚀 [수정] 징검다리 스캔 + Chain ID 연쇄 삭제 엔진
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
-    const todayStr = window.formatDate(new Date());
-
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 14); // 최근 14일 치 스캔
-    const pastDateStr = window.formatDate(pastDate);
+    const todayStr = window.formatDate(window.currentDate || new Date());
+    const pastDate = new Date(window.parseLocalDate(todayStr));
+    pastDate.setDate(pastDate.getDate() - 14); // 과거 14일부터 오늘까지 스캔
 
     try {
         const eventsSnap = await window.getUserCol('events')
-            .where(firebase.firestore.FieldPath.documentId(), '>=', pastDateStr)
+            .where(firebase.firestore.FieldPath.documentId(), '>=', window.formatDate(pastDate))
             .where(firebase.firestore.FieldPath.documentId(), '<=', todayStr)
             .get();
         
         let eventsMap = {};
-        eventsSnap.forEach(doc => {
-            eventsMap[doc.id] = doc.data();
-        });
-
-        let batch = window.db.batch();
+        eventsSnap.forEach(doc => { eventsMap[doc.id] = doc.data(); });
+        
         let changedDocs = new Set();
+        let completedChains = new Set(); // 미래를 지우기 위해 완료된 Chain ID 수집
+        
+        const getOriginalContent = (content) => {
+            return content.replace(/➡️\s*\(다음 날로 이월됨\)/g, '')
+                          .replace(/↪️\s*/g, '')
+                          .trim();
+        };
 
         let curD = new Date(pastDate);
-        let endD = new Date(todayStr);
+        let endD = window.parseLocalDate(todayStr);
 
-        // 과거 14일부터 오늘 전날까지 하루씩 순차적으로 검사
+        // 과거부터 오늘 전날까지 하루씩 전진하며 공백 메우기
         while(curD < endD) {
             const curStr = window.formatDate(curD);
             curD.setDate(curD.getDate() + 1);
-            const nextStr = window.formatDate(curD); // 내일 날짜 (이월시킬 타겟)
+            const nextStr = window.formatDate(curD);
 
-            let curData = eventsMap[curStr];
-            if (!curData) continue; // 이 날짜에 작성된 데이터가 없으면 패스
-
+            let curData = eventsMap[curStr] || { eventList: [] };
             let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
-            let forwardedToNext = [];
+            
+            let nextData = eventsMap[nextStr] || { eventList: [] };
+            let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
+
             let curChanged = false;
+            let nextChanged = false;
 
             curList.forEach(ev => {
                 const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
-                const hasBeenForwarded = ev.isForwarded || (ev.content && ev.content.includes('(미완료)'));
                 
-                // 완료되지 않았고, 이미 한 번 이월 처리된 적이 없다면
-                if (canComplete && !ev.completed && !hasBeenForwarded) {
-                    ev.isForwarded = true; 
-                    ev.completed = true; // 과거 데이터 취소선을 위해 강제 완료 처리 
-                    
-                    const originalContent = ev.content.replace(/\s*\(미완료\)$/, '').replace(/\s*\(이월됨\)$/, '');
-                    
-                    // 현재 검사 중인 과거 날짜의 일정은 '미완료' 표시
-                    ev.content = `${originalContent} (미완료)`; 
-                    curChanged = true;
-                    
-                    // 내일(nextStr)로 넘길 새 일정 객체 생성
-                    forwardedToNext.push({ 
-                        label: ev.label, 
-                        labels: ev.labels, 
-                        content: `${originalContent} (이월됨)`, 
-                        completed: false 
-                    }); 
+                if (canComplete) {
+                    // 고유 꼬리표(Chain ID)가 없다면 발급
+                    if (!ev.forwardChainId) {
+                        ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                        curChanged = true;
+                    }
+
+                    if (!ev.completed) {
+                        completedChains.delete(ev.forwardChainId);
+                        
+                        const origContent = getOriginalContent(ev.content);
+                        
+                        // 과거 일정에 '➡️' 표식이 없다면 부착 (강제 취소선 부여 안함)
+                        if (!ev.content.includes('➡️')) {
+                            ev.content = `${origContent} ➡️ (다음 날로 이월됨)`;
+                            ev.isForwarded = true;
+                            curChanged = true;
+                        }
+
+                        // 다음 날짜에 해당 Chain ID가 있는지 검사하여 없으면 징검다리 생성
+                        const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
+                        if (!existsInNext) {
+                            nextList.unshift({
+                                label: ev.label,
+                                labels: ev.labels,
+                                content: `↪️ ${origContent}`,
+                                completed: false,
+                                forwardChainId: ev.forwardChainId
+                            });
+                            nextChanged = true;
+                        }
+                    } else {
+                        // 완료된 일정이면 연쇄 삭제를 위해 수집
+                        completedChains.add(ev.forwardChainId);
+                        const origLen = nextList.length;
+                        nextList = nextList.filter(n => n.forwardChainId !== ev.forwardChainId);
+                        if (nextList.length !== origLen) nextChanged = true;
+                    }
                 }
             });
 
-            if (curChanged) {
-                eventsMap[curStr] = { ...curData, eventList: curList };
-                changedDocs.add(curStr);
+            // 오늘 날짜의 리스트도 검사해서 방금 완료 처리된 Chain ID 수집
+            if (curD.getTime() === endD.getTime()) {
+                nextList.forEach(ev => {
+                    const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
+                    if (canComplete && ev.completed && ev.forwardChainId) {
+                        completedChains.add(ev.forwardChainId);
+                    }
+                });
             }
 
-            // 내일로 넘겨야 할 데이터가 있다면
-            if (forwardedToNext.length > 0) {
-                let nextData = eventsMap[nextStr] || {};
-                let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
-                // 내일 일정의 맨 위에 끼워 넣음 (다음 루프 때 이 날짜가 다시 검사됨)
-                nextList = [...forwardedToNext, ...nextList];
-                eventsMap[nextStr] = { ...nextData, eventList: nextList };
-                changedDocs.add(nextStr);
-            }
+            if (curChanged) { eventsMap[curStr] = { ...curData, eventList: curList }; changedDocs.add(curStr); }
+            if (nextChanged) { eventsMap[nextStr] = { ...nextData, eventList: nextList }; changedDocs.add(nextStr); }
         }
 
+        let batch = window.db.batch();
         let opCount = 0;
+        let batchPromises = [];
+        
         changedDocs.forEach(dateStr => {
             const docRef = window.getUserCol('events').doc(dateStr);
-            batch.set(docRef, { 
-                eventList: eventsMap[dateStr].eventList, 
-                updatedAt: Date.now() 
-            }, { merge: true });
+            batch.set(docRef, { eventList: eventsMap[dateStr].eventList, updatedAt: Date.now() }, { merge: true });
             opCount++;
+            if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
         });
 
-        if (opCount > 0) {
-            await batch.commit();
-            if (window.render) window.render(); 
+        // 🚀 [수정] 완료된 Chain ID가 있다면 오늘 이후의 미래 데이터에서 일괄 스캔하여 연쇄 삭제!
+        if (completedChains.size > 0) {
+            const futureSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>', todayStr).get();
+            futureSnap.forEach(doc => {
+                let fList = doc.data().eventList || [];
+                const origLen = fList.length;
+                fList = fList.filter(e => !completedChains.has(e.forwardChainId));
+                if (fList.length !== origLen) {
+                    batch.update(doc.ref, { eventList: fList, updatedAt: Date.now() });
+                    opCount++;
+                    if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+                }
+            });
         }
+
+        if (opCount > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+
     } catch(e) {
         console.error("자동 이월 처리 중 에러:", e);
     }
@@ -531,7 +574,7 @@ window.executePeriodSave = async function(labelName, callback) {
     const totalDays = datesToSave.length;
     let batch = window.db.batch();
     
-    // 🚀 [수정] 묶음 처리를 위한 고유 그룹 ID 생성
+    // 묶음 처리를 위한 고유 그룹 ID 생성
     const groupId = 'period_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
     
     for(let i=0; i<totalDays; i++) {
