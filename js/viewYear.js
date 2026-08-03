@@ -19,12 +19,12 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
-          // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
           let processed = data.eventList.map(e => ({
               ...e,
               labels: e.labels || (e.label ? [e.label] : [])
           }));
-          htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
+          // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
+          htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
           hasContent = true;
         } else if (data.eventText && data.eventText.trim() !== '') {
           const parsed = window.parseRawEventTextToEventList(data.eventText);
@@ -32,7 +32,8 @@ class YearView extends window.BaseView {
               ...e,
               labels: e.labels || (e.label ? [e.label] : [])
           }));
-          htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
+          // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
+          htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
           hasContent = true;
         }
         
