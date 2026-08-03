@@ -42,16 +42,7 @@ const LabelManager = {
 
   selectColor: function(idPrefix, colorKey) {
       document.getElementById(`${idPrefix}-selected-color`).value = colorKey;
-      const palette = window.LABEL_PALETTE || {
-          red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
-          orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74' },
-          yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
-          green: { bg: '#dcfce7', text: '#166534', border: '#86efac' },
-          blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' },
-          indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc' },
-          purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
-          gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' }
-      };
+      const palette = window.LABEL_PALETTE || {};
       for (const key of Object.keys(palette)) {
           const div = document.getElementById(`${idPrefix}-color-${key}`);
           if (div) {
@@ -96,7 +87,7 @@ const LabelManager = {
   },
 
   // ====================================================
-  // 🏷️ 1. 일정 라벨 관리 (자동이월, 기간, 상호배타 로직)
+  // 🏷️ 1. 일정 라벨 관리
   // ====================================================
   getEventContentHTML: function() {
     return `
@@ -172,13 +163,13 @@ const LabelManager = {
             </select>
             <div style="flex:1;"></div>
             <div style="display:flex; gap:10px; align-items:center; text-align:center;">
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;" title="기간 달력 사용">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;">
                     <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked) window.tempEditingLabels[${index}].isForward = false; LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;" title="체크박스 및 미완료 이월">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;">
                     <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked) window.tempEditingLabels[${index}].isPeriod = false; LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;" title="해당일 수업 숨김">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;">
                     <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
             </div>
@@ -211,6 +202,7 @@ const LabelManager = {
     this.renderEventLabels();
   },
 
+  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveEventLabels: async function(e) {
     for (let i=0; i<window.tempEditingLabels.length; i++) {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -230,12 +222,19 @@ const LabelManager = {
     const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
     const dataToSave = window.tempEditingLabels.map(({originalName, ...rest}) => rest);
+    
+    // 로컬 저장
     localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
+    
+    // 🚀 클라우드 Firestore 저장
+    if (window.db) {
+        window.getUserCol('settings').doc('labels').set({ eventLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
+    }
     
     if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
-        btn.textContent = "클라우드 갱신 중...";
+        btn.textContent = "클라우드 데이터 정리 중...";
         btn.disabled = true;
         
         try {
@@ -298,7 +297,7 @@ const LabelManager = {
     }
 
     this.eventModal.close();
-    alert("일정 라벨 설정이 저장되었습니다.");
+    alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     if (typeof window.render === 'function') window.render(); 
   },
 
@@ -392,6 +391,7 @@ const LabelManager = {
     this.renderJournalLabels();
   },
 
+  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveJournalLabels: async function(e) {
     for (let i=0; i<window.tempEditingJournalLabels.length; i++) {
         if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -410,12 +410,19 @@ const LabelManager = {
     const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
     const dataToSave = window.tempEditingJournalLabels.map(({originalName, ...rest}) => rest);
+    
+    // 로컬 저장
     localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
+    
+    // 🚀 클라우드 Firestore 저장
+    if (window.db) {
+        window.getUserCol('settings').doc('labels').set({ journalLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
+    }
     
     if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
-        btn.textContent = "클라우드 갱신 중...";
+        btn.textContent = "클라우드 데이터 정리 중...";
         btn.disabled = true;
 
         try {
@@ -472,7 +479,7 @@ const LabelManager = {
     }
 
     this.journalModal.close();
-    alert("기록 라벨 설정이 저장되었습니다.");
+    alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     if (typeof window.render === 'function') window.render(); 
   },
 
@@ -513,7 +520,7 @@ const LabelManager = {
       </div>
       
       <div class="modal-footer-actions">
-          <button onclick="LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 적용</button>
+          <button onclick="LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 클라우드 반영</button>
       </div>
     `;
   },
@@ -578,6 +585,7 @@ const LabelManager = {
     this.renderMemoLabels();
   },
 
+  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveMemoLabels: async function(e) {
     for (let i=0; i<window.tempEditingMemoLabels.length; i++) {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -602,12 +610,19 @@ const LabelManager = {
     const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
 
     const dataToSave = window.tempEditingMemoLabels.map(({originalName, ...rest}) => rest);
+    
+    // 로컬 저장
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(dataToSave));
+    
+    // 🚀 클라우드 Firestore 저장
+    if (window.db) {
+        window.getUserCol('settings').doc('labels').set({ memoLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
+    }
     
     if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
         const btn = e.target;
         const originalText = btn.textContent;
-        btn.textContent = "클라우드 갱신 중...";
+        btn.textContent = "클라우드 데이터 정리 중...";
         btn.disabled = true;
 
         try {
@@ -652,7 +667,7 @@ const LabelManager = {
     }
 
     this.memoModal.close();
-    alert("메모 라벨 설정이 성공적으로 저장되었습니다.");
+    alert("메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     
     if (typeof window.render === 'function') {
         window.render(); 
