@@ -1,10 +1,9 @@
-//js/core/utils.js
+// js/core/utils.js
 
 // ==========================================================================
 // 🛠️ 공통 유틸리티 및 데이터 가공 (Labels & Format) 엔진
 // ==========================================================================
 
-// 추가할 함수
 window.parseLocalDate = function(dateString) {
   if (!dateString) return new Date();
   const parts = dateString.split('-');
@@ -87,6 +86,7 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
+// 🚀 [수정] 다중 라벨 배열 매핑 및 이월 기록 디자인 강화
 window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -95,16 +95,16 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     const defaultLabel = validLabels[0] || '일정';
 
     eventList.forEach((e, index) => {
-        let currentLabel = e.label;
+        // [핵심] labels[0]을 우선으로 가져와서 라벨이 '일정'으로만 표기되는 현상 방지
+        let currentLabel = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || defaultLabel);
         if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel;
 
         const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
-        // 💡 핵심: 라벨이 '완료(이월)' 속성을 가졌는지 확인
         const canComplete = window.isForwardLabel(currentLabel); 
 
         let badgeStyle = isCompleted && canComplete
-            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through; cursor:pointer;`
+            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`
             : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
 
         let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
@@ -112,13 +112,18 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        // 완료 속성이 있을 때만 onClick 이벤트 부여
+        // [핵심] 이월된 흔적이 있는 경우 텍스트를 빨간색으로 시각적 강조
+        let contentHtml = e.content;
+        if (contentHtml.includes('(다음 날로 이월됨)')) {
+            contentHtml = contentHtml.replace('(다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-style:normal;">(다음 날로 이월됨)</span>');
+        }
+
         const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
         html += `
-        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3; ${isCompleted && canComplete ? 'opacity:0.65;' : ''}">
+        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;">
             <span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : currentLabel}">${currentLabel}</span>
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${e.content}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !e.isForwarded ? '✓ ' : ''}${contentHtml}</span>
         </div>`;
     });
     html += `</div>`;
@@ -173,14 +178,14 @@ window.parseRawEventTextToEventList = function(rawText) {
         if (match) {
             let labelName = match[1].trim();
             if (!validLabels.includes(labelName)) labelName = validLabels[0] || '일정'; 
-            eventList.push({ label: labelName, content: match[2].trim(), completed: completed });
+            eventList.push({ label: labelName, labels: [labelName], content: match[2].trim(), completed: completed });
         } else {
             let defaultLabel = validLabels[0] || '일정';
             if (t.includes('(휴일)') || t.includes('(행사)')) {
                 const skipLabel = window.getEventLabels().find(l => l.isSkip);
                 if (skipLabel) defaultLabel = skipLabel.name;
             }
-            eventList.push({ label: defaultLabel, content: t, completed: completed });
+            eventList.push({ label: defaultLabel, labels: [defaultLabel], content: t, completed: completed });
         }
     });
     return eventList;
@@ -188,7 +193,7 @@ window.parseRawEventTextToEventList = function(rawText) {
 
 window.formatEventListToText = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => `${e.completed ? '[v]' : ''}[${e.label}] ${e.content}`).join('\n');
+    return eventList.map(e => `${e.completed ? '[v]' : ''}[${(e.labels && e.labels.length > 0) ? e.labels[0] : e.label}] ${e.content}`).join('\n');
 };
 
 window.getJournalLabels = function() {
@@ -211,13 +216,9 @@ window.getJournalLabels = function() {
     return labels;
 };
 
-// ==========================================================================
-// 🎓 전역 학기 계산 엔진 (Semester Calculation Engine) 추가
-// ==========================================================================
-window.sem2StartMMDD = '08-16'; // 기본값 설정
+window.sem2StartMMDD = '08-16'; 
 window.isPreferencesLoaded = false;
 
-// 모달을 열 때마다 DB에서 사용자 설정을 불러오는 전역 함수
 window.loadGlobalPreferences = async function() {
     if (window.isPreferencesLoaded || !window.db) return;
     try {
@@ -229,23 +230,22 @@ window.loadGlobalPreferences = async function() {
     } catch (e) { console.warn("설정 로드 실패", e); }
 };
 
-// 언제 어디서든 현재 기준일자를 넣으면 학사일정 범위를 정확히 계산해 반환
 window.getSemesterDates = function(baseDate = window.currentDate) {
     const y = baseDate.getFullYear();
     const m = baseDate.getMonth();
-    const acYear = m <= 1 ? y - 1 : y; // 1~2월이면 이전 연도가 학년도 기준
+    const acYear = m <= 1 ? y - 1 : y; 
 
     const sem2Parts = window.sem2StartMMDD.split('-');
     const sem2Month = parseInt(sem2Parts[0], 10) - 1;
     const sem2Day = parseInt(sem2Parts[1], 10);
 
-    const yearStart = new Date(acYear, 2, 1); // 3월 1일 시작
-    const yearEnd = new Date(acYear + 1, 2, 0); // 다음해 2월 마지막 날
+    const yearStart = new Date(acYear, 2, 1); 
+    const yearEnd = new Date(acYear + 1, 2, 0); 
     
     const sem2Start = new Date(acYear, sem2Month, sem2Day);
     
     const sem1End = new Date(sem2Start);
-    sem1End.setDate(sem1End.getDate() - 1); // 2학기 시작 전날이 1학기 종료
+    sem1End.setDate(sem1End.getDate() - 1); 
 
     return {
         acYear: acYear,
