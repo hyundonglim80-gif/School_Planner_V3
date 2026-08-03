@@ -47,7 +47,6 @@ class WeekView extends window.BaseView {
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
         
         if (finalEvents.length > 0) {
-            // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
             let processedEvents = finalEvents.map(e => ({
                 ...e,
                 labels: e.labels || (e.label ? [e.label] : [])
@@ -185,7 +184,8 @@ class WeekView extends window.BaseView {
           chipsHtml += `</div>`;
 
           const isCompleted = !!e.completed;
-          const canComplete = eLabels.some(l => window.isForwardLabel(l));
+          // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
+          const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
@@ -235,11 +235,12 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
+  // 🚀 [수정] 그룹 ID를 모달로 전달
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const label = ev.labels?.[0] || ev.label;
       if (window.isPeriodLabel && window.isPeriodLabel(label)) {
-          window.showPeriodDeleteModal(dateStr, label, ev.content, () => {
+          window.showPeriodDeleteModal(dateStr, label, ev.content, ev.groupId, () => {
               window.render();
           });
       } else {
@@ -310,6 +311,7 @@ window.renderWeekViewer = (container) => { window.weekViewInstance.container = c
 window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
 
+// 🚀 [수정] 라벨 클릭 시 재렌더링하여 체크박스 여부 즉각 동기화
 window.handleCompactLabelClick = function(dateStr, idx, lName) {
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
