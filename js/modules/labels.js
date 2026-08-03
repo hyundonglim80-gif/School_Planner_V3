@@ -202,7 +202,6 @@ const LabelManager = {
     this.renderEventLabels();
   },
 
-  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveEventLabels: async function(e) {
     for (let i=0; i<window.tempEditingLabels.length; i++) {
         if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -223,10 +222,8 @@ const LabelManager = {
 
     const dataToSave = window.tempEditingLabels.map(({originalName, ...rest}) => rest);
     
-    // 로컬 저장
     localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
     
-    // 🚀 클라우드 Firestore 저장
     if (window.db) {
         window.getUserCol('settings').doc('labels').set({ eventLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
     }
@@ -298,6 +295,12 @@ const LabelManager = {
 
     this.eventModal.close();
     alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+    
+    // 🚀 [옵션 2-A] 저장 완료 후 변경 사항 소급 적용을 위해 즉시 이월 스캔 실행
+    if (window.autoForwardIncompleteEvents) {
+        await window.autoForwardIncompleteEvents();
+    }
+
     if (typeof window.render === 'function') window.render(); 
   },
 
@@ -391,7 +394,6 @@ const LabelManager = {
     this.renderJournalLabels();
   },
 
-  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveJournalLabels: async function(e) {
     for (let i=0; i<window.tempEditingJournalLabels.length; i++) {
         if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -411,10 +413,8 @@ const LabelManager = {
 
     const dataToSave = window.tempEditingJournalLabels.map(({originalName, ...rest}) => rest);
     
-    // 로컬 저장
     localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
     
-    // 🚀 클라우드 Firestore 저장
     if (window.db) {
         window.getUserCol('settings').doc('labels').set({ journalLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
     }
@@ -585,7 +585,6 @@ const LabelManager = {
     this.renderMemoLabels();
   },
 
-  // 🚀 [수정] 클라우드 동기화 로직 추가
   saveMemoLabels: async function(e) {
     for (let i=0; i<window.tempEditingMemoLabels.length; i++) {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
@@ -611,10 +610,8 @@ const LabelManager = {
 
     const dataToSave = window.tempEditingMemoLabels.map(({originalName, ...rest}) => rest);
     
-    // 로컬 저장
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(dataToSave));
     
-    // 🚀 클라우드 Firestore 저장
     if (window.db) {
         window.getUserCol('settings').doc('labels').set({ memoLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
     }
