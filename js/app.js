@@ -75,18 +75,28 @@ window.goToToday = async function() {
 };
 
 // ==========================================================================
-// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정)
+// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정 + 라벨 동기화)
 // ==========================================================================
 window.periodNames = ["1", "2", "3", "4", "5", "6"];
 window.tempPeriodNames = [];
 
 window.loadSettings = async function() {
     try {
+        // 1. 수업 시수 환경설정 불러오기
         const doc = await window.getUserCol('settings').doc('preferences').get();
         if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
             window.periodNames = doc.data().periodNames;
         } else {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
+        }
+
+        // 2. 🚀 [수정] 클라우드에서 최신 라벨 데이터 동기화 가져오기
+        const labelDoc = await window.getUserCol('settings').doc('labels').get();
+        if (labelDoc.exists) {
+            const data = labelDoc.data();
+            if (data.eventLabels) localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(data.eventLabels));
+            if (data.journalLabels) localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(data.journalLabels));
+            if (data.memoLabels) localStorage.setItem('workCalendar_memoLabels', JSON.stringify(data.memoLabels));
         }
     } catch (error) {
         console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
@@ -337,7 +347,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [수정] 미완료 자동 이월 로직 (흔적 남기기 반영)
+// 🚀 미완료 자동 이월 로직 (흔적 남기기 반영)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date());
@@ -363,17 +373,14 @@ window.autoForwardIncompleteEvents = async function() {
             list.forEach(ev => {
                 const label = ev.labels ? ev.labels[0] : ev.label;
                 
-                // '완료(이월)' 속성이면서 완료되지 않았고, 이미 이월된 기록이 없다면
                 if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
-                    ev.isForwarded = true; // 플래그 설정
-                    ev.completed = true;   // 과거 일정 취소선 적용을 위해 강제 완료 처리
+                    ev.isForwarded = true; 
+                    ev.completed = true;   
                     
                     const originalContent = ev.content;
-                    // 과거 데이터에 흔적 남기기 (빨간색 등 렌더링은 utils.js에서 처리됨)
                     ev.content = `↪️ ${originalContent} (다음 날로 이월됨)`; 
                     docChanged = true;
                     
-                    // 오늘 날짜로 가져갈 새 객체 생성 (깨끗한 상태로 복사)
                     forwardedEvents.push({ label: label, labels: ev.labels, content: originalContent, completed: false }); 
                 }
             });
@@ -500,7 +507,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 [신규] 기간 일정 3가지 삭제 옵션 모달 및 로직
+// 🚀 기간 일정 3가지 삭제 옵션 모달 및 로직
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, onConfirm) {
     const baseContent = textContent.replace(/\s*\(\d+\/\d+\)$/, '');
