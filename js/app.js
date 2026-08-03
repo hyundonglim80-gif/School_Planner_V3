@@ -505,3 +505,107 @@ window.executePeriodSave = async function(labelName, callback) {
     alert(`✅ 총 ${totalDays}일의 일정이 등록되었습니다.`);
     if (callback) callback(true);
 };
+
+// ==========================================================================
+// 🚀 [신규] 일정 삭제 시 다중/기간 일정 자동 감지 및 삭제 옵션 제공 엔진
+// ==========================================================================
+window.handleEventDeletion = function(dateStr, eventObj, singleDeleteCallback) {
+    // "(1/5)" 같은 패턴이 있는지 검사 (기간 일정 판별)
+    const match = (eventObj.content || '').match(/(.*)\s+\((\d+)\/(\d+)\)$/);
+    
+    if (!match) {
+        // 일반 일정이면 묻지 않고 바로 삭제 콜백 실행
+        if (singleDeleteCallback) singleDeleteCallback();
+        return;
+    }
+
+    // 기간 일정인 경우 팝업 띄우기
+    const baseContent = match[1].trim();
+    const currentIdx = match[2];
+    const totalDays = match[3];
+
+    const modalHtml = `
+    <div id="delete-option-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; display:flex; justify-content:center; align-items:center;">
+        <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#ef4444; border-bottom:2px solid #fca5a5; padding-bottom:10px;">🗑️ 연결된 기간 일정 삭제</h3>
+            <p style="font-size:0.95rem; color:#475569; margin-bottom:20px; line-height:1.5;">
+                <strong>[${baseContent}]</strong> 일정은 총 ${totalDays}일 중 ${currentIdx}번째 일정입니다.<br>삭제 범위를 선택해 주세요.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button id="btn-del-single" style="padding:12px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; border-radius:6px; cursor:pointer; text-align:left;">
+                    🔹 <strong>이 일정만 삭제</strong><br><span style="font-size:0.8rem; color:#64748b; font-weight:normal;">선택한 오늘 하루만 지웁니다.</span>
+                </button>
+                <button id="btn-del-future" style="padding:12px; border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; font-weight:bold; border-radius:6px; cursor:pointer; text-align:left;">
+                    🔸 <strong>이후 일정 모두 삭제 (추천)</strong><br><span style="font-size:0.8rem; color:#ef4444; font-weight:normal;">과거 기록은 보존하고 오늘 포함 이후만 지웁니다.</span>
+                </button>
+                <button id="btn-del-all" style="padding:12px; border:none; background:#ef4444; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer; text-align:left;">
+                    💥 <strong>전체 일정 삭제</strong><br><span style="font-size:0.8rem; color:#fecaca; font-weight:normal;">과거를 포함해 연결된 모든 일정을 지웁니다.</span>
+                </button>
+                <button onclick="document.getElementById('delete-option-modal').remove()" style="margin-top:10px; padding:10px; border:none; background:transparent; color:#64748b; font-weight:bold; cursor:pointer;">취소</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('btn-del-single').onclick = function() {
+        document.getElementById('delete-option-modal').remove();
+        if (singleDeleteCallback) singleDeleteCallback();
+    };
+
+    document.getElementById('btn-del-future').onclick = function() {
+        window.executeComplexDeletion(dateStr, baseContent, totalDays, 'future');
+    };
+
+    document.getElementById('btn-del-all').onclick = function() {
+        window.executeComplexDeletion(dateStr, baseContent, totalDays, 'all');
+    };
+};
+
+window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDays, deleteType) {
+    document.getElementById('delete-option-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#ef4444; text-align:center;">⏳ 클라우드에서 다중 삭제 중...</div>`;
+    
+    // 안전하게 앞뒤 14일 정도를 스캔하여 해당하는 일정을 찾아 지웁니다. (주말 제외 등 복잡한 계산 회피)
+    const baseDate = new Date(baseDateStr);
+    const startDate = new Date(baseDate); startDate.setDate(startDate.getDate() - parseInt(totalDays) - 5);
+    const endDate = new Date(baseDate); endDate.setDate(endDate.getDate() + parseInt(totalDays) + 5);
+
+    let datesToScan = [];
+    let curD = new Date(startDate);
+    while (curD <= endDate) {
+        datesToScan.push(window.formatDate(curD));
+        curD.setDate(curD.getDate() + 1);
+    }
+
+    let batch = window.db.batch();
+    
+    for (let i = 0; i < datesToScan.length; i++) {
+        const dStr = datesToScan[i];
+        
+        // 'future' 옵션인 경우, 기준 날짜보다 과거인 날짜는 스캔 패스
+        if (deleteType === 'future' && dStr < baseDateStr) continue;
+
+        const docRef = window.getUserCol('events').doc(dStr);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            let list = docSnap.data().eventList || [];
+            let originalLength = list.length;
+            // baseContent로 시작하고 (x/y) 형태인 것만 필터링해서 삭제
+            list = list.filter(e => {
+                if (!e.content) return true;
+                const match = e.content.match(/(.*)\s+\((\d+)\/(\d+)\)$/);
+                if (match && match[1].trim() === baseContent) return false; // 삭제 대상
+                return true; // 보존 대상
+            });
+            
+            if (list.length !== originalLength) {
+                batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+            }
+        }
+    }
+
+    await batch.commit();
+    document.getElementById('delete-option-modal').remove();
+    alert('✅ 일괄 삭제가 완료되었습니다.');
+    window.hasUnsavedChanges = false;
+    window.render(); // 화면 강제 새로고침
+};
