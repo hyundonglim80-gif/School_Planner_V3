@@ -76,12 +76,12 @@ class MonthView extends window.BaseView {
       }
       
       if (finalEvents.length > 0) {
-        // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
         let processedEvents = finalEvents.map(e => ({
             ...e,
             labels: e.labels || (e.label ? [e.label] : [])
         }));
-        eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr);
+        // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
+        eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr, 'compact');
       }
       
       const dateObj = new Date(y, m, d);
@@ -249,7 +249,7 @@ class MonthView extends window.BaseView {
 
       let isSkipDay = false;
       for (const e of validEvents) {
-          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
+          if (window.isSkipLabel(e.label)) {
               isSkipDay = true;
               break;
           }
