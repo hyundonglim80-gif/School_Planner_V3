@@ -23,7 +23,6 @@ class YearView extends window.BaseView {
               ...e,
               labels: e.labels || (e.label ? [e.label] : [])
           }));
-          // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
           htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
           hasContent = true;
         } else if (data.eventText && data.eventText.trim() !== '') {
@@ -32,7 +31,6 @@ class YearView extends window.BaseView {
               ...e,
               labels: e.labels || (e.label ? [e.label] : [])
           }));
-          // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
           htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
           hasContent = true;
         }
