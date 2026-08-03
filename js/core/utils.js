@@ -66,6 +66,16 @@ window.isSkipLabel = function(labelName) {
     return target ? target.isSkip : false; 
 };
 
+window.isForwardLabel = function(labelName) {
+    const target = window.getEventLabels().find(l => l.name === labelName);
+    return target ? target.isForward : false; 
+};
+
+window.isPeriodLabel = function(labelName) {
+    const target = window.getEventLabels().find(l => l.name === labelName);
+    return target ? target.isPeriod : false; 
+};
+
 window.checkSkipConditionFromText = function(rawText) {
     if (!rawText) return false;
     if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
@@ -90,22 +100,25 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
 
         const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
+        // 💡 핵심: 라벨이 '완료(이월)' 속성을 가졌는지 확인
+        const canComplete = window.isForwardLabel(currentLabel); 
 
-        let badgeStyle = isCompleted 
+        let badgeStyle = isCompleted && canComplete
             ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; text-decoration:line-through; cursor:pointer;`
-            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; cursor:pointer;`;
+            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
 
         let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
-        if (isCompleted) {
+        if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        const onClickAttr = dateStr ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
+        // 완료 속성이 있을 때만 onClick 이벤트 부여
+        const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
         html += `
-        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3; ${isCompleted ? 'opacity:0.65;' : ''}">
-            <span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="클릭하여 완료 상태 변경">${currentLabel}</span>
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted ? '✓ ' : ''}${e.content}</span>
+        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3; ${isCompleted && canComplete ? 'opacity:0.65;' : ''}">
+            <span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : currentLabel}">${currentLabel}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${e.content}</span>
         </div>`;
     });
     html += `</div>`;
