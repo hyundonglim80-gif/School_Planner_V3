@@ -76,9 +76,10 @@ class MonthView extends window.BaseView {
       }
       
       if (finalEvents.length > 0) {
+        // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
         let processedEvents = finalEvents.map(e => ({
             ...e,
-            labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+            labels: e.labels || (e.label ? [e.label] : [])
         }));
         eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr);
       }
@@ -114,7 +115,6 @@ class MonthView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      // 🚀 [수정] 날짜 숫자에만 클릭 이벤트를 부여하여 페이지 이동
       let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem; display:inline-block; cursor:pointer;" onclick="window.goToDay('${dateStr}')" title="${dateStr} 일 보기로 이동">${d}</div>`;
       let finalEventOutput = eventHtml ? `<div style="margin-top:4px;">${eventHtml}</div>` : '';
       const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
@@ -191,7 +191,6 @@ class MonthView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      // 🚀 [수정] 날짜 영역만 클릭 이벤트를 부여하여 이동
       html += `<tr data-month-date="${item.dateStr}">` +
         `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
@@ -226,7 +225,6 @@ class MonthView extends window.BaseView {
   updateCompactEvent(dateStr, idx, field, value) {
       if(window.weekViewInstance) window.weekViewInstance.updateCompactEvent(dateStr, idx, field, value);
   }
-  // 🚀 [수정] weekViewInstance의 requestRemoveCompactEvent를 통과하도록 델리게이트
   requestRemoveCompactEvent(dateStr, idx) {
       if(window.weekViewInstance) window.weekViewInstance.requestRemoveCompactEvent(dateStr, idx);
   }
@@ -251,7 +249,7 @@ class MonthView extends window.BaseView {
 
       let isSkipDay = false;
       for (const e of validEvents) {
-          if (window.isSkipLabel(e.label)) {
+          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
               isSkipDay = true;
               break;
           }
