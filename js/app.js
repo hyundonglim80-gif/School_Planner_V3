@@ -436,16 +436,27 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
                     <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
                     주말(토/일) 제외하고 계산하기
                 </label>
-                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 (1/5), (2/5) 형식으로 일정이 등록됩니다.</p>
+                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 일정이 분할 등록됩니다.</p>
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button onclick="document.getElementById('period-modal').remove(); if(callback) callback(false);" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
-                <button onclick="window.executePeriodSave('${labelName}', callback)" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">일괄 등록</button>
+                <button id="btn-period-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button id="btn-period-register" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">등록</button>
             </div>
         </div>
     </div>`;
+    
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 에러를 방지하기 위해 자바스크립트로 직접 이벤트(Callback) 연결
+    document.getElementById('btn-period-cancel').onclick = function() {
+        document.getElementById('period-modal').remove();
+        if(callback) callback(false);
+    };
+
+    document.getElementById('btn-period-register').onclick = function() {
+        window.executePeriodSave(labelName, callback);
+    };
 };
 
 window.executePeriodSave = async function(labelName, callback) {
@@ -459,15 +470,15 @@ window.executePeriodSave = async function(labelName, callback) {
     const endD = new Date(endStr);
     if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
 
+    // 모달창 내용 변경
     document.getElementById('period-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
 
-    // 날짜 계산 및 필터링
     let datesToSave = [];
     let curD = new Date(startD);
     while (curD <= endD) {
         const day = curD.getDay();
         if (excludeWeekend && (day === 0 || day === 6)) {
-            // 주말 제외
+            // 주말 제외 패스
         } else {
             datesToSave.push(window.formatDate(curD));
         }
@@ -477,14 +488,12 @@ window.executePeriodSave = async function(labelName, callback) {
     const totalDays = datesToSave.length;
     let batch = window.db.batch();
     
-    // 비동기로 각 날짜 문서 가져오기
     for(let i=0; i<totalDays; i++) {
         const dStr = datesToSave[i];
         const docRef = window.getUserCol('events').doc(dStr);
         const docSnap = await docRef.get();
         let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
         
-        // (1/5) 태그 추가
         list.push({ label: labelName, labels: [labelName], content: `${content} (${i+1}/${totalDays})`, completed: false });
         
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
