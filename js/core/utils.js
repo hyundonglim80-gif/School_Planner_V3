@@ -86,7 +86,7 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [옵션 3-B] 미완료 일정의 시각적 경고 처리 (붉은 테두리 및 글씨)
+// 🚀 [수정] 이월된 일정의 시각적 분리 처리
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -95,23 +95,21 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         let labelsToRender = e.labels || (e.label ? [e.label] : []);
 
         const isCompleted = !!e.completed;
-        const canComplete = labelsToRender.some(l => window.isForwardLabel(l)); 
-        const isSkip = labelsToRender.some(l => window.isSkipLabel(l));
+        const canComplete = labelsToRender.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l)); 
+        const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
 
-        let isMissed = e.content && e.content.includes('(미완료)');
-        let isForwardedItem = e.content && e.content.includes('(이월됨)');
+        let contentHtml = e.content || '';
+        let isMissed = contentHtml.includes('➡️');
+        let isForwardedTarget = contentHtml.includes('↪️');
 
         let badgesHtml = '';
         if (labelsToRender.length > 0) {
             badgesHtml = labelsToRender.map(lName => {
-                if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(lName)) {
-                    return '';
-                }
-
                 const style = window.getLabelStyle(lName, 'event');
                 let badgeStyle;
                 
-                if (isMissed) {
+                if (isMissed && !isCompleted) {
+                    // 과거 미완료 일정의 시각적 경고 처리 (붉은 테두리 및 글자색)
                     badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
                 } else if (isCompleted && canComplete) {
                     badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
@@ -127,18 +125,18 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         
-        if (isMissed) {
-            textStyle = 'color:#ef4444; font-weight:bold;';
+        if (isMissed && !isCompleted) {
+            textStyle = 'color:#ef4444; font-weight:bold;'; // 미완료 글자색도 붉게 경고
         } else if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        let contentHtml = e.content || '';
+        // 아이콘 가독성 향상
         if (isMissed) {
-            contentHtml = contentHtml.replace('(미완료)', '<span style="color:#ef4444; font-weight:bold;">(미완료)</span>');
+            contentHtml = contentHtml.replace('➡️ (다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (다음 날로 이월됨)</span>');
         }
-        if (isForwardedItem) {
-            contentHtml = contentHtml.replace('(이월됨)', '<span style="color:#ef4444; font-weight:bold;">(이월됨)</span>');
+        if (isForwardedTarget) {
+            contentHtml = contentHtml.replace('↪️', '<span style="color:#2563eb; font-weight:bold;">↪️</span>');
         }
 
         let layoutStyle = `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
@@ -149,13 +147,14 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         html += `
         <div style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !e.isForwarded && !isMissed ? '✓ ' : ''}${contentHtml}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissed && !isForwardedTarget ? '✓ ' : ''}${contentHtml}</span>
         </div>`;
     });
     html += `</div>`;
     return html;
 };
 
+// 🚀 [수정] 뷰어에서 체크 시 미래로 이월된 Chain ID 연쇄 삭제
 window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
     try {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
@@ -168,7 +167,8 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
         }
 
         if (eventList[index]) {
-            eventList[index].completed = !currentStatus;
+            const willBeComplete = !currentStatus;
+            eventList[index].completed = willBeComplete;
             const newText = window.formatEventListToText(eventList);
             
             await window.getUserCol('events').doc(dateStr).set({
@@ -176,6 +176,27 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
                 eventText: newText,
                 updatedAt: Date.now()
             }, { merge: true });
+
+            // 🚀 Chain ID 연쇄 삭제 엔진 가동
+            if (willBeComplete && eventList[index].forwardChainId) {
+                const chainId = eventList[index].forwardChainId;
+                const futureSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>', dateStr).get();
+                let batch = window.db.batch();
+                let changed = false;
+                futureSnap.forEach(doc => {
+                    let fList = doc.data().eventList || [];
+                    const origLen = fList.length;
+                    fList = fList.filter(e => e.forwardChainId !== chainId);
+                    if (fList.length !== origLen) {
+                        batch.update(doc.ref, { eventList: fList, updatedAt: Date.now() });
+                        changed = true;
+                    }
+                });
+                if (changed) await batch.commit();
+            }
+
+            // 수정 후 징검다리 스캔으로 전체 동기화!
+            if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
 
             if (window.render) window.render(); 
         }
