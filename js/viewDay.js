@@ -76,9 +76,10 @@ class DayView extends window.BaseView {
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
+      // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
       let processedEvents = events.map(e => ({
           ...e,
-          labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+          labels: e.labels || (e.label ? [e.label] : [])
       }));
       html += window.generateEventBadgesHTML(processedEvents, dateStr);
     } else {
@@ -115,9 +116,8 @@ class DayView extends window.BaseView {
       
       journals.forEach(j => {
         let labels = j.labels || (j.label ? [j.label] : []); 
-        if (labels.length === 0) labels = ['참고'];
 
-        const mainStyle = window.getLabelStyle(labels[0], 'journal');
+        const mainStyle = labels.length > 0 ? window.getLabelStyle(labels[0], 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
         
         const labelsHtml = labels.map(l => {
              const s = window.getLabelStyle(l, 'journal');
@@ -126,7 +126,7 @@ class DayView extends window.BaseView {
 
         html += `
           <div style="background:#fff; border:1px solid ${mainStyle.border}; border-left:5px solid ${mainStyle.text}; border-radius:8px; padding:12px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-              <div style="margin-bottom:8px;">${labelsHtml}</div>
+              ${labelsHtml ? `<div style="margin-bottom:8px;">${labelsHtml}</div>` : ''}
               <div style="color:#1e293b; font-size:1.05rem; line-height:1.5; white-space:pre-wrap; word-break:break-all;">${j.content}</div>
           </div>`;
       });
@@ -164,7 +164,6 @@ class DayView extends window.BaseView {
 
     let html = `<div class="day-viewer-container">`;
 
-    // 🚀 [수정] 레이아웃 정상화 (width:100% 명시)
     html += `
       <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
@@ -203,7 +202,6 @@ class DayView extends window.BaseView {
     }
     html += `</tbody></table></div>`;
 
-    // 🚀 [수정] 레이아웃 정상화 (width:100% 명시)
     html += `
       <div class="day-journal-editor-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
@@ -238,7 +236,6 @@ class DayView extends window.BaseView {
         const topRow = document.createElement('div');
         topRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; width:100%;";
         
-        // 🚀 [수정] 체크박스를 칩들의 바로 왼쪽으로 배치
         const leftGroup = document.createElement('div');
         leftGroup.style.cssText = "display:flex; align-items:center; gap:8px;";
 
@@ -281,7 +278,6 @@ class DayView extends window.BaseView {
             leftGroup.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
         
-        // 🚀 [수정] 기간 일정 삭제 시 3가지 옵션 연동
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const label = this.currentEvents[index].labels?.[0] || this.currentEvents[index].label;
             if (window.isPeriodLabel && window.isPeriodLabel(label)) {
@@ -486,10 +482,7 @@ class DayView extends window.BaseView {
     this.syncEventInputs();
     const validEvents = this.currentEvents.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
     
-    const eventTextForLegacy = validEvents.map(e => {
-       const labels = e.labels && e.labels.length > 0 ? e.labels.map(l => `[${l}]`).join(' ') : '';
-       return `${labels} ${e.content}`;
-    }).join('\n');
+    const eventTextForLegacy = window.formatEventListToText(validEvents);
     
     await window.getUserCol('events').doc(dateStr).set({
         eventList: validEvents,
