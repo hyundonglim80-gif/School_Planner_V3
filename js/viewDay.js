@@ -29,6 +29,17 @@ class DayView extends window.BaseView {
           }
           
           chip.addEventListener('click', () => {
+              // 💡 핵심: 기간 라벨이면 팝업을 띄움
+              if (window.isPeriodLabel(labelText)) {
+                  // 일간 모드이므로 index를 파악하기 어렵다면, 입력창 값을 함께 넘겨서 기간 설정 모달을 띄움
+                  const textarea = chip.closest('.event-entry-block').querySelector('.event-content-input');
+                  window.openPeriodModal(window.dayViewInstance.dateStr, labelText, textarea.value, function(isSaved) {
+                      if(isSaved) window.render(); // 저장 완료 시 화면 새로고침
+                  });
+                  return;
+              }
+
+              // 일반 라벨은 기존처럼 토글
               if (selectedLabelsArray.includes(labelText)) {
                   selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
                   chip.classList.remove('active');
