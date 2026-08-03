@@ -72,6 +72,31 @@ window.goToToday = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
+  
+  // 💡 [추가] 렌더링 후 오늘 날짜 칸으로 스크롤 이동 및 반짝임 효과
+  setTimeout(() => {
+      const todayStr = window.formatDate(window.currentDate);
+      
+      // 여러 뷰(주간, 월간, 년간)에서 오늘을 나타내는 요소 찾기
+      const todayEl = document.querySelector(`.week-today-cell, .month-today-cell, .year-today-cell, [data-date="${todayStr}"], [data-week-date="${todayStr}"]`);
+      
+      if (todayEl) {
+          // 화면 중앙으로 부드럽게 스크롤
+          todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // 시각적 피드백 (노란색으로 반짝임)
+          const originalBg = todayEl.style.backgroundColor;
+          const originalTransition = todayEl.style.transition;
+          
+          todayEl.style.transition = 'background-color 0.5s';
+          todayEl.style.backgroundColor = '#fef08a'; // 강조 색상
+          
+          setTimeout(() => {
+              todayEl.style.backgroundColor = originalBg;
+              setTimeout(() => { todayEl.style.transition = originalTransition; }, 500);
+          }, 1200);
+      }
+  }, 300);
 };
 
 // ==========================================================================
@@ -668,16 +693,15 @@ window.isSkipLabel = function(labelName) {
 // 3. 보기(Viewer) 모드 뱃지 그리기 및 클릭 토글 연결
 window.generateEventBadgesHTML = function(events, dateStr) {
     if (!events || events.length === 0) return '';
-    let html = '<div style="display:flex; flex-direction:column; gap:6px;">';
+    let html = '<div style="display:flex; flex-direction:column; gap:4px;">';
     
     events.forEach((ev, idx) => {
         const eLabels = ev.labels && ev.labels.length > 0 ? ev.labels : (ev.label ? [ev.label] : ['기타']);
         const mainLabel = eLabels[0];
         const isCompleted = !!ev.completed;
-        const canComplete = window.isForwardLabel(mainLabel); // 완료 속성 여부 확인
+        const canComplete = window.isForwardLabel(mainLabel);
         
         let textStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;';
-        let bgStyle = isCompleted ? 'background:#f8fafc; border-color:#e2e8f0;' : 'background:#fff; border-color:#cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
         
         let chipsHtml = '';
         eLabels.forEach(lName => {
@@ -686,20 +710,17 @@ window.generateEventBadgesHTML = function(events, dateStr) {
             const chipText = isCompleted ? '#94a3b8' : style.text;
             const chipBorder = isCompleted ? '#cbd5e1' : style.border;
             
-            // 💡 [핵심] 완료 속성이 있는 라벨이면 클릭 시 토글(toggle) 함수 실행
             const clickAction = canComplete ? `onclick="window.toggleEventCompletion('${dateStr}', ${idx})" style="cursor:pointer;" title="클릭하여 완료 상태 변경"` : `style="cursor:default;"`;
             
-            chipsHtml += `<span ${clickAction} class="event-badge-chip" style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold; background:${chipBg}; color:${chipText}; border:1px solid ${chipBorder}; margin-right:4px; transition:0.2s;">${lName}</span>`;
+            // 💡 [수정] 과거 형식: padding 축소 및 모서리를 둥글게(4px) 하여 기존의 작은 버튼 모양 유지
+            chipsHtml += `<span ${clickAction} class="event-badge-chip" style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold; background:${chipBg}; color:${chipText}; border:1px solid ${chipBorder}; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;">${lName}</span>`;
         });
 
+        // 💡 [수정] 과거 형식: 박스(Row)가 아니라 라벨 버튼과 텍스트가 같은 줄에 자연스럽게 이어지도록 변경
         html += `
-        <div class="event-badge-row" style="display:flex; align-items:flex-start; padding:8px 10px; border-radius:6px; border:1px solid; ${bgStyle} transition:0.2s;">
-            <div style="flex-shrink:0; margin-right:6px; margin-top:2px;">
-                ${chipsHtml}
-            </div>
-            <div style="flex-grow:1; font-size:0.95rem; line-height:1.4; word-break:break-all; ${textStyle}">
-                ${ev.content}
-            </div>
+        <div class="event-badge-row" style="margin-bottom: 2px; line-height:1.4;">
+            ${chipsHtml}
+            <span style="font-size:0.95rem; word-break:break-all; vertical-align:middle; ${textStyle}">${ev.content}</span>
         </div>
         `;
     });
@@ -730,3 +751,33 @@ window.toggleEventCompletion = async function(dateStr, idx) {
         alert("상태 변경에 실패했습니다.");
     }
 };
+
+// ==========================================================================
+// 🚀 [자동화] 모든 화면(월, 년 등)에서 [라벨명] 텍스트를 찾아 버튼형 뱃지로 자동 치환
+// ==========================================================================
+if (!window._originalRenderV4) {
+    window._originalRenderV4 = window.render;
+    window.render = function() {
+        window._originalRenderV4(); // 기존의 화면 그리기 우선 실행
+        
+        // 화면 렌더링이 끝난 직후, 순수 텍스트로 남은 [라벨]을 찾아 예쁜 버튼으로 교체
+        setTimeout(() => {
+            const elements = document.querySelectorAll('td, .month-event, .year-event, .cal-event');
+            elements.forEach(el => {
+                // 이미 뱃지(.event-badge-chip)가 들어간 곳은 건너뜀
+                if (el.querySelector('.event-badge-chip') || el.querySelector('.badge-tag')) return;
+                
+                let html = el.innerHTML;
+                const regex = /\[([^\]]+)\]/g; // 대괄호로 묶인 텍스트 패턴 찾기
+                
+                if (regex.test(html)) {
+                    const newHtml = html.replace(regex, (match, labelName) => {
+                        const style = window.getLabelStyle(labelName, 'event');
+                        return `<span class="event-badge-chip" style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:4px; margin-bottom:2px; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:default;">${labelName}</span>`;
+                    });
+                    el.innerHTML = newHtml;
+                }
+            });
+        }, 50); // 렌더링 직후 0.05초 뒤 즉시 실행
+    };
+}
