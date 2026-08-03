@@ -86,18 +86,14 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정] 다중 라벨 배열 매핑 및 이월 기록 디자인 강화
+// 🚀 [수정] 강제 '일정' 덮어쓰기 로직 삭제, 이월 기록 디자인 강화
 window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
     
-    const validLabels = window.getEventLabels().map(l => l.name);
-    const defaultLabel = validLabels[0] || '일정';
-
     eventList.forEach((e, index) => {
-        // [핵심] labels[0]을 우선으로 가져와서 라벨이 '일정'으로만 표기되는 현상 방지
-        let currentLabel = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || defaultLabel);
-        if (!validLabels.includes(currentLabel)) currentLabel = defaultLabel;
+        // [핵심] labels 배열을 그대로 사용하여 원본 이름 보존! 강제 치환 로직 삭제.
+        let currentLabel = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
 
         const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
@@ -112,7 +108,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        // [핵심] 이월된 흔적이 있는 경우 텍스트를 빨간색으로 시각적 강조
         let contentHtml = e.content;
         if (contentHtml.includes('(다음 날로 이월됨)')) {
             contentHtml = contentHtml.replace('(다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-style:normal;">(다음 날로 이월됨)</span>');
@@ -162,7 +157,6 @@ window.parseRawEventTextToEventList = function(rawText) {
     if (!rawText || !rawText.trim()) return [];
     const lines = rawText.split('\n');
     const eventList = [];
-    const validLabels = window.getEventLabels().map(l => l.name);
 
     lines.forEach(line => {
         let t = line.trim();
@@ -177,10 +171,10 @@ window.parseRawEventTextToEventList = function(rawText) {
         const match = t.match(/^\[(.*?)\]\s*(.*)$/);
         if (match) {
             let labelName = match[1].trim();
-            if (!validLabels.includes(labelName)) labelName = validLabels[0] || '일정'; 
+            // [핵심] validLabels 강제 확인 로직을 걷어내어 임의의 커스텀 텍스트도 원형으로 보존
             eventList.push({ label: labelName, labels: [labelName], content: match[2].trim(), completed: completed });
         } else {
-            let defaultLabel = validLabels[0] || '일정';
+            let defaultLabel = '일정';
             if (t.includes('(휴일)') || t.includes('(행사)')) {
                 const skipLabel = window.getEventLabels().find(l => l.isSkip);
                 if (skipLabel) defaultLabel = skipLabel.name;
@@ -193,7 +187,7 @@ window.parseRawEventTextToEventList = function(rawText) {
 
 window.formatEventListToText = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => `${e.completed ? '[v]' : ''}[${(e.labels && e.labels.length > 0) ? e.labels[0] : e.label}] ${e.content}`).join('\n');
+    return eventList.map(e => `${e.completed ? '[v]' : ''}[${(e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정')}] ${e.content}`).join('\n');
 };
 
 window.getJournalLabels = function() {
