@@ -19,9 +19,10 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
+          // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
           let processed = data.eventList.map(e => ({
               ...e,
-              labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+              labels: e.labels || (e.label ? [e.label] : [])
           }));
           htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
           hasContent = true;
@@ -29,7 +30,7 @@ class YearView extends window.BaseView {
           const parsed = window.parseRawEventTextToEventList(data.eventText);
           let processed = parsed.map(e => ({
               ...e,
-              labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+              labels: e.labels || (e.label ? [e.label] : [])
           }));
           htmlOutput = window.generateEventBadgesHTML(processed, doc.id);
           hasContent = true;
@@ -75,7 +76,6 @@ class YearView extends window.BaseView {
               ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
               : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
-          // 🚀 [수정] 날짜 헤더 부분에만 클릭 이동 이벤트 부여
           return `<div style="${eventStyle}">
                     <div style="color:#2563eb; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                     <div style="margin-top:2px;">${e.htmlOutput}</div>
@@ -173,7 +173,6 @@ class YearView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      // 🚀 [수정] 날짜 텍스트에만 클릭 이동 이벤트 적용
       html += `<tr data-year-date="${item.dateStr}">` +
         `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
@@ -219,7 +218,7 @@ class YearView extends window.BaseView {
 
       let isSkipDay = false;
       for (const e of validEvents) {
-          if (window.isSkipLabel(e.label)) {
+          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
               isSkipDay = true;
               break;
           }
