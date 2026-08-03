@@ -237,9 +237,13 @@ class WeekView extends window.BaseView {
   }
 
   removeCompactEvent(dateStr, idx) {
-      window.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      const ev = window[`tempEvents_${dateStr}`][idx];
+      // 💡 [추가] 기간 일정 다중 삭제 모달 호출 엔진 연결
+      window.handleEventDeletion(dateStr, ev, () => {
+          window.hasUnsavedChanges = true;
+          window[`tempEvents_${dateStr}`].splice(idx, 1);
+          document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      });
   }
 
   async save() {
