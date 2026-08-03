@@ -68,10 +68,18 @@ window.moveDate = async function(dir) {
   window.render();
 };
 
+// 🚀 [옵션 1-B] 클릭 시 오늘 날짜로 즉시 스크롤 점프 (애니메이션 없음)
 window.goToToday = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
+  
+  setTimeout(() => {
+      const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+      if (todayEl) {
+          todayEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+  }, 50);
 };
 
 // ==========================================================================
@@ -82,7 +90,6 @@ window.tempPeriodNames = [];
 
 window.loadSettings = async function() {
     try {
-        // 1. 수업 시수 환경설정 불러오기
         const doc = await window.getUserCol('settings').doc('preferences').get();
         if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
             window.periodNames = doc.data().periodNames;
@@ -90,7 +97,6 @@ window.loadSettings = async function() {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
         }
 
-        // 2. 🚀 [수정] 클라우드에서 최신 라벨 데이터 동기화 가져오기
         const labelDoc = await window.getUserCol('settings').doc('labels').get();
         if (labelDoc.exists) {
             const data = labelDoc.data();
@@ -318,7 +324,6 @@ window.addEventListener('DOMContentLoaded', () => {
         
         await window.loadSettings();
         
-        // 💡 [핵심] 로그인 직후 미완료 자동 이월 로직 실행
         await window.autoForwardIncompleteEvents();
 
         window.render();
@@ -347,7 +352,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 미완료 자동 이월 로직 (흔적 남기기 반영)
+// 🚀 [옵션 3-B] 미완료 자동 이월 로직 (붉은 강조 표시 적용)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date());
@@ -372,16 +377,19 @@ window.autoForwardIncompleteEvents = async function() {
 
             list.forEach(ev => {
                 const label = ev.labels ? ev.labels[0] : ev.label;
+                const hasBeenForwarded = ev.isForwarded || (ev.content && ev.content.includes('(미완료)'));
                 
-                if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
+                if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !hasBeenForwarded) {
                     ev.isForwarded = true; 
-                    ev.completed = true;   
+                    // 과거 일정을 강제로 완료 처리하지 않고 미완료 텍스트를 부여하여 시각적으로 붉게 경고
+                    const originalContent = ev.content.replace(/\s*\(미완료\)$/, '').replace(/\s*\(이월됨\)$/, '');
                     
-                    const originalContent = ev.content;
-                    ev.content = `↪️ ${originalContent} (다음 날로 이월됨)`; 
+                    // 과거 데이터에 흔적 남기기
+                    ev.content = `${originalContent} (미완료)`; 
                     docChanged = true;
                     
-                    forwardedEvents.push({ label: label, labels: ev.labels, content: originalContent, completed: false }); 
+                    // 오늘 날짜로 가져갈 새 객체 생성
+                    forwardedEvents.push({ label: label, labels: ev.labels, content: `${originalContent} (이월됨)`, completed: false }); 
                 }
             });
 
@@ -507,7 +515,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 기간 일정 3가지 삭제 옵션 모달 및 로직
+// 🚀 [옵션 4-A] 기간 일정 3가지 삭제 옵션 모달 텍스트 변경
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, onConfirm) {
     const baseContent = textContent.replace(/\s*\(\d+\/\d+\)$/, '');
@@ -520,9 +528,9 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, onC
                 이 일정은 <b>'기간'</b> 속성을 가진 일정입니다.<br>어떻게 삭제하시겠습니까?
             </p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">이 날의 일정만 삭제</button>
-                <button id="btn-del-after-this" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c;">이 날 이후의 일정 삭제</button>
-                <button id="btn-del-all" style="padding:12px; background:#ef4444; border:none; border-radius:8px; cursor:pointer; font-weight:bold; color:#fff;">모든 일정 삭제</button>
+                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">그 날만 삭제</button>
+                <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c;">모든 기간 일정 모두 삭제</button>
+                <button id="btn-del-after-this" style="padding:12px; background:#ef4444; border:none; border-radius:8px; cursor:pointer; font-weight:bold; color:#fff;">이 날부터 끝날까지 삭제</button>
                 <button onclick="document.getElementById('period-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
             </div>
         </div>
