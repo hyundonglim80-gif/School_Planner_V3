@@ -80,7 +80,6 @@ class MonthView extends window.BaseView {
             ...e,
             labels: e.labels || (e.label ? [e.label] : [])
         }));
-        // 🚀 [수정] 좁은 칸에서 줄바꿈이 되도록 'compact' 모드 파라미터 전달
         eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr, 'compact');
       }
       
