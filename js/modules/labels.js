@@ -100,26 +100,35 @@ const LabelManager = {
     return `
       <div class="modal-info-box">
           <p style="margin:0;">
-              <strong>[일정 라벨]</strong> 왼쪽의 '≡' 아이콘을 드래그하여 순서를 바꾸거나, 이름을 클릭해 바로 수정할 수 있습니다.<br>
-              수정되거나 삭제된 라벨을 사용 중이던 기존 일정은 자동으로 새 라벨로 <strong>변경되거나 해제</strong>됩니다.
+              <strong>[일정 라벨]</strong> 왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
+              💡 <b>기간:</b> 선택 시 며칠부터 며칠까지인지 달력 팝업이 뜹니다.<br>
+              💡 <b>완료(이월):</b> 클릭해서 완료(✓) 할 수 있으며, 미완료 시 다음 날로 넘어갑니다.
           </p>
       </div>
       <div id="event-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
       
       <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
           <div style="display:flex; gap:10px; align-items:center; width:100%;">
-              <input type="text" id="new-label-name" placeholder="새 라벨 이름 추가..." class="modal-input-text">
-              <label class="modal-checkbox-label alert">
-                  <input type="checkbox" id="new-label-skip" class="modal-checkbox"> 수업삭제
-              </label>
+              <input type="text" id="new-label-name" placeholder="새 라벨 (예: 방학)" class="modal-input-text" style="flex:1;">
+              
+              <div style="display:flex; gap:12px; align-items:center; text-align:center;">
+                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#2563eb; cursor:pointer;">
+                      <span>기간</span><input type="checkbox" id="new-label-period" class="modal-checkbox" style="margin-top:2px;">
+                  </label>
+                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#059669; cursor:pointer;">
+                      <span>완료</span><input type="checkbox" id="new-label-forward" class="modal-checkbox" style="margin-top:2px;">
+                  </label>
+                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#ef4444; cursor:pointer;">
+                      <span>수업삭제</span><input type="checkbox" id="new-label-skip" class="modal-checkbox" style="margin-top:2px;">
+                  </label>
+              </div>
               <button onclick="LabelManager.addNewEventLabel()" class="modal-btn-secondary" style="flex-shrink:0;">추가</button>
           </div>
           <div style="padding-left:4px;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 새 라벨 색상:</span>
+              <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 라벨 색상:</span>
               ${this.getColorPickerHTML('event', 'blue')}
           </div>
       </div>
-      
       <div class="modal-footer-actions">
           <button onclick="LabelManager.saveEventLabels(event)" class="modal-btn-primary">저장 및 클라우드 반영</button>
       </div>
@@ -147,41 +156,39 @@ const LabelManager = {
     const palette = window.LABEL_PALETTE || {};
     
     container.innerHTML = window.tempEditingLabels.map((label, index) => {
+        const periodChecked = label.isPeriod ? 'checked' : '';
+        const forwardChecked = label.isForward ? 'checked' : '';
         const skipChecked = label.isSkip ? 'checked' : '';
-        const skipColor = label.isSkip ? '#ef4444' : '#64748b';
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
         
-        const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
-        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); LabelManager.renderEventLabels();" style="width:90px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
-
-        const colorSelectHTML = `
-            <select onchange="window.tempEditingLabels[${index}].color = this.value; LabelManager.renderEventLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
+        return `
+        <div class="modal-input-row" draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';" style="transition:0.2s;">
+            <div style="display:flex; align-items:center;"><span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px;">≡</span></div>
+            <input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); LabelManager.renderEventLabels();" style="width:80px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">
+            <select onchange="window.tempEditingLabels[${index}].color = this.value; LabelManager.renderEventLabels();" style="padding:4px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer; width:65px;">
                 ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${LabelManager.colorNames[k]}</option>`).join('')}
             </select>
-        `;
-
-        const actionHTML = `<button onclick="window.tempEditingLabels.splice(${index}, 1); LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
-
-        return `
-        <div class="modal-input-row" ${dragAttrs} style="transition:0.2s;">
-            <div style="display:flex; align-items:center;">${dragHandle}</div>
-            ${nameInputHTML}
-            ${colorSelectHTML}
             <div style="flex:1;"></div>
-            <div style="display:flex; align-items:center; gap:8px;">
-                <label class="modal-checkbox-label" style="color:${skipColor}; margin-right:4px;">
-                    <input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox"> 수업삭제
+            <div style="display:flex; gap:10px; align-items:center; text-align:center;">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.7rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;" title="기간 달력 사용">
+                    <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                ${actionHTML}
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.7rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;" title="체크박스 및 미완료 이월">
+                    <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
+                </label>
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.7rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;" title="해당일 수업 숨김">
+                    <span>삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
+                </label>
             </div>
+            <button onclick="window.tempEditingLabels.splice(${index}, 1); LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
         </div>`;
     }).join('');
   },
 
   addNewEventLabel: function() {
     const nameInput = document.getElementById('new-label-name');
+    const periodCheck = document.getElementById('new-label-period');
+    const forwardCheck = document.getElementById('new-label-forward');
     const skipCheck = document.getElementById('new-label-skip');
     const colorInput = document.getElementById('event-selected-color');
     const name = nameInput.value.trim();
@@ -190,9 +197,15 @@ const LabelManager = {
     if (!name) return alert("라벨 이름을 입력하세요.");
     if (window.tempEditingLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingLabels.push({ name: name, isSkip: skipCheck.checked, color: color, originalName: null });
-    nameInput.value = '';
-    skipCheck.checked = false;
+    window.tempEditingLabels.push({ 
+        name: name, 
+        isPeriod: periodCheck.checked,
+        isForward: forwardCheck.checked, 
+        isSkip: skipCheck.checked, 
+        color: color, 
+        originalName: null 
+    });
+    nameInput.value = ''; periodCheck.checked = false; forwardCheck.checked = false; skipCheck.checked = false;
     this.renderEventLabels();
   },
 
