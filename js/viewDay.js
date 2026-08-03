@@ -50,6 +50,7 @@ class DayView extends window.BaseView {
               }
               
               if (onChangeCallback) onChangeCallback(selectedLabelsArray);
+              // 라벨 상태가 변경되면 전체 블록을 재렌더링하여 체크박스 유무도 즉시 반영됨
               window.dayViewInstance.renderEventEntries();
           });
           containerElement.appendChild(chip);
@@ -76,7 +77,6 @@ class DayView extends window.BaseView {
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
-      // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
       let processedEvents = events.map(e => ({
           ...e,
           labels: e.labels || (e.label ? [e.label] : [])
@@ -247,7 +247,9 @@ class DayView extends window.BaseView {
         });
 
         const isCompleted = !!e.completed;
-        const canComplete = (typeof window.isForwardLabel === 'function' && e.labels && e.labels.length > 0) ? window.isForwardLabel(e.labels[0]) : false;
+        // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
+        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+        
         const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
         const checkboxHtml = canComplete 
@@ -278,10 +280,12 @@ class DayView extends window.BaseView {
             leftGroup.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
         
+        // 🚀 [수정] 그룹 ID를 모달로 안전하게 전달
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const label = this.currentEvents[index].labels?.[0] || this.currentEvents[index].label;
             if (window.isPeriodLabel && window.isPeriodLabel(label)) {
-                window.showPeriodDeleteModal(this.dateStr, label, this.currentEvents[index].content, () => {
+                const groupId = this.currentEvents[index].groupId;
+                window.showPeriodDeleteModal(this.dateStr, label, this.currentEvents[index].content, groupId, () => {
                     window.render();
                 });
             } else {
