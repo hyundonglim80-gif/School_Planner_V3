@@ -76,7 +76,6 @@ class MonthView extends window.BaseView {
       }
       
       if (finalEvents.length > 0) {
-        // 💡 [수정] 라벨이 없는 경우 '기타'를 부여하여 배지 생성기로 넘깁니다.
         let processedEvents = finalEvents.map(e => ({
             ...e,
             labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
@@ -115,11 +114,12 @@ class MonthView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem;">${d}</div>`;
+      // 🚀 [수정] 날짜 숫자에만 클릭 이벤트를 부여하여 페이지 이동
+      let dayNumHtml = `<div style="font-weight:700; color:${dateColor}; font-size:1.1rem; display:inline-block; cursor:pointer;" onclick="window.goToDay('${dateStr}')" title="${dateStr} 일 보기로 이동">${d}</div>`;
       let finalEventOutput = eventHtml ? `<div style="margin-top:4px;">${eventHtml}</div>` : '';
       const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
-      html += `<div class="cal-day ${todayClass}" onclick="window.goToDay('${dateStr}')" style="cursor:pointer;" title="${dateStr} 일 보기로 이동">${dayNumHtml}${scheduleHtml}${finalEventOutput}</div>`;
+      html += `<div class="cal-day ${todayClass}">${dayNumHtml}${scheduleHtml}${finalEventOutput}</div>`;
     });
 
     html += `</div>`;
@@ -191,10 +191,11 @@ class MonthView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+      // 🚀 [수정] 날짜 영역만 클릭 이벤트를 부여하여 이동
       html += `<tr data-month-date="${item.dateStr}">` +
-        `<td rowspan="${window.showClass ? 2 : 1}" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
+        `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-            `<span style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1;">${dayNum}</span>` +
+            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${dayNum}</span>` +
             `<span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
           `</div>` +
         `</td>` +
@@ -219,12 +220,15 @@ class MonthView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 💡 weekViewInstance에서 빌려쓰는 토글 함수 처리
   toggleCompactEventLabel(dateStr, idx, labelName) {
       if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelName);
   }
   updateCompactEvent(dateStr, idx, field, value) {
       if(window.weekViewInstance) window.weekViewInstance.updateCompactEvent(dateStr, idx, field, value);
+  }
+  // 🚀 [수정] weekViewInstance의 requestRemoveCompactEvent를 통과하도록 델리게이트
+  requestRemoveCompactEvent(dateStr, idx) {
+      if(window.weekViewInstance) window.weekViewInstance.requestRemoveCompactEvent(dateStr, idx);
   }
   removeCompactEvent(dateStr, idx) {
       if(window.weekViewInstance) window.weekViewInstance.removeCompactEvent(dateStr, idx);
