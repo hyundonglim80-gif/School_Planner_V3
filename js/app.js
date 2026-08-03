@@ -609,3 +609,124 @@ window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDa
     window.hasUnsavedChanges = false;
     window.render(); // 화면 강제 새로고침
 };
+
+// ==========================================================================
+// 🚀 [버그 픽스] 라벨 데이터 V4 읽기 및 뱃지 렌더링/토글 엔진 (app.js 하단 추가)
+// ==========================================================================
+
+window.LABEL_PALETTE = {
+    red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
+    orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74' },
+    yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
+    green: { bg: '#dcfce7', text: '#166534', border: '#86efac' },
+    blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' },
+    indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc' },
+    purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
+    gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' }
+};
+
+// 1. 최신 V4 라벨 데이터 읽어오기
+window.getEventLabels = function() {
+    const saved = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
+    if (saved && saved.length > 0) return saved;
+    return [
+        { name: '일정', color: 'blue', isPeriod: false, isForward: false, isSkip: false },
+        { name: '행사', color: 'red', isPeriod: false, isForward: false, isSkip: false },
+        { name: '휴일', color: 'gray', isPeriod: false, isForward: false, isSkip: true }
+    ];
+};
+
+window.getJournalLabels = function() {
+    const saved = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
+    if (saved && saved.length > 0) return saved;
+    return [{ name: '참고', color: 'purple' }];
+};
+
+// 2. 라벨 스타일 및 속성 판별 함수
+window.getLabelStyle = function(labelName, type = 'event') {
+    const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
+    const target = labels.find(l => l.name === labelName);
+    if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
+    return { bg: '#f8fafc', text: '#475569', border: '#cbd5e1' }; // Default
+};
+
+window.isForwardLabel = function(labelName) {
+    const target = window.getEventLabels().find(l => l.name === labelName);
+    return target ? !!target.isForward : false;
+};
+
+window.isPeriodLabel = function(labelName) {
+    const target = window.getEventLabels().find(l => l.name === labelName);
+    return target ? !!target.isPeriod : false;
+};
+
+window.isSkipLabel = function(labelName) {
+    const target = window.getEventLabels().find(l => l.name === labelName);
+    return target ? !!target.isSkip : false;
+};
+
+// 3. 보기(Viewer) 모드 뱃지 그리기 및 클릭 토글 연결
+window.generateEventBadgesHTML = function(events, dateStr) {
+    if (!events || events.length === 0) return '';
+    let html = '<div style="display:flex; flex-direction:column; gap:6px;">';
+    
+    events.forEach((ev, idx) => {
+        const eLabels = ev.labels && ev.labels.length > 0 ? ev.labels : (ev.label ? [ev.label] : ['기타']);
+        const mainLabel = eLabels[0];
+        const isCompleted = !!ev.completed;
+        const canComplete = window.isForwardLabel(mainLabel); // 완료 속성 여부 확인
+        
+        let textStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;';
+        let bgStyle = isCompleted ? 'background:#f8fafc; border-color:#e2e8f0;' : 'background:#fff; border-color:#cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
+        
+        let chipsHtml = '';
+        eLabels.forEach(lName => {
+            const style = window.getLabelStyle(lName, 'event');
+            const chipBg = isCompleted ? '#f1f5f9' : style.bg;
+            const chipText = isCompleted ? '#94a3b8' : style.text;
+            const chipBorder = isCompleted ? '#cbd5e1' : style.border;
+            
+            // 💡 [핵심] 완료 속성이 있는 라벨이면 클릭 시 토글(toggle) 함수 실행
+            const clickAction = canComplete ? `onclick="window.toggleEventCompletion('${dateStr}', ${idx})" style="cursor:pointer;" title="클릭하여 완료 상태 변경"` : `style="cursor:default;"`;
+            
+            chipsHtml += `<span ${clickAction} class="event-badge-chip" style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold; background:${chipBg}; color:${chipText}; border:1px solid ${chipBorder}; margin-right:4px; transition:0.2s;">${lName}</span>`;
+        });
+
+        html += `
+        <div class="event-badge-row" style="display:flex; align-items:flex-start; padding:8px 10px; border-radius:6px; border:1px solid; ${bgStyle} transition:0.2s;">
+            <div style="flex-shrink:0; margin-right:6px; margin-top:2px;">
+                ${chipsHtml}
+            </div>
+            <div style="flex-grow:1; font-size:0.95rem; line-height:1.4; word-break:break-all; ${textStyle}">
+                ${ev.content}
+            </div>
+        </div>
+        `;
+    });
+    html += '</div>';
+    return html;
+};
+
+// 4. DB 완료 상태 원클릭 토글 엔진
+window.toggleEventCompletion = async function(dateStr, idx) {
+    // 혹시라도 에디터 모드에서 클릭했다면 먼저 저장부터 수행
+    if (window.currentMode === 'editor' && window.hasUnsavedChanges) {
+         await window.saveCurrentViewData(true);
+    }
+
+    try {
+        const docRef = window.getUserCol('events').doc(dateStr);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            let list = docSnap.data().eventList || [];
+            if (list[idx]) {
+                list[idx].completed = !list[idx].completed; // 상태 뒤집기 (true <-> false)
+                await docRef.update({ eventList: list, updatedAt: Date.now() });
+                if (window.render) window.render(); // 화면 즉시 새로고침
+            }
+        }
+    } catch (e) {
+        console.error("완료 상태 토글 에러", e);
+        alert("상태 변경에 실패했습니다.");
+    }
+};
