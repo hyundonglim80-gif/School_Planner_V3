@@ -10,6 +10,7 @@ window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false';
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
+// 💡 [핵심] 화면 이동 시 '무음 자동 저장(silent=true)' 처리 
 window.toggleWeekend = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.showWeekend = !window.showWeekend;
@@ -45,51 +46,43 @@ window.handleEditSaveClick = function() {
   if (currentMode === 'viewer') {
     window.setMode('editor');
   } else {
-    window.saveCurrentViewData(false);
+    window.saveCurrentViewData(false); // 수동 저장이므로 UI 피드백 표시
   }
 };
 
 window.moveDate = async function(dir) {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   
-  if (currentScope === 'day') {
-      window.currentDate.setDate(window.currentDate.getDate() + dir);
-  } else if (currentScope === 'week') {
-      window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  } else if (currentScope === 'month') {
+  if (currentScope === 'day') window.currentDate.setDate(window.currentDate.getDate() + dir);
+  else if (currentScope === 'week') window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+  else if (currentScope === 'month') {
       const currentDay = window.currentDate.getDate();
       window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-      if (window.currentDate.getDate() < currentDay) {
-          window.currentDate.setDate(0); 
-      }
-  } else if (currentScope === 'year') {
-      window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+      if (window.currentDate.getDate() < currentDay) window.currentDate.setDate(0); 
   }
+  else if (currentScope === 'year') window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  
   window.render();
 };
 
+// 💡 [수정] 오늘 날짜 이동 시 스크롤 추적 및 반짝임 효과
 window.goToToday = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
-  
-  // 💡 [추가] 렌더링 후 오늘 날짜 칸으로 스크롤 이동 및 반짝임 효과
+
   setTimeout(() => {
       const todayStr = window.formatDate(window.currentDate);
-      
-      // 여러 뷰(주간, 월간, 년간)에서 오늘을 나타내는 요소 찾기
       const todayEl = document.querySelector(`.week-today-cell, .month-today-cell, .year-today-cell, [data-date="${todayStr}"], [data-week-date="${todayStr}"]`);
       
       if (todayEl) {
-          // 화면 중앙으로 부드럽게 스크롤
           todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           
-          // 시각적 피드백 (노란색으로 반짝임)
           const originalBg = todayEl.style.backgroundColor;
           const originalTransition = todayEl.style.transition;
           
           todayEl.style.transition = 'background-color 0.5s';
-          todayEl.style.backgroundColor = '#fef08a'; // 강조 색상
+          todayEl.style.backgroundColor = '#fef08a'; // 강조 노란색
           
           setTimeout(() => {
               todayEl.style.backgroundColor = originalBg;
@@ -114,7 +107,7 @@ window.loadSettings = async function() {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
         }
     } catch (error) {
-        console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
+        console.warn("⚠️ 설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다.", error);
         window.periodNames = ["1", "2", "3", "4", "5", "6"];
     }
 };
@@ -138,7 +131,7 @@ window.render = function() {
       else if (currentScope === 'memo') { window.renderMemoView(container); }
   } catch (error) {
       console.error("화면 렌더링 중 오류 발생:", error);
-      container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">⚠️ 데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
   }
 };
 
@@ -182,7 +175,7 @@ function updateTitle() {
   } else if (currentScope === 'year') { 
     titleEl.textContent = `${y}학년도`;
   } else if (currentScope === 'memo') { 
-    titleEl.textContent = "할 일 및 메모";
+    titleEl.textContent = "📋 업무 및 수업 체크리스트";
   }
 }
 
@@ -210,11 +203,6 @@ function updateButtonUI() {
     }
   });
 
-  const headerBottom = document.querySelector('.header-bottom');
-  if (headerBottom) {
-    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
-  }
-
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
@@ -224,24 +212,20 @@ function updateButtonUI() {
   }
 
   const searchBtn = document.getElementById('btn-search');
-  if (searchBtn) {
-    searchBtn.style.display = 'inline-block';
-  }
+  if (searchBtn) searchBtn.style.display = (currentScope !== 'memo') ? 'inline-block' : 'none';
 
   const moreBtn = document.getElementById('btn-more-menu');
-  if (moreBtn) {
-    moreBtn.style.display = 'inline-flex';
-  }
+  if (moreBtn) moreBtn.style.display = (currentScope !== 'memo') ? 'inline-flex' : 'none';
 
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보이기';
+    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보기';
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
   const classBtn = document.getElementById('btn-toggle-class');
   if (classBtn) {
-    classBtn.innerHTML = window.showClass ? '수업 숨기기' : '수업 보이기';
+    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보기';
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
@@ -249,11 +233,11 @@ function updateButtonUI() {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
     if (currentMode === 'viewer') {
-      editorBtn.innerHTML = '작성';
+      editorBtn.innerHTML = '✏️ 수정';
       editorBtn.title = '단축키: Ctrl + ↓';
       editorBtn.className = 'btn-mode';
     } else {
-      editorBtn.innerHTML = '저장';
+      editorBtn.innerHTML = '💾 저장';
       editorBtn.title = '단축키: Ctrl + Enter';
       editorBtn.className = 'btn-mode save-mode';
     }
@@ -263,11 +247,12 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
+// 💡 [핵심] silent 파라미터를 받아, true면 조용히 저장만 하고 UI 변경 없음
 window.saveCurrentViewData = async function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
   if (editorBtn && !silent) {
-    editorBtn.innerHTML = "저장중..";
+    editorBtn.innerHTML = "⏳ 저장중..";
     editorBtn.disabled = true;
   }
 
@@ -276,14 +261,14 @@ window.saveCurrentViewData = async function(silent = false) {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  // 💡 [추가] 과거 일정을 저장했을 때 즉시 이월되도록 백그라운드 체크 실행
-  await window.autoForwardIncompleteEvents();
+  // 저장 직후 과거의 미완료 일정 자동 이월 체크
+  if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
 
   if (editorBtn && !silent) {
-    editorBtn.innerHTML = '저장 완료';
+    editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
       if (currentMode === 'editor') {
-        editorBtn.innerHTML = '저장';
+        editorBtn.innerHTML = '💾 저장';
         editorBtn.disabled = false;
       }
     }, 1500); 
@@ -324,7 +309,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     if (loginBtn) {
         originalBtnHtml = loginBtn.innerHTML;
-        loginBtn.innerHTML = '로그인 상태 확인 중...';
+        loginBtn.innerHTML = '⏳ 로그인 상태 확인 중...';
         loginBtn.disabled = true;
     }
 
@@ -336,14 +321,14 @@ window.addEventListener('DOMContentLoaded', () => {
         
         await window.loadSettings();
         
-        // 💡 [핵심] 로그인 직후 미완료 자동 이월 로직 실행 (잠금장치 해제됨)
-        await window.autoForwardIncompleteEvents();
+        // 로그인 직후 미완료 자동 이월 로직 실행
+        if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
 
         window.render();
         
         setTimeout(() => {
           try {
-            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4');
+            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v3');
             if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
               window.openHelpModal();
             }
@@ -365,7 +350,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [신규] 미완료 자동 이월 로직 (앱 실행 시 작동)
+// 🚀 [기능] 미완료 자동 이월 로직 (앱 실행 & 저장 시 작동)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date());
@@ -390,14 +375,12 @@ window.autoForwardIncompleteEvents = async function() {
 
             list.forEach(ev => {
                 const label = ev.labels ? ev.labels[0] : ev.label;
-                // '완료(이월)' 속성이면서 완료되지 않았고, 이미 이월된 기록이 없다면
                 if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
                     ev.isForwarded = true; 
-                    // 💡 [추가] 과거 기록 보존: 시각적으로 이월되었음을 표시
-                    const originalContent = ev.content;
+                    const originalContent = ev.content || '';
                     ev.content = "➡️[이월됨] " + originalContent; 
                     docChanged = true;
-                    // 오늘 날짜로 가져갈 새 객체 생성 (태그 떼고 순수 내용만 복사)
+                    // 오늘 날짜로 가져갈 새 객체 생성
                     forwardedEvents.push({ label: label, labels: ev.labels, content: originalContent, completed: false }); 
                 }
             });
@@ -430,7 +413,7 @@ window.autoForwardIncompleteEvents = async function() {
 };
 
 // ==========================================================================
-// 🚀 [신규] 기간 다중 등록 달력 팝업
+// 🚀 [기능] 기간 다중 등록 달력 팝업
 // ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
@@ -471,7 +454,6 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // 에러를 방지하기 위해 자바스크립트로 직접 이벤트(Callback) 연결
     document.getElementById('btn-period-cancel').onclick = function() {
         document.getElementById('period-modal').remove();
         if(callback) callback(false);
@@ -493,16 +475,14 @@ window.executePeriodSave = async function(labelName, callback) {
     const endD = new Date(endStr);
     if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
 
-    // 모달창 내용 변경
     document.getElementById('period-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
 
-    // 날짜 계산 및 필터링
     let datesToSave = [];
     let curD = new Date(startD);
     while (curD <= endD) {
         const day = curD.getDay();
         if (excludeWeekend && (day === 0 || day === 6)) {
-            // 주말 제외 패스
+            // 패스
         } else {
             datesToSave.push(window.formatDate(curD));
         }
@@ -512,16 +492,13 @@ window.executePeriodSave = async function(labelName, callback) {
     const totalDays = datesToSave.length;
     let batch = window.db.batch();
     
-    // 비동기로 각 날짜 문서 가져오기
     for(let i=0; i<totalDays; i++) {
         const dStr = datesToSave[i];
         const docRef = window.getUserCol('events').doc(dStr);
         const docSnap = await docRef.get();
         let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
         
-        // (1/5) 태그 추가
         list.push({ label: labelName, labels: [labelName], content: `${content} (${i+1}/${totalDays})`, completed: false });
-        
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
     }
 
@@ -532,19 +509,16 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 [신규] 일정 삭제 시 다중/기간 일정 자동 감지 및 삭제 옵션 제공 엔진
+// 🚀 [기능] 일정 삭제 시 다중/기간 일정 자동 감지 및 삭제 옵션 제공 엔진
 // ==========================================================================
 window.handleEventDeletion = function(dateStr, eventObj, singleDeleteCallback) {
-    // "(1/5)" 같은 패턴이 있는지 검사 (기간 일정 판별)
     const match = (eventObj.content || '').match(/(.*)\s+\((\d+)\/(\d+)\)$/);
     
     if (!match) {
-        // 일반 일정이면 묻지 않고 바로 삭제 콜백 실행
         if (singleDeleteCallback) singleDeleteCallback();
         return;
     }
 
-    // 기간 일정인 경우 팝업 띄우기
     const baseContent = match[1].trim();
     const currentIdx = match[2];
     const totalDays = match[3];
@@ -589,7 +563,6 @@ window.handleEventDeletion = function(dateStr, eventObj, singleDeleteCallback) {
 window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDays, deleteType) {
     document.getElementById('delete-option-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#ef4444; text-align:center;">⏳ 클라우드에서 다중 삭제 중...</div>`;
     
-    // 안전하게 앞뒤 14일 정도를 스캔하여 해당하는 일정을 찾아 지웁니다. (주말 제외 등 복잡한 계산 회피)
     const baseDate = new Date(baseDateStr);
     const startDate = new Date(baseDate); startDate.setDate(startDate.getDate() - parseInt(totalDays) - 5);
     const endDate = new Date(baseDate); endDate.setDate(endDate.getDate() + parseInt(totalDays) + 5);
@@ -605,8 +578,6 @@ window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDa
     
     for (let i = 0; i < datesToScan.length; i++) {
         const dStr = datesToScan[i];
-        
-        // 'future' 옵션인 경우, 기준 날짜보다 과거인 날짜는 스캔 패스
         if (deleteType === 'future' && dStr < baseDateStr) continue;
 
         const docRef = window.getUserCol('events').doc(dStr);
@@ -614,12 +585,11 @@ window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDa
         if (docSnap.exists) {
             let list = docSnap.data().eventList || [];
             let originalLength = list.length;
-            // baseContent로 시작하고 (x/y) 형태인 것만 필터링해서 삭제
             list = list.filter(e => {
                 if (!e.content) return true;
                 const match = e.content.match(/(.*)\s+\((\d+)\/(\d+)\)$/);
-                if (match && match[1].trim() === baseContent) return false; // 삭제 대상
-                return true; // 보존 대상
+                if (match && match[1].trim() === baseContent) return false; 
+                return true; 
             });
             
             if (list.length !== originalLength) {
@@ -632,13 +602,12 @@ window.executeComplexDeletion = async function(baseDateStr, baseContent, totalDa
     document.getElementById('delete-option-modal').remove();
     alert('✅ 일괄 삭제가 완료되었습니다.');
     window.hasUnsavedChanges = false;
-    window.render(); // 화면 강제 새로고침
+    window.render(); 
 };
 
 // ==========================================================================
-// 🚀 [버그 픽스] 라벨 데이터 V4 읽기 및 뱃지 렌더링/토글 엔진 (app.js 하단 추가)
+// 🚀 [기능] 라벨 데이터 V4 읽기 및 인라인 뱃지 렌더링/토글 엔진
 // ==========================================================================
-
 window.LABEL_PALETTE = {
     red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
     orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74' },
@@ -650,7 +619,6 @@ window.LABEL_PALETTE = {
     gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' }
 };
 
-// 1. 최신 V4 라벨 데이터 읽어오기
 window.getEventLabels = function() {
     const saved = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     if (saved && saved.length > 0) return saved;
@@ -667,12 +635,11 @@ window.getJournalLabels = function() {
     return [{ name: '참고', color: 'purple' }];
 };
 
-// 2. 라벨 스타일 및 속성 판별 함수
 window.getLabelStyle = function(labelName, type = 'event') {
     const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
     const target = labels.find(l => l.name === labelName);
     if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
-    return { bg: '#f8fafc', text: '#475569', border: '#cbd5e1' }; // Default
+    return { bg: '#f8fafc', text: '#475569', border: '#cbd5e1' }; 
 };
 
 window.isForwardLabel = function(labelName) {
@@ -690,7 +657,7 @@ window.isSkipLabel = function(labelName) {
     return target ? !!target.isSkip : false;
 };
 
-// 3. 보기(Viewer) 모드 뱃지 그리기 및 클릭 토글 연결
+// 💡 [수정] 작은 인라인 라벨 버튼과 텍스트가 자연스럽게 이어지도록 그리기
 window.generateEventBadgesHTML = function(events, dateStr) {
     if (!events || events.length === 0) return '';
     let html = '<div style="display:flex; flex-direction:column; gap:4px;">';
@@ -712,11 +679,9 @@ window.generateEventBadgesHTML = function(events, dateStr) {
             
             const clickAction = canComplete ? `onclick="window.toggleEventCompletion('${dateStr}', ${idx})" style="cursor:pointer;" title="클릭하여 완료 상태 변경"` : `style="cursor:default;"`;
             
-            // 💡 [수정] 과거 형식: padding 축소 및 모서리를 둥글게(4px) 하여 기존의 작은 버튼 모양 유지
             chipsHtml += `<span ${clickAction} class="event-badge-chip" style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold; background:${chipBg}; color:${chipText}; border:1px solid ${chipBorder}; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;">${lName}</span>`;
         });
 
-        // 💡 [수정] 과거 형식: 박스(Row)가 아니라 라벨 버튼과 텍스트가 같은 줄에 자연스럽게 이어지도록 변경
         html += `
         <div class="event-badge-row" style="margin-bottom: 2px; line-height:1.4;">
             ${chipsHtml}
@@ -728,22 +693,19 @@ window.generateEventBadgesHTML = function(events, dateStr) {
     return html;
 };
 
-// 4. DB 완료 상태 원클릭 토글 엔진
 window.toggleEventCompletion = async function(dateStr, idx) {
-    // 혹시라도 에디터 모드에서 클릭했다면 먼저 저장부터 수행
     if (window.currentMode === 'editor' && window.hasUnsavedChanges) {
          await window.saveCurrentViewData(true);
     }
-
     try {
         const docRef = window.getUserCol('events').doc(dateStr);
         const docSnap = await docRef.get();
         if (docSnap.exists) {
             let list = docSnap.data().eventList || [];
             if (list[idx]) {
-                list[idx].completed = !list[idx].completed; // 상태 뒤집기 (true <-> false)
+                list[idx].completed = !list[idx].completed;
                 await docRef.update({ eventList: list, updatedAt: Date.now() });
-                if (window.render) window.render(); // 화면 즉시 새로고침
+                if (window.render) window.render(); 
             }
         }
     } catch (e) {
@@ -758,17 +720,15 @@ window.toggleEventCompletion = async function(dateStr, idx) {
 if (!window._originalRenderV4) {
     window._originalRenderV4 = window.render;
     window.render = function() {
-        window._originalRenderV4(); // 기존의 화면 그리기 우선 실행
+        window._originalRenderV4(); 
         
-        // 화면 렌더링이 끝난 직후, 순수 텍스트로 남은 [라벨]을 찾아 예쁜 버튼으로 교체
         setTimeout(() => {
             const elements = document.querySelectorAll('td, .month-event, .year-event, .cal-event');
             elements.forEach(el => {
-                // 이미 뱃지(.event-badge-chip)가 들어간 곳은 건너뜀
                 if (el.querySelector('.event-badge-chip') || el.querySelector('.badge-tag')) return;
                 
                 let html = el.innerHTML;
-                const regex = /\[([^\]]+)\]/g; // 대괄호로 묶인 텍스트 패턴 찾기
+                const regex = /\[([^\]]+)\]/g; 
                 
                 if (regex.test(html)) {
                     const newHtml = html.replace(regex, (match, labelName) => {
@@ -778,6 +738,6 @@ if (!window._originalRenderV4) {
                     el.innerHTML = newHtml;
                 }
             });
-        }, 50); // 렌더링 직후 0.05초 뒤 즉시 실행
+        }, 50); 
     };
 }
