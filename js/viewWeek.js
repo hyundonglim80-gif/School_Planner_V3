@@ -47,9 +47,10 @@ class WeekView extends window.BaseView {
         const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
         
         if (finalEvents.length > 0) {
+            // 🚀 [수정] 빈 배열인 경우 강제로 ['기타']를 할당하던 로직 완전히 삭제
             let processedEvents = finalEvents.map(e => ({
                 ...e,
-                labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
+                labels: e.labels || (e.label ? [e.label] : [])
             }));
             eventHtml = window.generateEventBadgesHTML(processedEvents, d.dateStr); 
         }
@@ -63,7 +64,6 @@ class WeekView extends window.BaseView {
       if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      // 🚀 [수정] 날짜 텍스트를 클릭할 때만 이동하도록 수정
       html += `
         <tr>
           <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
@@ -131,7 +131,6 @@ class WeekView extends window.BaseView {
       if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
 
-      // 🚀 [수정] 날짜 텍스트를 클릭할 때만 이동하도록 수정
       html += `
         <tr data-week-date="${d.dateStr}">
           <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
@@ -172,7 +171,7 @@ class WeekView extends window.BaseView {
       let html = '';
       
       list.forEach((e, idx) => {
-          const eLabels = (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : []);
+          const eLabels = e.labels || (e.label ? [e.label] : []);
           
           let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;">`;
           labelObjs.forEach(labelObj => {
@@ -186,16 +185,14 @@ class WeekView extends window.BaseView {
           chipsHtml += `</div>`;
 
           const isCompleted = !!e.completed;
-          const canComplete = (typeof window.isForwardLabel === 'function' && eLabels.length > 0) ? window.isForwardLabel(eLabels[0]) : false;
+          const canComplete = eLabels.some(l => window.isForwardLabel(l));
 
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
-          // 🚀 [수정] 체크박스를 왼쪽으로 배치
           const checkboxHtml = canComplete 
               ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
-          // 🚀 [수정] 삭제 클릭 시 기간 다중 삭제 옵션 연결
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -238,7 +235,6 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🚀 [수정] 컴팩트 에디터에서 기간 일정 삭제 인터셉트 로직
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const label = ev.labels?.[0] || ev.label;
