@@ -86,38 +86,45 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정] 강제 '일정' 덮어쓰기 로직 삭제, 이월 기록 디자인 강화
+// 🚀 [수정] 여러 개의 라벨을 모두 표시하고, 라벨이 없으면 아무 배지도 출력하지 않도록 최적화
 window.generateEventBadgesHTML = function(eventList, dateStr = null) {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
     
     eventList.forEach((e, index) => {
-        // [핵심] labels 배열을 그대로 사용하여 원본 이름 보존! 강제 치환 로직 삭제.
-        let currentLabel = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
+        let labelsToRender = e.labels || (e.label ? [e.label] : []);
 
-        const style = window.getLabelStyle(currentLabel, 'event');
         const isCompleted = !!e.completed;
-        const canComplete = window.isForwardLabel(currentLabel); 
+        const canComplete = labelsToRender.some(l => window.isForwardLabel(l)); 
+        const isSkip = labelsToRender.some(l => window.isSkipLabel(l));
 
-        let badgeStyle = isCompleted && canComplete
-            ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`
-            : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
+        let badgesHtml = '';
+        if (labelsToRender.length > 0) {
+            badgesHtml = labelsToRender.map(lName => {
+                const style = window.getLabelStyle(lName, 'event');
+                let badgeStyle = isCompleted && canComplete
+                    ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
+                
+                const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
+                
+                return `<span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : lName}">${lName}</span>`;
+            }).join('');
+        }
 
-        let textStyle = window.isSkipLabel(currentLabel) ? `color:${style.text}; font-weight:bold;` : 'color:#1e293b;';
+        let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        let contentHtml = e.content;
+        let contentHtml = e.content || '';
         if (contentHtml.includes('(다음 날로 이월됨)')) {
             contentHtml = contentHtml.replace('(다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-style:normal;">(다음 날로 이월됨)</span>');
         }
 
-        const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
-
         html += `
         <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;">
-            <span ${onClickAttr} style="${badgeStyle} padding:1px 5px; border-radius:4px; font-size:0.8rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : currentLabel}">${currentLabel}</span>
+            ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
             <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !e.isForwarded ? '✓ ' : ''}${contentHtml}</span>
         </div>`;
     });
@@ -171,15 +178,14 @@ window.parseRawEventTextToEventList = function(rawText) {
         const match = t.match(/^\[(.*?)\]\s*(.*)$/);
         if (match) {
             let labelName = match[1].trim();
-            // [핵심] validLabels 강제 확인 로직을 걷어내어 임의의 커스텀 텍스트도 원형으로 보존
             eventList.push({ label: labelName, labels: [labelName], content: match[2].trim(), completed: completed });
         } else {
-            let defaultLabel = '일정';
+            let defaultLabels = [];
             if (t.includes('(휴일)') || t.includes('(행사)')) {
                 const skipLabel = window.getEventLabels().find(l => l.isSkip);
-                if (skipLabel) defaultLabel = skipLabel.name;
+                if (skipLabel) defaultLabels = [skipLabel.name];
             }
-            eventList.push({ label: defaultLabel, labels: [defaultLabel], content: t, completed: completed });
+            eventList.push({ label: defaultLabels[0] || '', labels: defaultLabels, content: t, completed: completed });
         }
     });
     return eventList;
@@ -187,7 +193,10 @@ window.parseRawEventTextToEventList = function(rawText) {
 
 window.formatEventListToText = function(eventList) {
     if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => `${e.completed ? '[v]' : ''}[${(e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정')}] ${e.content}`).join('\n');
+    return eventList.map(e => {
+        let labelStr = (e.labels && e.labels.length > 0) ? `[${e.labels[0]}] ` : (e.label ? `[${e.label}] ` : '');
+        return `${e.completed ? '[v]' : ''}${labelStr}${e.content}`;
+    }).join('\n');
 };
 
 window.getJournalLabels = function() {
