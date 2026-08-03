@@ -86,8 +86,8 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정] 여러 개의 라벨을 모두 표시하고, 라벨이 없으면 아무 배지도 출력하지 않도록 최적화
-window.generateEventBadgesHTML = function(eventList, dateStr = null) {
+// 🚀 [수정] 기간 일정 라벨 숨김 및 뷰 타입에 따른 줄바꿈(레이아웃) 적용
+window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
     
@@ -101,6 +101,11 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
         let badgesHtml = '';
         if (labelsToRender.length > 0) {
             badgesHtml = labelsToRender.map(lName => {
+                // 💡 [핵심] 기간 속성 라벨은 시각적인 뱃지를 렌더링하지 않음
+                if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(lName)) {
+                    return '';
+                }
+
                 const style = window.getLabelStyle(lName, 'event');
                 let badgeStyle = isCompleted && canComplete
                     ? `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`
@@ -122,8 +127,14 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null) {
             contentHtml = contentHtml.replace('(다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-style:normal;">(다음 날로 이월됨)</span>');
         }
 
+        // 💡 [핵심] 월간/연간 뷰어처럼 공간이 좁을 때는 라벨과 텍스트를 위아래로 줄바꿈(column) 처리
+        let layoutStyle = `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
+        if (viewType === 'compact') {
+            layoutStyle = `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;`;
+        }
+
         html += `
-        <div style="display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;">
+        <div style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
             <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !e.isForwarded ? '✓ ' : ''}${contentHtml}</span>
         </div>`;
