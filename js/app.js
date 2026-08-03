@@ -336,3 +336,162 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// ==========================================================================
+// 🚀 [신규] 미완료 자동 이월 로직 (앱 실행 시 작동)
+// ==========================================================================
+window.autoForwardIncompleteEvents = async function() {
+    const todayStr = window.formatDate(new Date());
+    const lastCheck = localStorage.getItem('lastForwardCheck_v4');
+    if (lastCheck === todayStr) return; // 오늘 이미 실행했으면 패스
+
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 14); // 최근 14일치 스캔
+    const pastDateStr = window.formatDate(pastDate);
+
+    try {
+        const eventsSnap = await window.getUserCol('events')
+            .where(firebase.firestore.FieldPath.documentId(), '>=', pastDateStr)
+            .where(firebase.firestore.FieldPath.documentId(), '<', todayStr)
+            .get();
+        
+        let forwardedEvents = [];
+        let batch = window.db.batch();
+
+        eventsSnap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || (data.eventText ? window.parseRawEventTextToEventList(data.eventText) : []);
+            let docChanged = false;
+
+            list.forEach(ev => {
+                const label = ev.labels ? ev.labels[0] : ev.label;
+                // '완료(이월)' 속성이면서 완료되지 않았고, 이미 이월된 기록이 없다면
+                if (window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
+                    ev.isForwarded = true; // 원본에는 이월됨 표시 남김
+                    docChanged = true;
+                    // 오늘 날짜로 가져갈 새 객체 생성
+                    forwardedEvents.push({ label: label, labels: ev.labels, content: ev.content, completed: false }); 
+                }
+            });
+
+            if (docChanged) {
+                batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+            }
+        });
+
+        // 오늘 날짜로 이월할 내용이 있다면
+        if (forwardedEvents.length > 0) {
+            const todayDoc = await window.getUserCol('events').doc(todayStr).get();
+            const todayData = todayDoc.exists ? todayDoc.data() : {};
+            let todayList = todayData.eventList || (todayData.eventText ? window.parseRawEventTextToEventList(todayData.eventText) : []);
+            
+            // 기존 오늘 일정 맨 위에 이월된 일정들을 끼워넣음
+            todayList = [...forwardedEvents, ...todayList];
+
+            batch.set(window.getUserCol('events').doc(todayStr), {
+                eventList: todayList,
+                updatedAt: Date.now()
+            }, { merge: true });
+        }
+
+        await batch.commit();
+        localStorage.setItem('lastForwardCheck_v4', todayStr);
+        if (forwardedEvents.length > 0 && window.render) window.render(); // 화면 새로고침
+    } catch(e) {
+        console.error("자동 이월 처리 중 에러:", e);
+    }
+};
+
+// app.js의 auth.onAuthStateChanged 내부 (user 객체 확인 후 loadSettings() 호출 다음 줄)에 아래 코드를 한 줄 추가해주세요.
+// await window.autoForwardIncompleteEvents();
+
+
+// ==========================================================================
+// 🚀 [신규] 기간 다중 등록 달력 팝업
+// ==========================================================================
+window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
+    const modalHtml = `
+    <div id="period-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
+        <div style="background:#fff; padding:25px; border-radius:12px; width:360px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">📅 [${labelName}] 기간 등록</h3>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px;">일정 내용</label>
+                <input type="text" id="period-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem;" placeholder="예: 여름방학">
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
+                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly>
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label>
+                    <input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;">
+                </div>
+            </div>
+
+            <div style="margin-bottom:25px; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;">
+                    <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
+                    주말(토/일) 제외하고 계산하기
+                </label>
+                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 (1/5), (2/5) 형식으로 일정이 등록됩니다.</p>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="document.getElementById('period-modal').remove(); if(callback) callback(false);" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button onclick="window.executePeriodSave('${labelName}', callback)" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">일괄 등록</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+window.executePeriodSave = async function(labelName, callback) {
+    const content = document.getElementById('period-content').value.trim();
+    const startStr = document.getElementById('period-start').value;
+    const endStr = document.getElementById('period-end').value;
+    const excludeWeekend = document.getElementById('period-exclude-weekend').checked;
+
+    if(!content) return alert("일정 내용을 입력해주세요.");
+    const startD = new Date(startStr);
+    const endD = new Date(endStr);
+    if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
+
+    document.getElementById('period-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
+
+    // 날짜 계산 및 필터링
+    let datesToSave = [];
+    let curD = new Date(startD);
+    while (curD <= endD) {
+        const day = curD.getDay();
+        if (excludeWeekend && (day === 0 || day === 6)) {
+            // 주말 제외
+        } else {
+            datesToSave.push(window.formatDate(curD));
+        }
+        curD.setDate(curD.getDate() + 1);
+    }
+
+    const totalDays = datesToSave.length;
+    let batch = window.db.batch();
+    
+    // 비동기로 각 날짜 문서 가져오기
+    for(let i=0; i<totalDays; i++) {
+        const dStr = datesToSave[i];
+        const docRef = window.getUserCol('events').doc(dStr);
+        const docSnap = await docRef.get();
+        let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
+        
+        // (1/5) 태그 추가
+        list.push({ label: labelName, labels: [labelName], content: `${content} (${i+1}/${totalDays})`, completed: false });
+        
+        batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+    }
+
+    await batch.commit();
+    document.getElementById('period-modal').remove();
+    alert(`✅ 총 ${totalDays}일의 일정이 등록되었습니다.`);
+    if (callback) callback(true);
+};
