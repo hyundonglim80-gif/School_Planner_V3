@@ -1,4 +1,4 @@
- // js/app.js
+// js/app.js
 
 // ==========================================================================
 // 🚀 앱 상태 관리 및 초기화 설정
@@ -6,73 +6,72 @@
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
-window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; 
-window.currentDate = new Date(); 
+window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; 
+window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
 window.toggleWeekend = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showWeekend = !window.showWeekend;
-  localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
-  window.render();
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  window.showWeekend = !window.showWeekend;
+  localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+  window.render();
 };
 
 window.toggleClass = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showClass = !window.showClass;
-  localStorage.setItem('workCalendar_showClass', window.showClass);
-  window.render();
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  window.showClass = !window.showClass;
+  localStorage.setItem('workCalendar_showClass', window.showClass);
+  window.render();
 };
 
 window.setScope = async function(scope) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  currentScope = scope;
-  localStorage.setItem('workCalendar_scope', scope);
-  window.render();
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  currentScope = scope;
+  localStorage.setItem('workCalendar_scope', scope);
+  window.render();
 };
 
 window.setMode = async function(mode) {
-  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
-    await window.saveCurrentViewData(true);
-  }
-  currentMode = mode;
-  localStorage.setItem('workCalendar_mode', mode);
-  if (mode === 'viewer') window.hasUnsavedChanges = false;
-  window.render();
+  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
+    await window.saveCurrentViewData(true);
+  }
+  currentMode = mode;
+  localStorage.setItem('workCalendar_mode', mode);
+  if (mode === 'viewer') window.hasUnsavedChanges = false;
+  window.render();
 };
 
 window.handleEditSaveClick = function() {
-  if (currentMode === 'viewer') {
-    window.setMode('editor');
-  } else {
-    window.saveCurrentViewData(false);
-  }
+  if (currentMode === 'viewer') {
+    window.setMode('editor');
+  } else {
+    window.saveCurrentViewData(false);
+  }
 };
 
 window.moveDate = async function(dir) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  
-  if (currentScope === 'day') {
-      window.currentDate.setDate(window.currentDate.getDate() + dir);
-  } else if (currentScope === 'week') {
-      window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  } else if (currentScope === 'month') {
-      // 💡 [핵심 버그 수정] 월(Month) 이동 시 31일 -> 30일 달로 이동할 때 날짜가 1일로 튀는 현상(롤오버) 완벽 방지
-      const currentDay = window.currentDate.getDate();
-      window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-      if (window.currentDate.getDate() < currentDay) {
-          window.currentDate.setDate(0); 
-      }
-  } else if (currentScope === 'year') {
-      window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
-  }
-  window.render();
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  
+  if (currentScope === 'day') {
+      window.currentDate.setDate(window.currentDate.getDate() + dir);
+  } else if (currentScope === 'week') {
+      window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+  } else if (currentScope === 'month') {
+      const currentDay = window.currentDate.getDate();
+      window.currentDate.setMonth(window.currentDate.getMonth() + dir);
+      if (window.currentDate.getDate() < currentDay) {
+          window.currentDate.setDate(0); 
+      }
+  } else if (currentScope === 'year') {
+      window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+  }
+  window.render();
 };
 
 window.goToToday = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.currentDate = new Date();
-  window.render();
+  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+  window.currentDate = new Date();
+  window.render();
 };
 
 // ==========================================================================
@@ -82,40 +81,40 @@ window.periodNames = ["1", "2", "3", "4", "5", "6"];
 window.tempPeriodNames = [];
 
 window.loadSettings = async function() {
-    try {
-        const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
-            window.periodNames = doc.data().periodNames;
-        } else {
-            window.periodNames = ["1", "2", "3", "4", "5", "6"];
-        }
-    } catch (error) {
-        console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
-        window.periodNames = ["1", "2", "3", "4", "5", "6"];
-    }
+    try {
+        const doc = await window.getUserCol('settings').doc('preferences').get();
+        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
+            window.periodNames = doc.data().periodNames;
+        } else {
+            window.periodNames = ["1", "2", "3", "4", "5", "6"];
+        }
+    } catch (error) {
+        console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
+        window.periodNames = ["1", "2", "3", "4", "5", "6"];
+    }
 };
 
 // ==========================================================================
 // 🖥️ 메인 렌더링 엔진
 // ==========================================================================
 window.render = function() {
-  const container = document.getElementById("main-view");
-  if (!container) return; 
+  const container = document.getElementById("main-view");
+  if (!container) return; 
 
-  container.innerHTML = "";
-  updateTitle();
-  updateButtonUI();
+  container.innerHTML = "";
+  updateTitle();
+  updateButtonUI();
 
-  try {
-      if (currentScope === 'week') { currentMode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
-      else if (currentScope === 'month') { currentMode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
-      else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
-      else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
-      else if (currentScope === 'memo') { window.renderMemoView(container); }
-  } catch (error) {
-      console.error("화면 렌더링 중 오류 발생:", error);
-      container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
-  }
+  try {
+      if (currentScope === 'week') { currentMode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
+      else if (currentScope === 'month') { currentMode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
+      else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
+      else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
+      else if (currentScope === 'memo') { window.renderMemoView(container); }
+  } catch (error) {
+      console.error("화면 렌더링 중 오류 발생:", error);
+      container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
+  }
 };
 
 function updateTitle() {
@@ -135,15 +134,12 @@ function updateTitle() {
     const day = temp.getDay();
     let start, end;
     
-    // 🌟 주말 표시 여부에 따라 날짜 계산 범위 변경
     if (window.showWeekend) {
-        // 주말 보기: 일요일(0) ~ 토요일(6)
         const diffToSun = temp.getDate() - day;
         start = new Date(temp.setDate(diffToSun));
         end = new Date(start);
         end.setDate(start.getDate() + 6);
     } else {
-        // 주말 숨기기: 월요일(1) ~ 금요일(5)
         const diffToMon = temp.getDate() - day + (day === 0 ? -6 : 1);
         start = new Date(temp.setDate(diffToMon));
         end = new Date(start);
@@ -165,176 +161,179 @@ function updateTitle() {
   }
 }
 
-
 window.toggleMoreMenu = function() {
-  const dropdown = document.getElementById('more-dropdown');
-  if (dropdown) dropdown.classList.toggle('hidden');
+  const dropdown = document.getElementById('more-dropdown');
+  if (dropdown) dropdown.classList.toggle('hidden');
 };
 
 window.addEventListener('click', function(e) {
-  const btn = document.getElementById('btn-more-menu');
-  const dropdown = document.getElementById('more-dropdown');
-  if (btn && dropdown) {
-    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.classList.add('hidden');
-    }
-  }
+  const btn = document.getElementById('btn-more-menu');
+  const dropdown = document.getElementById('more-dropdown');
+  if (btn && dropdown) {
+    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  }
 });
 
 function updateButtonUI() {
-  const scopeBtns = document.querySelectorAll('.btn-scope');
-  scopeBtns.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${currentScope}'`)) {
-      btn.classList.add('active');
-    }
-  });
+  const scopeBtns = document.querySelectorAll('.btn-scope');
+  scopeBtns.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${currentScope}'`)) {
+      btn.classList.add('active');
+    }
+  });
 
-  const headerBottom = document.querySelector('.header-bottom');
-  if (headerBottom) {
-    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
-  }
+  const headerBottom = document.querySelector('.header-bottom');
+  if (headerBottom) {
+    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
+  }
 
-  const viewerBtn = document.getElementById('btn-mode-viewer');
-  const editorBtn = document.getElementById('btn-mode-editor');
-  const modeGroup = document.querySelector('.mode-group');
+  const viewerBtn = document.getElementById('btn-mode-viewer');
+  const editorBtn = document.getElementById('btn-mode-editor');
+  const modeGroup = document.querySelector('.mode-group');
 
-  if (modeGroup) {
-    modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
-  }
+  if (modeGroup) {
+    modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
+  }
 
-  const searchBtn = document.getElementById('btn-search');
-  if (searchBtn) {
-    searchBtn.style.display = 'inline-block';
-  }
+  const searchBtn = document.getElementById('btn-search');
+  if (searchBtn) {
+    searchBtn.style.display = 'inline-block';
+  }
 
-  const moreBtn = document.getElementById('btn-more-menu');
-  if (moreBtn) {
-    moreBtn.style.display = 'inline-flex';
-  }
+  const moreBtn = document.getElementById('btn-more-menu');
+  if (moreBtn) {
+    moreBtn.style.display = 'inline-flex';
+  }
 
-  const weekendBtn = document.getElementById('btn-toggle-weekend');
-  if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보이기';
-    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
-  }
+  const weekendBtn = document.getElementById('btn-toggle-weekend');
+  if (weekendBtn) {
+    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보이기';
+    weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
+  }
 
-  const classBtn = document.getElementById('btn-toggle-class');
-  if (classBtn) {
-    classBtn.innerHTML = window.showClass ? '수업 숨기기' : '수업 보이기';
-    classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
-  }
+  const classBtn = document.getElementById('btn-toggle-class');
+  if (classBtn) {
+    classBtn.innerHTML = window.showClass ? '수업 숨기기' : '수업 보이기';
+    classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
+  }
 
-  if (viewerBtn && editorBtn) {
-    viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
+  if (viewerBtn && editorBtn) {
+    viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
-    if (currentMode === 'viewer') {
-      editorBtn.innerHTML = '작성';
-      editorBtn.title = '단축키: Ctrl + ↓';
-      editorBtn.className = 'btn-mode';
-    } else {
-      editorBtn.innerHTML = '저장';
-      editorBtn.title = '단축키: Ctrl + Enter';
-      editorBtn.className = 'btn-mode save-mode';
-    }
-  }
+    if (currentMode === 'viewer') {
+      editorBtn.innerHTML = '작성';
+      editorBtn.title = '단축키: Ctrl + ↓';
+      editorBtn.className = 'btn-mode';
+    } else {
+      editorBtn.innerHTML = '저장';
+      editorBtn.title = '단축키: Ctrl + Enter';
+      editorBtn.className = 'btn-mode save-mode';
+    }
+  }
 
-  const dropdown = document.getElementById('more-dropdown');
-  if (dropdown) dropdown.classList.add('hidden');
+  const dropdown = document.getElementById('more-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
 }
 
 window.saveCurrentViewData = async function(silent = false) {
-  const editorBtn = document.getElementById('btn-mode-editor');
-  
-  if (editorBtn && !silent) {
-    editorBtn.innerHTML = "저장중..";
-    editorBtn.disabled = true;
-  }
+  const editorBtn = document.getElementById('btn-mode-editor');
+  
+  if (editorBtn && !silent) {
+    editorBtn.innerHTML = "저장중..";
+    editorBtn.disabled = true;
+  }
 
-  if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
-  else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
-  else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
-  else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+  if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
+  else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
+  else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
+  else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
-  if (editorBtn && !silent) {
-    editorBtn.innerHTML = '저장 완료';
-    setTimeout(() => {
-      if (currentMode === 'editor') {
-        editorBtn.innerHTML = '저장';
-        editorBtn.disabled = false;
-      }
-    }, 1500); 
-  }
-  
-  window.hasUnsavedChanges = false; 
+  if (editorBtn && !silent) {
+    editorBtn.innerHTML = '저장 완료';
+    setTimeout(() => {
+      if (currentMode === 'editor') {
+        editorBtn.innerHTML = '저장';
+        editorBtn.disabled = false;
+      }
+    }, 1500); 
+  }
+  
+  window.hasUnsavedChanges = false; 
 };
 
 // ==========================================================================
 // 🚀 앱 실행 시 초기화 이벤트 설정
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
-  const viewerBtn = document.getElementById('btn-mode-viewer');
-  const editorBtn = document.getElementById('btn-mode-editor');
+  const viewerBtn = document.getElementById('btn-mode-viewer');
+  const editorBtn = document.getElementById('btn-mode-editor');
 
-  if (viewerBtn) viewerBtn.addEventListener('click', () => window.setMode('viewer'));
-  if (editorBtn) {
-    editorBtn.addEventListener('click', () => {
-      if (currentMode === 'viewer') window.setMode('editor');
-      else window.saveCurrentViewData(false);
-    });
-  }
+  if (viewerBtn) viewerBtn.addEventListener('click', () => window.setMode('viewer'));
+  if (editorBtn) {
+    editorBtn.addEventListener('click', () => {
+      if (currentMode === 'viewer') window.setMode('editor');
+      else window.saveCurrentViewData(false);
+    });
+  }
 
-  const markUnsaved = () => { if (currentMode === 'editor') window.hasUnsavedChanges = true; };
-  document.addEventListener('input', markUnsaved);
-  document.addEventListener('change', markUnsaved);
+  const markUnsaved = () => { if (currentMode === 'editor') window.hasUnsavedChanges = true; };
+  document.addEventListener('input', markUnsaved);
+  document.addEventListener('change', markUnsaved);
 
-  window.addEventListener('beforeunload', (e) => {
-    if (currentMode === 'editor' && window.hasUnsavedChanges) {
-      e.preventDefault();
-      e.returnValue = ''; 
-    }
-  });
+  window.addEventListener('beforeunload', (e) => {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = ''; 
+    }
+  });
 
-  if (window.auth) {
-    const loginBtn = document.querySelector('#login-screen button');
-    let originalBtnHtml = '';
-    
-    if (loginBtn) {
-        originalBtnHtml = loginBtn.innerHTML;
-        loginBtn.innerHTML = '로그인 상태 확인 중...';
-        loginBtn.disabled = true;
-    }
+  if (window.auth) {
+    const loginBtn = document.querySelector('#login-screen button');
+    let originalBtnHtml = '';
+    
+    if (loginBtn) {
+        originalBtnHtml = loginBtn.innerHTML;
+        loginBtn.innerHTML = '로그인 상태 확인 중...';
+        loginBtn.disabled = true;
+    }
 
-    window.auth.onAuthStateChanged(async user => {
-      if (user) {
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('user-info').style.display = 'flex';
-        if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
-        
-        await window.loadSettings();
-        window.render();
-        
-        setTimeout(() => {
-          try {
-            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4');
-            if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
-              window.openHelpModal();
-            }
-          } catch(e) {}
-        }, 500); 
+    window.auth.onAuthStateChanged(async user => {
+      if (user) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('user-info').style.display = 'flex';
+        if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+        
+        await window.loadSettings();
+        
+        // 💡 [핵심] 로그인 직후 미완료 자동 이월 로직 실행 (잠금장치 해제됨)
+        await window.autoForwardIncompleteEvents();
 
-      } else {
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('user-info').style.display = 'none';
-        document.getElementById("main-view").innerHTML = ""; 
-        
-        if (loginBtn) {
-            loginBtn.innerHTML = originalBtnHtml || 'Google 계정으로 로그인';
-            loginBtn.disabled = false;
-        }
-      }
-    });
-  }
+        window.render();
+        
+        setTimeout(() => {
+          try {
+            const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4');
+            if (hideHelp !== 'true' && typeof window.openHelpModal === 'function') {
+              window.openHelpModal();
+            }
+          } catch(e) {}
+        }, 500); 
+
+      } else {
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('user-info').style.display = 'none';
+        document.getElementById("main-view").innerHTML = ""; 
+        
+        if (loginBtn) {
+            loginBtn.innerHTML = originalBtnHtml || 'Google 계정으로 로그인';
+            loginBtn.disabled = false;
+        }
+      }
+    });
+  }
 });
 
 // ==========================================================================
@@ -342,8 +341,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date());
-    const lastCheck = localStorage.getItem('lastForwardCheck_v4');
-    if (lastCheck === todayStr) return; // 오늘 이미 실행했으면 패스
 
     const pastDate = new Date();
     pastDate.setDate(pastDate.getDate() - 14); // 최근 14일치 스캔
@@ -366,7 +363,7 @@ window.autoForwardIncompleteEvents = async function() {
             list.forEach(ev => {
                 const label = ev.labels ? ev.labels[0] : ev.label;
                 // '완료(이월)' 속성이면서 완료되지 않았고, 이미 이월된 기록이 없다면
-                if (window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
+                if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
                     ev.isForwarded = true; // 원본에는 이월됨 표시 남김
                     docChanged = true;
                     // 오늘 날짜로 가져갈 새 객체 생성
@@ -395,16 +392,11 @@ window.autoForwardIncompleteEvents = async function() {
         }
 
         await batch.commit();
-        localStorage.setItem('lastForwardCheck_v4', todayStr);
         if (forwardedEvents.length > 0 && window.render) window.render(); // 화면 새로고침
     } catch(e) {
         console.error("자동 이월 처리 중 에러:", e);
     }
 };
-
-// app.js의 auth.onAuthStateChanged 내부 (user 객체 확인 후 loadSettings() 호출 다음 줄)에 아래 코드를 한 줄 추가해주세요.
-// await window.autoForwardIncompleteEvents();
-
 
 // ==========================================================================
 // 🚀 [신규] 기간 다중 등록 달력 팝업
@@ -436,7 +428,7 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
                     <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
                     주말(토/일) 제외하고 계산하기
                 </label>
-                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 일정이 분할 등록됩니다.</p>
+                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 (1/5), (2/5) 형식으로 일정이 등록됩니다.</p>
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -473,6 +465,7 @@ window.executePeriodSave = async function(labelName, callback) {
     // 모달창 내용 변경
     document.getElementById('period-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
 
+    // 날짜 계산 및 필터링
     let datesToSave = [];
     let curD = new Date(startD);
     while (curD <= endD) {
@@ -488,12 +481,14 @@ window.executePeriodSave = async function(labelName, callback) {
     const totalDays = datesToSave.length;
     let batch = window.db.batch();
     
+    // 비동기로 각 날짜 문서 가져오기
     for(let i=0; i<totalDays; i++) {
         const dStr = datesToSave[i];
         const docRef = window.getUserCol('events').doc(dStr);
         const docSnap = await docRef.get();
         let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
         
+        // (1/5) 태그 추가
         list.push({ label: labelName, labels: [labelName], content: `${content} (${i+1}/${totalDays})`, completed: false });
         
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
