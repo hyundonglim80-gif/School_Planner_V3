@@ -19,7 +19,6 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
-          // 💡 [수정] 라벨 없는 일정은 '기타' 라벨 부여
           let processed = data.eventList.map(e => ({
               ...e,
               labels: (e.labels && e.labels.length > 0) ? e.labels : (e.label ? [e.label] : ['기타'])
@@ -76,8 +75,9 @@ class YearView extends window.BaseView {
               ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
               : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
-          return `<div onclick="window.goToDay('${e.dateStr}')" style="${eventStyle} cursor:pointer;" title="${e.dateStr} 일 보기로 이동">
-                    <div style="color:#2563eb; font-weight:700;">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
+          // 🚀 [수정] 날짜 헤더 부분에만 클릭 이동 이벤트 부여
+          return `<div style="${eventStyle}">
+                    <div style="color:#2563eb; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                     <div style="margin-top:2px;">${e.htmlOutput}</div>
                   </div>`;
         }).join('');
@@ -173,10 +173,11 @@ class YearView extends window.BaseView {
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
       else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
+      // 🚀 [수정] 날짜 텍스트에만 클릭 이동 이벤트 적용
       html += `<tr data-year-date="${item.dateStr}">` +
-        `<td rowspan="${window.showClass ? 2 : 1}" onclick="window.goToDay('${item.dateStr}')" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">` +
+        `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-            `<span style="font-size:1.2rem; font-weight:900; color:${dateColor}; line-height:1.1;">${item.month}월 ${item.day}일</span>` +
+            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>` +
             `<span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
           `</div>` +
         `</td>` +
