@@ -319,8 +319,12 @@ class DayView extends window.BaseView {
 
   removeEventEntry(index) {
     this.syncEventInputs();
-    this.currentEvents.splice(index, 1);
-    this.renderEventEntries();
+    const ev = this.currentEvents[index];
+    // 💡 [추가] 기간 일정 다중 삭제 모달 호출 엔진 연결
+    window.handleEventDeletion(this.dateStr, ev, () => {
+        this.currentEvents.splice(index, 1);
+        this.renderEventEntries();
+    });
   }
 
   renderJournalEntries() {
