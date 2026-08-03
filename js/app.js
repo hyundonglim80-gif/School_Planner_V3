@@ -367,10 +367,13 @@ window.autoForwardIncompleteEvents = async function() {
                 const label = ev.labels ? ev.labels[0] : ev.label;
                 // '완료(이월)' 속성이면서 완료되지 않았고, 이미 이월된 기록이 없다면
                 if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !ev.isForwarded) {
-                    ev.isForwarded = true; // 원본에는 이월됨 표시 남김
+                    ev.isForwarded = true; 
+                    // 💡 [추가] 과거 기록 보존: 시각적으로 이월되었음을 표시
+                    const originalContent = ev.content;
+                    ev.content = "➡️[이월됨] " + originalContent; 
                     docChanged = true;
-                    // 오늘 날짜로 가져갈 새 객체 생성
-                    forwardedEvents.push({ label: label, labels: ev.labels, content: ev.content, completed: false }); 
+                    // 오늘 날짜로 가져갈 새 객체 생성 (태그 떼고 순수 내용만 복사)
+                    forwardedEvents.push({ label: label, labels: ev.labels, content: originalContent, completed: false }); 
                 }
             });
 
