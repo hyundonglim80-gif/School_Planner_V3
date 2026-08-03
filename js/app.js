@@ -68,18 +68,19 @@ window.moveDate = async function(dir) {
   window.render();
 };
 
-// 🚀 [옵션 1-B] 클릭 시 오늘 날짜로 즉시 스크롤 점프 (애니메이션 없음)
+// 🚀 [수정] 오늘 날짜 이동 후 해당 위치로 자동 스크롤 점프
 window.goToToday = async function() {
   if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
   window.currentDate = new Date();
   window.render();
   
+  // 렌더링이 완료된 직후 해당 위치로 스크롤을 이동
   setTimeout(() => {
       const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
       if (todayEl) {
           todayEl.scrollIntoView({ behavior: 'auto', block: 'center' });
       }
-  }, 50);
+  }, 100);
 };
 
 // ==========================================================================
@@ -323,7 +324,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
         await window.loadSettings();
-        
         await window.autoForwardIncompleteEvents();
 
         window.render();
@@ -352,74 +352,107 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [옵션 3-B] 미완료 자동 이월 로직 (붉은 강조 표시 적용)
+// 🚀 [수정] 미접속 날짜의 공백을 메우며 연속적으로 이월하는 로직
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date());
 
     const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 14); // 최근 14일치 스캔
+    pastDate.setDate(pastDate.getDate() - 14); // 최근 14일 치 스캔
     const pastDateStr = window.formatDate(pastDate);
 
     try {
         const eventsSnap = await window.getUserCol('events')
             .where(firebase.firestore.FieldPath.documentId(), '>=', pastDateStr)
-            .where(firebase.firestore.FieldPath.documentId(), '<', todayStr)
+            .where(firebase.firestore.FieldPath.documentId(), '<=', todayStr)
             .get();
         
-        let forwardedEvents = [];
-        let batch = window.db.batch();
-
+        let eventsMap = {};
         eventsSnap.forEach(doc => {
-            const data = doc.data();
-            let list = data.eventList || (data.eventText ? window.parseRawEventTextToEventList(data.eventText) : []);
-            let docChanged = false;
+            eventsMap[doc.id] = doc.data();
+        });
 
-            list.forEach(ev => {
-                const label = ev.labels ? ev.labels[0] : ev.label;
+        let batch = window.db.batch();
+        let changedDocs = new Set();
+
+        let curD = new Date(pastDate);
+        let endD = new Date(todayStr);
+
+        // 과거 14일부터 오늘 전날까지 하루씩 순차적으로 검사
+        while(curD < endD) {
+            const curStr = window.formatDate(curD);
+            curD.setDate(curD.getDate() + 1);
+            const nextStr = window.formatDate(curD); // 내일 날짜 (이월시킬 타겟)
+
+            let curData = eventsMap[curStr];
+            if (!curData) continue; // 이 날짜에 작성된 데이터가 없으면 패스
+
+            let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
+            let forwardedToNext = [];
+            let curChanged = false;
+
+            curList.forEach(ev => {
+                const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
                 const hasBeenForwarded = ev.isForwarded || (ev.content && ev.content.includes('(미완료)'));
                 
-                if (window.isForwardLabel && window.isForwardLabel(label) && !ev.completed && !hasBeenForwarded) {
+                // 완료되지 않았고, 이미 한 번 이월 처리된 적이 없다면
+                if (canComplete && !ev.completed && !hasBeenForwarded) {
                     ev.isForwarded = true; 
-                    // 과거 일정을 강제로 완료 처리하지 않고 미완료 텍스트를 부여하여 시각적으로 붉게 경고
+                    ev.completed = true; // 과거 데이터 취소선을 위해 강제 완료 처리 
+                    
                     const originalContent = ev.content.replace(/\s*\(미완료\)$/, '').replace(/\s*\(이월됨\)$/, '');
                     
-                    // 과거 데이터에 흔적 남기기
+                    // 현재 검사 중인 과거 날짜의 일정은 '미완료' 표시
                     ev.content = `${originalContent} (미완료)`; 
-                    docChanged = true;
+                    curChanged = true;
                     
-                    // 오늘 날짜로 가져갈 새 객체 생성
-                    forwardedEvents.push({ label: label, labels: ev.labels, content: `${originalContent} (이월됨)`, completed: false }); 
+                    // 내일(nextStr)로 넘길 새 일정 객체 생성
+                    forwardedToNext.push({ 
+                        label: ev.label, 
+                        labels: ev.labels, 
+                        content: `${originalContent} (이월됨)`, 
+                        completed: false 
+                    }); 
                 }
             });
 
-            if (docChanged) {
-                batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+            if (curChanged) {
+                eventsMap[curStr] = { ...curData, eventList: curList };
+                changedDocs.add(curStr);
             }
-        });
 
-        if (forwardedEvents.length > 0) {
-            const todayDoc = await window.getUserCol('events').doc(todayStr).get();
-            const todayData = todayDoc.exists ? todayDoc.data() : {};
-            let todayList = todayData.eventList || (todayData.eventText ? window.parseRawEventTextToEventList(todayData.eventText) : []);
-            
-            todayList = [...forwardedEvents, ...todayList];
-
-            batch.set(window.getUserCol('events').doc(todayStr), {
-                eventList: todayList,
-                updatedAt: Date.now()
-            }, { merge: true });
+            // 내일로 넘겨야 할 데이터가 있다면
+            if (forwardedToNext.length > 0) {
+                let nextData = eventsMap[nextStr] || {};
+                let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
+                // 내일 일정의 맨 위에 끼워 넣음 (다음 루프 때 이 날짜가 다시 검사됨)
+                nextList = [...forwardedToNext, ...nextList];
+                eventsMap[nextStr] = { ...nextData, eventList: nextList };
+                changedDocs.add(nextStr);
+            }
         }
 
-        await batch.commit();
-        if (forwardedEvents.length > 0 && window.render) window.render(); 
+        let opCount = 0;
+        changedDocs.forEach(dateStr => {
+            const docRef = window.getUserCol('events').doc(dateStr);
+            batch.set(docRef, { 
+                eventList: eventsMap[dateStr].eventList, 
+                updatedAt: Date.now() 
+            }, { merge: true });
+            opCount++;
+        });
+
+        if (opCount > 0) {
+            await batch.commit();
+            if (window.render) window.render(); 
+        }
     } catch(e) {
         console.error("자동 이월 처리 중 에러:", e);
     }
 };
 
 // ==========================================================================
-// 🚀 기간 다중 등록 달력 팝업
+// 🚀 기간 다중 등록 달력 팝업 (그룹 ID 부여)
 // ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
@@ -498,13 +531,22 @@ window.executePeriodSave = async function(labelName, callback) {
     const totalDays = datesToSave.length;
     let batch = window.db.batch();
     
+    // 🚀 [수정] 묶음 처리를 위한 고유 그룹 ID 생성
+    const groupId = 'period_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+    
     for(let i=0; i<totalDays; i++) {
         const dStr = datesToSave[i];
         const docRef = window.getUserCol('events').doc(dStr);
         const docSnap = await docRef.get();
         let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
         
-        list.push({ label: labelName, labels: [labelName], content: `${content} (${i+1}/${totalDays})`, completed: false });
+        list.push({ 
+            label: labelName, 
+            labels: [labelName], 
+            content: `${content} (${i+1}/${totalDays})`, 
+            completed: false,
+            groupId: groupId  // 고유 식별자 삽입
+        });
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
     }
 
@@ -515,17 +557,15 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 [옵션 4-A] 기간 일정 3가지 삭제 옵션 모달 텍스트 변경
+// 🚀 안전한 기간 일정 다중 삭제 (Group ID 방식)
 // ==========================================================================
-window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, onConfirm) {
-    const baseContent = textContent.replace(/\s*\(\d+\/\d+\)$/, '');
-    
+window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm) {
     const modalHtml = `
     <div id="period-delete-modal" class="modal-overlay" style="display:flex;">
         <div class="modal-content" style="width:360px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
             <h3 style="color:#ef4444; margin-top:0;">🗑️ 기간 일정 삭제</h3>
             <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
-                이 일정은 <b>'기간'</b> 속성을 가진 일정입니다.<br>어떻게 삭제하시겠습니까?
+                이 일정은 <b>'기간'</b>으로 묶인 일정입니다.<br>어떻게 삭제하시겠습니까?
             </p>
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">그 날만 삭제</button>
@@ -537,51 +577,53 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, onC
     </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    document.getElementById('btn-del-only-this').onclick = () => window.executePeriodDelete('only', baseDateStr, labelName, baseContent, onConfirm);
-    document.getElementById('btn-del-after-this').onclick = () => window.executePeriodDelete('after', baseDateStr, labelName, baseContent, onConfirm);
-    document.getElementById('btn-del-all').onclick = () => window.executePeriodDelete('all', baseDateStr, labelName, baseContent, onConfirm);
+    const baseContent = textContent.replace(/\s*\(\d+\/\d+\)$/, '');
+    
+    document.getElementById('btn-del-only-this').onclick = () => window.executePeriodDelete('only', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    document.getElementById('btn-del-after-this').onclick = () => window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    document.getElementById('btn-del-all').onclick = () => window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
 };
 
-window.executePeriodDelete = async function(mode, baseDateStr, labelName, baseContent, onConfirm) {
-    document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 삭제 중...</div>`;
+window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelName, baseContent, onConfirm) {
+    document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 안전하게 삭제 중...</div>`;
     
+    // 이전 버전에서 작성되어 groupId가 없는 일정들을 위한 호환성 필터
+    const matchEvent = (e) => {
+        if (groupId && e.groupId) return e.groupId === groupId;
+        const l = e.labels?.[0] || e.label;
+        const c = e.content.replace(/\s*\(\d+\/\d+\)$/, '');
+        return l === labelName && c === baseContent;
+    };
+
     try {
         let query = window.getUserCol('events');
-        if (mode === 'after') {
-            query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
-        }
-
+        
         if (mode === 'only') {
             const docRef = window.getUserCol('events').doc(baseDateStr);
             const docSnap = await docRef.get();
             if (docSnap.exists) {
                 let list = docSnap.data().eventList || [];
-                list = list.filter(e => {
-                    const l = e.labels?.[0] || e.label;
-                    const c = e.content.replace(/\s*\(\d+\/\d+\)$/, '');
-                    return !(l === labelName && c === baseContent);
-                });
+                list = list.filter(e => !matchEvent(e));
                 await docRef.update({ eventList: list, updatedAt: Date.now() });
             }
         } else {
+            if (mode === 'after') {
+                query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
+            }
             const snap = await query.get();
             let batch = window.db.batch();
             let count = 0;
+            
             snap.forEach(doc => {
-                // all 모드이거나 기준일 이후인 경우
-                if (mode === 'all' || doc.id >= baseDateStr) {
-                    const data = doc.data();
-                    let list = data.eventList || [];
-                    const origLen = list.length;
-                    list = list.filter(e => {
-                        const l = e.labels?.[0] || e.label;
-                        const c = e.content.replace(/\s*\(\d+\/\d+\)$/, '');
-                        return !(l === labelName && c === baseContent);
-                    });
-                    if (origLen !== list.length) {
-                        batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
-                        count++;
-                    }
+                const data = doc.data();
+                let list = data.eventList || [];
+                const origLen = list.length;
+                
+                list = list.filter(e => !matchEvent(e));
+                
+                if (origLen !== list.length) {
+                    batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+                    count++;
                 }
             });
             if (count > 0) await batch.commit();
