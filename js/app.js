@@ -251,6 +251,9 @@ window.saveCurrentViewData = async function(silent = false) {
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
+  // 💡 [추가] 과거 일정을 저장했을 때 즉시 이월되도록 백그라운드 체크 실행
+  await window.autoForwardIncompleteEvents();
+
   if (editorBtn && !silent) {
     editorBtn.innerHTML = '저장 완료';
     setTimeout(() => {
