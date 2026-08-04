@@ -11,67 +11,81 @@ window.currentDate = new Date();
 window.hasUnsavedChanges = false;
 
 window.toggleWeekend = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showWeekend = !window.showWeekend;
-  localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
-  window.render();
+    if (currentMode === 'editor' && window.hasUnsavedChanges) {
+        try { await window.saveCurrentViewData(true); } 
+        catch (e) { console.warn("자동 저장 오류 발생, 화면 이동 진행"); }
+    }
+    window.hasUnsavedChanges = false;
+    window.showWeekend = !window.showWeekend;
+    localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+    window.render();
 };
 
 window.toggleClass = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showClass = !window.showClass;
-  localStorage.setItem('workCalendar_showClass', window.showClass);
-  window.render();
+    if (currentMode === 'editor' && window.hasUnsavedChanges) {
+        try { await window.saveCurrentViewData(true); } 
+        catch (e) { console.warn("자동 저장 오류 발생, 화면 이동 진행"); }
+    }
+    window.hasUnsavedChanges = false;
+    window.showClass = !window.showClass;
+    localStorage.setItem('workCalendar_showClass', window.showClass);
+    window.render();
 };
 
 window.setScope = async function(scope) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  currentScope = scope;
-  localStorage.setItem('workCalendar_scope', scope);
-  window.render();
+    if (currentMode === 'editor' && window.hasUnsavedChanges) {
+        try { await window.saveCurrentViewData(true); } 
+        catch (e) { console.warn("자동 저장 오류 발생, 화면 이동 진행"); }
+    }
+    window.hasUnsavedChanges = false;
+    currentScope = scope;
+    localStorage.setItem('workCalendar_scope', scope);
+    window.render();
 };
 
 window.setMode = async function(mode) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges && mode === 'viewer') {
-      await window.saveCurrentViewData(false);
-  }
-  currentMode = mode;
-  localStorage.setItem('workCalendar_mode', mode);
-  window.render();
+    if (currentMode === 'editor' && window.hasUnsavedChanges && mode === 'viewer') {
+        try { await window.saveCurrentViewData(false); } 
+        catch (e) { console.warn("자동 저장 오류 발생, 화면 이동 진행"); }
+    }
+    currentMode = mode;
+    localStorage.setItem('workCalendar_mode', mode);
+    window.render();
 };
 
 window.saveCurrentViewData = async function(isSilent = false) {
-  try {
-      if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
-      else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
-      else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
-      else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
-      
-      window.hasUnsavedChanges = false;
-      if (!isSilent) alert("✅ 성공적으로 저장되었습니다!");
-  } catch (e) {
-      console.error("저장 중 오류 발생:", e);
-      if (!isSilent) alert("❌ 저장 중 오류가 발생했습니다.");
-  }
+    try {
+        if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
+        else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
+        else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
+        else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+        
+        window.hasUnsavedChanges = false;
+        if (!isSilent) alert("✅ 성공적으로 저장되었습니다!");
+    } catch (e) {
+        console.error("저장 중 오류 발생:", e);
+        if (!isSilent) alert("❌ 저장 중 오류가 발생했습니다.");
+        throw e; // 에러를 상위 함수로 전달하여 인지할 수 있도록 처리
+    }
 };
 
 window.render = async function() {
-  const container = document.getElementById('main-view');
-  if (!container) return;
+    const container = document.getElementById('main-view');
+    if (!container) return;
 
-  if (typeof window.updateToggleButtonsUI === 'function') window.updateToggleButtonsUI();
+    if (typeof window.updateToggleButtonsUI === 'function') window.updateToggleButtonsUI();
 
-  if (currentMode === 'viewer') {
-      if (currentScope === 'day' && window.renderDayViewer) await window.renderDayViewer(container);
-      else if (currentScope === 'week' && window.renderWeekViewer) await window.renderWeekViewer(container);
-      else if (currentScope === 'month' && window.renderMonthViewer) await window.renderMonthViewer(container);
-      else if (currentScope === 'year' && window.renderYearViewer) await window.renderYearViewer(container);
-  } else {
-      if (currentScope === 'day' && window.renderDayEditor) await window.renderDayEditor(container);
-      else if (currentScope === 'week' && window.renderWeekEditor) await window.renderWeekEditor(container);
-      else if (currentScope === 'month' && window.renderMonthEditor) await window.renderMonthEditor(container);
-      else if (currentScope === 'year' && window.renderYearEditor) await window.renderYearEditor(container);
-  }
+    if (currentMode === 'viewer') {
+        if (currentScope === 'day' && window.renderDayViewer) await window.renderDayViewer(container);
+        else if (currentScope === 'week' && window.renderWeekViewer) await window.renderWeekViewer(container);
+        else if (currentScope === 'month' && window.renderMonthViewer) await window.renderMonthViewer(container);
+        else if (currentScope === 'year' && window.renderYearViewer) await window.renderYearViewer(container);
+    } else {
+        if (currentScope === 'day' && window.renderDayEditor) await window.renderDayEditor(container);
+        else if (currentScope === 'week' && window.renderWeekEditor) await window.renderWeekEditor(container);
+        else if (currentScope === 'month' && window.renderMonthEditor) await window.renderMonthEditor(container);
+        else if (currentScope === 'year' && window.renderYearEditor) await window.renderYearEditor(container);
+    }
 };
 
 // ==========================================================================
@@ -293,6 +307,8 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
                 if (origLen !== list.length) {
                     batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
                     count++;
+                    
+                    // 🚀 [보완] 대량 삭제 시 400개 단위 분할 커밋 (Firestore 한도 초과 방지)
                     if (count >= 400) {
                         batchPromises.push(batch.commit());
                         batch = window.db.batch();
