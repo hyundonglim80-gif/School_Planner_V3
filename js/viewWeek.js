@@ -164,6 +164,7 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
+  // 🚀 [수정] 체크박스를 텍스트 칸 좌측으로 통일 (viewDay.js와 일관성 유지)
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = window.getEventLabels();
@@ -172,7 +173,7 @@ class WeekView extends window.BaseView {
       list.forEach((e, idx) => {
           const eLabels = e.labels || (e.label ? [e.label] : []);
           
-          let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;">`;
+          let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px;">`;
           labelObjs.forEach(labelObj => {
               const lName = labelObj.name;
               const isActive = eLabels.includes(lName);
@@ -184,7 +185,6 @@ class WeekView extends window.BaseView {
           chipsHtml += `</div>`;
 
           const isCompleted = !!e.completed;
-          // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
           const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -195,14 +195,14 @@ class WeekView extends window.BaseView {
 
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                  <div style="display:flex; align-items:center; gap:8px;">
-                      ${checkboxHtml}
-                      ${chipsHtml}
-                  </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  ${chipsHtml}
                   <button onclick="window.weekViewInstance ? window.weekViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
               </div>
-              <textarea placeholder="일정 내용을 입력하세요." style="width:100%; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+              <div style="display:flex; align-items:flex-start; gap:8px;">
+                  ${canComplete ? `<div style="padding-top:8px;">${checkboxHtml}</div>` : ''}
+                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+              </div>
           </div>`;
       });
       return html;
@@ -235,7 +235,6 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🚀 [수정] 그룹 ID를 모달로 전달
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const label = ev.labels?.[0] || ev.label;
@@ -311,7 +310,6 @@ window.renderWeekViewer = (container) => { window.weekViewInstance.container = c
 window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
 
-// 🚀 [수정] 라벨 클릭 시 재렌더링하여 체크박스 여부 즉각 동기화
 window.handleCompactLabelClick = function(dateStr, idx, lName) {
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
