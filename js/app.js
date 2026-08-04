@@ -356,34 +356,26 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 징검다리 스캔 + Chain ID 연쇄 삭제 엔진
+// 🚀 [수정/2-B] 징검다리 순차 복사 엔진 (DB 오염 원천 차단 및 연쇄 삭제 기능)
 // ==========================================================================
-// 🚀 [수정] 스캔 엔진 동적 확장 및 DB 텍스트 꼬임 원천 차단
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(window.currentDate || new Date());
-    
-    try {
-        // 스캔 범위를 30일로 확장 (필요시 더 늘릴 수 있습니다)
-        const pastDate = new Date(window.parseLocalDate(todayStr));
-        pastDate.setDate(pastDate.getDate() - 30); 
+    const pastDate = new Date(window.parseLocalDate(todayStr));
+    pastDate.setDate(pastDate.getDate() - 30); // 30일치 여유 스캔
 
-        // 오늘 이후(미래)의 데이터도 한 번에 가져와 체인 찌꺼기를 청소합니다.
+    try {
         const eventsSnap = await window.getUserCol('events')
             .where(firebase.firestore.FieldPath.documentId(), '>=', window.formatDate(pastDate))
             .get();
-        
+
         let eventsMap = {};
         let allDates = [];
         eventsSnap.forEach(doc => { 
             eventsMap[doc.id] = doc.data(); 
-            allDates.push(doc.id);
+            allDates.push(doc.id); 
         });
         allDates.sort();
-        
-        let changedDocs = new Set();
-        let completedChains = new Set(); 
 
-        // 데이터가 존재하는 가장 미래 날짜까지 스캔 범위 자동 설정
         let maxDateStr = todayStr;
         if (allDates.length > 0 && allDates[allDates.length - 1] > maxDateStr) {
             maxDateStr = allDates[allDates.length - 1];
@@ -391,6 +383,8 @@ window.autoForwardIncompleteEvents = async function() {
 
         let curD = new Date(pastDate);
         let endD = window.parseLocalDate(maxDateStr);
+        let completedChains = new Set();
+        let changedDocs = new Set();
 
         while(curD <= endD) {
             const curStr = window.formatDate(curD);
@@ -399,79 +393,63 @@ window.autoForwardIncompleteEvents = async function() {
 
             let curData = eventsMap[curStr] || { eventList: [] };
             let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
-            let newCurList = [];
             
             let nextData = eventsMap[nextStr] || { eventList: [] };
             let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
             
-            let curChanged = false;
             let nextChanged = false;
 
             curList.forEach(ev => {
                 const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
                 
                 if (canComplete) {
+                    // 고유 체인 ID 및 원본 발생일 부여
                     if (!ev.forwardChainId) {
                         ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                        curChanged = true;
+                        changedDocs.add(curStr);
+                    }
+                    if (!ev.originalDate) {
+                        ev.originalDate = curStr;
+                        changedDocs.add(curStr);
                     }
 
-                    // DB에 저장된 기존 아이콘(텍스트) 찌꺼기 원천 청소
-                    let pureContent = (ev.content || '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
-                    if (ev.content !== pureContent) {
-                        ev.content = pureContent;
-                        curChanged = true;
-                    }
+                    // DB 오염 방지: 기호(➡️, ↪️)들을 DB 텍스트에서 강제로 청소
+                    ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-                    // 1. 미래 날짜(오늘 이후)에 존재하는 복사본 무조건 삭제 (오늘은 내일로 안 넘김)
-                    if (curStr > todayStr && ev.isForwardedTarget) {
-                        curChanged = true;
-                        return; // 삭제 처리
-                    }
-
-                    // 2. 과거에 이미 완료된 체인인데 복사본으로 존재한다면 삭제 (오늘 체크 시 오늘 일정 삭제 요구사항 충족)
-                    if (completedChains.has(ev.forwardChainId) && ev.isForwardedTarget) {
-                        curChanged = true;
-                        return; 
-                    }
-
-                    if (!ev.completed) {
-                        completedChains.delete(ev.forwardChainId);
-                        if (!ev.isForwardedSource) {
-                            ev.isForwardedSource = true;
-                            curChanged = true;
-                        }
-                        
-                        // 과거 일정만 다음 날로 복사
-                        if (curStr < todayStr) {
-                            const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
-                            if (!existsInNext) {
-                                nextList.unshift({
-                                    label: ev.label,
-                                    labels: ev.labels,
-                                    content: pureContent,
-                                    completed: false,
-                                    forwardChainId: ev.forwardChainId,
-                                    isForwardedTarget: true
-                                });
-                                nextChanged = true;
-                            }
-                        }
-                    } else {
+                    if (ev.completed) {
+                        // 과거 완료 건: 연쇄 삭제를 위해 수집
                         completedChains.add(ev.forwardChainId);
-                        if (ev.isForwardedSource) {
-                            ev.isForwardedSource = false;
-                            curChanged = true;
+                    } else if (curStr < todayStr) {
+                        // 과거 미완료 건: 내일로 하루씩 순차 복사
+                        const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
+                        if (!existsInNext) {
+                            nextList.unshift({
+                                label: ev.label,
+                                labels: ev.labels,
+                                content: ev.content,
+                                completed: false,
+                                forwardChainId: ev.forwardChainId,
+                                originalDate: ev.originalDate
+                            });
+                            nextChanged = true;
                         }
                     }
                 }
-                newCurList.push(ev);
             });
 
-            if (curChanged || curList.length !== newCurList.length) { 
-                eventsMap[curStr] = { ...curData, eventList: newCurList }; 
-                changedDocs.add(curStr); 
-            }
+            // 연쇄 삭제: 이전에 완료된 체인인데 미래에 복사본으로 남아있다면 제거
+            const origLen = curList.length;
+            curList = curList.filter(ev => {
+                if (ev.forwardChainId && completedChains.has(ev.forwardChainId)) {
+                    // 완료되지 않은 '복사본'만 지움 (원본은 completed가 true이므로 유지됨)
+                    if (!ev.completed) return false;
+                }
+                return true;
+            });
+
+            if (curList.length !== origLen) changedDocs.add(curStr);
+
+            eventsMap[curStr] = { ...curData, eventList: curList };
             if (nextChanged && curStr < todayStr) { 
                 eventsMap[nextStr] = { ...nextData, eventList: nextList }; 
                 changedDocs.add(nextStr); 
@@ -601,7 +579,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 안전한 기간 일정 다중 삭제 (Group ID 및 텍스트 매칭 강화 방식)
+// 🚀 안전한 기간 일정 다중 삭제 (Group ID 매칭 및 메모리 강제 동기화 결합)
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm) {
     const modalHtml = `
@@ -638,6 +616,19 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
         const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
         return hasLabel && c === baseContent;
     };
+
+    // 🚀 [수정/1-A] 삭제 시 현재 열려있는 에디터 화면의 메모리 배열도 강제로 지워 '좀비' 현상 원천 차단
+    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+    }
+    Object.keys(window).forEach(key => {
+        if (key.startsWith('tempEvents_')) {
+            const dStr = key.replace('tempEvents_', '');
+            if (mode === 'only' && dStr !== baseDateStr) return;
+            if (mode === 'after' && dStr < baseDateStr) return;
+            window[key] = window[key].filter(e => !matchEvent(e));
+        }
+    });
 
     try {
         let query = window.getUserCol('events');
