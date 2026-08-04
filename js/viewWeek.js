@@ -184,7 +184,6 @@ class WeekView extends window.BaseView {
           chipsHtml += `</div>`;
 
           const isCompleted = !!e.completed;
-          // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
           const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -197,12 +196,14 @@ class WeekView extends window.BaseView {
           <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                   <div style="display:flex; align-items:center; gap:8px;">
-                      ${checkboxHtml}
                       ${chipsHtml}
                   </div>
                   <button onclick="window.weekViewInstance ? window.weekViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
               </div>
-              <textarea placeholder="일정 내용을 입력하세요." style="width:100%; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+              <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                  ${canComplete ? `<div style="padding-top:8px;">${checkboxHtml}</div>` : ''}
+                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+              </div>
           </div>`;
       });
       return html;
@@ -235,7 +236,6 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🚀 [수정] 주간/월간 컴팩트 뷰에서도 기간 라벨을 정확히 스캔하도록 수정
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
@@ -313,8 +313,7 @@ window.renderWeekViewer = (container) => { window.weekViewInstance.container = c
 window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
 
-// 🚀 [수정] 라벨 클릭 시 재렌더링하여 체크박스 여부 즉각 동기화
-window.handleCompactLabelClick = function(dateStr, idx, lName) {
+window.handleCompactLabelClick = async function(dateStr, idx, lName) {
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
     if (!ev) return;
@@ -326,9 +325,20 @@ window.handleCompactLabelClick = function(dateStr, idx, lName) {
         ev.labels = ev.labels.filter(l => l !== lName);
     } else {
         if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(lName)) {
-            const ta = document.querySelector(`.compact-event-row[data-idx="${idx}"] textarea`);
-            window.openPeriodModal(dateStr, lName, ta ? ta.value : '', function(isSaved){ 
-                if(isSaved) window.render(); 
+            const evContent = ev.content || '';
+            const backupEvent = { ...ev };
+            
+            window[`tempEvents_${dateStr}`].splice(idx, 1);
+            await window.saveCurrentViewData(true);
+            
+            window.openPeriodModal(dateStr, lName, evContent, function(isSaved){ 
+                if(isSaved) {
+                    window.render(); 
+                } else {
+                    if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
+                    window[`tempEvents_${dateStr}`].push(backupEvent);
+                    window.saveCurrentViewData(true).then(() => window.render());
+                }
             });
             return; 
         }
