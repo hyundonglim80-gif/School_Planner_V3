@@ -235,12 +235,14 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🚀 [수정] 그룹 ID를 모달로 전달
+  // 🚀 [수정] 주간/월간 컴팩트 뷰에서도 기간 라벨을 정확히 스캔하도록 수정
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
-      const label = ev.labels?.[0] || ev.label;
-      if (window.isPeriodLabel && window.isPeriodLabel(label)) {
-          window.showPeriodDeleteModal(dateStr, label, ev.content, ev.groupId, () => {
+      const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
+      const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
+
+      if (periodLabel) {
+          window.showPeriodDeleteModal(dateStr, periodLabel, ev.content, ev.groupId, () => {
               window.render();
           });
       } else {
