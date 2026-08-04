@@ -356,7 +356,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [수정/2-B] 징검다리 순차 복사 엔진 (DB 오염 원천 차단 및 연쇄 삭제 기능)
+// 🚀 [개선] 징검다리 순차 복사 엔진 (DB 오염 원천 차단 및 연쇄 삭제 기능)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(window.currentDate || new Date());
@@ -403,7 +403,6 @@ window.autoForwardIncompleteEvents = async function() {
                 const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
                 
                 if (canComplete) {
-                    // 고유 체인 ID 및 원본 발생일 부여
                     if (!ev.forwardChainId) {
                         ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
                         changedDocs.add(curStr);
@@ -413,14 +412,11 @@ window.autoForwardIncompleteEvents = async function() {
                         changedDocs.add(curStr);
                     }
 
-                    // DB 오염 방지: 기호(➡️, ↪️)들을 DB 텍스트에서 강제로 청소
                     ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
                     if (ev.completed) {
-                        // 과거 완료 건: 연쇄 삭제를 위해 수집
                         completedChains.add(ev.forwardChainId);
                     } else if (curStr < todayStr) {
-                        // 과거 미완료 건: 내일로 하루씩 순차 복사
                         const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
                         if (!existsInNext) {
                             nextList.unshift({
@@ -437,12 +433,10 @@ window.autoForwardIncompleteEvents = async function() {
                 }
             });
 
-            // 연쇄 삭제: 이전에 완료된 체인인데 미래에 복사본으로 남아있다면 제거
             const origLen = curList.length;
             curList = curList.filter(ev => {
                 if (ev.forwardChainId && completedChains.has(ev.forwardChainId)) {
-                    // 완료되지 않은 '복사본'만 지움 (원본은 completed가 true이므로 유지됨)
-                    if (!ev.completed) return false;
+                    if (!ev.completed) return false; 
                 }
                 return true;
             });
@@ -579,9 +573,9 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 안전한 기간 일정 다중 삭제 (Group ID 매칭 및 메모리 강제 동기화 결합)
+// 🚀 [개선] 좀비 일정 완벽 차단 및 단일 삭제 시 부드러운 메모리 연동
 // ==========================================================================
-window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm) {
+window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
     <div id="period-delete-modal" class="modal-overlay" style="display:flex;">
         <div class="modal-content" style="width:360px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
@@ -590,7 +584,7 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
                 이 일정은 <b>'기간'</b>으로 묶인 일정입니다.<br>어떻게 삭제하시겠습니까?
             </p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">그 날만 삭제</button>
+                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">그 날만 삭제 (일반 일정처럼)</button>
                 <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c;">모든 기간 일정 모두 삭제</button>
                 <button id="btn-del-after-this" style="padding:12px; background:#ef4444; border:none; border-radius:8px; cursor:pointer; font-weight:bold; color:#fff;">이 날부터 끝날까지 삭제</button>
                 <button onclick="document.getElementById('period-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
@@ -601,13 +595,25 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
 
     const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
     
-    document.getElementById('btn-del-only-this').onclick = () => window.executePeriodDelete('only', baseDateStr, groupId, labelName, baseContent, onConfirm);
-    document.getElementById('btn-del-after-this').onclick = () => window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
-    document.getElementById('btn-del-all').onclick = () => window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    // 그 날만 삭제 시 모달을 즉시 닫고 메모리(화면)에서만 부드럽게 지움. 저장은 유저가 클릭!
+    document.getElementById('btn-del-only-this').onclick = () => {
+        document.getElementById('period-delete-modal').remove();
+        if (onOnlyThisDay) onOnlyThisDay();
+    };
+
+    // 다른 날짜까지 건드리는 경우, 현재까지 작성한 메모리를 우선 안전하게 저장한 뒤 DB 일괄 삭제 수행
+    document.getElementById('btn-del-after-this').onclick = async () => {
+        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    };
+    document.getElementById('btn-del-all').onclick = async () => {
+        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    };
 };
 
 window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelName, baseContent, onConfirm) {
-    document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 안전하게 삭제 중...</div>`;
+    document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 다중 일정 안전 삭제 중...</div>`;
     
     const matchEvent = (e) => {
         if (groupId && e.groupId) return e.groupId === groupId;
@@ -617,59 +623,35 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
         return hasLabel && c === baseContent;
     };
 
-    // 🚀 [수정/1-A] 삭제 시 현재 열려있는 에디터 화면의 메모리 배열도 강제로 지워 '좀비' 현상 원천 차단
-    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
-        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
-    }
-    Object.keys(window).forEach(key => {
-        if (key.startsWith('tempEvents_')) {
-            const dStr = key.replace('tempEvents_', '');
-            if (mode === 'only' && dStr !== baseDateStr) return;
-            if (mode === 'after' && dStr < baseDateStr) return;
-            window[key] = window[key].filter(e => !matchEvent(e));
-        }
-    });
-
     try {
         let query = window.getUserCol('events');
-        
-        if (mode === 'only') {
-            const docRef = window.getUserCol('events').doc(baseDateStr);
-            const docSnap = await docRef.get();
-            if (docSnap.exists) {
-                let list = docSnap.data().eventList || [];
-                list = list.filter(e => !matchEvent(e));
-                await docRef.update({ eventList: list, updatedAt: Date.now() });
-            }
-        } else {
-            if (mode === 'after') {
-                query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
-            }
-            const snap = await query.get();
-            let batch = window.db.batch();
-            let count = 0;
-            let batchPromises = []; 
-            
-            snap.forEach(doc => {
-                const data = doc.data();
-                let list = data.eventList || [];
-                const origLen = list.length;
-                
-                list = list.filter(e => !matchEvent(e));
-                
-                if (origLen !== list.length) {
-                    batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
-                    count++;
-                    if (count >= 400) {
-                        batchPromises.push(batch.commit());
-                        batch = window.db.batch();
-                        count = 0;
-                    }
-                }
-            });
-            if (count > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
+        if (mode === 'after') {
+            query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
         }
+        const snap = await query.get();
+        let batch = window.db.batch();
+        let count = 0;
+        let batchPromises = []; 
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || [];
+            const origLen = list.length;
+            
+            list = list.filter(e => !matchEvent(e));
+            
+            if (origLen !== list.length) {
+                batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+                count++;
+                if (count >= 400) {
+                    batchPromises.push(batch.commit());
+                    batch = window.db.batch();
+                    count = 0;
+                }
+            }
+        });
+        if (count > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
     } catch(e) {
         console.error("일괄 삭제 오류:", e);
     }
