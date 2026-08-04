@@ -280,12 +280,16 @@ class DayView extends window.BaseView {
             leftGroup.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
         
-        // 🚀 [수정] 그룹 ID를 모달로 안전하게 전달
+       // 🚀 [수정] 여러 라벨 중 '기간' 속성 라벨을 정확히 찾아내어 모달로 전달
         actions.querySelector('.delete-btn').addEventListener('click', () => {
-            const label = this.currentEvents[index].labels?.[0] || this.currentEvents[index].label;
-            if (window.isPeriodLabel && window.isPeriodLabel(label)) {
-                const groupId = this.currentEvents[index].groupId;
-                window.showPeriodDeleteModal(this.dateStr, label, this.currentEvents[index].content, groupId, () => {
+            const ev = this.currentEvents[index];
+            const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
+            
+            // 등록된 라벨 중 '기간' 속성을 가진 라벨을 추출
+            const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
+
+            if (periodLabel) {
+                window.showPeriodDeleteModal(this.dateStr, periodLabel, ev.content, ev.groupId, () => {
                     window.render();
                 });
             } else {
