@@ -86,11 +86,11 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정] 이월된 일정의 시각적 분리 처리
-// 🚀 [수정] DB 오염 방지 및 시각적 렌더링 동적 분리
+// 🚀 [수정/2-B] 렌더링 분리 방식 적용 (기호는 화면에 뿌릴 때만 동적 계산하여 부착)
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
+    const realTodayStr = window.formatDate(new Date()); 
     
     eventList.forEach((e, index) => {
         let labelsToRender = e.labels || (e.label ? [e.label] : []);
@@ -99,9 +99,22 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         const canComplete = labelsToRender.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l)); 
         const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
 
-        let pureContent = (e.content || '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
-        let isMissed = e.isForwardedSource;
-        let isForwardedTarget = e.isForwardedTarget;
+        // DB 오염 방지를 위해 출력 직전 혹시 모를 기호들을 한 번 더 청소
+        let pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+
+        let isMissedPast = false;
+        let isForwardedToToday = false;
+
+        if (canComplete && dateStr) {
+            // 과거 일정이 미완료면 경고 아이콘 부여
+            if (!isCompleted && dateStr < realTodayStr) {
+                isMissedPast = true;
+            }
+            // 원본 작성일보다 미래로 복사되어 넘어온 일정이면 전달받음 아이콘 부여
+            if (e.originalDate && e.originalDate < dateStr) {
+                isForwardedToToday = true;
+            }
+        }
 
         let badgesHtml = '';
         if (labelsToRender.length > 0) {
@@ -109,7 +122,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
                 const style = window.getLabelStyle(lName, 'event');
                 let badgeStyle;
                 
-                if (isMissed && !isCompleted) {
+                if (isMissedPast) {
                     badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
                 } else if (isCompleted && canComplete) {
                     badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
@@ -125,10 +138,10 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         
-        if (isMissed && !isCompleted) {
+        if (isMissedPast) {
             textStyle = 'color:#ef4444; font-weight:bold;';
-            pureContent = `${pureContent} <span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (다음 날로 이월됨)</span>`;
-        } else if (isForwardedTarget) {
+            pureContent = `${pureContent} <span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (미완료)</span>`;
+        } else if (isForwardedToToday) {
             if (isCompleted) {
                 textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
                 pureContent = `<span style="color:#94a3b8; font-weight:bold;">↪️</span> ${pureContent}`;
@@ -147,7 +160,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         html += `
         <div style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissed && !isForwardedTarget ? '✓ ' : ''}${pureContent}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
@@ -169,7 +182,6 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
         if (eventList[index]) {
             const willBeComplete = !currentStatus;
             eventList[index].completed = willBeComplete;
-            
             const newText = window.formatEventListToText(eventList);
             
             await window.getUserCol('events').doc(dateStr).set({
@@ -178,7 +190,7 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
                 updatedAt: Date.now()
             }, { merge: true });
 
-            // 삭제/이월 로직은 완전히 스캔 엔진(autoForwardIncompleteEvents)에 위임합니다.
+            // 체크하자마자 스캔 엔진 가동시켜 연쇄 삭제(동기화) 수행
             if (window.autoForwardIncompleteEvents) {
                 await window.autoForwardIncompleteEvents();
             }
