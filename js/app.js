@@ -600,7 +600,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 안전한 기간 일정 다중 삭제 (Group ID 방식)
+// 🚀 안전한 기간 일정 다중 삭제 (Group ID 및 텍스트 매칭 강화 방식)
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm) {
     const modalHtml = `
@@ -620,7 +620,8 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
     </div>`;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    const baseContent = textContent.replace(/\s*\(\d+\/\d+\)$/, '');
+    // 🚀 [수정] (1/5) 뒤에 텍스트가 더 있어도 깔끔하게 무시하고 원본 내용만 추출
+    const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
     
     document.getElementById('btn-del-only-this').onclick = () => window.executePeriodDelete('only', baseDateStr, groupId, labelName, baseContent, onConfirm);
     document.getElementById('btn-del-after-this').onclick = () => window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
@@ -630,12 +631,12 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
 window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelName, baseContent, onConfirm) {
     document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 안전하게 삭제 중...</div>`;
     
-    // 이전 버전에서 작성되어 groupId가 없는 일정들을 위한 호환성 필터
     const matchEvent = (e) => {
         if (groupId && e.groupId) return e.groupId === groupId;
-        const l = e.labels?.[0] || e.label;
-        const c = e.content.replace(/\s*\(\d+\/\d+\)$/, '');
-        return l === labelName && c === baseContent;
+        const eLabels = e.labels || (e.label ? [e.label] : []);
+        const hasLabel = eLabels.includes(labelName);
+        const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
+        return hasLabel && c === baseContent;
     };
 
     try {
@@ -656,6 +657,7 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
             const snap = await query.get();
             let batch = window.db.batch();
             let count = 0;
+            let batchPromises = []; // 🚀 [수정] 대량 삭제 시 파이어베이스 한도 에러 방지
             
             snap.forEach(doc => {
                 const data = doc.data();
@@ -667,9 +669,15 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
                 if (origLen !== list.length) {
                     batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
                     count++;
+                    if (count >= 400) {
+                        batchPromises.push(batch.commit());
+                        batch = window.db.batch();
+                        count = 0;
+                    }
                 }
             });
-            if (count > 0) await batch.commit();
+            if (count > 0) batchPromises.push(batch.commit());
+            await Promise.all(batchPromises);
         }
     } catch(e) {
         console.error("일괄 삭제 오류:", e);
