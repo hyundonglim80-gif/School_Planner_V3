@@ -86,7 +86,7 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정] 이월된 일정의 시각적 분리 처리
+// 🚀 [수정] 미완료된 과거 일정에 시각적 경고 스타일 적용
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -99,7 +99,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
 
         let contentHtml = e.content || '';
-        let isMissed = contentHtml.includes('➡️');
+        let isMissed = contentHtml.includes('❌'); // 💡 수정: 이제 ❌ 아이콘을 찾아 미완료로 판단
         let isForwardedTarget = contentHtml.includes('↪️');
 
         let badgesHtml = '';
@@ -133,7 +133,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
 
         // 아이콘 가독성 향상
         if (isMissed) {
-            contentHtml = contentHtml.replace('➡️ (다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (다음 날로 이월됨)</span>');
+            contentHtml = contentHtml.replace('❌ (미완료)', '<span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">❌ (미완료)</span>');
         }
         if (isForwardedTarget) {
             contentHtml = contentHtml.replace('↪️', '<span style="color:#2563eb; font-weight:bold;">↪️</span>');
@@ -154,7 +154,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
     return html;
 };
 
-// 🚀 [수정] 뷰어에서 체크 시 미래로 이월된 Chain ID 연쇄 삭제
+// 🚀 뷰어에서 체크 시 미래로 이월된 Chain ID 연쇄 삭제
 window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
     try {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
