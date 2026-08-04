@@ -138,6 +138,11 @@ window.render = function() {
 function updateTitle() {
   const titleEl = document.getElementById("date-range-text");
   if (!titleEl) return;
+  
+  // 💡 [수정] 제목 영역 클릭 시 오늘로 이동하도록 단축키 기능 연결
+  titleEl.style.cursor = 'pointer';
+  titleEl.title = '클릭하면 오늘 날짜로 이동합니다';
+  titleEl.onclick = window.goToToday;
 
   const y = window.currentDate.getFullYear();
   const m = window.currentDate.getMonth() + 1;
@@ -359,7 +364,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [수정] 징검다리 스캔 + Chain ID 연쇄 삭제 엔진
+// 🚀 [수정] 징검다리 스캔 + Chain ID 연쇄 삭제 엔진 (미완료 ❌ 반영)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(window.currentDate || new Date());
@@ -380,6 +385,7 @@ window.autoForwardIncompleteEvents = async function() {
         
         const getOriginalContent = (content) => {
             return content.replace(/➡️\s*\(다음 날로 이월됨\)/g, '')
+                          .replace(/❌\s*\(미완료\)/g, '')
                           .replace(/↪️\s*/g, '')
                           .trim();
         };
@@ -417,9 +423,9 @@ window.autoForwardIncompleteEvents = async function() {
                         
                         const origContent = getOriginalContent(ev.content);
                         
-                        // 과거 일정에 '➡️' 표식이 없다면 부착 (강제 취소선 부여 안함)
-                        if (!ev.content.includes('➡️')) {
-                            ev.content = `${origContent} ➡️ (다음 날로 이월됨)`;
+                        // 과거 일정에 '❌ (미완료)' 표식이 없다면 부착 (명확한 인지)
+                        if (!ev.content.includes('❌')) {
+                            ev.content = `${origContent} ❌ (미완료)`;
                             ev.isForwarded = true;
                             curChanged = true;
                         }
@@ -471,7 +477,7 @@ window.autoForwardIncompleteEvents = async function() {
             if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
         });
 
-        // 🚀 [수정] 완료된 Chain ID가 있다면 오늘 이후의 미래 데이터에서 일괄 스캔하여 연쇄 삭제!
+        // 🚀 완료된 Chain ID가 있다면 오늘 이후의 미래 데이터에서 일괄 스캔하여 연쇄 삭제!
         if (completedChains.size > 0) {
             const futureSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>', todayStr).get();
             futureSnap.forEach(doc => {
@@ -495,7 +501,7 @@ window.autoForwardIncompleteEvents = async function() {
 };
 
 // ==========================================================================
-// 🚀 기간 다중 등록 달력 팝업 (그룹 ID 부여)
+// 🚀 [수정] 기간 다중 등록 달력 팝업 (시작일 변경 가능 및 그룹 ID 부여)
 // ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
@@ -510,8 +516,8 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
 
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
-                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly>
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#2563eb;">시작일 선택</label>
+                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #2563eb; border-radius:6px; background:#eff6ff; outline:none;">
                 </div>
                 <div style="flex:1;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label>
@@ -588,7 +594,7 @@ window.executePeriodSave = async function(labelName, callback) {
             labels: [labelName], 
             content: `${content} (${i+1}/${totalDays})`, 
             completed: false,
-            groupId: groupId  // 고유 식별자 삽입
+            groupId: groupId  // 고유 식별자 삽입 (삭제 시 내용 변형되어도 찾을 수 있음)
         });
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
     }
@@ -630,7 +636,7 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
 window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelName, baseContent, onConfirm) {
     document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 안전하게 삭제 중...</div>`;
     
-    // 이전 버전에서 작성되어 groupId가 없는 일정들을 위한 호환성 필터
+    // Group ID가 있을 경우 완벽하게 추적, 없을 경우 호환성을 위해 텍스트 비교
     const matchEvent = (e) => {
         if (groupId && e.groupId) return e.groupId === groupId;
         const l = e.labels?.[0] || e.label;
