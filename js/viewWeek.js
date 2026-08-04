@@ -35,135 +35,139 @@ class WeekView extends window.BaseView {
 
     let html = `<div class="clean-viewer-board"><table><tbody>`;
     const realTodayStr = window.formatDate(new Date());
+    const weekDates = this.getWeekDates();
 
-    for (const d of this.getWeekDates()) {
-      const dayData = await window.dbAPI.loadDayData(d.dateStr);
-      const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
-      let eventHtml = '<span style="color:#94a3b8;">-</span>';
-      
-      if (eventDoc.exists) {
-        const eData = eventDoc.data();
-        const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
-        const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
+    // 주간 헤더
+    html += `<tr class="week-header-row">`;
+    weekDates.forEach(d => {
+        const isToday = d.dateStr === realTodayStr ? 'today-highlight' : '';
+        html += `<th class="${isToday}" style="text-align:center; padding:10px;">${d.day} (${d.dateDisplay})</th>`;
+    });
+    html += `</tr>`;
+
+    // 일별 일정 & 수업 메모 불러오기
+    const dayPromises = weekDates.map(d => Promise.all([
+        window.dbAPI.loadDayData(d.dateStr),
+        window.getUserCol('events').doc(d.dateStr).get()
+    ]));
+
+    const dayResults = await Promise.all(dayPromises);
+
+    html += `<tr>`;
+    weekDates.forEach((d, idx) => {
+        const [dayData, eventSnap] = dayResults[idx];
+        const eventData = eventSnap.exists ? eventSnap.data() : {};
+        const events = this.parseEvents(eventData);
+
+        html += `<td style="vertical-align:top; padding:8px; border:1px solid #e2e8f0; width:${100/weekDates.length}%;">`;
         
-        if (finalEvents.length > 0) {
-            let processedEvents = finalEvents.map(e => ({
-                ...e,
-                labels: e.labels || (e.label ? [e.label] : [])
-            }));
-            eventHtml = window.generateEventBadgesHTML(processedEvents, d.dateStr); 
+        // 일정 표시
+        if (events.length > 0) {
+            html += `<div style="margin-bottom:10px;">`;
+            events.forEach(e => {
+                const labels = e.labels || (e.label ? [e.label] : []);
+                let labelBadges = '';
+                labels.forEach(l => {
+                    labelBadges += `<span class="badge" style="background:#dbeafe; color:#1e40af; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-right:3px;">${l}</span>`;
+                });
+                const isCompleted = !!e.completed;
+                const textStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;';
+                html += `<div style="font-size:0.85rem; margin-bottom:4px; line-height:1.3;">
+                    ${isCompleted ? '✅' : '▪️'} ${labelBadges}<span style="${textStyle}">${e.content || ''}</span>
+                </div>`;
+            });
+            html += `</div>`;
         }
-      }
 
-      const periods = dayData.periods || {};
-      const isToday = (d.dateStr === realTodayStr);
-      const todayClass = isToday ? 'week-today-cell' : '';
+        // 수업 메모 표시
+        const maxP = window.periodNames ? window.periodNames.length : 6;
+        for (let p = 1; p <= maxP; p++) {
+            const pName = (window.periodNames && window.periodNames[p - 1]) ? window.periodNames[p - 1] : `${p}교시`;
+            const pData = (dayData.periods && dayData.periods[p]) ? dayData.periods[p] : { subject: '', memo: '' };
+            if (pData.subject || pData.memo) {
+                html += `<div style="background:#f8fafc; border-left:3px solid #2563eb; padding:4px 6px; margin-bottom:4px; border-radius:0 4px 4px 0; font-size:0.8rem;">
+                    <span style="font-weight:bold; color:#2563eb;">[${pName} ${pData.subject || ''}]</span>
+                    <span style="color:#334155;">${pData.memo || ''}</span>
+                </div>`;
+            }
+        }
 
-      let dateColor = '#1e40af';
-      if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
-      else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+        html += `</td>`;
+    });
+    html += `</tr></tbody></table></div>`;
 
-      html += `
-        <tr>
-          <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
-              <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
-            </div>
-          </td>
-          <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
-          <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
-              ${eventHtml}
-          </td>
-        </tr>
-        <tr style="${window.showClass ? '' : 'display:none;'}">
-          <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-          ${(window.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center;">${name}</td>`).join('')}
-        </tr>
-        <tr style="${window.showClass ? '' : 'display:none;'}">
-          ${Array.from({ length: this.maxPeriod }).map((_, i) => {
-            const p = i + 1;
-            const pObj = periods[p] || {};
-            let content = '';
-            if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
-            if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
-            return `<td style="vertical-align: top; text-align: left; padding: 6px 8px; height: var(--week-cell-height);">${content}</td>`;
-          }).join('')}
-        </tr>
-      `;
-    }
-    html += `</tbody></table></div>`;
     this.container.innerHTML = html;
+  }
+
+  parseEvents(docData) {
+    if (!docData) return [];
+    if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
+    if (docData.eventText && docData.eventText.trim() !== '') return window.parseRawEventTextToEventList(docData.eventText);
+    return [];
   }
 
   async renderEditor() {
-    this.showLoading('편집 화면을 준비 중...');
+    this.showLoading('주간 편집 시트를 불러오는 중입니다...');
+    const weekDates = this.getWeekDates();
 
-    let html = `<div class="table-container"><table><tbody>`;
-    const realTodayStr = window.formatDate(new Date());
+    const dayPromises = weekDates.map(d => Promise.all([
+        window.dbAPI.loadDayData(d.dateStr),
+        window.getUserCol('events').doc(d.dateStr).get()
+    ]));
 
-    for (const d of this.getWeekDates()) {
-      const dayData = await window.dbAPI.loadDayData(d.dateStr);
-      
-      const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
-      let eventList = [];
-      if (eventDoc.exists) {
-        const eData = eventDoc.data();
-        if (eData.eventList && eData.eventList.length > 0) {
-          eventList = eData.eventList;
-        } else if (eData.eventText) {
-          eventList = window.parseRawEventTextToEventList(eData.eventText);
-        }
-      }
-      
-      window[`tempEvents_${d.dateStr}`] = eventList; 
-      
-      let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
-      compactEditorHtml += this.generateCompactEventEditor(d.dateStr);
-      compactEditorHtml += `</div>`; 
+    const dayResults = await Promise.all(dayPromises);
 
-      const periods = dayData.periods || {};
-      const isToday = (d.dateStr === realTodayStr);
-      const todayClass = isToday ? 'week-today-cell' : '';
+    let html = `<div class="week-editor-board"><table><tbody>`;
 
-      let dateColor = '#1e40af';
-      if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
-      else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+    // 헤더
+    html += `<tr class="week-header-row">`;
+    weekDates.forEach(d => {
+        html += `<th style="text-align:center; padding:10px; background:#f1f5f9;">${d.day} (${d.dateDisplay})</th>`;
+    });
+    html += `</tr>`;
 
-      html += `
-        <tr data-week-date="${d.dateStr}">
-          <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
-              <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+    // 일정 및 시간표 편집 셀
+    html += `<tr>`;
+    weekDates.forEach((d, idx) => {
+        const [dayData, eventSnap] = dayResults[idx];
+        const eventData = eventSnap.exists ? eventSnap.data() : {};
+        const events = this.parseEvents(eventData);
+
+        window[`tempEvents_${d.dateStr}`] = JSON.parse(JSON.stringify(events));
+
+        html += `<td style="vertical-align:top; padding:8px; border:1px solid #cbd5e1; width:${100/weekDates.length}%;">
+            <div style="margin-bottom:12px; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-weight:bold; font-size:0.85rem; color:#1e293b;">📌 일정</span>
+                    <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="padding:2px 6px; background:#2563eb; color:#fff; border:none; border-radius:4px; font-size:0.75rem; cursor:pointer; font-weight:bold;">+ 추가</button>
+                </div>
+                <div id="compact-events-${d.dateStr}">
+                    ${this.generateCompactEventEditor(d.dateStr)}
+                </div>
             </div>
-          </td>
-          <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">
-              일정<br>
-              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
-          </td>
-          <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">
-              ${compactEditorHtml}
-          </td>
-        </tr>
-        <tr style="${window.showClass ? '' : 'display:none;'}">
-          <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-          ${(window.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center;">${name}</td>`).join('')}
-        </tr>
-        <tr data-week-schedule-date="${d.dateStr}" style="${window.showClass ? '' : 'display:none;'}">
-          ${Array.from({ length: this.maxPeriod }).map((_, i) => {
-            const p = i + 1;
-            const pObj = periods[p] || {};
-            const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-            return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
-          }).join('')}
-        </tr>
-      `;
-    }
-    html += `</tbody></table></div>`;
+
+            <div style="font-weight:bold; font-size:0.85rem; color:#1e293b; margin-bottom:6px;">📚 수업 작성</div>`;
+
+        const maxP = window.periodNames ? window.periodNames.length : 6;
+        for (let p = 1; p <= maxP; p++) {
+            const pName = (window.periodNames && window.periodNames[p - 1]) ? window.periodNames[p - 1] : `${p}교시`;
+            const pData = (dayData.periods && dayData.periods[p]) ? dayData.periods[p] : { subject: '', memo: '' };
+
+            html += `<div style="margin-bottom:6px; background:#f8fafc; padding:4px; border-radius:4px; border:1px solid #e2e8f0;" data-week-date="${d.dateStr}" data-p="${p}">
+                <div style="font-size:0.75rem; font-weight:bold; color:#64748b; margin-bottom:2px;">${pName}</div>
+                <input type="text" class="edit-subject" value="${pData.subject || ''}" placeholder="과목" style="width:100%; padding:3px 5px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:3px; margin-bottom:2px; box-sizing:border-box;">
+                <input type="text" class="edit-memo" value="${pData.memo || ''}" placeholder="메모" style="width:100%; padding:3px 5px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:3px; box-sizing:border-box;">
+            </div>`;
+        }
+
+        html += `</td>`;
+    });
+    html += `</tr></tbody></table></div>`;
+
     this.container.innerHTML = html;
   }
 
+  // 🚀 컴팩트 일정 작성 뷰 (체크박스를 텍스트 작성 칸 바로 왼쪽에 배치)
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = window.getEventLabels();
@@ -179,7 +183,7 @@ class WeekView extends window.BaseView {
               const activeClass = isActive ? 'active' : '';
               
               const clickCode = `window.handleCompactLabelClick('${dateStr}', ${idx}, '${lName}')`;
-              chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lName}</div>`;
+              chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 6px; font-size:0.75rem; cursor:pointer;">${lName}</div>`;
           });
           chipsHtml += `</div>`;
 
@@ -188,52 +192,39 @@ class WeekView extends window.BaseView {
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
           const checkboxHtml = canComplete 
-              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669; flex-shrink:0;" title="완료 체크">`
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:16px; height:18px; cursor:pointer; accent-color:#059669; flex-shrink:0;" title="완료 체크">`
               : '';
 
           html += `
-          <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
+          <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:6px; margin-bottom:6px; background:#fff; display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                   ${chipsHtml}
-                  <button onclick="window.weekViewInstance ? window.weekViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
+                  <button onclick="window.weekViewInstance ? window.weekViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx}) : window.monthViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
               </div>
-              <div style="display:flex; align-items:center; gap:8px; width:100%;">
+              <div style="display:flex; align-items:center; gap:6px; width:100%;">
                   ${checkboxHtml}
-                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:4px 6px; font-size:0.85rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:36px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '36px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
               </div>
           </div>`;
       });
       return html;
   }
 
-  toggleCompactEventLabel(dateStr, idx, labelName) {
-      window.hasUnsavedChanges = true;
-      const ev = window[`tempEvents_${dateStr}`][idx];
-      if (!ev) return;
-      ev.labels = ev.labels || (ev.label ? [ev.label] : []);
-      if (ev.labels.includes(labelName)) {
-          ev.labels = ev.labels.filter(l => l !== labelName);
-      } else {
-          ev.labels.push(labelName);
-      }
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
-  }
-
-  updateCompactEvent(dateStr, idx, field, value) {
-      window.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`][idx]) {
-          window[`tempEvents_${dateStr}`][idx][field] = value;
-      }
-  }
-
   addCompactEvent(dateStr) {
-      window.hasUnsavedChanges = true;
-      if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
-      window[`tempEvents_${dateStr}`].push({ labels: [], content: '', completed: false });
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+      window[`tempEvents_${dateStr}`].push({ content: '', labels: [] });
+      const el = document.getElementById(`compact-events-${dateStr}`);
+      if (el) el.innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🚀 [수정] 주간/월간 컴팩트 뷰에서도 기간 라벨을 정확히 스캔하도록 수정
+  updateCompactEvent(dateStr, idx, key, value) {
+      if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][idx]) {
+          window[`tempEvents_${dateStr}`][idx][key] = value;
+          window.hasUnsavedChanges = true;
+      }
+  }
+
+  // 🚀 기간 일정 삭제 시 다중 삭제 모달 호출
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
@@ -249,69 +240,42 @@ class WeekView extends window.BaseView {
   }
 
   removeCompactEvent(dateStr, idx) {
-      window.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      if (window[`tempEvents_${dateStr}`]) {
+          window[`tempEvents_${dateStr}`].splice(idx, 1);
+          window.hasUnsavedChanges = true;
+          const el = document.getElementById(`compact-events-${dateStr}`);
+          if (el) el.innerHTML = this.generateCompactEventEditor(dateStr);
+      }
   }
 
   async save() {
-    for (const d of this.getWeekDates()) {
-      const rawList = window[`tempEvents_${d.dateStr}`] || [];
-      const validEvents = rawList.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
-      const cleanEventText = window.formatEventListToText(validEvents);
+      const weekDates = this.getWeekDates();
 
-      await window.getUserCol('events').doc(d.dateStr).set({
-          eventList: validEvents,
-          eventText: cleanEventText, 
-          updatedAt: Date.now()
-      });
+      for (const d of weekDates) {
+          const events = window[`tempEvents_${d.dateStr}`] || [];
+          const validEvents = events.filter(e => (e.content && e.content.trim() !== '') || (e.labels && e.labels.length > 0));
 
-      let isSkipDay = false;
-      for (const e of validEvents) {
-          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
-              isSkipDay = true;
-              break;
-          }
+          await window.getUserCol('events').doc(d.dateStr).set({
+              eventList: validEvents,
+              updatedAt: Date.now()
+          });
+
+          // 시간표 정보 저장
+          const cells = document.querySelectorAll(`[data-week-date="${d.dateStr}"]`);
+          const periodsData = {};
+          cells.forEach(cell => {
+              const p = cell.getAttribute("data-p");
+              const subject = cell.querySelector(".edit-subject").value.trim();
+              const memo = cell.querySelector(".edit-memo").value.trim();
+              periodsData[p] = { subject, memo, supplies: '' };
+          });
+
+          await window.dbAPI.saveSchedule(d.dateStr, periodsData);
       }
-      
-      const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
-      
-      if (scheduleRow) {
-        let existingPeriods = {};
-        try {
-          const existingData = await window.dbAPI.loadDayData(d.dateStr);
-          existingPeriods = existingData.periods || {};
-        } catch(e) {}
-
-        const periodsData = {};
-        const periodCells = scheduleRow.querySelectorAll('.week-period-cell');
-
-        periodCells.forEach(cell => {
-          const p = cell.getAttribute('data-p');
-          const text = (cell.innerText || cell.textContent || '').trim();
-          
-          let subject = ''; let memo = text;
-          const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-          if (match) { subject = match[1]; memo = match[2]; }
-          if (isSkipDay) subject = '';
-
-          periodsData[p] = { 
-            subject: subject, memo: memo, 
-            supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
-          };
-        });
-        await window.dbAPI.saveSchedule(d.dateStr, periodsData);
-      }
-    }
   }
 }
 
-window.weekViewInstance = new WeekView(document.getElementById("main-view"));
-window.renderWeekViewer = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderViewer(); };
-window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
-window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
-
-// 🚀 [수정] 라벨 클릭 시 재렌더링하여 체크박스 여부 즉각 동기화
+// 🚀 라벨 클릭 시 '기간' 속성 라벨이면 팝업 모달 실행
 window.handleCompactLabelClick = function(dateStr, idx, lName) {
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
@@ -323,6 +287,7 @@ window.handleCompactLabelClick = function(dateStr, idx, lName) {
     if (isActive) {
         ev.labels = ev.labels.filter(l => l !== lName);
     } else {
+        // 🚀 기간 라벨 클릭 시 기간 등록 모달 팝업 실행
         if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(lName)) {
             const ta = document.querySelector(`.compact-event-row[data-idx="${idx}"] textarea`);
             window.openPeriodModal(dateStr, lName, ta ? ta.value : '', function(isSaved){ 
@@ -340,6 +305,12 @@ window.handleCompactLabelClick = function(dateStr, idx, lName) {
     
     const container = document.getElementById(`compact-events-${dateStr}`);
     if (container) {
-        container.innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(dateStr) : (window.monthViewInstance ? window.monthViewInstance.generateCompactEventEditor(dateStr) : window.yearViewInstance.generateCompactEventEditor(dateStr));
+        const viewInst = window.weekViewInstance || window.monthViewInstance;
+        if (viewInst) container.innerHTML = viewInst.generateCompactEventEditor(dateStr);
     }
 };
+
+window.weekViewInstance = new WeekView(document.getElementById("main-view"));
+window.renderWeekViewer = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderViewer(); };
+window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
+window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
