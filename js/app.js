@@ -497,54 +497,7 @@ window.autoForwardIncompleteEvents = async function() {
 // ==========================================================================
 // 🚀 기간 다중 등록 달력 팝업 (그룹 ID 부여)
 // ==========================================================================
-window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
-    const modalHtml = `
-    <div id="period-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
-        <div style="background:#fff; padding:25px; border-radius:12px; width:360px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
-            <h3 style="margin-top:0; color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">📅 [${labelName}] 기간 등록</h3>
-            
-            <div style="margin-bottom:15px;">
-                <label style="display:block; font-weight:bold; margin-bottom:5px;">일정 내용</label>
-                <input type="text" id="period-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem;" placeholder="예: 여름방학">
-            </div>
-
-            <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
-                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly>
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label>
-                    <input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;">
-                </div>
-            </div>
-
-            <div style="margin-bottom:25px; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
-                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;">
-                    <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
-                    주말(토/일) 제외하고 계산하기
-                </label>
-                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 (1/5), (2/5) 형식으로 일정이 등록됩니다.</p>
-            </div>
-
-            <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button id="btn-period-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
-                <button id="btn-period-register" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">등록</button>
-            </div>
-        </div>
-    </div>`;
-    
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    document.getElementById('btn-period-cancel').onclick = function() {
-        document.getElementById('period-modal').remove();
-        if(callback) callback(false);
-    };
-
-    document.getElementById('btn-period-register').onclick = function() {
-        window.executePeriodSave(labelName, callback);
-    };
-};
+indow.openPeriodModa
 
 window.executePeriodSave = async function(labelName, callback) {
     const content = document.getElementById('period-content').value.trim();
