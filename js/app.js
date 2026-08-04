@@ -255,6 +255,7 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
+// 💡 [핵심 수정] 저장 완료 시 화면을 갱신하여 복사/삭제된 일정 실시간 동기화
 window.saveCurrentViewData = async function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
@@ -263,11 +264,13 @@ window.saveCurrentViewData = async function(silent = false) {
     editorBtn.disabled = true;
   }
 
+  // 1. 현재 화면의 데이터를 클라우드에 먼저 저장
   if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
   else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
   else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
   else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
 
+  // 2. 저장된 데이터를 바탕으로 이월/완료 스캔 엔진 가동
   if (window.autoForwardIncompleteEvents) {
       await window.autoForwardIncompleteEvents();
   }
@@ -283,6 +286,11 @@ window.saveCurrentViewData = async function(silent = false) {
   }
   
   window.hasUnsavedChanges = false; 
+  
+  // 3. 백그라운드 엔진이 조작한 일정(연쇄 삭제/복사)을 현재 에디터 화면에 즉시 표시
+  if (!silent && currentMode === 'editor') {
+      window.render();
+  }
 };
 
 // ==========================================================================
@@ -356,13 +364,13 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [수정] 징검다리 순차 복사 엔진 (현실 시간 기반으로 수정)
+// 🚀 [개선] 징검다리 스캔 엔진: 완료/미완료에 따른 완벽한 복사 & 연쇄 삭제
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
-    // 💡 화면 상태(과거)에 속지 않도록 무조건 '진짜 오늘' 날짜를 기준으로 스캔하도록 수정했습니다.
+    // 사용자가 과거 시점을 보고 있어도 항상 '진짜 현실의 오늘'을 기준으로 스캔 범위를 고정
     const todayStr = window.formatDate(new Date()); 
     const pastDate = new Date(window.parseLocalDate(todayStr));
-    pastDate.setDate(pastDate.getDate() - 30); // 30일치 여유 스캔
+    pastDate.setDate(pastDate.getDate() - 60); // 안전하게 과거 두 달 전까지 딥 스캔
 
     try {
         const eventsSnap = await window.getUserCol('events')
@@ -414,6 +422,7 @@ window.autoForwardIncompleteEvents = async function() {
                         curChanged = true;
                     }
 
+                    // DB에는 시각적인 화살표 찌꺼기를 일절 저장하지 않음 (뷰어에서 동적으로 뿌려줌)
                     const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                     if (ev.content !== cleanContent) {
                         ev.content = cleanContent;
@@ -421,12 +430,14 @@ window.autoForwardIncompleteEvents = async function() {
                     }
 
                     if (ev.completed) {
+                        // 중간 날짜에 완료(체크)되었다면 체인망에 블랙리스트 등록
                         completedChains.add(ev.forwardChainId);
                     } else if (curStr < todayStr) {
+                        // 미완료라면 오늘 날짜까지만 복사본을 전달
                         const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
                         if (!existsInNext) {
                             nextList.unshift({
-                                label: ev.label,
+                                label: ev.label || '',
                                 labels: [...(ev.labels || [])],
                                 content: cleanContent,
                                 completed: false,
@@ -439,9 +450,11 @@ window.autoForwardIncompleteEvents = async function() {
                 }
             });
 
+            // 💡 [핵심] 과거에 이미 완료된 체인이라면, 해당 일정이 복사되어 있는 미래 날짜를 전부 찾아 연쇄 삭제
             const origLen = curList.length;
             curList = curList.filter(ev => {
                 if (ev.forwardChainId && completedChains.has(ev.forwardChainId)) {
+                    // 완료 처리된 '원본'은 남기고 미완료 상태인 '복사본'들만 삭제
                     if (!ev.completed) return false; 
                 }
                 return true;
@@ -453,7 +466,6 @@ window.autoForwardIncompleteEvents = async function() {
                 eventsMap[curStr] = { ...curData, eventList: curList };
                 changedDocs.add(curStr);
             }
-            
             if (nextChanged && curStr < todayStr) { 
                 eventsMap[nextStr] = { ...nextData, eventList: nextList }; 
                 changedDocs.add(nextStr); 
@@ -588,7 +600,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 [수정] 좀비 일정 완벽 차단 (텍스트 백업본 덮어쓰기 적용)
+// 🚀 [핵심 수정] 좀비 일정 완벽 차단 및 비동기 처리 타이밍 해결
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
@@ -615,13 +627,19 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
         if (onOnlyThisDay) onOnlyThisDay();
     };
 
+    // 💡 [핵심] await를 강제하여 임시 저장이 완전히 끝난 뒤에만 삭제(executePeriodDelete)를 구동
     document.getElementById('btn-del-after-this').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-        window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
+        if(window.hasUnsavedChanges) {
+            await window.saveCurrentViewData(true);
+        }
+        await window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
     };
+    
     document.getElementById('btn-del-all').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-        window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
+        if(window.hasUnsavedChanges) {
+            await window.saveCurrentViewData(true);
+        }
+        await window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
     };
 };
 
@@ -635,18 +653,6 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
         const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
         return hasLabel && c === baseContent;
     };
-
-    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
-        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
-    }
-    Object.keys(window).forEach(key => {
-        if (key.startsWith('tempEvents_')) {
-            const dStr = key.replace('tempEvents_', '');
-            if (mode === 'only' && dStr !== baseDateStr) return;
-            if (mode === 'after' && dStr < baseDateStr) return;
-            window[key] = window[key].filter(e => !matchEvent(e));
-        }
-    });
 
     try {
         let query = window.getUserCol('events');
@@ -666,7 +672,7 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
             list = list.filter(e => !matchEvent(e));
             
             if (origLen !== list.length) {
-                // 💡 해결: DB에서 배열을 비울 때 eventText(백업 텍스트)도 동기화하여 좀비처럼 되살아나는 현상 방지
+                // 💡 [핵심] 배열 리스트뿐만 아니라, 백업용 텍스트인 eventText 도 깔끔하게 비워서 좀비 부활 방지
                 let updateData = { eventList: list, updatedAt: Date.now() };
                 if (window.formatEventListToText) {
                     updateData.eventText = window.formatEventListToText(list);
@@ -688,5 +694,6 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
     }
     
     document.getElementById('period-delete-modal').remove();
+    // 성공적으로 삭제한 뒤 리렌더링
     if (onConfirm) onConfirm();
 };
