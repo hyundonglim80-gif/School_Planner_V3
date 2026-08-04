@@ -87,6 +87,7 @@ window.checkSkipConditionFromText = function(rawText) {
 };
 
 // 🚀 [수정] 이월된 일정의 시각적 분리 처리
+// 🚀 [수정] DB 오염 방지 및 시각적 렌더링 동적 분리
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -98,9 +99,9 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         const canComplete = labelsToRender.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l)); 
         const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
 
-        let contentHtml = e.content || '';
-        let isMissed = contentHtml.includes('➡️');
-        let isForwardedTarget = contentHtml.includes('↪️');
+        let pureContent = (e.content || '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+        let isMissed = e.isForwardedSource;
+        let isForwardedTarget = e.isForwardedTarget;
 
         let badgesHtml = '';
         if (labelsToRender.length > 0) {
@@ -109,7 +110,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
                 let badgeStyle;
                 
                 if (isMissed && !isCompleted) {
-                    // 과거 미완료 일정의 시각적 경고 처리 (붉은 테두리 및 글자색)
                     badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
                 } else if (isCompleted && canComplete) {
                     badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
@@ -126,17 +126,17 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         
         if (isMissed && !isCompleted) {
-            textStyle = 'color:#ef4444; font-weight:bold;'; // 미완료 글자색도 붉게 경고
+            textStyle = 'color:#ef4444; font-weight:bold;';
+            pureContent = `${pureContent} <span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (다음 날로 이월됨)</span>`;
+        } else if (isForwardedTarget) {
+            if (isCompleted) {
+                textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
+                pureContent = `<span style="color:#94a3b8; font-weight:bold;">↪️</span> ${pureContent}`;
+            } else {
+                pureContent = `<span style="color:#2563eb; font-weight:bold;">↪️</span> ${pureContent}`;
+            }
         } else if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
-        }
-
-        // 아이콘 가독성 향상
-        if (isMissed) {
-            contentHtml = contentHtml.replace('➡️ (다음 날로 이월됨)', '<span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (다음 날로 이월됨)</span>');
-        }
-        if (isForwardedTarget) {
-            contentHtml = contentHtml.replace('↪️', '<span style="color:#2563eb; font-weight:bold;">↪️</span>');
         }
 
         let layoutStyle = `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
@@ -147,14 +147,14 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         html += `
         <div style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissed && !isForwardedTarget ? '✓ ' : ''}${contentHtml}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissed && !isForwardedTarget ? '✓ ' : ''}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
     return html;
 };
 
-// 🚀 [수정] 뷰어에서 체크 시 미래로 이월된 Chain ID 연쇄 삭제
+// 🚀 [수정] 완료 제어를 스캔 엔진에 전적으로 위임하여 꼬임 방지
 window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
     try {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
@@ -169,6 +169,7 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
         if (eventList[index]) {
             const willBeComplete = !currentStatus;
             eventList[index].completed = willBeComplete;
+            
             const newText = window.formatEventListToText(eventList);
             
             await window.getUserCol('events').doc(dateStr).set({
@@ -177,26 +178,10 @@ window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
                 updatedAt: Date.now()
             }, { merge: true });
 
-            // 🚀 Chain ID 연쇄 삭제 엔진 가동
-            if (willBeComplete && eventList[index].forwardChainId) {
-                const chainId = eventList[index].forwardChainId;
-                const futureSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>', dateStr).get();
-                let batch = window.db.batch();
-                let changed = false;
-                futureSnap.forEach(doc => {
-                    let fList = doc.data().eventList || [];
-                    const origLen = fList.length;
-                    fList = fList.filter(e => e.forwardChainId !== chainId);
-                    if (fList.length !== origLen) {
-                        batch.update(doc.ref, { eventList: fList, updatedAt: Date.now() });
-                        changed = true;
-                    }
-                });
-                if (changed) await batch.commit();
+            // 삭제/이월 로직은 완전히 스캔 엔진(autoForwardIncompleteEvents)에 위임합니다.
+            if (window.autoForwardIncompleteEvents) {
+                await window.autoForwardIncompleteEvents();
             }
-
-            // 수정 후 징검다리 스캔으로 전체 동기화!
-            if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
 
             if (window.render) window.render(); 
         }
