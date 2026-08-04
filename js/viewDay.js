@@ -14,7 +14,7 @@ class DayView extends window.BaseView {
     return [];
   }
 
-  renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback) {
+  renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback, onPeriodRequest) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
       containerElement.style.margin = "0";
@@ -35,10 +35,9 @@ class DayView extends window.BaseView {
                   selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
               } else {
                   if (window.isPeriodLabel && window.isPeriodLabel(labelText)) {
-                      const textarea = chip.closest('.event-entry-block').querySelector('.event-content-input');
-                      window.openPeriodModal(window.dayViewInstance.dateStr, labelText, textarea ? textarea.value : '', function(isSaved) {
-                          if(isSaved) window.render();
-                      });
+                      if (onPeriodRequest) {
+                          onPeriodRequest(labelText);
+                      }
                       return;
                   }
                   
@@ -50,7 +49,6 @@ class DayView extends window.BaseView {
               }
               
               if (onChangeCallback) onChangeCallback(selectedLabelsArray);
-              // 라벨 상태가 변경되면 전체 블록을 재렌더링하여 체크박스 유무도 즉시 반영됨
               window.dayViewInstance.renderEventEntries();
           });
           containerElement.appendChild(chip);
@@ -234,58 +232,61 @@ class DayView extends window.BaseView {
         block.style.cssText = "border:1px solid #cbd5e1; border-radius:8px; padding:10px; margin-bottom:12px; background:#f8fafc;";
         
         const topRow = document.createElement('div');
-        topRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; width:100%;";
+        topRow.style.cssText = "display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; width:100%;";
         
-        const leftGroup = document.createElement('div');
-        leftGroup.style.cssText = "display:flex; align-items:center; gap:8px;";
-
         const chipContainer = document.createElement('div');
         chipContainer.className = "label-chip-container";
         chipContainer.style.margin = "0";
-        this.renderLabelChips(chipContainer, labelObjs, e.labels, (newLabels) => {
-            this.currentEvents[index].labels = newLabels;
-        });
-
-        const isCompleted = !!e.completed;
-        // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
-        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
-        
-        const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
-
-        const checkboxHtml = canComplete 
-            ? `<input type="checkbox" class="event-complete-check" ${isCompleted ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 처리">`
-            : '';
-
-        leftGroup.innerHTML = checkboxHtml;
-        leftGroup.appendChild(chipContainer);
+        this.renderLabelChips(chipContainer, labelObjs, e.labels, 
+            (newLabels) => {
+                this.currentEvents[index].labels = newLabels;
+            },
+            async (labelText) => {
+                const content = this.currentEvents[index].content;
+                const backupEvent = { ...this.currentEvents[index] };
+                this.syncEventInputs();
+                this.currentEvents.splice(index, 1);
+                await window.saveCurrentViewData(true); 
+                
+                window.openPeriodModal(window.dayViewInstance.dateStr, labelText, content, function(isSaved) {
+                    if(!isSaved) {
+                        window.dayViewInstance.currentEvents.push(backupEvent);
+                        window.saveCurrentViewData(true).then(() => window.render());
+                    } else {
+                        window.render();
+                    }
+                });
+            }
+        );
 
         const actions = document.createElement('div');
         actions.style.display = "flex";
         actions.style.gap = "8px";
         actions.innerHTML = `<button class="delete-btn" style="background:#fff; border:1px solid #cbd5e1; color:#ef4444; cursor:pointer; padding:4px 8px; border-radius:6px;">✖</button>`;
 
-        topRow.appendChild(leftGroup);
+        topRow.appendChild(chipContainer);
         topRow.appendChild(actions);
-        
-        const ta = document.createElement('textarea');
-        ta.className = "event-content-input";
-        ta.placeholder = "일정 내용을 입력하세요.";
-        ta.style.cssText = `width:100%; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
-        ta.value = e.content;
-        
-        ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
-        ta.addEventListener('change', () => this.syncEventInputs());
-        
+
+        const contentRow = document.createElement('div');
+        contentRow.style.cssText = "display:flex; align-items:flex-start; gap:8px; width:100%;";
+
+        const isCompleted = !!e.completed;
+        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+        const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+
         if (canComplete) {
-            leftGroup.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
+            const chkWrapper = document.createElement('div');
+            chkWrapper.style.paddingTop = "10px";
+            chkWrapper.innerHTML = `<input type="checkbox" class="event-complete-check" ${isCompleted ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 처리">`;
+            contentRow.appendChild(chkWrapper);
+            
+            chkWrapper.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
-        
-        // 🚀 [수정] 여러 라벨 중 '기간' 속성 라벨을 정확히 찾아내어 모달로 전달
+
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
             const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
             
-            // 등록된 라벨 중 '기간' 속성을 가진 라벨을 추출
             const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
 
             if (periodLabel) {
@@ -296,9 +297,20 @@ class DayView extends window.BaseView {
                 this.removeEventEntry(index);
             }
         });
+        
+        const ta = document.createElement('textarea');
+        ta.className = "event-content-input";
+        ta.placeholder = "일정 내용을 입력하세요.";
+        ta.style.cssText = `flex:1; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
+        ta.value = e.content;
+        
+        ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
+        ta.addEventListener('change', () => this.syncEventInputs());
+        
+        contentRow.appendChild(ta);
 
         block.appendChild(topRow);
-        block.appendChild(ta);
+        block.appendChild(contentRow);
         container.appendChild(block);
         
         setTimeout(() => { ta.style.height = ta.scrollHeight + 'px'; }, 0);
