@@ -246,17 +246,6 @@ class DayView extends window.BaseView {
             this.currentEvents[index].labels = newLabels;
         });
 
-        const isCompleted = !!e.completed;
-        // 🚀 [수정] 여러 라벨 중 하나라도 완료 속성이 있다면 체크박스 표시
-        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
-        
-        const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
-
-        const checkboxHtml = canComplete 
-            ? `<input type="checkbox" class="event-complete-check" ${isCompleted ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 처리">`
-            : '';
-
-        leftGroup.innerHTML = checkboxHtml;
         leftGroup.appendChild(chipContainer);
 
         const actions = document.createElement('div');
@@ -266,26 +255,41 @@ class DayView extends window.BaseView {
 
         topRow.appendChild(leftGroup);
         topRow.appendChild(actions);
+
+        const isCompleted = !!e.completed;
+        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+        const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+
+        // 🚀 일정 작성 칸(Textarea)과 체크박스를 묶는 하단 그룹 생성
+        const bottomRow = document.createElement('div');
+        bottomRow.style.cssText = "display:flex; align-items:center; gap:8px; width:100%;";
+
+        if (canComplete) {
+            const chk = document.createElement('input');
+            chk.type = "checkbox";
+            chk.className = "event-complete-check";
+            chk.checked = isCompleted;
+            chk.style.cssText = "width:18px; height:18px; cursor:pointer; accent-color:#059669; flex-shrink:0;";
+            chk.title = "완료 처리";
+            chk.addEventListener('change', () => { 
+                this.syncEventInputs(); 
+                this.renderEventEntries(); 
+            });
+            bottomRow.appendChild(chk);
+        }
         
         const ta = document.createElement('textarea');
         ta.className = "event-content-input";
         ta.placeholder = "일정 내용을 입력하세요.";
-        ta.style.cssText = `width:100%; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
+        ta.style.cssText = `flex:1; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
         ta.value = e.content;
         
         ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
         ta.addEventListener('change', () => this.syncEventInputs());
-        
-        if (canComplete) {
-            leftGroup.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
-        }
-        
-       // 🚀 [수정] 여러 라벨 중 '기간' 속성 라벨을 정확히 찾아내어 모달로 전달
+
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
             const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
-            
-            // 등록된 라벨 중 '기간' 속성을 가진 라벨을 추출
             const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
 
             if (periodLabel) {
@@ -297,8 +301,10 @@ class DayView extends window.BaseView {
             }
         });
 
+        bottomRow.appendChild(ta);
+
         block.appendChild(topRow);
-        block.appendChild(ta);
+        block.appendChild(bottomRow);
         container.appendChild(block);
         
         setTimeout(() => { ta.style.height = ta.scrollHeight + 'px'; }, 0);
