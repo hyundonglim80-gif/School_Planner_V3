@@ -358,43 +358,52 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================================================
 // 🚀 징검다리 스캔 + Chain ID 연쇄 삭제 엔진
 // ==========================================================================
+// 🚀 [수정] 스캔 엔진 동적 확장 및 DB 텍스트 꼬임 원천 차단
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(window.currentDate || new Date());
-    const pastDate = new Date(window.parseLocalDate(todayStr));
-    pastDate.setDate(pastDate.getDate() - 14); 
-
+    
     try {
+        // 스캔 범위를 30일로 확장 (필요시 더 늘릴 수 있습니다)
+        const pastDate = new Date(window.parseLocalDate(todayStr));
+        pastDate.setDate(pastDate.getDate() - 30); 
+
+        // 오늘 이후(미래)의 데이터도 한 번에 가져와 체인 찌꺼기를 청소합니다.
         const eventsSnap = await window.getUserCol('events')
             .where(firebase.firestore.FieldPath.documentId(), '>=', window.formatDate(pastDate))
-            .where(firebase.firestore.FieldPath.documentId(), '<=', todayStr)
             .get();
         
         let eventsMap = {};
-        eventsSnap.forEach(doc => { eventsMap[doc.id] = doc.data(); });
+        let allDates = [];
+        eventsSnap.forEach(doc => { 
+            eventsMap[doc.id] = doc.data(); 
+            allDates.push(doc.id);
+        });
+        allDates.sort();
         
         let changedDocs = new Set();
         let completedChains = new Set(); 
-        
-        const getOriginalContent = (content) => {
-            return content.replace(/➡️\s*\(다음 날로 이월됨\)/g, '')
-                          .replace(/↪️\s*/g, '')
-                          .trim();
-        };
+
+        // 데이터가 존재하는 가장 미래 날짜까지 스캔 범위 자동 설정
+        let maxDateStr = todayStr;
+        if (allDates.length > 0 && allDates[allDates.length - 1] > maxDateStr) {
+            maxDateStr = allDates[allDates.length - 1];
+        }
 
         let curD = new Date(pastDate);
-        let endD = window.parseLocalDate(todayStr);
+        let endD = window.parseLocalDate(maxDateStr);
 
-        while(curD < endD) {
+        while(curD <= endD) {
             const curStr = window.formatDate(curD);
             curD.setDate(curD.getDate() + 1);
             const nextStr = window.formatDate(curD);
 
             let curData = eventsMap[curStr] || { eventList: [] };
             let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
+            let newCurList = [];
             
             let nextData = eventsMap[nextStr] || { eventList: [] };
             let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
-
+            
             let curChanged = false;
             let nextChanged = false;
 
@@ -407,48 +416,66 @@ window.autoForwardIncompleteEvents = async function() {
                         curChanged = true;
                     }
 
+                    // DB에 저장된 기존 아이콘(텍스트) 찌꺼기 원천 청소
+                    let pureContent = (ev.content || '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+                    if (ev.content !== pureContent) {
+                        ev.content = pureContent;
+                        curChanged = true;
+                    }
+
+                    // 1. 미래 날짜(오늘 이후)에 존재하는 복사본 무조건 삭제 (오늘은 내일로 안 넘김)
+                    if (curStr > todayStr && ev.isForwardedTarget) {
+                        curChanged = true;
+                        return; // 삭제 처리
+                    }
+
+                    // 2. 과거에 이미 완료된 체인인데 복사본으로 존재한다면 삭제 (오늘 체크 시 오늘 일정 삭제 요구사항 충족)
+                    if (completedChains.has(ev.forwardChainId) && ev.isForwardedTarget) {
+                        curChanged = true;
+                        return; 
+                    }
+
                     if (!ev.completed) {
                         completedChains.delete(ev.forwardChainId);
-                        
-                        const origContent = getOriginalContent(ev.content);
-                        
-                        if (!ev.content.includes('➡️')) {
-                            ev.content = `${origContent} ➡️ (다음 날로 이월됨)`;
-                            ev.isForwarded = true;
+                        if (!ev.isForwardedSource) {
+                            ev.isForwardedSource = true;
                             curChanged = true;
                         }
-
-                        const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
-                        if (!existsInNext) {
-                            nextList.unshift({
-                                label: ev.label,
-                                labels: ev.labels,
-                                content: `↪️ ${origContent}`,
-                                completed: false,
-                                forwardChainId: ev.forwardChainId
-                            });
-                            nextChanged = true;
+                        
+                        // 과거 일정만 다음 날로 복사
+                        if (curStr < todayStr) {
+                            const existsInNext = nextList.some(n => n.forwardChainId === ev.forwardChainId);
+                            if (!existsInNext) {
+                                nextList.unshift({
+                                    label: ev.label,
+                                    labels: ev.labels,
+                                    content: pureContent,
+                                    completed: false,
+                                    forwardChainId: ev.forwardChainId,
+                                    isForwardedTarget: true
+                                });
+                                nextChanged = true;
+                            }
                         }
                     } else {
                         completedChains.add(ev.forwardChainId);
-                        const origLen = nextList.length;
-                        nextList = nextList.filter(n => n.forwardChainId !== ev.forwardChainId);
-                        if (nextList.length !== origLen) nextChanged = true;
+                        if (ev.isForwardedSource) {
+                            ev.isForwardedSource = false;
+                            curChanged = true;
+                        }
                     }
                 }
+                newCurList.push(ev);
             });
 
-            if (curD.getTime() === endD.getTime()) {
-                nextList.forEach(ev => {
-                    const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
-                    if (canComplete && ev.completed && ev.forwardChainId) {
-                        completedChains.add(ev.forwardChainId);
-                    }
-                });
+            if (curChanged || curList.length !== newCurList.length) { 
+                eventsMap[curStr] = { ...curData, eventList: newCurList }; 
+                changedDocs.add(curStr); 
             }
-
-            if (curChanged) { eventsMap[curStr] = { ...curData, eventList: curList }; changedDocs.add(curStr); }
-            if (nextChanged) { eventsMap[nextStr] = { ...nextData, eventList: nextList }; changedDocs.add(nextStr); }
+            if (nextChanged && curStr < todayStr) { 
+                eventsMap[nextStr] = { ...nextData, eventList: nextList }; 
+                changedDocs.add(nextStr); 
+            }
         }
 
         let batch = window.db.batch();
@@ -461,20 +488,6 @@ window.autoForwardIncompleteEvents = async function() {
             opCount++;
             if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
         });
-
-        if (completedChains.size > 0) {
-            const futureSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>', todayStr).get();
-            futureSnap.forEach(doc => {
-                let fList = doc.data().eventList || [];
-                const origLen = fList.length;
-                fList = fList.filter(e => !completedChains.has(e.forwardChainId));
-                if (fList.length !== origLen) {
-                    batch.update(doc.ref, { eventList: fList, updatedAt: Date.now() });
-                    opCount++;
-                    if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
-                }
-            });
-        }
 
         if (opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
