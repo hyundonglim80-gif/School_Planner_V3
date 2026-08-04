@@ -219,10 +219,12 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
+  // 🚀 [개선] 에디터 화면에서도 이월 상태(기호)를 확실히 그려주어 유저 혼란 방지
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
     const labelObjs = window.getEventLabels();
+    const realTodayStr = window.formatDate(new Date());
     
     container.innerHTML = '';
     
@@ -237,6 +239,19 @@ class DayView extends window.BaseView {
         const chipContainer = document.createElement('div');
         chipContainer.className = "label-chip-container";
         chipContainer.style.margin = "0";
+
+        const isCompleted = !!e.completed;
+        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+        
+        let warningIcon = '';
+        if (canComplete) {
+            if (!isCompleted && this.dateStr < realTodayStr) {
+                warningIcon = `<span style="color:#ef4444; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">➡️ (미완료)</span>`;
+            } else if (e.originalDate && e.originalDate < this.dateStr) {
+                warningIcon = `<span style="color:#2563eb; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">↪️ (이월됨)</span>`;
+            }
+        }
+
         this.renderLabelChips(chipContainer, labelObjs, e.labels, 
             (newLabels) => {
                 this.currentEvents[index].labels = newLabels;
@@ -259,6 +274,8 @@ class DayView extends window.BaseView {
             }
         );
 
+        if (warningIcon) chipContainer.innerHTML += warningIcon;
+
         const actions = document.createElement('div');
         actions.style.display = "flex";
         actions.style.gap = "8px";
@@ -270,8 +287,6 @@ class DayView extends window.BaseView {
         const contentRow = document.createElement('div');
         contentRow.style.cssText = "display:flex; align-items:flex-start; gap:8px; width:100%;";
 
-        const isCompleted = !!e.completed;
-        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
         const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
         if (canComplete) {
@@ -286,13 +301,14 @@ class DayView extends window.BaseView {
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
             const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
-            
             const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
 
             if (periodLabel) {
-                window.showPeriodDeleteModal(this.dateStr, periodLabel, ev.content, ev.groupId, () => {
-                    window.render();
-                });
+                // 모달에 onOnlyThisDay 콜백을 넘겨주어 메모리 삭제 즉시 처리
+                window.showPeriodDeleteModal(this.dateStr, periodLabel, ev.content, ev.groupId, 
+                    () => { window.render(); }, 
+                    () => { this.removeEventEntry(index); }
+                );
             } else {
                 this.removeEventEntry(index);
             }
@@ -302,7 +318,8 @@ class DayView extends window.BaseView {
         ta.className = "event-content-input";
         ta.placeholder = "일정 내용을 입력하세요.";
         ta.style.cssText = `flex:1; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
-        ta.value = e.content;
+        // 입력창에는 깔끔하게 원본 텍스트만 보이도록 정리
+        ta.value = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
         
         ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
         ta.addEventListener('change', () => this.syncEventInputs());
@@ -337,6 +354,7 @@ class DayView extends window.BaseView {
   removeEventEntry(index) {
     this.syncEventInputs();
     this.currentEvents.splice(index, 1);
+    window.hasUnsavedChanges = true; // 삭제됨을 명시
     this.renderEventEntries();
   }
 
@@ -406,6 +424,7 @@ class DayView extends window.BaseView {
   removeJournalEntry(index) {
     this.syncJournalInputs();
     this.currentJournals.splice(index, 1);
+    window.hasUnsavedChanges = true;
     this.renderJournalEntries();
   }
 
