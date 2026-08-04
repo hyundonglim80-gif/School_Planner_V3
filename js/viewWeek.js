@@ -164,14 +164,27 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
+  // 🚀 [개선] 주간, 월간, 연간 콤팩트 에디터에서도 이월 상태 아이콘 실시간 표시
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = window.getEventLabels();
+      const realTodayStr = window.formatDate(new Date());
       let html = '';
       
       list.forEach((e, idx) => {
           const eLabels = e.labels || (e.label ? [e.label] : []);
+          const isCompleted = !!e.completed;
+          const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
           
+          let warningIcon = '';
+          if (canComplete) {
+              if (!isCompleted && dateStr < realTodayStr) {
+                  warningIcon = `<span style="color:#ef4444; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">➡️ (미완료)</span>`;
+              } else if (e.originalDate && e.originalDate < dateStr) {
+                  warningIcon = `<span style="color:#2563eb; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">↪️ (이월됨)</span>`;
+              }
+          }
+
           let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;">`;
           labelObjs.forEach(labelObj => {
               const lName = labelObj.name;
@@ -181,16 +194,17 @@ class WeekView extends window.BaseView {
               const clickCode = `window.handleCompactLabelClick('${dateStr}', ${idx}, '${lName}')`;
               chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lName}</div>`;
           });
+          if (warningIcon) chipsHtml += warningIcon;
           chipsHtml += `</div>`;
-
-          const isCompleted = !!e.completed;
-          const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
           const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
 
           const checkboxHtml = canComplete 
               ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
+
+          // DB 오염 방지를 위해 인풋박스에서는 기호 강제 제거
+          const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           html += `
           <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px;">
@@ -202,7 +216,7 @@ class WeekView extends window.BaseView {
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${canComplete ? `<div style="padding-top:8px;">${checkboxHtml}</div>` : ''}
-                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${e.content || ''}</textarea>
+                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       });
@@ -242,9 +256,11 @@ class WeekView extends window.BaseView {
       const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
 
       if (periodLabel) {
-          window.showPeriodDeleteModal(dateStr, periodLabel, ev.content, ev.groupId, () => {
-              window.render();
-          });
+          // 모달에 onOnlyThisDay 콜백 넘겨주어 메모리 삭제 즉시 처리
+          window.showPeriodDeleteModal(dateStr, periodLabel, ev.content, ev.groupId, 
+              () => { window.render(); }, 
+              () => { this.removeCompactEvent(dateStr, idx); }
+          );
       } else {
           this.removeCompactEvent(dateStr, idx);
       }
