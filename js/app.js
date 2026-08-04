@@ -356,10 +356,11 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [개선] 징검다리 순차 복사 엔진 (DB 오염 원천 차단 및 연쇄 삭제 기능)
+// 🚀 [수정] 징검다리 순차 복사 엔진 (현실 시간 기반으로 수정)
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
-    const todayStr = window.formatDate(window.currentDate || new Date());
+    // 💡 화면 상태(과거)에 속지 않도록 무조건 '진짜 오늘' 날짜를 기준으로 스캔하도록 수정했습니다.
+    const todayStr = window.formatDate(new Date()); 
     const pastDate = new Date(window.parseLocalDate(todayStr));
     pastDate.setDate(pastDate.getDate() - 30); // 30일치 여유 스캔
 
@@ -398,6 +399,7 @@ window.autoForwardIncompleteEvents = async function() {
             let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
             
             let nextChanged = false;
+            let curChanged = false;
 
             curList.forEach(ev => {
                 const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
@@ -405,14 +407,18 @@ window.autoForwardIncompleteEvents = async function() {
                 if (canComplete) {
                     if (!ev.forwardChainId) {
                         ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                        changedDocs.add(curStr);
+                        curChanged = true;
                     }
                     if (!ev.originalDate) {
                         ev.originalDate = curStr;
-                        changedDocs.add(curStr);
+                        curChanged = true;
                     }
 
-                    ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+                    const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+                    if (ev.content !== cleanContent) {
+                        ev.content = cleanContent;
+                        curChanged = true;
+                    }
 
                     if (ev.completed) {
                         completedChains.add(ev.forwardChainId);
@@ -421,8 +427,8 @@ window.autoForwardIncompleteEvents = async function() {
                         if (!existsInNext) {
                             nextList.unshift({
                                 label: ev.label,
-                                labels: ev.labels,
-                                content: ev.content,
+                                labels: [...(ev.labels || [])],
+                                content: cleanContent,
                                 completed: false,
                                 forwardChainId: ev.forwardChainId,
                                 originalDate: ev.originalDate
@@ -441,9 +447,13 @@ window.autoForwardIncompleteEvents = async function() {
                 return true;
             });
 
-            if (curList.length !== origLen) changedDocs.add(curStr);
+            if (curList.length !== origLen) curChanged = true;
 
-            eventsMap[curStr] = { ...curData, eventList: curList };
+            if (curChanged) {
+                eventsMap[curStr] = { ...curData, eventList: curList };
+                changedDocs.add(curStr);
+            }
+            
             if (nextChanged && curStr < todayStr) { 
                 eventsMap[nextStr] = { ...nextData, eventList: nextList }; 
                 changedDocs.add(nextStr); 
@@ -456,7 +466,12 @@ window.autoForwardIncompleteEvents = async function() {
         
         changedDocs.forEach(dateStr => {
             const docRef = window.getUserCol('events').doc(dateStr);
-            batch.set(docRef, { eventList: eventsMap[dateStr].eventList, updatedAt: Date.now() }, { merge: true });
+            const evList = eventsMap[dateStr].eventList;
+            const updateData = { eventList: evList, updatedAt: Date.now() };
+            if (window.formatEventListToText) {
+                updateData.eventText = window.formatEventListToText(evList);
+            }
+            batch.set(docRef, updateData, { merge: true });
             opCount++;
             if(opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
         });
@@ -573,7 +588,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 [개선] 좀비 일정 완벽 차단 및 단일 삭제 시 부드러운 메모리 연동
+// 🚀 [수정] 좀비 일정 완벽 차단 (텍스트 백업본 덮어쓰기 적용)
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
@@ -595,13 +610,11 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
 
     const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
     
-    // 그 날만 삭제 시 모달을 즉시 닫고 메모리(화면)에서만 부드럽게 지움. 저장은 유저가 클릭!
     document.getElementById('btn-del-only-this').onclick = () => {
         document.getElementById('period-delete-modal').remove();
         if (onOnlyThisDay) onOnlyThisDay();
     };
 
-    // 다른 날짜까지 건드리는 경우, 현재까지 작성한 메모리를 우선 안전하게 저장한 뒤 DB 일괄 삭제 수행
     document.getElementById('btn-del-after-this').onclick = async () => {
         if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
         window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
@@ -623,6 +636,18 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
         return hasLabel && c === baseContent;
     };
 
+    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+    }
+    Object.keys(window).forEach(key => {
+        if (key.startsWith('tempEvents_')) {
+            const dStr = key.replace('tempEvents_', '');
+            if (mode === 'only' && dStr !== baseDateStr) return;
+            if (mode === 'after' && dStr < baseDateStr) return;
+            window[key] = window[key].filter(e => !matchEvent(e));
+        }
+    });
+
     try {
         let query = window.getUserCol('events');
         if (mode === 'after') {
@@ -641,7 +666,13 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
             list = list.filter(e => !matchEvent(e));
             
             if (origLen !== list.length) {
-                batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+                // 💡 해결: DB에서 배열을 비울 때 eventText(백업 텍스트)도 동기화하여 좀비처럼 되살아나는 현상 방지
+                let updateData = { eventList: list, updatedAt: Date.now() };
+                if (window.formatEventListToText) {
+                    updateData.eventText = window.formatEventListToText(list);
+                }
+                batch.update(doc.ref, updateData);
+                
                 count++;
                 if (count >= 400) {
                     batchPromises.push(batch.commit());
