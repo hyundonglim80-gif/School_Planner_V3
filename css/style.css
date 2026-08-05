@@ -76,12 +76,14 @@ body {
   gap: 12px; 
 }
 
-/* 첫째 줄, 둘째 줄 공통 박스 (양쪽 정렬) */
+/* 💡 화면 좁아질 때 넘침 방지를 위한 flex-wrap 추가 */
 .header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  flex-wrap: wrap; 
+  gap: 10px;
 }
 
 .title-group h1 { font-size: var(--font-header-title); font-weight: 800; color: #1e293b; }
@@ -90,6 +92,7 @@ body {
   border: none; background: transparent; padding: 5px 10px; 
   font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
   border-radius: 6px; cursor: pointer; transition: all 0.2s; 
+  white-space: nowrap;
 }
 .btn-scope.active { background-color: #ffffff; color: var(--primary-color); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 .mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; }
@@ -97,6 +100,7 @@ body {
   border: none; background: transparent; padding: 5px 12px; 
   font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
   border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; 
+  white-space: nowrap;
 }
 .btn-mode.active-viewer { background-color: #3b82f6; color: #ffffff; }
 
@@ -112,6 +116,7 @@ body {
 .nav-btn { 
   border: 1px solid var(--border-color); background: #ffffff; padding: 5px 12px; 
   border-radius: 6px; font-size: var(--font-header-btn); font-weight: 700; cursor: pointer; color: #334155; 
+  white-space: nowrap;
 }
 .current-range { font-weight: 800; font-size: var(--font-date-range); color: #0f172a; text-align: center; }
 
@@ -247,19 +252,38 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 }
 
 /* ==========================================================================
-   📱 [모바일 화면용 최적화 (viewport width=1000 대응)]
+   📱 [모바일 및 태블릿 화면용 최적화 (반응형 뷰포트 대응)]
    ========================================================================== */
 @media screen and (max-width: 1000px) {
   table { font-size: var(--font-base); }
   th, td { padding: 4px; }
   .main-container { padding: 8px; }
   .title-group h1 { font-size: var(--font-header-title); }
-  .current-range { font-size: var(--font-date-range); }
+  .current-range { font-size: var(--font-date-range); min-width: auto !important; }
   .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
   table { min-width: var(--week-table-min-width) !important; }
   .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
   .year-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px; }
   .mini-month { padding: 8px; }
+}
+
+@media screen and (max-width: 768px) {
+  table { font-size: 0.85rem; }
+  .app-header { padding: 8px; gap: 8px; }
+  .header-row { justify-content: center; gap: 8px; }
+  .title-group h1 { font-size: 1.1rem !important; }
+  .current-range { font-size: 1rem !important; }
+  .btn-scope, .btn-mode, .nav-btn { padding: 4px 6px !important; font-size: 0.85rem !important; }
+  .year-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+@media screen and (max-width: 480px) {
+  .app-header { padding: 6px; }
+  .header-row { justify-content: center; gap: 6px; }
+  .btn-scope { padding: 3px 5px !important; font-size: 0.75rem !important; }
+  .nav-btn { padding: 3px 6px !important; font-size: 0.75rem !important; }
+  .btn-group { gap: 1px; }
+  .year-grid { grid-template-columns: repeat(1, 1fr) !important; }
 }
 
 /* ==========================================================================
