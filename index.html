@@ -20,11 +20,12 @@
     <div class="header-top">
       <h1 class="app-title">School Planner</h1>
       <div class="header-center-tabs">
+        <button id="btn-search" class="btn-scope" onclick="window.openSearchModal()" title="검색 (단축키: /)">🔍</button>
+        <button class="btn-scope" onclick="setScope('memo')">메모</button>
         <button class="btn-scope" onclick="setScope('year')">년</button>
         <button class="btn-scope" onclick="setScope('month')">월</button>
         <button class="btn-scope" onclick="setScope('week')">주</button>
         <button class="btn-scope" onclick="setScope('day')">일</button>
-        <button class="btn-scope" onclick="setScope('memo')">업무</button>
       </div>
       
       <div id="user-info" style="display:none; align-items:center; gap:10px;">
@@ -37,13 +38,11 @@
       <div class="nav-bar">
         <button class="nav-btn" onclick="moveDate(-1)">이전</button>
         <div style="display:flex; align-items:center; gap:8px;">
-            <span id="date-range-text" class="current-range"></span>
+            <span id="date-range-text" class="current-range" onclick="goToToday()" title="오늘 날짜로 이동" style="cursor:pointer; padding:4px 10px; border-radius:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'"></span>
             <div id="dday-container" style="position:relative; display:inline-block;"></div>
         </div>
         <button class="nav-btn" onclick="moveDate(1)">다음</button>
-        <button class="nav-btn" onclick="goToToday()">오늘</button>
 
-        <button id="btn-search" class="nav-btn" onclick="window.openSearchModal()" title="검색 (단축키: /)" style="display: inline-block;">🔍 검색</button>
         <button id="btn-toggle-weekend" class="nav-btn" onclick="toggleWeekend()">주말 보이기</button>
         <button id="btn-toggle-class" class="nav-btn" onclick="toggleClass()">수업 숨기기</button>
 
