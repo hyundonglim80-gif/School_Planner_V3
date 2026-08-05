@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1000">
   <title>School Planner</title>
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body>
 
@@ -22,11 +22,11 @@
   <header class="app-header">
     
     <div class="header-row">
-        <div class="title-group" style="flex-shrink: 0;">
-            <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;">School Planner</h1>
-        </div>
+        <div style="display: flex; align-items: center; gap: 15px; flex-shrink: 0;">
+            <div class="title-group">
+                <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;">School Planner</h1>
+            </div>
 
-        <div class="control-panel" style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
             <div style="position: relative;">
                 <button class="nav-btn" id="btn-dday-display" onclick="window.toggleDdayMenu()" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; min-width: 90px; cursor:pointer;">D-Day 설정</button>
                 <div id="dday-dropdown" class="dropdown-menu hidden" style="min-width: 220px; left: 0; right: auto;">
@@ -34,7 +34,9 @@
                     <button class="dropdown-item" onclick="window.openDdaySettingsModal()" style="border-top: 1px solid #e2e8f0; font-weight: bold; color: #1a73e8; font-size: 0.95rem;">⚙️ D-Day 설정</button>
                 </div>
             </div>
+        </div>
 
+        <div class="control-panel" style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
             <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
 
             <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
@@ -44,27 +46,27 @@
                 <button class="btn-scope" onclick="setScope('week')">주간</button>
                 <button class="btn-scope" onclick="setScope('day')">하루</button>
             </div>
-        </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-            <div style="position: relative;">
-                <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
-                <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
-                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
-                    <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
-                    <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
-                    <button class="dropdown-item" onclick="window.openSettingsModal()">수업 명칭 및 시수 관리</button>
-                    <button class="dropdown-item" onclick="window.openRecurringEventModal()">반복 일정 등록</button>
-                    <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
-                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
-                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
-                    <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 4px;">
+                <div style="position: relative;">
+                    <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
+                    <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
+                        <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
+                        <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
+                        <button class="dropdown-item" onclick="window.openSettingsModal()">수업 명칭 및 시수 관리</button>
+                        <button class="dropdown-item" onclick="window.openRecurringEventModal()">반복 일정 등록</button>
+                        <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
+                        <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+                    </div>
                 </div>
-            </div>
 
-            <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
-                <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
-                <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+                <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
+                    <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
+                    <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+                </div>
             </div>
         </div>
     </div>
