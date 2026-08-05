@@ -177,7 +177,6 @@ function updateTitle() {
     titleEl.textContent = "할 일 및 메모";
   }
 
-  // 🚩 상단 D-Day 뱃지 동기화 렌더링
   if (window.renderDDayBadge) {
       window.renderDDayBadge();
   }
@@ -209,7 +208,8 @@ function updateButtonUI() {
 
   const headerBottom = document.querySelector('.header-bottom');
   if (headerBottom) {
-    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
+    // 🚩 구조가 Flexbox 3등분으로 바뀌었으므로 'block' 대신 'flex'로 세팅
+    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'flex';
   }
 
   const viewerBtn = document.getElementById('btn-mode-viewer');
@@ -334,7 +334,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
         await window.loadSettings();
-        if (window.initDDay) await window.initDDay(); // 🚩 D-Day 초기화
+        if (window.initDDay) await window.initDDay();
         await window.autoForwardIncompleteEvents();
 
         window.render();
