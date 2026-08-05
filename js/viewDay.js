@@ -219,7 +219,6 @@ class DayView extends window.BaseView {
     }, 0);
   }
 
-  // 🚀 [개선] 에디터 화면에서도 이월 상태(기호)를 확실히 그려주어 유저 혼란 방지
   renderEventEntries() {
     const container = document.getElementById('event-entries-container');
     if(!container) return;
@@ -298,16 +297,21 @@ class DayView extends window.BaseView {
             chkWrapper.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
 
+        // 💡 [핵심] X버튼 클릭 시 완료 속성 일정은 모달 선택창으로 연결
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
             const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
             const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
+            const forwardLabel = labelsToRender.find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
             if (periodLabel) {
-                // 모달에 onOnlyThisDay 콜백을 넘겨주어 메모리 삭제 즉시 처리
                 window.showPeriodDeleteModal(this.dateStr, periodLabel, ev.content, ev.groupId, 
                     () => { window.render(); }, 
                     () => { this.removeEventEntry(index); }
+                );
+            } else if (forwardLabel && ev.forwardChainId) {
+                window.showForwardDeleteModal(this.dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+                    () => { window.render(); }
                 );
             } else {
                 this.removeEventEntry(index);
@@ -318,7 +322,6 @@ class DayView extends window.BaseView {
         ta.className = "event-content-input";
         ta.placeholder = "일정 내용을 입력하세요.";
         ta.style.cssText = `flex:1; padding:10px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-size:1.05rem; resize:none; overflow:hidden; min-height:45px; box-sizing:border-box; ${inputStyle}`;
-        // 입력창에는 깔끔하게 원본 텍스트만 보이도록 정리
         ta.value = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
         
         ta.addEventListener('input', () => { ta.style.height = ''; ta.style.height = ta.scrollHeight + 'px'; });
@@ -354,7 +357,7 @@ class DayView extends window.BaseView {
   removeEventEntry(index) {
     this.syncEventInputs();
     this.currentEvents.splice(index, 1);
-    window.hasUnsavedChanges = true; // 삭제됨을 명시
+    window.hasUnsavedChanges = true; 
     this.renderEventEntries();
   }
 
