@@ -145,7 +145,7 @@ function updateTitle() {
   const dayName = days[window.currentDate.getDay()];
 
   if (currentScope === 'day') { 
-    titleEl.textContent = `${y}년${m}월 ${d}일 (${dayName}요일)`;
+    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
   } else if (currentScope === 'week') {
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
@@ -168,9 +168,9 @@ function updateTitle() {
     const mStr2 = String(end.getMonth() + 1).padStart(2, '0');
     const dStr2 = String(end.getDate()).padStart(2, '0');
 
-    titleEl.textContent = `${y}년${m}월 (${mStr1}.${dStr1} ~ ${mStr2}.${dStr2})`;
+    titleEl.textContent = `${y}년 ${m}월 (${mStr1}.${dStr1} ~ ${mStr2}.${dStr2})`;
   } else if (currentScope === 'month') { 
-    titleEl.textContent = `${y}년${m}월`;
+    titleEl.textContent = `${y}년 ${m}월`;
   } else if (currentScope === 'year') { 
     titleEl.textContent = `${y}학년도`;
   } else if (currentScope === 'memo') { 
@@ -664,4 +664,196 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <div style="flex:1;">
                     <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
-                    <input type="date" id
+                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label>
+                    <input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;">
+                </div>
+            </div>
+
+            <div style="margin-bottom:25px; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;">
+                    <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
+                    주말(토/일) 제외하고 계산하기
+                </label>
+                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 (1/5), (2/5) 형식으로 일정이 등록됩니다.</p>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btn-period-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button id="btn-period-register" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">등록</button>
+            </div>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('btn-period-cancel').onclick = function() {
+        document.getElementById('period-modal').remove();
+        if(callback) callback(false);
+    };
+
+    document.getElementById('btn-period-register').onclick = function() {
+        window.executePeriodSave(labelName, callback);
+    };
+};
+
+window.executePeriodSave = async function(labelName, callback) {
+    const content = document.getElementById('period-content').value.trim();
+    const startStr = document.getElementById('period-start').value;
+    const endStr = document.getElementById('period-end').value;
+    const excludeWeekend = document.getElementById('period-exclude-weekend').checked;
+
+    if(!content) return alert("일정 내용을 입력해주세요.");
+    const startD = new Date(startStr);
+    const endD = new Date(endStr);
+    if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
+
+    document.getElementById('period-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
+
+    let datesToSave = [];
+    let curD = new Date(startD);
+    while (curD <= endD) {
+        const day = curD.getDay();
+        if (excludeWeekend && (day === 0 || day === 6)) {
+        } else {
+            datesToSave.push(window.formatDate(curD));
+        }
+        curD.setDate(curD.getDate() + 1);
+    }
+
+    const totalDays = datesToSave.length;
+    let batch = window.db.batch();
+    
+    const groupId = 'period_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+    
+    for(let i=0; i<totalDays; i++) {
+        const dStr = datesToSave[i];
+        const docRef = window.getUserCol('events').doc(dStr);
+        const docSnap = await docRef.get();
+        let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
+        
+        list.push({ 
+            label: labelName, 
+            labels: [labelName], 
+            content: `${content} (${i+1}/${totalDays})`, 
+            completed: false,
+            groupId: groupId  
+        });
+        batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+    }
+
+    await batch.commit();
+    document.getElementById('period-modal').remove();
+    alert(`✅ 총 ${totalDays}일의 일정이 등록되었습니다.`);
+    if (callback) callback(true);
+};
+
+// ==========================================================================
+// 🚀 안전한 기간 일정 다중 삭제
+// ==========================================================================
+window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
+    const modalHtml = `
+    <div id="period-delete-modal" class="modal-overlay" style="display:flex;">
+        <div class="modal-content" style="width:360px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
+            <h3 style="color:#ef4444; margin-top:0;">🗑️ 기간 일정 삭제</h3>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
+                이 일정은 <b>'기간'</b>으로 묶인 일정입니다.<br>어떻게 삭제하시겠습니까?
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b;">그 날만 삭제 (일반 일정처럼)</button>
+                <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c;">모든 기간 일정 모두 삭제</button>
+                <button id="btn-del-after-this" style="padding:12px; background:#ef4444; border:none; border-radius:8px; cursor:pointer; font-weight:bold; color:#fff;">이 날부터 끝날까지 삭제</button>
+                <button onclick="document.getElementById('period-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+    
+    document.getElementById('btn-del-only-this').onclick = () => {
+        document.getElementById('period-delete-modal').remove();
+        if (onOnlyThisDay) onOnlyThisDay();
+    };
+
+    document.getElementById('btn-del-after-this').onclick = async () => {
+        if(window.hasUnsavedChanges) {
+            await window.saveCurrentViewData(true);
+        }
+        await window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    };
+    
+    document.getElementById('btn-del-all').onclick = async () => {
+        if(window.hasUnsavedChanges) {
+            await window.saveCurrentViewData(true);
+        }
+        await window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
+    };
+};
+
+window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelName, baseContent, onConfirm) {
+    document.getElementById('period-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 다중 일정 안전 삭제 중...</div>`;
+    
+    const matchEvent = (e) => {
+        if (groupId && e.groupId) return e.groupId === groupId;
+        const eLabels = e.labels || (e.label ? [e.label] : []);
+        const hasLabel = eLabels.includes(labelName);
+        const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
+        return hasLabel && c === baseContent;
+    };
+
+    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+    }
+    Object.keys(window).forEach(key => {
+        if (key.startsWith('tempEvents_')) {
+            const dStr = key.replace('tempEvents_', '');
+            if (mode === 'only' && dStr !== baseDateStr) return;
+            if (mode === 'after' && dStr < baseDateStr) return;
+            window[key] = window[key].filter(e => !matchEvent(e));
+        }
+    });
+
+    try {
+        let query = window.getUserCol('events');
+        if (mode === 'after') {
+            query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
+        }
+        const snap = await query.get();
+        let batch = window.db.batch();
+        let count = 0;
+        let batchPromises = []; 
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || [];
+            const origLen = list.length;
+            
+            list = list.filter(e => !matchEvent(e));
+            
+            if (origLen !== list.length) {
+                let updateData = { eventList: list, updatedAt: Date.now() };
+                if (window.formatEventListToText) {
+                    updateData.eventText = window.formatEventListToText(list);
+                }
+                batch.update(doc.ref, updateData);
+                
+                count++;
+                if (count >= 400) {
+                    batchPromises.push(batch.commit());
+                    batch = window.db.batch();
+                    count = 0;
+                }
+            }
+        });
+        if (count > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+    } catch(e) {
+        console.error("일괄 삭제 오류:", e);
+    }
+    
+    document.getElementById('period-delete-modal').remove();
+    if (onConfirm) onConfirm();
+};
