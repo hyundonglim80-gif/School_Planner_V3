@@ -1,25 +1,22 @@
 /*css/style.css*/
 
-/* ==========================================================================
-   ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
-   ========================================================================== */
 :root {
-  --primary-color: #1a73e8;        /* 메인 테마 파란색 */
-  --border-color: #cbd5e1;         /* 기본 테두리 색상 */
-  --bg-body: #f8fafc;              /* 전체 배경색 */
-  --bg-card: #ffffff;              /* 카드 및 테이블 배경색 */
-  --hover-bg: #f1f5f9;             /* 마우스 호버 배경색 */
-  --edit-focus-bg: #ffffcc;        /* 셀 수정 클릭 시 포커스 배경색 */
-  --tag-bg: #dbeafe;               /* 과목 배지 배경색 */
-  --tag-color: #1e40af;            /* 과목 배지 글자색 */
+  --primary-color: #1a73e8;
+  --border-color: #cbd5e1;
+  --bg-body: #f8fafc;
+  --bg-card: #ffffff;
+  --hover-bg: #f1f5f9;
+  --edit-focus-bg: #ffffcc;
+  --tag-bg: #dbeafe;
+  --tag-color: #1e40af;
 
-  --today-bg-color: #eff6ff;       /* 오늘 날짜 칸 배경색 */
-  --today-border-color: #2563eb;   /* 오늘 날짜 칸 테두리 강조색 */
-  --today-border-width: 3px;       /* 오늘 날짜 칸 테두리 두께 */
+  --today-bg-color: #eff6ff;
+  --today-border-color: #2563eb;
+  --today-border-width: 3px;
 
-  --header-title-size: 1.3rem;     /* 타이틀 크기 조정 */
-  --font-date-range: 1.15rem;      /* 중앙 날짜 범위 폰트 크기 */
-  --font-header-btn: 0.9rem;       /* 상단 버튼 폰트 크기 */
+  --header-title-size: 1.3rem;
+  --font-date-range: 1.15rem;
+  --font-header-btn: 0.9rem;
   --font-body: 1rem;
   
   --week-cell-height: 120px;
@@ -43,9 +40,6 @@ body {
   word-break: break-all;
 }
 
-/* ==========================================================================
-   🔝 [최상단 고정 헤더 영역]
-   ========================================================================== */
 .app-header {
   position: sticky;
   top: 0;
@@ -56,7 +50,6 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
-/* 🌟 첫째 줄: 절대 줄바꿈 되지 않도록 flex-wrap: nowrap 고정 */
 .header-top {
   display: flex;
   justify-content: space-between;
@@ -113,7 +106,6 @@ body {
   white-space: nowrap;
 }
 
-/* 🌟 둘째 줄: 좌 / 중앙 / 우 삼등분 정렬 */
 .header-bottom {
   display: flex;
   justify-content: space-between;
@@ -144,13 +136,6 @@ body {
   gap: 6px;
   flex: 1;
   align-items: center;
-}
-
-.nav-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
 }
 
 .nav-btn {
@@ -253,9 +238,6 @@ body {
   color: var(--primary-color);
 }
 
-/* ==========================================================================
-   📊 [테이블 스타일]
-   ========================================================================== */
 .table-container {
   padding: 10px;
   max-width: 1400px;
@@ -347,9 +329,6 @@ th {
     border-color: #1d4ed8;
 }
 
-/* ==========================================================================
-   🚩 D-Day 카운터 뱃지 스타일
-   ========================================================================== */
 .dday-wrapper {
     position: relative;
     display: inline-flex;
@@ -476,47 +455,4 @@ th {
 
 .dday-dropdown-footer:hover {
     background: #eff6ff;
-}
-
-/* 📱 모바일/소형 화면에서도 첫 줄 한 줄 고정 유지 */
-@media screen and (max-width: 700px) {
-  .app-header {
-    padding: 6px 8px;
-  }
-
-  .header-top {
-    flex-wrap: nowrap !important;
-    gap: 4px;
-  }
-
-  .app-title {
-    font-size: 1.05rem;
-  }
-
-  .header-center-tabs {
-    padding: 2px 4px;
-    gap: 2px;
-  }
-
-  .btn-scope {
-    padding: 3px 6px;
-    font-size: 0.8rem;
-  }
-
-  .nav-btn, .btn-mode {
-    padding: 3px 6px;
-    font-size: 0.8rem;
-  }
-
-  .current-range {
-    font-size: 0.95rem;
-  }
-
-  .table-container {
-    padding: 4px;
-  }
-
-  table {
-    min-width: 650px !important;
-  }
 }
