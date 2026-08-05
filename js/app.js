@@ -84,7 +84,7 @@ window.goToToday = async function() {
 };
 
 // ==========================================================================
-// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정 + 라벨 동기화)
+// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정 + 라벨 동기화 + D-Day)
 // ==========================================================================
 window.periodNames = ["1", "2", "3", "4", "5", "6"];
 window.tempPeriodNames = [];
@@ -92,10 +92,22 @@ window.tempPeriodNames = [];
 window.loadSettings = async function() {
     try {
         const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
-            window.periodNames = doc.data().periodNames;
+        if (doc.exists) {
+            const data = doc.data();
+            if (data.periodNames && data.periodNames.length > 0) {
+                window.periodNames = data.periodNames;
+            } else {
+                window.periodNames = ["1", "2", "3", "4", "5", "6"];
+            }
+
+            // 💡 D-Day 데이터 로드
+            window.dDayList = data.dDayList || [];
+            window.selectedDDayId = data.selectedDDayId || null;
+            window.updateDdayUI();
         } else {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
+            window.dDayList = [];
+            window.selectedDDayId = null;
         }
 
         const labelDoc = await window.getUserCol('settings').doc('labels').get();
@@ -108,6 +120,8 @@ window.loadSettings = async function() {
     } catch (error) {
         console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
         window.periodNames = ["1", "2", "3", "4", "5", "6"];
+        window.dDayList = [];
+        window.selectedDDayId = null;
     }
 };
 
@@ -145,7 +159,7 @@ function updateTitle() {
   const dayName = days[window.currentDate.getDay()];
 
   if (currentScope === 'day') { 
-    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
+    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName})`;
   } else if (currentScope === 'week') {
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
@@ -202,17 +216,18 @@ function updateButtonUI() {
     }
   });
 
-  const headerBottom = document.querySelector('.header-bottom');
-  if (headerBottom) {
-    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'block';
-  }
-
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
   const modeGroup = document.querySelector('.mode-group');
 
   if (modeGroup) {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
+  }
+
+  const dateNavGroup = document.getElementById('date-nav-group');
+  if (dateNavGroup) {
+    // 메모 뷰에서도 날짜 텍스트는 보여주되 네비게이션 버튼을 조작하고 싶다면 여기서 조정 가능
+    // 현재는 유지
   }
 
   const searchBtn = document.getElementById('btn-search');
@@ -510,7 +525,7 @@ window.autoForwardIncompleteEvents = async function() {
 };
 
 // ==========================================================================
-// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직 (버그 해결)
+// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직
 // ==========================================================================
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
     const modalHtml = `
@@ -552,7 +567,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
     try {
         const snap = await window.getUserCol('events').get();
         
-        // 💡 [핵심] 삭제 기준일(baseDateStr) 이전의 '가장 최근 사본(또는 원본)' 날짜 하나만 찾습니다.
         let maxPastDateStr = '';
         if (mode === 'stop') {
             snap.forEach(doc => {
@@ -601,11 +615,9 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
                 if (list.length !== origLen) changed = true;
             } else if (mode === 'stop') {
                 if (doc.id >= baseDateStr) {
-                    // 삭제 기준일 이후는 무조건 삭제
                     list = list.filter(e => !matchEvent(e));
                     if (list.length !== origLen) changed = true;
                 } else if (doc.id === maxPastDateStr) {
-                    // 삭제 기준일 바로 이전 날짜(마지막 사본)만 완료(체크) 처리하여 체인 종료
                     list.forEach(e => {
                         if (matchEvent(e) && !e.completed) {
                             e.completed = true;
@@ -613,7 +625,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
                         }
                     });
                 }
-                // maxPastDateStr 보다 더 과거의 기록(원본 등)은 일절 건드리지 않고 원본 상태를 보존
             }
             
             if (changed) {
@@ -648,7 +659,7 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
 };
 
 // ==========================================================================
-// 🚀 기간 다중 등록 달력 팝업 (그룹 ID 부여)
+// 🚀 기간 다중 등록 달력 팝업
 // ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
@@ -857,3 +868,205 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
     document.getElementById('period-delete-modal').remove();
     if (onConfirm) onConfirm();
 };
+
+// ==========================================================================
+// 🚀 D-Day 기능 (표시, 계산, 드롭다운, 모달 관리)
+// ==========================================================================
+window.dDayList = [];
+window.selectedDDayId = null;
+
+// D-Day 메뉴 토글 및 리스트 렌더링
+window.toggleDdayMenu = function() {
+    const dropdown = document.getElementById('dday-dropdown');
+    const listContainer = document.getElementById('dday-list-container');
+    
+    if (dropdown.classList.contains('hidden')) {
+        listContainer.innerHTML = '';
+        if (window.dDayList.length === 0) {
+            listContainer.innerHTML = '<div style="padding:10px; text-align:center; color:#94a3b8; font-size:0.85rem;">등록된 D-Day가 없습니다.</div>';
+        } else {
+            window.dDayList.forEach(dday => {
+                const isSelected = dday.id === window.selectedDDayId;
+                const dDayText = calculateDday(dday.date);
+                listContainer.innerHTML += `
+                    <button class="dropdown-item" onclick="selectDday('${dday.id}')" style="${isSelected ? 'background:#eff6ff; color:#2563eb;' : ''}">
+                        <span style="font-weight:bold; margin-right:8px; display:inline-block; width:50px;">${dDayText}</span> 
+                        ${dday.title}
+                    </button>
+                `;
+            });
+            if (window.selectedDDayId) {
+                listContainer.innerHTML += `<button class="dropdown-item" onclick="selectDday(null)" style="color:#64748b; text-align:center;">선택 해제</button>`;
+            }
+        }
+    }
+    
+    dropdown.classList.toggle('hidden');
+};
+
+// 화면 클릭 시 D-Day 드롭다운 닫기
+window.addEventListener('click', function(e) {
+    const btn = document.getElementById('btn-dday-display');
+    const dropdown = document.getElementById('dday-dropdown');
+    if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+// 특정 D-Day 선택 처리
+window.selectDday = async function(id) {
+    window.selectedDDayId = id;
+    document.getElementById('dday-dropdown').classList.add('hidden');
+    window.updateDdayUI();
+    
+    if (window.auth && window.auth.currentUser) {
+        await window.getUserCol('settings').doc('preferences').set({
+            selectedDDayId: id
+        }, { merge: true });
+    }
+};
+
+// 버튼 텍스트 업데이트 로직
+window.updateDdayUI = function() {
+    const btn = document.getElementById('btn-dday-display');
+    if (!btn) return;
+
+    if (!window.selectedDDayId || window.dDayList.length === 0) {
+        btn.textContent = "D-Day 설정";
+        btn.style.color = "#64748b";
+        btn.style.backgroundColor = "#f1f5f9";
+        btn.style.borderColor = "#cbd5e1";
+        return;
+    }
+
+    const selected = window.dDayList.find(d => d.id === window.selectedDDayId);
+    if (selected) {
+        const dDayText = calculateDday(selected.date);
+        btn.textContent = `${selected.title} ${dDayText}`;
+        btn.style.color = "#ef4444";
+        btn.style.backgroundColor = "#fef2f2";
+        btn.style.borderColor = "#fca5a5";
+    }
+};
+
+// D-Day 계산 유틸리티
+function calculateDday(targetDateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    const targetDate = new Date(targetDateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    
+    if (diffDays === 0) return 'D-Day';
+    if (diffDays > 0) return `D-${diffDays}`;
+    return `D+${Math.abs(diffDays)}`;
+}
+
+// D-Day 설정 모달창 열기
+window.openDdaySettingsModal = function() {
+    document.getElementById('dday-dropdown').classList.add('hidden');
+    
+    const modalHtml = `
+    <div id="dday-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 400px;">
+            <div class="modal-header">
+                <h2 style="font-size:1.2rem; margin:0;">⚙️ D-Day 관리</h2>
+                <button class="btn-close-modal" onclick="document.getElementById('dday-modal').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:8px; margin-bottom:20px;">
+                    <input type="text" id="new-dday-title" placeholder="디데이 명칭" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;">
+                    <input type="date" id="new-dday-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <button onclick="addDday()" style="padding:8px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
+                </div>
+                
+                <hr style="border:0; border-top:1px dashed #e2e8f0; margin-bottom:15px;">
+                
+                <div id="dday-settings-list" style="display:flex; flex-direction:column; gap:10px; max-height:250px; overflow-y:auto;">
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    renderDdaySettingsList();
+};
+
+// 모달 내부 리스트 렌더링
+function renderDdaySettingsList() {
+    const listEl = document.getElementById('dday-settings-list');
+    listEl.innerHTML = '';
+    
+    if (window.dDayList.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin-top:20px;">등록된 D-Day가 없습니다.</div>';
+        return;
+    }
+
+    window.dDayList.forEach(dday => {
+        listEl.innerHTML += `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;">
+            <div>
+                <span style="font-weight:bold; color:#1e293b; margin-right:8px;">${dday.title}</span>
+                <span style="font-size:0.85rem; color:#64748b;">${dday.date}</span>
+            </div>
+            <button onclick="deleteDday('${dday.id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:4px 8px;">삭제</button>
+        </div>`;
+    });
+}
+
+// 새 D-Day 추가
+window.addDday = async function() {
+    const titleInput = document.getElementById('new-dday-title');
+    const dateInput = document.getElementById('new-dday-date');
+    const title = titleInput.value.trim();
+    const date = dateInput.value;
+
+    if (!title || !date) return alert("명칭과 날짜를 모두 입력해주세요.");
+
+    const newDday = {
+        id: 'dday_' + Date.now().toString(36),
+        title: title,
+        date: date
+    };
+
+    window.dDayList.push(newDday);
+    
+    if (window.dDayList.length === 1) {
+        window.selectedDDayId = newDday.id;
+    }
+
+    await saveDdayDataToFirebase();
+    
+    titleInput.value = '';
+    dateInput.value = '';
+    renderDdaySettingsList();
+    window.updateDdayUI();
+};
+
+// D-Day 삭제
+window.deleteDday = async function(id) {
+    if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
+    
+    window.dDayList = window.dDayList.filter(d => d.id !== id);
+    if (window.selectedDDayId === id) window.selectedDDayId = null;
+
+    await saveDdayDataToFirebase();
+    renderDdaySettingsList();
+    window.updateDdayUI();
+};
+
+// Firebase에 D-Day 저장
+async function saveDdayDataToFirebase() {
+    if (!window.auth || !window.auth.currentUser) return;
+    try {
+        await window.getUserCol('settings').doc('preferences').set({
+            dDayList: window.dDayList,
+            selectedDDayId: window.selectedDDayId
+        }, { merge: true });
+    } catch (e) {
+        console.error("D-Day 저장 실패", e);
+        alert("저장에 실패했습니다.");
+    }
+}
