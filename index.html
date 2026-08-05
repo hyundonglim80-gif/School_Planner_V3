@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1000">
   <title>School Planner</title>
-  <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
 
@@ -19,71 +19,74 @@
       </div>
   </div>
 
-  <header class="app-header" style="flex-direction: row; align-items: center; justify-content: space-between; overflow-x: auto; white-space: nowrap; gap: 15px; padding: 8px 12px;">
+  <header class="app-header">
     
-    <div class="title-group" style="flex-shrink: 0;">
-      <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;">School Planner</h1>
-    </div>
-
-    <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-      
-      <div style="position: relative;">
-        <button class="nav-btn" id="btn-dday-display" onclick="toggleDdayMenu()" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; min-width: 80px;">D-Day 설정</button>
-        <div id="dday-dropdown" class="dropdown-menu hidden" style="min-width: 200px; left: 0; right: auto;">
-            <div id="dday-list-container"></div>
-            <button class="dropdown-item" onclick="openDdaySettingsModal()" style="border-top: 1px solid #e2e8f0; font-weight: bold; color: #1a73e8; font-size: 0.95rem;">⚙️ D-Day 설정</button>
+    <div class="header-row">
+        <div class="title-group" style="flex-shrink: 0;">
+            <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;">School Planner</h1>
         </div>
-      </div>
 
-      <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
+        <div class="control-panel" style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+            <div style="position: relative;">
+                <button class="nav-btn" id="btn-dday-display" onclick="window.toggleDdayMenu()" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; min-width: 90px; cursor:pointer;">D-Day 설정</button>
+                <div id="dday-dropdown" class="dropdown-menu hidden" style="min-width: 220px; left: 0; right: auto;">
+                    <div id="dday-list-container"></div>
+                    <button class="dropdown-item" onclick="window.openDdaySettingsModal()" style="border-top: 1px solid #e2e8f0; font-weight: bold; color: #1a73e8; font-size: 0.95rem;">⚙️ D-Day 설정</button>
+                </div>
+            </div>
 
-      <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
-        <button class="btn-scope" onclick="setScope('memo')">메모</button>
-        <button class="btn-scope" onclick="setScope('year')">년간</button>
-        <button class="btn-scope" onclick="setScope('month')">월간</button>
-        <button class="btn-scope" onclick="setScope('week')">주간</button>
-        <button class="btn-scope" onclick="setScope('day')">하루</button>
-      </div>
+            <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
 
-      <div style="display: flex; gap: 4px;">
-        <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">주말 숨기기</button>
-        <button class="nav-btn" id="btn-toggle-class" onclick="toggleClass()" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">수업 숨기기</button>
-      </div>
-    </div>
-    
-    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;" id="date-nav-group">
-      <button class="nav-btn" onclick="moveDate(-1)" title="단축키: Ctrl + ←">&lt;</button>
-      <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s; min-width: 140px; text-align: center;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
-      <button class="nav-btn" onclick="moveDate(1)" title="단축키: Ctrl + →">&gt;</button>
-      
-      <div class="mode-group" style="margin-left: 5px;">
-        <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
-        <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 50px; justify-content: center; white-space: nowrap;">작성</button>
-      </div>
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-      <div style="position: relative;">
-        <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
-        
-        <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
-            <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
-            <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
-            <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
-            <button class="dropdown-item" onclick="window.openSettingsModal()">수업 명칭 및 시수 관리</button>
-            <button class="dropdown-item" onclick="window.openRecurringEventModal()">반복 일정 등록</button>
-            <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
-            <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
-            <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
-            <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+            <div class="btn-group" title="보기 이동 단축키: Shift + ← / →">
+                <button class="btn-scope" onclick="setScope('memo')">메모</button>
+                <button class="btn-scope" onclick="setScope('year')">년간</button>
+                <button class="btn-scope" onclick="setScope('month')">월간</button>
+                <button class="btn-scope" onclick="setScope('week')">주간</button>
+                <button class="btn-scope" onclick="setScope('day')">하루</button>
+            </div>
         </div>
-      </div>
 
-      <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
-          <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
-          <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
-      </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            <div style="position: relative;">
+                <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
+                <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
+                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
+                    <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
+                    <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
+                    <button class="dropdown-item" onclick="window.openSettingsModal()">수업 명칭 및 시수 관리</button>
+                    <button class="dropdown-item" onclick="window.openRecurringEventModal()">반복 일정 등록</button>
+                    <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
+                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
+                    <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
+                    <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+                </div>
+            </div>
+
+            <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
+                <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
+                <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+            </div>
+        </div>
     </div>
+
+    <div class="header-row" style="border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+        <div style="display: flex; gap: 6px;">
+            <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">주말 숨기기</button>
+            <button class="nav-btn" id="btn-toggle-class" onclick="toggleClass()" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">수업 숨기기</button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;" id="date-nav-group">
+            <button class="nav-btn" onclick="moveDate(-1)" title="단축키: Ctrl + ←">&lt; 이전</button>
+            <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s; min-width: 180px; text-align: center; font-size: 1.15rem;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
+            <button class="nav-btn" onclick="moveDate(1)" title="단축키: Ctrl + →">다음 &gt;</button>
+        </div>
+
+        <div class="mode-group" style="display: flex; margin-left: 5px;">
+            <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
+            <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="min-width: 65px; justify-content: center; white-space: nowrap;">작성</button>
+        </div>
+    </div>
+
   </header>
 
   <main class="main-container" id="main-view"></main>
