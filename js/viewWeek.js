@@ -164,7 +164,6 @@ class WeekView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 🚀 [개선] 주간, 월간, 연간 콤팩트 에디터에서도 이월 상태 아이콘 실시간 표시
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = window.getEventLabels();
@@ -203,7 +202,6 @@ class WeekView extends window.BaseView {
               ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.weekViewInstance ? window.weekViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked) : window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor('${dateStr}') : window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
-          // DB 오염 방지를 위해 인풋박스에서는 기호 강제 제거
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           html += `
@@ -250,16 +248,21 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
+  // 💡 [핵심] 콤팩트 에디터에서 X버튼 클릭 시 완료 속성 일정은 모달 선택창으로 연결
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
       const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
+      const forwardLabel = labelsToRender.find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
       if (periodLabel) {
-          // 모달에 onOnlyThisDay 콜백 넘겨주어 메모리 삭제 즉시 처리
           window.showPeriodDeleteModal(dateStr, periodLabel, ev.content, ev.groupId, 
               () => { window.render(); }, 
               () => { this.removeCompactEvent(dateStr, idx); }
+          );
+      } else if (forwardLabel && ev.forwardChainId) {
+          window.showForwardDeleteModal(dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+              () => { window.render(); }
           );
       } else {
           this.removeCompactEvent(dateStr, idx);
