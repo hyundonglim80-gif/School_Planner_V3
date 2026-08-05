@@ -1,105 +1,81 @@
 // js/modules/help.js
 
-const HelpModule = {
-  modalInstance: null,
-  
-  getContentHTML: function() {
-    return `
-      <div class="modal-help-container" style="padding-top: 5px;">
-        
-        <h3 class="modal-help-title" style="color:#0f766e; border-bottom-color:#99f6e4;">🔐 데이터 동기화 및 구글 로그인 안내</h3>
-        <div style="background:#f0fdfa; padding:15px; border-radius:8px; margin-bottom:20px; border:1px solid #ccfbf1;">
-          <ul style="padding-left: 20px; margin-bottom: 0; line-height:1.6; color:#0f766e;">
-            <li><strong>구글 로그인 필수:</strong> School Planner는 선생님의 개인 구글 계정(드라이브, 캘린더, Tasks)과 직접 연동하여 모든 데이터를 <strong>선생님의 개인 클라우드에만 안전하게 저장</strong>합니다. 서버에 데이터를 수집하지 않으므로 구글 로그인이 필수입니다.</li>
-            <li><strong>⚠️ '확인되지 않은 앱' 경고 화면 대처법:</strong> 
-                <br>초기 로그인 시 구글에서 <span style="color:#ef4444; font-weight:bold;">'확인되지 않은 앱'</span> 또는 <span style="color:#ef4444; font-weight:bold;">'신뢰할 수 없는 사이트'</span>라는 경고 화면이 나타날 수 있습니다. 이는 개인 개발 앱에서 흔히 나타나는 구글의 기본 보안 알림입니다.
-                <br>👉 당황하지 마시고 화면 왼쪽 하단의 <strong>[고급]</strong> 글씨를 클릭한 후, 맨 아래에 나타나는 <strong>[School Planner V3(으)로 이동(안전하지 않음)]</strong>을 클릭하시면 정상적으로 로그인 및 연동이 완료됩니다.</li>
-            <li><strong>필수 권한 체크:</strong> 로그인 시 나타나는 팝업창에서 <strong>'구글 캘린더'</strong>, <strong>'Tasks(할 일)'</strong>, <strong>'Google 스프레드시트'</strong> 관련 권한 체크박스에 모두 체크해 주셔야 동기화 기능이 정상 작동합니다.</li>
-          </ul>
-        </div>
+window.openHelpModal = function() {
+    let existingModal = document.getElementById('help-modal');
+    if (existingModal) existingModal.remove();
 
-        <h3 class="modal-help-title">☁️ 클라우드 백업 및 동기화 </h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>스프레드시트 다이렉트 백업:</strong> 내보내기/가져오기 메뉴에서 [📗 시트로 백업]을 누르면, 선생님의 구글 드라이브에 전용 백업 엑셀 파일이 자동 생성되고 데이터가 안전하게 저장됩니다.</li>
-          <li><strong>스마트 병합 복원:</strong> 기존에 저장된 백업 시트에서 데이터를 불러올 때, <strong>삭제된 내용은 비우고 추가된 내용은 합치는 스마트 병합</strong> 기술이 적용되어 데이터가 꼬이지 않습니다.</li>
-          <li><strong>구글 캘린더/Tasks 단방향 동기화:</strong> 웹 앱에 작성한 학사일정, 수업, 교단 일지를 구글 캘린더로 깔끔하게 전송하며, 메모는 구글 Tasks로 자동 연동됩니다.</li>
-        </ul>
+    const hideHelp = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
 
-        <h3 class="modal-help-title">⌨️ 핵심 단축키 및 제스처</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>Ctrl + 방향키(좌/우):</strong> 이전/다음 날짜(또는 주, 월)로 빠르게 이동</li>
-          <li><strong>Ctrl + 방향키(상/하):</strong> 보기 모드(상) / 수정 모드(하) 전환</li>
-          <li><strong>Shift + 방향키(좌/우):</strong> 메모/년/월/주/일 보기 탭 간 빠른 이동</li>
-          <li><strong>/ (슬래시):</strong> 통합 다중 검색창 열기</li>
-          <li><strong>Esc:</strong> 열려있는 팝업창 모두 닫기</li>
-          <li><strong>📱 모바일 스와이프:</strong> 스마트폰 화면에서 좌우로 밀어 날짜나 보기 형식을 부드럽게 넘기기</li>
-        </ul>
+    const modalHtml = `
+    <div id="help-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; display:flex; justify-content:center; align-items:center; padding:15px; box-sizing:border-box;">
+        <div style="background:#fff; padding:0; border-radius:12px; width:100%; max-width:650px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2); overflow:hidden;">
+            
+            <div style="background:#f8fafc; padding:20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0; color:#1e40af; font-size:1.4rem;">📖 School Planner 친절한 사용 설명서</h2>
+                <button onclick="document.getElementById('help-modal').remove()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
+            </div>
 
-        <h3 class="modal-help-title">📝 더욱 스마트해진 '메모' 탭 활용법</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>스마트 레이아웃:</strong> 화면 좌측의 '라벨 필터(개수 표시)'와 우측의 '진행/완료 목록'으로 공간이 나뉘어 할 일을 직관적으로 파악할 수 있습니다.</li>
-          <li><strong>자동 저장:</strong> 메모 창에 글을 쓰거나 사진을 올리다가 다른 탭(주, 월 등)으로 이동해도 <strong>자동으로 내용이 추가(저장)</strong>되어 데이터가 날아가지 않습니다.</li>
-          <li><strong>문서/링크 모음:</strong> 최상단의 '자주 쓰는 문서/링크'에 나이스(NEIS), 쿨메신저 등 자주 접속하는 사이트를 등록해두고 클릭 한 번에 이동하세요.</li>
-        </ul>
+            <div style="padding:20px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem;">
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:5px; margin-top:0;">1. 🧭 기본 조작 방법</h3>
+                    <ul style="padding-left:20px; margin-top:10px;">
+                        <li style="margin-bottom:8px;"><b>작성하기와 보기 모드:</b> 글씨를 입력하려면 상단의 <b>[✏️ 작성]</b> 버튼을 눌러주세요. 다 쓰신 후 <b>[👁️ 뷰어]</b> 버튼을 누르면 깔끔하게 정리된 화면을 볼 수 있습니다.</li>
+                        <li style="margin-bottom:8px;"><b>알아서 자동 저장:</b> 작성 모드에서 글을 쓰다가 다른 탭(주간, 월간 등)으로 이동하면 <b>저장 버튼을 누르지 않아도 알아서 안전하게 저장</b>됩니다.</li>
+                        <li style="margin-bottom:8px;"><b>화면 넘기기:</b> 스마트폰에서는 책장을 넘기듯 <b>화면을 좌우로 스윽 밀어주시면(스와이프)</b> 이전/다음 날짜로 부드럽게 이동합니다.</li>
+                        <li style="margin-bottom:8px;"><b>키보드 단축키 (컴퓨터용):</b> 
+                            <br>• <b>Ctrl + 방향키(좌/우):</b> 이전/다음 날짜로 이동
+                            <br>• <b>Shift + 방향키(좌/우):</b> 년/월/주/일/메모 탭으로 빠른 이동
+                        </li>
+                    </ul>
+                </div>
 
-        <h3 class="modal-help-title">🗓️ 시간표 관리 및 '수업 교환'</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>수업 시수 자유 설정:</strong> 우측 상단 [⋮] 메뉴 > [⚙️ 환경 설정]에서 아침활동, 1교시, 방과후 등 학교 운영에 맞는 명칭과 교시 개수를 설정하세요.</li>
-          <li><strong>기준 시간표 일괄 적용:</strong> 학기 초 1/2학기 기준 시간표를 등록해두고 기간을 적용하면, 행사나 휴일(수업 삭제 라벨)을 똑똑하게 피해서 시간표를 자동으로 채워줍니다.</li>
-          <li><strong>🔄 수업 교환 (일간 보기):</strong> '일(Day)' 보기 수정 화면에서 교시명(예: 1교시)을 클릭하면, 다른 날짜나 시간의 수업과 서로 내용을 간편하게 맞바꿀 수 있습니다.</li>
-        </ul>
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:#059669; border-bottom:2px solid #a7f3d0; padding-bottom:5px;">2. ✅ 할 일(일정) 관리의 마법</h3>
+                    <ul style="padding-left:20px; margin-top:10px;">
+                        <li style="margin-bottom:8px;"><b>못다 한 일은 자동으로 내일로!:</b> '완료' 속성이 있는 일정을 오늘 다 끝내지 못하면, <b>➡️(미완료) 표시가 남고 다음 날로 할 일이 알아서 넘어갑니다(↪️이월됨).</b> 체크박스를 눌러 완료(✓)하면 더 이상 넘어가지 않습니다.</li>
+                        <li style="margin-bottom:8px;"><b>여러 날에 걸친 일정 등록:</b> 라벨 설정에서 <b>달력 아이콘(📅)</b>이 켜진 라벨을 선택해보세요. 시작일과 종료일을 입력하면 한 번에 일정을 등록할 수 있습니다. <b>'주말 제외'</b>에 체크하면 평일에만 쏙쏙 들어갑니다.</li>
+                        <li style="margin-bottom:8px;"><b>안전한 일정 지우기:</b> 복사되어 넘어온 일정이나 기간 일정을 지울(✖) 때는, <b>"이 날 하루만 지울지, 전부 다 지울지"</b> 물어보는 안전 팝업창이 뜨니 실수로 지울 걱정이 없습니다.</li>
+                    </ul>
+                </div>
 
-        <h3 class="modal-help-title">🏷️ 라벨 커스텀 및 '기록'</h3>
-        <ul style="padding-left: 20px; margin-bottom: 20px; line-height:1.6;">
-          <li><strong>명칭 변경:</strong> 기존의 '일지' 메뉴가 범용적인 활용을 위해 <strong>'기록'</strong>으로 변경되었습니다. 학급의 하루나 상담 내용을 자유롭게 남겨보세요.</li>
-          <li><strong>수업 삭제 라벨:</strong> 일정 라벨 설정 시 <span style="color:#ef4444; font-weight:bold;">'수업삭제'</span>에 체크한 라벨(예: 휴일, 전일행사)을 등록하면 해당 날짜의 시간표 칸이 자동으로 비워집니다.</li>
-          <li><strong>라벨 순서 변경:</strong> 모든 라벨 설정 모달창에서 왼쪽의 '≡' 아이콘을 드래그하여 나만의 순서대로 라벨을 재배치할 수 있습니다.</li>
-        </ul>
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:#d97706; border-bottom:2px solid #fde68a; padding-bottom:5px;">3. 🎒 우리 학교 맞춤형 시간표</h3>
+                    <ul style="padding-left:20px; margin-top:10px;">
+                        <li style="margin-bottom:8px;"><b>교시 수와 이름 내 마음대로!:</b> 오른쪽 위의 <b>[⋮ (점 세 개) 👉 ⚙️ 환경 설정]</b>을 누르시면 하루 수업을 몇 교시까지 할지 정할 수 있고, '아침활동', '방과후' 처럼 이름도 자유롭게 지을 수 있습니다.</li>
+                        <li style="margin-bottom:8px;"><b>마우스 클릭으로 수업 맞바꾸기:</b> '일(Day)' 보기 화면에서 파란색 밑줄 친 교시 이름(예: <u>1교시</u>)을 마우스로 톡 눌러보세요. 다른 날짜나 다른 시간의 수업과 통째로 샥! 맞바꿀 수 있습니다.</li>
+                        <li style="margin-bottom:8px;"><b>수업 없는 날 자동 비우기:</b> 라벨 설정에서 '수업 제외' 기능이 켜진 라벨(예: 전일행사, 휴일)을 선택하면 그 날은 알아서 시간표 칸이 비워집니다.</li>
+                    </ul>
+                </div>
 
-      </div>
-    `;
-  },
+                <div style="margin-bottom:20px;">
+                    <h3 style="color:#7e22ce; border-bottom:2px solid #e9d5ff; padding-bottom:5px;">4. 🔍 쉽게 찾고 안전하게 보관하기</h3>
+                    <ul style="padding-left:20px; margin-top:10px;">
+                        <li style="margin-bottom:8px;"><b>어디에 적었더라? 바로 검색!:</b> 상단의 돋보기(🔍) 버튼을 누르거나 키보드 <b>/ (슬래시)</b>를 누르면 검색창이 열립니다. 라벨 버튼들을 꾹꾹 눌러서 원하는 기록만 쏙쏙 뽑아보세요.</li>
+                        <li style="margin-bottom:8px;"><b>소중한 기록 백업하기:</b> 오른쪽 위 <b>[⋮ (점 세 개)]</b> 메뉴에서 내 데이터를 엑셀(CSV) 파일로 컴퓨터에 안전하게 내려받을 수 있습니다.</li>
+                    </ul>
+                </div>
 
-  open: function() {
-    if (!this.modalInstance) {
-      this.modalInstance = new window.Modal({
-        id: 'help-modal-v4', 
-        title: '📖 사용 설명서',
-        width: '650px',
-        content: this.getContentHTML(),
-      });
-    }
-    
-    this.modalInstance.open();
-    
-    // 💡 [핵심] 모달창이 열린 직후, 제목줄(header)을 찾아 X버튼 왼쪽에 체크박스 삽입
-    const modalEl = document.getElementById('help-modal-v4');
-    if (modalEl) {
-        const header = modalEl.querySelector('.modal-header');
-        // 아직 체크박스가 안 들어갔다면 추가
-        if (header && !document.getElementById('chk-hide-help')) {
-            const chkContainer = document.createElement('div');
-            // 제목과 X버튼 사이 우측으로 정렬
-            chkContainer.style.cssText = "display:flex; align-items:center; margin-right:15px; margin-left:auto;";
-            chkContainer.innerHTML = `
-                <label style="cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #ef4444; display: flex; align-items: center; gap: 6px;" title="체크하면 다음 접속 시부터 이 창이 자동으로 뜨지 않습니다.">
-                    <input type="checkbox" id="chk-hide-help" style="width: 16px; height: 16px; cursor: pointer; accent-color: #ef4444;"> 
-                    이 창을 다시 보지 않기
+            </div>
+
+            <div style="background:#f8fafc; padding:15px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem; color:#475569; font-weight:bold;">
+                    <input type="checkbox" id="chk-hide-help" ${hideHelp ? 'checked' : ''} style="width:16px; height:16px; accent-color:#2563eb;">
+                    시작할 때 이 창 다시 보지 않기
                 </label>
-            `;
-            const closeBtn = header.querySelector('.btn-close-modal');
-            header.insertBefore(chkContainer, closeBtn);
+                <button id="btn-close-help" style="background:#2563eb; color:#fff; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">확인 (닫기)</button>
+            </div>
+            
+        </div>
+    </div>
+    `;
 
-            // 이벤트 바인딩
-            const chk = document.getElementById('chk-hide-help');
-            chk.checked = localStorage.getItem('workCalendar_hideHelp_v4') === 'true';
-            chk.onchange = () => {
-                if (chk.checked) localStorage.setItem('workCalendar_hideHelp_v4', 'true');
-                else localStorage.removeItem('workCalendar_hideHelp_v4');
-            };
-        }
-    }
-  }
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // 닫기 버튼 클릭 시 '다시 보지 않기' 체크 여부 저장 후 모달 닫기
+    document.getElementById('btn-close-help').onclick = function() {
+        const isChecked = document.getElementById('chk-hide-help').checked;
+        localStorage.setItem('workCalendar_hideHelp_v4', isChecked ? 'true' : 'false');
+        document.getElementById('help-modal').remove();
+    };
 };
-
-window.openHelpModal = () => HelpModule.open();
