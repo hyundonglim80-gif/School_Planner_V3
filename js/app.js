@@ -176,6 +176,11 @@ function updateTitle() {
   } else if (currentScope === 'memo') { 
     titleEl.textContent = "할 일 및 메모";
   }
+
+  // 🚩 상단 D-Day 뱃지 동기화 렌더링
+  if (window.renderDDayBadge) {
+      window.renderDDayBadge();
+  }
 }
 
 window.toggleMoreMenu = function() {
@@ -329,6 +334,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
         await window.loadSettings();
+        if (window.initDDay) await window.initDDay(); // 🚩 D-Day 초기화
         await window.autoForwardIncompleteEvents();
 
         window.render();
@@ -510,7 +516,7 @@ window.autoForwardIncompleteEvents = async function() {
 };
 
 // ==========================================================================
-// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직 (버그 해결)
+// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직
 // ==========================================================================
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
     const modalHtml = `
@@ -552,7 +558,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
     try {
         const snap = await window.getUserCol('events').get();
         
-        // 💡 [핵심] 삭제 기준일(baseDateStr) 이전의 '가장 최근 사본(또는 원본)' 날짜 하나만 찾습니다.
         let maxPastDateStr = '';
         if (mode === 'stop') {
             snap.forEach(doc => {
@@ -566,7 +571,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
             });
         }
 
-        // 1. 화면 메모리(tempEvents_) 동기화 - 오직 가장 최근 사본 하나만 완료 처리
         if (window.dayViewInstance && window.dayViewInstance.currentEvents) {
             if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
                window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
@@ -585,7 +589,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
             }
         });
 
-        // 2. DB 동기화
         let batch = window.db.batch();
         let count = 0;
         let batchPromises = []; 
@@ -601,11 +604,9 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
                 if (list.length !== origLen) changed = true;
             } else if (mode === 'stop') {
                 if (doc.id >= baseDateStr) {
-                    // 삭제 기준일 이후는 무조건 삭제
                     list = list.filter(e => !matchEvent(e));
                     if (list.length !== origLen) changed = true;
                 } else if (doc.id === maxPastDateStr) {
-                    // 삭제 기준일 바로 이전 날짜(마지막 사본)만 완료(체크) 처리하여 체인 종료
                     list.forEach(e => {
                         if (matchEvent(e) && !e.completed) {
                             e.completed = true;
@@ -613,7 +614,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
                         }
                     });
                 }
-                // maxPastDateStr 보다 더 과거의 기록(원본 등)은 일절 건드리지 않고 원본 상태를 보존
             }
             
             if (changed) {
