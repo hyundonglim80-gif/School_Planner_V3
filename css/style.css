@@ -2,45 +2,44 @@
 
 /* ==========================================================================
    ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
-   이곳의 수치와 색상만 변경하시면 앱 전체 디자인이 일괄 적용됩니다.
    ========================================================================== */
 :root {
   /* 🎨 1. 기본 브랜드 색상 */
-  --primary-color: #1a73e8;        /* 메인 테마 파란색 */
-  --border-color: #cbd5e1;         /* 기본 테두리 색상 */
-  --bg-body: #f8fafc;              /* 전체 배경색 */
-  --bg-card: #ffffff;              /* 카드 및 테이블 배경색 */
-  --hover-bg: #f1f5f9;             /* 마우스 호버 배경색 */
-  --edit-focus-bg: #ffffcc;        /* 셀 수정 클릭 시 포커스 배경색 (연노랑) */
-  --tag-bg: #dbeafe;               /* 과목 배지 배경색 */
-  --tag-color: #1e40af;            /* 과목 배지 글자색 */
+  --primary-color: #1a73e8;        
+  --border-color: #cbd5e1;         
+  --bg-body: #f8fafc;              
+  --bg-card: #ffffff;              
+  --hover-bg: #f1f5f9;             
+  --edit-focus-bg: #ffffcc;        
+  --tag-bg: #dbeafe;               
+  --tag-color: #1e40af;            
 
   /* 🎯 2. '오늘' 강조 스타일 설정 */
-  --today-bg-color: #eff6ff;       /* 오늘 날짜 칸 배경색 (연푸른색) */
-  --today-border-color: #2563eb;   /* 오늘 날짜 칸 테두리 강조색 (진한 파랑) */
-  --today-border-width: 3px;       /* 오늘 날짜 칸 테두리 두께 */
+  --today-bg-color: #eff6ff;       
+  --today-border-color: #2563eb;   
+  --today-border-width: 3px;       
 
-  /* 📏 3. 헤더 & 공통 글자 크기 설정 */
-  --font-header-title: 1.5rem;    /* 메인 제목 글자 크기 */
-  --font-header-btn: 1.5rem;      /* 헤더 버튼 글자 크기 */
-  --font-date-range: 1.5rem;      /* 날짜 범위 표시 글자 크기 */
-  --font-base: 1.5rem;            /* 일반 표/셀 기본 글자 크기 */
+  /* 📏 3. 헤더 & 공통 글자 크기 설정 (전체적으로 축소하여 한 줄 배치) */
+  --font-header-title: 1.1rem;    
+  --font-header-btn: 0.85rem;      
+  --font-date-range: 1rem;      
+  --font-base: 0.95rem;            
 
   /* 📌 4. 주(Week) 보기 전용 레이아웃 설정 */
-  --week-table-min-width: 500px;  /* 주간 보기 표 최소 가로 너비 */
-  --week-cell-height: 50px;       /* 1~6교시 칸 최소 세로 높이 */
-  --week-date-font-size: 1.5rem;  /* 요일 밑 날짜 글자 크기 */
-  --week-event-font-size: 1.5rem; /* 주간 상단 일정 글자 크기 */
+  --week-table-min-width: 500px;  
+  --week-cell-height: 50px;       
+  --week-date-font-size: 1.5rem;  
+  --week-event-font-size: 1.5rem; 
 
   /* 📌 5. 월(Month) 보기 전용 레이아웃 설정 */
-  --month-date-align: left;       /* 월간 달력 날짜 숫자 정렬 (left, center, right) */
-  --month-date-font-size: 1.1rem; /* 월간 달력 날짜 숫자 크기 */
-  --month-event-font-size: 0.95rem;/* 월간 달력 일정 글자 크기 */
-  --month-cell-min-height: 85px;  /* 월간 달력 날짜 칸 최소 높이 */
+  --month-date-align: left;       
+  --month-date-font-size: 1.1rem; 
+  --month-event-font-size: 0.95rem;
+  --month-cell-min-height: 85px;  
 
   /* 📌 6. 일(Day) 보기 전용 레이아웃 설정 */
-  --day-title-font-size: 1.5rem;  /* 일간 보기 제목 글자 크기 */
-  --day-content-font-size: 1.3rem;/* 일간 보기 내용 글자 크기 */
+  --day-title-font-size: 1.5rem;  
+  --day-content-font-size: 1.3rem;
   --day-event-min-height: 70px;  
 }
 
@@ -70,13 +69,16 @@ body {
   top: 0; 
   z-index: 1000; 
   background: var(--bg-card); 
-  padding: 10px 16px; 
+  padding: 8px 12px; 
   border-bottom: 1px solid var(--border-color); 
   box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
   display: flex; 
-  flex-direction: column; 
-  gap: 12px; 
+  flex-wrap: nowrap !important;
+  overflow-x: auto; 
+  scrollbar-width: none; 
 }
+.app-header::-webkit-scrollbar { display: none; }
+
 .header-top { 
   display: flex; 
   justify-content: space-between; 
@@ -88,14 +90,14 @@ body {
 .control-panel { display: flex; align-items: center; gap: 10px; }
 .btn-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; gap: 2px; }
 .btn-scope { 
-  border: none; background: transparent; padding: 5px 10px; 
+  border: none; background: transparent; padding: 4px 8px; 
   font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
   border-radius: 6px; cursor: pointer; transition: all 0.2s; 
 }
 .btn-scope.active { background-color: #ffffff; color: var(--primary-color); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 .mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; border-left: 2px solid #cbd5e1; padding-left: 6px; }
 .btn-mode { 
-  border: none; background: transparent; padding: 5px 12px; 
+  border: none; background: transparent; padding: 4px 10px; 
   font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
   border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; 
 }
@@ -109,16 +111,9 @@ body {
 }
 .btn-mode.save-mode:hover { background-color: #15803d !important; }
 
-/* 💡 날짜 표시부는 무조건 아래쪽에 독립 배치 */
-.header-bottom { 
-  display: flex; 
-  justify-content: center; 
-  align-items: center; 
-  width: 100%;
-}
-.nav-bar { display: flex; align-items: center; gap: 10px; }
+/* 💡 날짜 표시부 */
 .nav-btn { 
-  border: 1px solid var(--border-color); background: #ffffff; padding: 5px 12px; 
+  border: 1px solid var(--border-color); background: #ffffff; padding: 4px 10px; 
   border-radius: 6px; font-size: var(--font-header-btn); font-weight: 600; cursor: pointer; color: #334155; 
 }
 .current-range { font-weight: 700; font-size: var(--font-date-range); color: #0f172a; min-width: 250px; text-align: center; }
@@ -134,7 +129,7 @@ body {
   border-radius: 8px; 
   border: 1px solid var(--border-color); 
   box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
-  max-height: calc(100vh - 130px); 
+  max-height: calc(100vh - 80px); 
   overflow: auto; 
   -webkit-overflow-scrolling: touch; 
 }
@@ -155,7 +150,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   background: #ffffff; 
   border: 2px solid var(--border-color); 
   border-radius: 6px; 
-  max-height: calc(100vh - 130px); 
+  max-height: calc(100vh - 80px); 
   overflow-x: auto; 
   overflow-y: auto;
   -webkit-overflow-scrolling: touch; 
@@ -329,9 +324,9 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .dropdown-item {
   background: transparent;
   border: none;
-  padding: 12px 16px;
+  padding: 8px 12px;
   text-align: left;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   color: #334155;
   font-weight: 600;
   cursor: pointer;
@@ -431,7 +426,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .modal-help-checkbox { accent-color: #3b82f6; width: 16px; height: 16px; }
 
 /* ==========================================================================
-   🏷️ [신규] 다중 라벨 선택용 칩(Chip) UI 스타일
+   🏷️ 다중 라벨 선택용 칩(Chip) UI 스타일
    ========================================================================== */
 .label-chip-container {
     display: flex;
@@ -453,12 +448,10 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
     user-select: none; /* 텍스트 드래그 방지 */
 }
 
-/* 마우스를 올렸을 때 */
 .label-chip:hover {
     background-color: #e9ecef;
 }
 
-/* 라벨이 선택(활성화)되었을 때 */
 .label-chip.active {
     background-color: #4CAF50;
     color: white;
