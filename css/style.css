@@ -19,10 +19,10 @@
   --today-border-color: #2563eb;   
   --today-border-width: 3px;       
 
-  /* 📏 3. 헤더 & 공통 글자 크기 설정 (전체적으로 축소하여 한 줄 배치) */
-  --font-header-title: 1.1rem;    
-  --font-header-btn: 0.85rem;      
-  --font-date-range: 1rem;      
+  /* 📏 3. 헤더 & 공통 글자 크기 설정 */
+  --font-header-title: 1.2rem;    
+  --font-header-btn: 0.9rem;      
+  --font-date-range: 1.1rem;      
   --font-base: 0.95rem;            
 
   /* 📌 4. 주(Week) 보기 전용 레이아웃 설정 */
@@ -55,50 +55,47 @@ body {
   margin: 0; 
 }
 
-/* 📝 여러 줄 입력 시 엔터(Enter) 줄바꿈 형식을 화면에 그대로 유지 */
 .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
   white-space: pre-wrap;
   word-break: break-all;
 }
 
 /* ==========================================================================
-   🔝 [최상단 고정 헤더 영역]
+   🔝 [최상단 고정 헤더 영역 (2줄 양쪽 정렬 구조)]
    ========================================================================== */
 .app-header { 
   position: sticky; 
   top: 0; 
   z-index: 1000; 
   background: var(--bg-card); 
-  padding: 8px 12px; 
+  padding: 10px 14px; 
   border-bottom: 1px solid var(--border-color); 
   box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
   display: flex; 
-  flex-wrap: nowrap !important;
-  overflow-x: auto; 
-  scrollbar-width: none; 
+  flex-direction: column;
+  gap: 12px; 
 }
-.app-header::-webkit-scrollbar { display: none; }
 
-.header-top { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  flex-wrap: wrap; 
-  gap: 10px; 
+/* 첫째 줄, 둘째 줄 공통 박스 (양쪽 정렬) */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
-.title-group h1 { font-size: var(--font-header-title); font-weight: 700; color: #1e293b; }
-.control-panel { display: flex; align-items: center; gap: 10px; }
+
+.title-group h1 { font-size: var(--font-header-title); font-weight: 800; color: #1e293b; }
 .btn-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; gap: 2px; }
 .btn-scope { 
-  border: none; background: transparent; padding: 4px 8px; 
-  font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
+  border: none; background: transparent; padding: 5px 10px; 
+  font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
   border-radius: 6px; cursor: pointer; transition: all 0.2s; 
 }
 .btn-scope.active { background-color: #ffffff; color: var(--primary-color); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; border-left: 2px solid #cbd5e1; padding-left: 6px; }
+.mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; }
 .btn-mode { 
-  border: none; background: transparent; padding: 4px 10px; 
-  font-size: var(--font-header-btn); font-weight: 600; color: #64748b; 
+  border: none; background: transparent; padding: 5px 12px; 
+  font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
   border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; 
 }
 .btn-mode.active-viewer { background-color: #3b82f6; color: #ffffff; }
@@ -111,12 +108,12 @@ body {
 }
 .btn-mode.save-mode:hover { background-color: #15803d !important; }
 
-/* 💡 날짜 표시부 */
+/* 💡 날짜 표시부 및 공통 버튼 */
 .nav-btn { 
-  border: 1px solid var(--border-color); background: #ffffff; padding: 4px 10px; 
-  border-radius: 6px; font-size: var(--font-header-btn); font-weight: 600; cursor: pointer; color: #334155; 
+  border: 1px solid var(--border-color); background: #ffffff; padding: 5px 12px; 
+  border-radius: 6px; font-size: var(--font-header-btn); font-weight: 700; cursor: pointer; color: #334155; 
 }
-.current-range { font-weight: 700; font-size: var(--font-date-range); color: #0f172a; min-width: 250px; text-align: center; }
+.current-range { font-weight: 800; font-size: var(--font-date-range); color: #0f172a; text-align: center; }
 
 /* 메인 컨텐츠 감싸는 용기 */
 .main-container { padding: 12px; max-width: 1200px; margin: 0 auto; }
@@ -129,7 +126,7 @@ body {
   border-radius: 8px; 
   border: 1px solid var(--border-color); 
   box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
-  max-height: calc(100vh - 80px); 
+  max-height: calc(100vh - 120px); 
   overflow: auto; 
   -webkit-overflow-scrolling: touch; 
 }
@@ -150,7 +147,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   background: #ffffff; 
   border: 2px solid var(--border-color); 
   border-radius: 6px; 
-  max-height: calc(100vh - 80px); 
+  max-height: calc(100vh - 120px); 
   overflow-x: auto; 
   overflow-y: auto;
   -webkit-overflow-scrolling: touch; 
@@ -259,14 +256,9 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   .title-group h1 { font-size: var(--font-header-title); }
   .current-range { font-size: var(--font-date-range); }
   .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
-
   table { min-width: var(--week-table-min-width) !important; }
   .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
-
-  .year-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 6px;
-  }
+  .year-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px; }
   .mini-month { padding: 8px; }
 }
 
@@ -326,7 +318,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   border: none;
   padding: 8px 12px;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: #334155;
   font-weight: 600;
   cursor: pointer;
@@ -374,18 +366,15 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 /* ==========================================================================
    🎨 [모달(팝업) 내부 다이어트용 공통 클래스 모음]
    ========================================================================== */
-/* 안내 박스 */
 .modal-info-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6; font-size: 0.95rem; color: #334155; line-height: 1.5; }
 .modal-info-box.alt { background: #eff6ff; color: #1e40af; }
 .modal-info-box.journal { background: #fdf2f8; border-left-color: #be185d; color: #831843; }
 
-/* 리스트 및 행(Row) */
 .modal-list-container { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 15px; padding-right: 5px; }
 .modal-input-row { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 6px; }
 .modal-input-row.alt { background: #f8fafc; padding: 10px; }
 .modal-input-row.journal { border-color: #fbcfe8; }
 
-/* 팝업 공통 버튼 */
 .modal-btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .modal-btn-primary:hover { background: #1d4ed8; }
 .modal-btn-primary.journal { background: #9d174d; }
@@ -399,7 +388,6 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .modal-delete-btn { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; }
 .modal-footer-actions { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
 
-/* 텍스트 및 폼요소 */
 .modal-item-text { font-weight: bold; color: #1e40af; font-size: 1.05rem; }
 .modal-item-text.journal { color: #9d174d; }
 .modal-input-text { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; font-size: 1rem; }
@@ -407,17 +395,14 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .modal-checkbox-label.alert { color: #ef4444; font-weight: bold; }
 .modal-checkbox { accent-color: #ef4444; }
 
-/* 통합 검색창 전용 */
 .search-execute-btn { width: 100%; padding: 12px; background: #1e40af; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
 .search-results-area { border-top: 1px solid #e2e8f0; padding-top: 15px; max-height: 350px; overflow-y: auto; }
 .search-result-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
 .search-result-card:hover { border-color: #3b82f6 !important; transform: translateY(-2px); }
 
-/* 기준시간표 전용 */
 .tt-action-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .tt-apply-box { display: flex; gap: 10px; align-items: center; background: #f1f5f9; padding: 15px; border-radius: 8px; flex-wrap: wrap; }
 
-/* 도움말 모달 전용 */
 .modal-help-container { line-height: 1.6; color: #334155; font-size: 0.95rem; }
 .modal-help-title { color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 5px; margin-top: 15px; }
 .modal-help-title:first-child { margin-top: 0; }
@@ -425,36 +410,7 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .modal-help-checkbox-label { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.95rem; font-weight: bold; color: #475569; }
 .modal-help-checkbox { accent-color: #3b82f6; width: 16px; height: 16px; }
 
-/* ==========================================================================
-   🏷️ 다중 라벨 선택용 칩(Chip) UI 스타일
-   ========================================================================== */
-.label-chip-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 10px 0;
-}
-
-.label-chip {
-    padding: 6px 14px;
-    border-radius: 20px;
-    background-color: #f1f3f5;
-    color: #495057;
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid #dee2e6;
-    transition: all 0.2s ease;
-    user-select: none; /* 텍스트 드래그 방지 */
-}
-
-.label-chip:hover {
-    background-color: #e9ecef;
-}
-
-.label-chip.active {
-    background-color: #4CAF50;
-    color: white;
-    border-color: #4CAF50;
-    box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
-}
+.label-chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.label-chip { padding: 6px 14px; border-radius: 20px; background-color: #f1f3f5; color: #495057; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; transition: all 0.2s ease; user-select: none; }
+.label-chip:hover { background-color: #e9ecef; }
+.label-chip.active { background-color: #4CAF50; color: white; border-color: #4CAF50; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3); }
