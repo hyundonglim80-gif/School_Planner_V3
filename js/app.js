@@ -357,13 +357,12 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 🚀 [완벽 수정] 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
+// 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date()); 
     
     try {
-        // 💡 1. 365일치 딥 스캔: 너무 과거에 만들어진 일정의 수정도 절대 놓치지 않습니다.
         const pastDate = new Date(window.parseLocalDate(todayStr));
         pastDate.setDate(pastDate.getDate() - 365); 
 
@@ -378,7 +377,6 @@ window.autoForwardIncompleteEvents = async function() {
             allDates.push(doc.id); 
         });
         
-        // 💡 오늘 날짜를 반드시 스캔 범위에 포함시켜 오늘의 변경사항도 반영
         if (!allDates.includes(todayStr)) allDates.push(todayStr);
         allDates.sort();
 
@@ -392,7 +390,6 @@ window.autoForwardIncompleteEvents = async function() {
         let curD = window.parseLocalDate(minDateStr);
         let endD = window.parseLocalDate(maxDateStr);
 
-        // 💡 2. 가장 과거부터 오늘까지 하루씩 순차적으로 검증 (Top-Down 추적)
         while (curD <= endD) {
             const curStr = window.formatDate(curD);
             curD.setDate(curD.getDate() + 1);
@@ -406,14 +403,12 @@ window.autoForwardIncompleteEvents = async function() {
             curList.forEach(ev => {
                 const canComplete = ev.labels ? ev.labels.some(l => window.isForwardLabel(l)) : window.isForwardLabel(ev.label);
                 
-                // DB 오염 방지를 위해 텍스트 청소
                 const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                 if (ev.content !== cleanContent) {
                     ev.content = cleanContent;
                     curChanged = true;
                 }
 
-                // 💡 [핵심] 해당 일정이 원본(Origin)인지, 이전 날짜에서 복사되어 넘어온 사본(Copy)인지 판별
                 const isOrigin = !ev.originalDate || ev.originalDate === curStr;
 
                 if (isOrigin) {
@@ -428,14 +423,13 @@ window.autoForwardIncompleteEvents = async function() {
                         }
                         
                         if (ev.completed) {
-                            activeChains.delete(ev.forwardChainId); // 완료되면 추적(복사) 중단
+                            activeChains.delete(ev.forwardChainId);
                         } else {
-                            activeChains.add(ev.forwardChainId); // 미완료면 추적(복사) 활성화
+                            activeChains.add(ev.forwardChainId);
                             chainEventData[ev.forwardChainId] = { ...ev }; 
                         }
                         newCurList.push(ev);
                     } else {
-                        // 사용자가 완료 라벨을 뺀 일반 일정이 된 경우 -> 추적 아이디 제거
                         if (ev.forwardChainId) {
                             delete ev.forwardChainId;
                             delete ev.originalDate;
@@ -444,25 +438,19 @@ window.autoForwardIncompleteEvents = async function() {
                         newCurList.push(ev);
                     }
                 } else {
-                    // 💡 [핵심] 사본(Copy) 일정의 생존 검사
-                    // 원본이 방금 완료처리 되거나 라벨이 떨어져 activeChains에서 빠졌다면, 
-                    // 이 사본은 newCurList에 넣지 않음으로써 완벽하게 연쇄 '삭제'됩니다.
                     if (activeChains.has(ev.forwardChainId)) {
                         if (ev.completed) {
-                            // 중간 날짜(사본)에서 사용자가 체크(완료)를 누른 경우
-                            activeChains.delete(ev.forwardChainId); // 즉시 복사 중단. 다음날 사본들은 위 조건에 걸려 멸종됨.
+                            activeChains.delete(ev.forwardChainId);
                         } else {
                             chainEventData[ev.forwardChainId] = { ...ev }; 
                         }
                         newCurList.push(ev);
                     } else {
-                        // 원본이 죽은 고아(좀비) 일정이므로 삭제
                         curChanged = true;
                     }
                 }
             });
 
-            // 💡 3. 살아남은 활성 체인(미완료 일정)들을 다음 날(내일)로 복사 (오늘까지만)
             let nextData = eventsMap[nextStr] || { eventList: [] };
             let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
             let nextChanged = false;
@@ -476,7 +464,7 @@ window.autoForwardIncompleteEvents = async function() {
                             label: sourceEv.label || '',
                             labels: [...(sourceEv.labels || [])],
                             content: sourceEv.content,
-                            completed: false, // 다음 날 복사본은 기본적으로 미완료 상태로 생성
+                            completed: false, 
                             forwardChainId: chainId,
                             originalDate: sourceEv.originalDate
                         });
@@ -487,7 +475,6 @@ window.autoForwardIncompleteEvents = async function() {
 
             if (curList.length !== newCurList.length) curChanged = true;
 
-            // 수정된 배열을 Map에 다시 캐싱
             if (curChanged) {
                 eventsMap[curStr] = { ...curData, eventList: newCurList };
                 changedDocs.add(curStr);
@@ -507,7 +494,7 @@ window.autoForwardIncompleteEvents = async function() {
             const evList = eventsMap[dateStr].eventList;
             const updateData = { eventList: evList, updatedAt: Date.now() };
             if (window.formatEventListToText) {
-                updateData.eventText = window.formatEventListToText(evList); // 텍스트 백업본도 항상 깨끗하게 동기화
+                updateData.eventText = window.formatEventListToText(evList); 
             }
             batch.set(docRef, updateData, { merge: true });
             opCount++;
@@ -520,6 +507,124 @@ window.autoForwardIncompleteEvents = async function() {
     } catch(e) {
         console.error("자동 이월 처리 중 에러:", e);
     }
+};
+
+// ==========================================================================
+// 🚀 완료(이월) 일정 다중 삭제 모달 (팝업 선택)
+// ==========================================================================
+window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
+    const modalHtml = `
+    <div id="forward-delete-modal" class="modal-overlay" style="display:flex;">
+        <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
+            <h3 style="color:#ef4444; margin-top:0;">🗑️ 이월 일정 삭제</h3>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
+                이 일정은 <b>'완료(이월)'</b> 속성으로 과거에서 넘어온 일정입니다.<br>어떻게 삭제하시겠습니까?
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button id="btn-fwd-del-stop" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left; line-height:1.4;">
+                    오늘부터 삭제 및 이월 중단<br><span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(과거의 기록은 보존됩니다)</span>
+                </button>
+                <button id="btn-fwd-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left; line-height:1.4;">
+                    원본 포함 모든 기록 삭제<br><span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(최초 작성된 원본까지 모두 지웁니다)</span>
+                </button>
+                <button onclick="document.getElementById('forward-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('btn-fwd-del-stop').onclick = async () => {
+        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        window.executeForwardDelete('stop', baseDateStr, chainId, onConfirm);
+    };
+    
+    document.getElementById('btn-fwd-del-all').onclick = async () => {
+        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        window.executeForwardDelete('all', baseDateStr, chainId, onConfirm);
+    };
+};
+
+window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfirm) {
+    document.getElementById('forward-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 일정 삭제 및 동기화 중...</div>`;
+    
+    const matchEvent = (e) => e.forwardChainId === chainId;
+
+    if (window.dayViewInstance && window.dayViewInstance.currentEvents) {
+        if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
+           window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+        } else if (mode === 'stop' && window.dayViewInstance.dateStr < baseDateStr) {
+           window.dayViewInstance.currentEvents.forEach(e => { if (matchEvent(e)) e.completed = true; });
+        }
+    }
+    Object.keys(window).forEach(key => {
+        if (key.startsWith('tempEvents_')) {
+            const dStr = key.replace('tempEvents_', '');
+            if (mode === 'stop' && dStr < baseDateStr) {
+                window[key].forEach(e => { if (matchEvent(e)) e.completed = true; });
+                return;
+            }
+            window[key] = window[key].filter(e => !matchEvent(e));
+        }
+    });
+
+    try {
+        const snap = await window.getUserCol('events').get();
+        let batch = window.db.batch();
+        let count = 0;
+        let batchPromises = []; 
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || [];
+            const origLen = list.length;
+            let changed = false;
+            
+            if (mode === 'all') {
+                list = list.filter(e => !matchEvent(e));
+                if (list.length !== origLen) changed = true;
+            } else if (mode === 'stop') {
+                if (doc.id >= baseDateStr) {
+                    list = list.filter(e => !matchEvent(e));
+                    if (list.length !== origLen) changed = true;
+                } else {
+                    list.forEach(e => {
+                        if (matchEvent(e) && !e.completed) {
+                            e.completed = true;
+                            changed = true;
+                        }
+                    });
+                }
+            }
+            
+            if (changed) {
+                let updateData = { eventList: list, updatedAt: Date.now() };
+                if (window.formatEventListToText) {
+                    updateData.eventText = window.formatEventListToText(list);
+                }
+                batch.update(doc.ref, updateData);
+                count++;
+            }
+
+            if (count >= 400) {
+                batchPromises.push(batch.commit());
+                batch = window.db.batch();
+                count = 0;
+            }
+        });
+        if (count > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+
+        if (window.autoForwardIncompleteEvents) {
+            await window.autoForwardIncompleteEvents();
+        }
+
+    } catch(e) {
+        console.error("이월 일정 삭제 오류:", e);
+    }
+    
+    const modal = document.getElementById('forward-delete-modal');
+    if (modal) modal.remove();
+    if (onConfirm) onConfirm();
 };
 
 // ==========================================================================
@@ -626,7 +731,7 @@ window.executePeriodSave = async function(labelName, callback) {
 };
 
 // ==========================================================================
-// 🚀 안전한 기간 일정 다중 삭제 (Group ID 매칭 및 메모리 강제 동기화 결합)
+// 🚀 안전한 기간 일정 다중 삭제
 // ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
