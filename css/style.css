@@ -2,37 +2,29 @@
 
 /* ==========================================================================
    ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
-   이곳의 수치와 색상만 변경하시면 앱 전체 디자인이 일괄 적용됩니다.
    ========================================================================== */
 :root {
-  /* 🎨 1. 기본 브랜드 색상 */
   --primary-color: #1a73e8;        /* 메인 테마 파란색 */
   --border-color: #cbd5e1;         /* 기본 테두리 색상 */
   --bg-body: #f8fafc;              /* 전체 배경색 */
   --bg-card: #ffffff;              /* 카드 및 테이블 배경색 */
   --hover-bg: #f1f5f9;             /* 마우스 호버 배경색 */
-  --edit-focus-bg: #ffffcc;        /* 셀 수정 클릭 시 포커스 배경색 (연노랑) */
+  --edit-focus-bg: #ffffcc;        /* 셀 수정 클릭 시 포커스 배경색 */
   --tag-bg: #dbeafe;               /* 과목 배지 배경색 */
   --tag-color: #1e40af;            /* 과목 배지 글자색 */
 
-  /* 🎯 2. '오늘' 강조 스타일 설정 */
-  --today-bg-color: #eff6ff;       /* 오늘 날짜 칸 배경색 (연푸른색) */
-  --today-border-color: #2563eb;   /* 오늘 날짜 칸 테두리 강조색 (진한 파랑) */
+  --today-bg-color: #eff6ff;       /* 오늘 날짜 칸 배경색 */
+  --today-border-color: #2563eb;   /* 오늘 날짜 칸 테두리 강조색 */
   --today-border-width: 3px;       /* 오늘 날짜 칸 테두리 두께 */
 
-  /* 📏 3. 레이아웃 및 폰트 크기 설정 */
-  --header-title-size: 1.4rem;    /* 앱 타이틀 폰트 크기 */
-  --font-date-range: 1.25rem;      /* 중앙 날짜 범위 폰트 크기 */
-  --font-header-btn: 0.95rem;      /* 상단 버튼 폰트 크기 */
-  --font-body: 1rem;               /* 기본 본문 폰트 크기 */
+  --header-title-size: 1.3rem;     /* 타이틀 크기 조정 */
+  --font-date-range: 1.15rem;      /* 중앙 날짜 범위 폰트 크기 */
+  --font-header-btn: 0.9rem;       /* 상단 버튼 폰트 크기 */
+  --font-body: 1rem;
   
-  /* 📐 4. 주간 계획표 높이 컨트롤 (기본값) */
-  --week-cell-height: 120px;       /* 주간계획표 각 시간표 셀 기본 높이 */
+  --week-cell-height: 120px;
 }
 
-/* ==========================================================================
-   🌐 [전체 공통 스타일 정의]
-   ========================================================================== */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -46,7 +38,6 @@ body {
   overflow-x: hidden;
 }
 
-/* 📝 여러 줄 입력 시 엔터(Enter) 줄바꿈 형식을 화면에 그대로 유지 */
 .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
   white-space: pre-wrap;
   word-break: break-all;
@@ -60,16 +51,20 @@ body {
   top: 0;
   z-index: 1000;
   background: var(--bg-card);
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
+/* 🌟 첫째 줄: 절대 줄바꿈 되지 않도록 flex-wrap: nowrap 고정 */
 .header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
+  flex-wrap: nowrap !important;
+  gap: 8px;
+  width: 100%;
 }
 
 .app-title {
@@ -78,26 +73,33 @@ body {
   color: var(--primary-color);
   margin: 0;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-center-tabs {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 3px;
   background: var(--hover-bg);
-  padding: 3px;
+  padding: 3px 6px;
   border-radius: 8px;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0;
 }
 
 .btn-scope {
   border: none;
   background: transparent;
-  padding: 5px 14px;
+  padding: 4px 8px;
   border-radius: 6px;
   font-size: var(--font-header-btn);
   font-weight: 600;
   cursor: pointer;
   color: #64748b;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-scope.active {
@@ -106,29 +108,62 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+#user-info {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 🌟 둘째 줄: 좌 / 중앙 / 우 삼등분 정렬 */
 .header-bottom {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
+  width: 100%;
   padding-top: 4px;
+}
+
+.nav-left {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.nav-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
 }
 
 .nav-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  width: 100%;
 }
 
 .nav-btn {
   border: 1px solid var(--border-color);
   background: #ffffff;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: 6px;
   font-size: var(--font-header-btn);
   font-weight: 600;
   cursor: pointer;
   color: #334155;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
 .nav-btn:hover {
@@ -140,22 +175,21 @@ body {
   font-size: var(--font-date-range);
   color: #0f172a;
   text-align: center;
+  white-space: nowrap;
 }
 
-/* 👁️/✏️ 뷰어-수정 모드 토글 스위치 그룹 */
 .mode-group {
   display: flex;
   background: var(--hover-bg);
-  padding: 3px;
+  padding: 2px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  margin-left: 10px;
 }
 
 .btn-mode {
   border: none;
   background: transparent;
-  padding: 5px 14px;
+  padding: 4px 10px;
   border-radius: 6px;
   font-size: var(--font-header-btn);
   font-weight: 700;
@@ -165,6 +199,7 @@ body {
   align-items: center;
   gap: 4px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .btn-mode.active-viewer {
@@ -177,11 +212,10 @@ body {
   color: #ffffff;
 }
 
-/* 📌 더보기 메뉴 및 드롭다운 */
 .dropdown-menu {
   position: absolute;
   top: 100%;
-  right: 16px;
+  right: 0;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -220,17 +254,17 @@ body {
 }
 
 /* ==========================================================================
-   📊 [테이블 및 그리드 공통 스타일]
+   📊 [테이블 스타일]
    ========================================================================== */
 .table-container {
-  padding: 12px;
+  padding: 10px;
   max-width: 1400px;
   margin: 0 auto;
 }
 
 table {
   width: 100%;
-  min-width: 650px; /* 🚩 700px 뷰포트에 맞춘 최적 최소 가로 너비 */
+  min-width: 650px;
   border-collapse: collapse;
   background: var(--bg-card);
   border-radius: 8px;
@@ -250,14 +284,12 @@ th {
   font-size: 0.95rem;
 }
 
-/* 🎯 '오늘 날짜' 테두리 및 배경 강조 스타일 */
 .week-today-cell, .month-today-cell, .year-today-card {
   background-color: var(--today-bg-color) !important;
   outline: var(--today-border-width) solid var(--today-border-color);
   outline-offset: -2px;
 }
 
-/* ✏️ 수정 가능 셀 포커스 효과 */
 .editable-cell[contenteditable="true"]:focus {
   background-color: var(--edit-focus-bg) !important;
   outline: 2px solid var(--primary-color);
@@ -278,7 +310,6 @@ th {
   color: #475569;
 }
 
-/* 🌟 모달 팝업 레이아웃 공통 */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
@@ -290,7 +321,6 @@ th {
   align-items: center;
 }
 
-/* 🏷️ 다중 라벨 칩 UI 스타일 */
 .label-chip-container {
     display: flex;
     flex-wrap: wrap;
@@ -318,27 +348,28 @@ th {
 }
 
 /* ==========================================================================
-   🚩 D-Day 카운터 뱃지 및 드롭다운 UI 스타일
+   🚩 D-Day 카운터 뱃지 스타일
    ========================================================================== */
 .dday-wrapper {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
 }
 
 .dday-badge {
     background: #eff6ff;
     color: #1e40af;
     border: 1px solid #bfdbfe;
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 0.85rem;
+    border-radius: 16px;
+    padding: 3px 8px;
+    font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     transition: all 0.2s;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    white-space: nowrap;
 }
 
 .dday-badge:hover {
@@ -355,26 +386,25 @@ th {
 .dday-tag {
     background: #2563eb;
     color: #ffffff;
-    padding: 1px 7px;
-    border-radius: 12px;
-    font-size: 0.8rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
 }
 
 .dday-arrow {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #64748b;
 }
 
 .dday-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
+    top: calc(100% + 4px);
+    left: 0;
     background: #ffffff;
     border: 1px solid #cbd5e1;
-    border-radius: 10px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-    width: 220px;
+    border-radius: 8px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    width: 200px;
     z-index: 10001;
     overflow: hidden;
 }
@@ -385,7 +415,7 @@ th {
 
 .dday-dropdown-header {
     background: #f8fafc;
-    padding: 8px 12px;
+    padding: 6px 10px;
     font-size: 0.8rem;
     font-weight: bold;
     color: #64748b;
@@ -393,7 +423,7 @@ th {
 }
 
 .dday-dropdown-list {
-    max-height: 180px;
+    max-height: 160px;
     overflow-y: auto;
 }
 
@@ -401,11 +431,10 @@ th {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 12px;
-    font-size: 0.9rem;
+    padding: 8px 10px;
+    font-size: 0.85rem;
     cursor: pointer;
     border-bottom: 1px solid #f1f5f9;
-    transition: background 0.15s;
 }
 
 .dday-dropdown-item:hover {
@@ -422,66 +451,69 @@ th {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 120px;
+    max-width: 110px;
 }
 
 .dday-item-val {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: bold;
     color: #2563eb;
     background: #dbeafe;
-    padding: 2px 6px;
-    border-radius: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
 }
 
 .dday-dropdown-footer {
     background: #f8fafc;
-    padding: 10px 12px;
+    padding: 8px 10px;
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: bold;
     color: #2563eb;
     border-top: 1px solid #e2e8f0;
     cursor: pointer;
-    transition: background 0.15s;
 }
 
 .dday-dropdown-footer:hover {
     background: #eff6ff;
 }
 
-/* 📱 700px 이하 소형/모바일 화면 전용 최적화 */
+/* 📱 모바일/소형 화면에서도 첫 줄 한 줄 고정 유지 */
 @media screen and (max-width: 700px) {
   .app-header {
-    padding: 8px 10px;
+    padding: 6px 8px;
   }
 
   .header-top {
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-wrap: nowrap !important;
+    gap: 4px;
+  }
+
+  .app-title {
+    font-size: 1.05rem;
   }
 
   .header-center-tabs {
-    flex-wrap: wrap;
+    padding: 2px 4px;
     gap: 2px;
   }
 
   .btn-scope {
-    padding: 4px 8px;
-    font-size: 0.85rem;
+    padding: 3px 6px;
+    font-size: 0.8rem;
   }
 
   .nav-btn, .btn-mode {
-    padding: 4px 8px;
-    font-size: 0.85rem;
+    padding: 3px 6px;
+    font-size: 0.8rem;
   }
 
   .current-range {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .table-container {
-    padding: 6px;
+    padding: 4px;
   }
 
   table {
