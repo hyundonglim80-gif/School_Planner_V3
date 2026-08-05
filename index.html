@@ -19,13 +19,33 @@
   <header class="app-header">
     <div class="header-top">
       <h1 class="app-title">School Planner</h1>
-      <div class="header-center-tabs">
-        <button id="btn-search" class="btn-scope" onclick="window.openSearchModal()" title="검색 (단축키: /)">🔍</button>
+      <div class="header-center-tabs" style="display: flex; align-items: center; gap: 4px;">
+        
+        <div id="dday-container" style="position:relative; display:inline-block; margin-right: 8px;"></div>
+        <button id="btn-search" class="btn-scope" onclick="window.openSearchModal()" title="검색 (단축키: /)" style="font-size: 1.1rem; padding: 4px 10px;">🔍</button>
         <button class="btn-scope" onclick="setScope('memo')">메모</button>
+        
         <button class="btn-scope" onclick="setScope('year')">년</button>
         <button class="btn-scope" onclick="setScope('month')">월</button>
         <button class="btn-scope" onclick="setScope('week')">주</button>
         <button class="btn-scope" onclick="setScope('day')">일</button>
+
+        <div style="position:relative; display:inline-flex; align-items:center; margin-left: 2px;">
+          <button id="btn-more-menu" class="btn-scope" onclick="toggleMoreMenu()" title="더보기" style="padding: 4px 10px; font-weight: bold; font-size: 1.1rem;">⋮</button>
+          <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto; top: calc(100% + 5px);">
+            <button class="dropdown-item" onclick="window.openEventLabelModal()">🏷️ 일정 라벨 관리</button>
+            <button class="dropdown-item" onclick="window.openJournalLabelModal()">📔 일지 라벨 관리</button>
+            <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정</button>
+            <button class="dropdown-item" onclick="window.openRecurringModal()">🔄 반복 일정 등록</button>
+            <button class="dropdown-item" onclick="window.openTimetableModal()">📅 기준 시간표 등록/적용</button>
+            <button class="dropdown-item" onclick="window.openSyncModal()">📅 구글 캘린더/Tasks 동기화</button>
+            <button class="dropdown-item" onclick="window.downloadCSV()">💾 통합 백업 (CSV)</button>
+            <button class="dropdown-item" onclick="document.getElementById('csv-file-input').click()">📤 백업 복원 (CSV)</button>
+            <button class="dropdown-item" onclick="window.openHelpModal()">📖 사용 설명서</button>
+            <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="window.uploadCSV(this)">
+          </div>
+        </div>
+
       </div>
       
       <div id="user-info" style="display:none; align-items:center; gap:10px;">
@@ -34,38 +54,26 @@
       </div>
     </div>
 
-    <div class="header-bottom">
-      <div class="nav-bar">
-        <button class="nav-btn" onclick="moveDate(-1)">이전</button>
-        <div style="display:flex; align-items:center; gap:8px;">
-            <span id="date-range-text" class="current-range" onclick="goToToday()" title="오늘 날짜로 이동" style="cursor:pointer; padding:4px 10px; border-radius:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'"></span>
-            <div id="dday-container" style="position:relative; display:inline-block;"></div>
-        </div>
-        <button class="nav-btn" onclick="moveDate(1)">다음</button>
-
+    <div class="header-bottom" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding-top: 8px;">
+      
+      <div class="nav-left" style="display: flex; gap: 8px; flex: 1;">
         <button id="btn-toggle-weekend" class="nav-btn" onclick="toggleWeekend()">주말 보이기</button>
         <button id="btn-toggle-class" class="nav-btn" onclick="toggleClass()">수업 숨기기</button>
+      </div>
 
+      <div class="nav-center" style="display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1;">
+        <button class="nav-btn" onclick="moveDate(-1)">이전</button>
+        <span id="date-range-text" class="current-range" onclick="goToToday()" title="오늘 날짜로 이동" style="cursor:pointer; padding:4px 10px; border-radius:6px; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='transparent'"></span>
+        <button class="nav-btn" onclick="moveDate(1)">다음</button>
+      </div>
+
+      <div class="nav-right" style="display: flex; justify-content: flex-end; gap: 8px; flex: 1;">
         <div class="mode-group" style="display: flex;">
           <button id="btn-mode-viewer" class="btn-mode active-viewer" onclick="setMode('viewer')">뷰어</button>
           <button id="btn-mode-editor" class="btn-mode" onclick="handleEditSaveClick()">작성</button>
         </div>
+      </div>
 
-        <button id="btn-more-menu" class="nav-btn" onclick="toggleMoreMenu()" title="더보기" style="display: inline-flex;">⋮</button>
-      </div>
-      
-      <div id="more-dropdown" class="dropdown-menu hidden">
-        <button class="dropdown-item" onclick="window.openEventLabelModal()">🏷️ 일정 라벨 관리</button>
-        <button class="dropdown-item" onclick="window.openJournalLabelModal()">📔 일지 라벨 관리</button>
-        <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정</button>
-        <button class="dropdown-item" onclick="window.openRecurringModal()">🔄 반복 일정 등록</button>
-        <button class="dropdown-item" onclick="window.openTimetableModal()">📅 기준 시간표 등록/적용</button>
-        <button class="dropdown-item" onclick="window.openSyncModal()">📅 구글 캘린더/Tasks 동기화</button>
-        <button class="dropdown-item" onclick="window.downloadCSV()">💾 통합 백업 (CSV)</button>
-        <button class="dropdown-item" onclick="document.getElementById('csv-file-input').click()">📤 백업 복원 (CSV)</button>
-        <button class="dropdown-item" onclick="window.openHelpModal()">📖 사용 설명서</button>
-        <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="window.uploadCSV(this)">
-      </div>
     </div>
   </header>
 
