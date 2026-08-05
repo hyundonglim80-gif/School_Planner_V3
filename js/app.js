@@ -84,7 +84,7 @@ window.goToToday = async function() {
 };
 
 // ==========================================================================
-// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정 + 라벨 동기화)
+// ⚙️ 환경 설정 (수업 시수 및 명칭 동적 설정 + 라벨 동기화 + D-Day)
 // ==========================================================================
 window.periodNames = ["1", "2", "3", "4", "5", "6"];
 window.tempPeriodNames = [];
@@ -92,10 +92,22 @@ window.tempPeriodNames = [];
 window.loadSettings = async function() {
     try {
         const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists && doc.data().periodNames && doc.data().periodNames.length > 0) {
-            window.periodNames = doc.data().periodNames;
+        if (doc.exists) {
+            const data = doc.data();
+            if (data.periodNames && data.periodNames.length > 0) {
+                window.periodNames = data.periodNames;
+            } else {
+                window.periodNames = ["1", "2", "3", "4", "5", "6"];
+            }
+
+            // 💡 D-Day 데이터 로드
+            window.dDayList = data.dDayList || [];
+            window.selectedDDayId = data.selectedDDayId || null;
+            window.updateDdayUI();
         } else {
             window.periodNames = ["1", "2", "3", "4", "5", "6"];
+            window.dDayList = [];
+            window.selectedDDayId = null;
         }
 
         const labelDoc = await window.getUserCol('settings').doc('labels').get();
@@ -108,6 +120,8 @@ window.loadSettings = async function() {
     } catch (error) {
         console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
         window.periodNames = ["1", "2", "3", "4", "5", "6"];
+        window.dDayList = [];
+        window.selectedDDayId = null;
     }
 };
 
@@ -145,7 +159,7 @@ function updateTitle() {
   const dayName = days[window.currentDate.getDay()];
 
   if (currentScope === 'day') { 
-    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName}요일)`;
+    titleEl.textContent = `${y}년 ${m}월 ${d}일 (${dayName})`;
   } else if (currentScope === 'week') {
     const temp = new Date(window.currentDate);
     const day = temp.getDay();
@@ -176,26 +190,12 @@ function updateTitle() {
   } else if (currentScope === 'memo') { 
     titleEl.textContent = "할 일 및 메모";
   }
-
-  if (window.renderDDayBadge) {
-      window.renderDDayBadge();
-  }
 }
 
 window.toggleMoreMenu = function() {
   const dropdown = document.getElementById('more-dropdown');
   if (dropdown) dropdown.classList.toggle('hidden');
 };
-
-window.addEventListener('click', function(e) {
-  const btn = document.getElementById('btn-more-menu');
-  const dropdown = document.getElementById('more-dropdown');
-  if (btn && dropdown) {
-    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.classList.add('hidden');
-    }
-  }
-});
 
 function updateButtonUI() {
   const scopeBtns = document.querySelectorAll('.btn-scope');
@@ -205,11 +205,6 @@ function updateButtonUI() {
       btn.classList.add('active');
     }
   });
-
-  const headerBottom = document.querySelector('.header-bottom');
-  if (headerBottom) {
-    headerBottom.style.display = (currentScope === 'memo') ? 'none' : 'flex';
-  }
 
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -333,7 +328,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
         
         await window.loadSettings();
-        if (window.initDDay) await window.initDDay();
         await window.autoForwardIncompleteEvents();
 
         window.render();
@@ -361,6 +355,9 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ==========================================================================
+// 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
+// ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date()); 
     
@@ -511,6 +508,9 @@ window.autoForwardIncompleteEvents = async function() {
     }
 };
 
+// ==========================================================================
+// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직
+// ==========================================================================
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
     const modalHtml = `
     <div id="forward-delete-modal" class="modal-overlay" style="display:flex;">
@@ -640,6 +640,9 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
     if (onConfirm) onConfirm();
 };
 
+// ==========================================================================
+// 🚀 기간 다중 등록 달력 팝업
+// ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
     <div id="period-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
@@ -740,6 +743,9 @@ window.executePeriodSave = async function(labelName, callback) {
     if (callback) callback(true);
 };
 
+// ==========================================================================
+// 🚀 안전한 기간 일정 다중 삭제
+// ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
     <div id="period-delete-modal" class="modal-overlay" style="display:flex;">
@@ -843,4 +849,213 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
     
     document.getElementById('period-delete-modal').remove();
     if (onConfirm) onConfirm();
+};
+
+// ==========================================================================
+// 🚀 D-Day 기능 (표시, 계산, 드롭다운, 모달 관리) - 버그 패치 완료 버전
+// ==========================================================================
+window.dDayList = [];
+window.selectedDDayId = null;
+
+// D-Day 메뉴 토글 및 리스트 렌더링
+window.toggleDdayMenu = function() {
+    // 💡 UX 향상: 만약 등록된 D-Day가 단 1개도 없다면 무의미한 드롭다운 대신 바로 설정창을 띄워줍니다.
+    if (!window.dDayList || window.dDayList.length === 0) {
+        window.openDdaySettingsModal();
+        return;
+    }
+
+    const dropdown = document.getElementById('dday-dropdown');
+    const listContainer = document.getElementById('dday-list-container');
+    
+    if (dropdown.classList.contains('hidden')) {
+        listContainer.innerHTML = '';
+        window.dDayList.forEach(dday => {
+            const isSelected = dday.id === window.selectedDDayId;
+            const dDayText = window.calculateDday(dday.date);
+            listContainer.innerHTML += `
+                <button class="dropdown-item" onclick="window.selectDday('${dday.id}')" style="${isSelected ? 'background:#eff6ff; color:#2563eb;' : ''}">
+                    <span style="font-weight:bold; margin-right:8px; display:inline-block; width:50px;">${dDayText}</span> 
+                    ${dday.title}
+                </button>
+            `;
+        });
+        if (window.selectedDDayId) {
+            listContainer.innerHTML += `<button class="dropdown-item" onclick="window.selectDday(null)" style="color:#64748b; text-align:center;">선택 해제</button>`;
+        }
+    }
+    dropdown.classList.toggle('hidden');
+};
+
+// 화면 아무 곳이나 클릭 시 D-Day 드롭다운 닫기
+window.addEventListener('click', function(e) {
+    const btn = document.getElementById('btn-dday-display');
+    const dropdown = document.getElementById('dday-dropdown');
+    if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+// 특정 D-Day 선택 처리
+window.selectDday = async function(id) {
+    window.selectedDDayId = id;
+    document.getElementById('dday-dropdown').classList.add('hidden');
+    window.updateDdayUI();
+    
+    if (window.auth && window.auth.currentUser) {
+        await window.getUserCol('settings').doc('preferences').set({
+            selectedDDayId: id
+        }, { merge: true });
+    }
+};
+
+// 버튼 텍스트 업데이트 로직
+window.updateDdayUI = function() {
+    const btn = document.getElementById('btn-dday-display');
+    if (!btn) return;
+
+    if (!window.selectedDDayId || window.dDayList.length === 0) {
+        btn.textContent = "D-Day 설정";
+        btn.style.color = "#64748b";
+        btn.style.backgroundColor = "#f1f5f9";
+        btn.style.borderColor = "#cbd5e1";
+        return;
+    }
+
+    const selected = window.dDayList.find(d => d.id === window.selectedDDayId);
+    if (selected) {
+        const dDayText = window.calculateDday(selected.date);
+        btn.textContent = `${selected.title} ${dDayText}`;
+        btn.style.color = "#ef4444";
+        btn.style.backgroundColor = "#fef2f2";
+        btn.style.borderColor = "#fca5a5";
+    }
+};
+
+// D-Day 계산 유틸리티
+window.calculateDday = function(targetDateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+    const targetDate = new Date(targetDateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    
+    if (diffDays === 0) return 'D-Day';
+    if (diffDays > 0) return `D-${diffDays}`;
+    return `D+${Math.abs(diffDays)}`;
+};
+
+// D-Day 설정 모달창 열기 (충돌 방지를 위해 HTML 직접 조작 방식으로 고정)
+window.openDdaySettingsModal = function() {
+    const dropdown = document.getElementById('dday-dropdown');
+    if(dropdown) dropdown.classList.add('hidden');
+    
+    // 이미 창이 열려있으면 중복 생성 방지
+    const existing = document.getElementById('dday-modal');
+    if (existing) existing.remove();
+    
+    const modalHtml = `
+    <div id="dday-modal" class="modal-overlay" style="z-index: 10006; display:flex;">
+        <div class="modal-content" style="width: 400px; padding:0;">
+            <div class="modal-header" style="padding: 15px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="font-size:1.2rem; margin:0; color:#1e293b;">⚙️ D-Day 관리</h2>
+                <button class="btn-close-modal" onclick="document.getElementById('dday-modal').remove()" style="font-size:1.5rem; background:none; border:none; cursor:pointer; color:#64748b;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div style="display:flex; gap:8px; margin-bottom:20px;">
+                    <input type="text" id="new-dday-title" placeholder="디데이 명칭" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;">
+                    <input type="date" id="new-dday-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+                    <button onclick="window.addDday()" style="padding:8px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
+                </div>
+                
+                <hr style="border:0; border-top:1px dashed #e2e8f0; margin-bottom:15px;">
+                
+                <div id="dday-settings-list" style="display:flex; flex-direction:column; gap:10px; max-height:250px; overflow-y:auto;">
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    window.renderDdaySettingsList();
+};
+
+// 모달 내부 리스트 렌더링
+window.renderDdaySettingsList = function() {
+    const listEl = document.getElementById('dday-settings-list');
+    if(!listEl) return;
+    listEl.innerHTML = '';
+    
+    if (window.dDayList.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:#94a3b8; font-size:0.9rem; margin-top:20px;">등록된 D-Day가 없습니다.</div>';
+        return;
+    }
+
+    window.dDayList.forEach(dday => {
+        listEl.innerHTML += `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;">
+            <div>
+                <span style="font-weight:bold; color:#1e293b; margin-right:8px;">${dday.title}</span>
+                <span style="font-size:0.85rem; color:#64748b;">${dday.date}</span>
+            </div>
+            <button onclick="window.deleteDday('${dday.id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:4px 8px;">삭제</button>
+        </div>`;
+    });
+};
+
+// 새 D-Day 추가
+window.addDday = async function() {
+    const titleInput = document.getElementById('new-dday-title');
+    const dateInput = document.getElementById('new-dday-date');
+    const title = titleInput.value.trim();
+    const date = dateInput.value;
+
+    if (!title || !date) return alert("명칭과 날짜를 모두 입력해주세요.");
+
+    const newDday = {
+        id: 'dday_' + Date.now().toString(36),
+        title: title,
+        date: date
+    };
+
+    window.dDayList.push(newDday);
+    
+    if (window.dDayList.length === 1) {
+        window.selectedDDayId = newDday.id;
+    }
+
+    await window.saveDdayDataToFirebase();
+    
+    titleInput.value = '';
+    dateInput.value = '';
+    window.renderDdaySettingsList();
+    window.updateDdayUI();
+};
+
+// D-Day 삭제
+window.deleteDday = async function(id) {
+    if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
+    
+    window.dDayList = window.dDayList.filter(d => d.id !== id);
+    if (window.selectedDDayId === id) window.selectedDDayId = null;
+
+    await window.saveDdayDataToFirebase();
+    window.renderDdaySettingsList();
+    window.updateDdayUI();
+};
+
+// Firebase에 D-Day 저장
+window.saveDdayDataToFirebase = async function() {
+    if (!window.auth || !window.auth.currentUser) return;
+    try {
+        await window.getUserCol('settings').doc('preferences').set({
+            dDayList: window.dDayList,
+            selectedDDayId: window.selectedDDayId
+        }, { merge: true });
+    } catch (e) {
+        console.error("D-Day 저장 실패", e);
+        alert("저장에 실패했습니다.");
+    }
 };
