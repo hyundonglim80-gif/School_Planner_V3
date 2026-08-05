@@ -197,16 +197,6 @@ window.toggleMoreMenu = function() {
   if (dropdown) dropdown.classList.toggle('hidden');
 };
 
-window.addEventListener('click', function(e) {
-  const btn = document.getElementById('btn-more-menu');
-  const dropdown = document.getElementById('more-dropdown');
-  if (btn && dropdown) {
-    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.classList.add('hidden');
-    }
-  }
-});
-
 function updateButtonUI() {
   const scopeBtns = document.querySelectorAll('.btn-scope');
   scopeBtns.forEach(btn => {
@@ -222,12 +212,6 @@ function updateButtonUI() {
 
   if (modeGroup) {
     modeGroup.style.display = (currentScope === 'memo') ? 'none' : 'flex';
-  }
-
-  const dateNavGroup = document.getElementById('date-nav-group');
-  if (dateNavGroup) {
-    // 메모 뷰에서도 날짜 텍스트는 보여주되 네비게이션 버튼을 조작하고 싶다면 여기서 조정 가능
-    // 현재는 유지
   }
 
   const searchBtn = document.getElementById('btn-search');
@@ -580,7 +564,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
             });
         }
 
-        // 1. 화면 메모리(tempEvents_) 동기화 - 오직 가장 최근 사본 하나만 완료 처리
         if (window.dayViewInstance && window.dayViewInstance.currentEvents) {
             if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
                window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
@@ -599,7 +582,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
             }
         });
 
-        // 2. DB 동기화
         let batch = window.db.batch();
         let count = 0;
         let batchPromises = []; 
@@ -870,41 +852,42 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
 };
 
 // ==========================================================================
-// 🚀 D-Day 기능 (표시, 계산, 드롭다운, 모달 관리)
+// 🚀 D-Day 기능 (표시, 계산, 드롭다운, 모달 관리) - 버그 패치 완료 버전
 // ==========================================================================
 window.dDayList = [];
 window.selectedDDayId = null;
 
 // D-Day 메뉴 토글 및 리스트 렌더링
 window.toggleDdayMenu = function() {
+    // 💡 UX 향상: 만약 등록된 D-Day가 단 1개도 없다면 무의미한 드롭다운 대신 바로 설정창을 띄워줍니다.
+    if (!window.dDayList || window.dDayList.length === 0) {
+        window.openDdaySettingsModal();
+        return;
+    }
+
     const dropdown = document.getElementById('dday-dropdown');
     const listContainer = document.getElementById('dday-list-container');
     
     if (dropdown.classList.contains('hidden')) {
         listContainer.innerHTML = '';
-        if (window.dDayList.length === 0) {
-            listContainer.innerHTML = '<div style="padding:10px; text-align:center; color:#94a3b8; font-size:0.85rem;">등록된 D-Day가 없습니다.</div>';
-        } else {
-            window.dDayList.forEach(dday => {
-                const isSelected = dday.id === window.selectedDDayId;
-                const dDayText = calculateDday(dday.date);
-                listContainer.innerHTML += `
-                    <button class="dropdown-item" onclick="selectDday('${dday.id}')" style="${isSelected ? 'background:#eff6ff; color:#2563eb;' : ''}">
-                        <span style="font-weight:bold; margin-right:8px; display:inline-block; width:50px;">${dDayText}</span> 
-                        ${dday.title}
-                    </button>
-                `;
-            });
-            if (window.selectedDDayId) {
-                listContainer.innerHTML += `<button class="dropdown-item" onclick="selectDday(null)" style="color:#64748b; text-align:center;">선택 해제</button>`;
-            }
+        window.dDayList.forEach(dday => {
+            const isSelected = dday.id === window.selectedDDayId;
+            const dDayText = window.calculateDday(dday.date);
+            listContainer.innerHTML += `
+                <button class="dropdown-item" onclick="window.selectDday('${dday.id}')" style="${isSelected ? 'background:#eff6ff; color:#2563eb;' : ''}">
+                    <span style="font-weight:bold; margin-right:8px; display:inline-block; width:50px;">${dDayText}</span> 
+                    ${dday.title}
+                </button>
+            `;
+        });
+        if (window.selectedDDayId) {
+            listContainer.innerHTML += `<button class="dropdown-item" onclick="window.selectDday(null)" style="color:#64748b; text-align:center;">선택 해제</button>`;
         }
     }
-    
     dropdown.classList.toggle('hidden');
 };
 
-// 화면 클릭 시 D-Day 드롭다운 닫기
+// 화면 아무 곳이나 클릭 시 D-Day 드롭다운 닫기
 window.addEventListener('click', function(e) {
     const btn = document.getElementById('btn-dday-display');
     const dropdown = document.getElementById('dday-dropdown');
@@ -941,7 +924,7 @@ window.updateDdayUI = function() {
 
     const selected = window.dDayList.find(d => d.id === window.selectedDDayId);
     if (selected) {
-        const dDayText = calculateDday(selected.date);
+        const dDayText = window.calculateDday(selected.date);
         btn.textContent = `${selected.title} ${dDayText}`;
         btn.style.color = "#ef4444";
         btn.style.backgroundColor = "#fef2f2";
@@ -950,7 +933,7 @@ window.updateDdayUI = function() {
 };
 
 // D-Day 계산 유틸리티
-function calculateDday(targetDateStr) {
+window.calculateDday = function(targetDateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
     const targetDate = new Date(targetDateStr);
@@ -962,24 +945,29 @@ function calculateDday(targetDateStr) {
     if (diffDays === 0) return 'D-Day';
     if (diffDays > 0) return `D-${diffDays}`;
     return `D+${Math.abs(diffDays)}`;
-}
+};
 
-// D-Day 설정 모달창 열기
+// D-Day 설정 모달창 열기 (충돌 방지를 위해 HTML 직접 조작 방식으로 고정)
 window.openDdaySettingsModal = function() {
-    document.getElementById('dday-dropdown').classList.add('hidden');
+    const dropdown = document.getElementById('dday-dropdown');
+    if(dropdown) dropdown.classList.add('hidden');
+    
+    // 이미 창이 열려있으면 중복 생성 방지
+    const existing = document.getElementById('dday-modal');
+    if (existing) existing.remove();
     
     const modalHtml = `
-    <div id="dday-modal" class="modal-overlay">
-        <div class="modal-content" style="width: 400px;">
-            <div class="modal-header">
-                <h2 style="font-size:1.2rem; margin:0;">⚙️ D-Day 관리</h2>
-                <button class="btn-close-modal" onclick="document.getElementById('dday-modal').remove()">×</button>
+    <div id="dday-modal" class="modal-overlay" style="z-index: 10006; display:flex;">
+        <div class="modal-content" style="width: 400px; padding:0;">
+            <div class="modal-header" style="padding: 15px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="font-size:1.2rem; margin:0; color:#1e293b;">⚙️ D-Day 관리</h2>
+                <button class="btn-close-modal" onclick="document.getElementById('dday-modal').remove()" style="font-size:1.5rem; background:none; border:none; cursor:pointer; color:#64748b;">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 20px;">
                 <div style="display:flex; gap:8px; margin-bottom:20px;">
                     <input type="text" id="new-dday-title" placeholder="디데이 명칭" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;">
                     <input type="date" id="new-dday-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
-                    <button onclick="addDday()" style="padding:8px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
+                    <button onclick="window.addDday()" style="padding:8px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
                 </div>
                 
                 <hr style="border:0; border-top:1px dashed #e2e8f0; margin-bottom:15px;">
@@ -991,12 +979,13 @@ window.openDdaySettingsModal = function() {
     </div>`;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    renderDdaySettingsList();
+    window.renderDdaySettingsList();
 };
 
 // 모달 내부 리스트 렌더링
-function renderDdaySettingsList() {
+window.renderDdaySettingsList = function() {
     const listEl = document.getElementById('dday-settings-list');
+    if(!listEl) return;
     listEl.innerHTML = '';
     
     if (window.dDayList.length === 0) {
@@ -1011,10 +1000,10 @@ function renderDdaySettingsList() {
                 <span style="font-weight:bold; color:#1e293b; margin-right:8px;">${dday.title}</span>
                 <span style="font-size:0.85rem; color:#64748b;">${dday.date}</span>
             </div>
-            <button onclick="deleteDday('${dday.id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:4px 8px;">삭제</button>
+            <button onclick="window.deleteDday('${dday.id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:4px 8px;">삭제</button>
         </div>`;
     });
-}
+};
 
 // 새 D-Day 추가
 window.addDday = async function() {
@@ -1037,11 +1026,11 @@ window.addDday = async function() {
         window.selectedDDayId = newDday.id;
     }
 
-    await saveDdayDataToFirebase();
+    await window.saveDdayDataToFirebase();
     
     titleInput.value = '';
     dateInput.value = '';
-    renderDdaySettingsList();
+    window.renderDdaySettingsList();
     window.updateDdayUI();
 };
 
@@ -1052,13 +1041,13 @@ window.deleteDday = async function(id) {
     window.dDayList = window.dDayList.filter(d => d.id !== id);
     if (window.selectedDDayId === id) window.selectedDDayId = null;
 
-    await saveDdayDataToFirebase();
-    renderDdaySettingsList();
+    await window.saveDdayDataToFirebase();
+    window.renderDdaySettingsList();
     window.updateDdayUI();
 };
 
 // Firebase에 D-Day 저장
-async function saveDdayDataToFirebase() {
+window.saveDdayDataToFirebase = async function() {
     if (!window.auth || !window.auth.currentUser) return;
     try {
         await window.getUserCol('settings').doc('preferences').set({
@@ -1069,4 +1058,4 @@ async function saveDdayDataToFirebase() {
         console.error("D-Day 저장 실패", e);
         alert("저장에 실패했습니다.");
     }
-}
+};
