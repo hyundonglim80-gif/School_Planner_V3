@@ -361,9 +361,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ==========================================================================
-// 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
-// ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
     const todayStr = window.formatDate(new Date()); 
     
@@ -514,9 +511,6 @@ window.autoForwardIncompleteEvents = async function() {
     }
 };
 
-// ==========================================================================
-// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직
-// ==========================================================================
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
     const modalHtml = `
     <div id="forward-delete-modal" class="modal-overlay" style="display:flex;">
@@ -646,9 +640,6 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
     if (onConfirm) onConfirm();
 };
 
-// ==========================================================================
-// 🚀 기간 다중 등록 달력 팝업 (그룹 ID 부여)
-// ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
     <div id="period-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; display:flex; justify-content:center; align-items:center;">
@@ -749,9 +740,6 @@ window.executePeriodSave = async function(labelName, callback) {
     if (callback) callback(true);
 };
 
-// ==========================================================================
-// 🚀 안전한 기간 일정 다중 삭제
-// ==========================================================================
 window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
     <div id="period-delete-modal" class="modal-overlay" style="display:flex;">
