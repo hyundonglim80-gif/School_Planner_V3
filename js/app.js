@@ -325,7 +325,12 @@ window.addEventListener('DOMContentLoaded', () => {
       if (user) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-info').style.display = 'flex';
-        if(user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+        if (user.photoURL) {
+            const userPhotoEl = document.getElementById('user-photo');
+            if (userPhotoEl) {
+                userPhotoEl.src = user.photoURL;
+            }
+        }
         
         await window.loadSettings();
         await window.autoForwardIncompleteEvents();
