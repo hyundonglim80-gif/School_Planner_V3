@@ -1,5 +1,3 @@
-/*css/style.css*/
-
 /* ==========================================================================
    ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
    ========================================================================== */
@@ -254,7 +252,8 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 /* ==========================================================================
    📱 [모바일 및 태블릿 화면용 최적화 (반응형 뷰포트 대응)]
    ========================================================================== */
-@media screen and (max-width: 1000px) {
+/* 💡 700px 기준으로 모바일 레이아웃 작동되도록 수정 */
+@media screen and (max-width: 700px) {
   table { font-size: var(--font-base); }
   th, td { padding: 4px; }
   .main-container { padding: 8px; }
@@ -265,16 +264,6 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
   .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
   .year-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px; }
   .mini-month { padding: 8px; }
-}
-
-@media screen and (max-width: 768px) {
-  table { font-size: 0.85rem; }
-  .app-header { padding: 8px; gap: 8px; }
-  .header-row { justify-content: center; gap: 8px; }
-  .title-group h1 { font-size: 1.1rem !important; }
-  .current-range { font-size: 1rem !important; }
-  .btn-scope, .btn-mode, .nav-btn { padding: 4px 6px !important; font-size: 0.85rem !important; }
-  .year-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 @media screen and (max-width: 480px) {
