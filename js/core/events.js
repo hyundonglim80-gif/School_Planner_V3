@@ -70,10 +70,10 @@
 
             if (deltaX > 0 && edgeState.isAtLeftEdge) {
                 // 오른쪽으로 스와이프 (손가락을 오른쪽으로 당김) 👉 이전 날짜로 이동
-                window.moveDate(-1);
+                if (window.moveDate) window.moveDate(-1);
             } else if (deltaX < 0 && edgeState.isAtRightEdge) {
                 // 왼쪽으로 스와이프 (손가락을 왼쪽으로 밈) 👉 다음 날짜로 이동
-                window.moveDate(1);
+                if (window.moveDate) window.moveDate(1);
             }
         }
     }, { passive: true });
