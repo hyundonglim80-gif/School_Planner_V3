@@ -5,6 +5,7 @@
 // ==========================================================================
 let currentScope = localStorage.getItem('workCalendar_scope') || 'week';
 let currentMode = localStorage.getItem('workCalendar_mode') || 'viewer';
+window.currentMode = currentMode;
 window.showWeekend = localStorage.getItem('workCalendar_showWeekend') === 'true';
 window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false'; 
 window.currentDate = new Date(); 
@@ -36,6 +37,7 @@ window.setMode = async function(mode) {
     await window.saveCurrentViewData(true);
   }
   currentMode = mode;
+  window.currentMode = mode;
   localStorage.setItem('workCalendar_mode', mode);
   if (mode === 'viewer') window.hasUnsavedChanges = false;
   window.render();
@@ -100,7 +102,6 @@ window.loadSettings = async function() {
                 window.periodNames = ["1", "2", "3", "4", "5", "6"];
             }
 
-            // 💡 D-Day 데이터 로드
             window.dDayList = data.dDayList || [];
             window.selectedDDayId = data.selectedDDayId || null;
             window.updateDdayUI();
@@ -149,7 +150,7 @@ window.render = function() {
 };
 
 function updateTitle() {
-  const titleEl = document.getElementById("date-range-text");
+  const titleEl = document.getElementById("current-range");
   if (!titleEl) return;
 
   const y = window.currentDate.getFullYear();
@@ -182,7 +183,7 @@ function updateTitle() {
     const mStr2 = String(end.getMonth() + 1).padStart(2, '0');
     const dStr2 = String(end.getDate()).padStart(2, '0');
 
-    titleEl.textContent = `${y}년 ${m}월 (${mStr1}.${dStr1} ~ ${mStr2}.${dStr2})`;
+    titleEl.textContent = `${y}.${mStr1}.${dStr1} ~ ${mStr2}.${dStr2}`;
   } else if (currentScope === 'month') { 
     titleEl.textContent = `${y}년 ${m}월`;
   } else if (currentScope === 'year') { 
@@ -192,8 +193,9 @@ function updateTitle() {
   }
 }
 
-window.toggleMoreMenu = function() {
-  const dropdown = document.getElementById('more-dropdown');
+window.toggleMoreMenu = function(e) {
+  if (e) e.stopPropagation();
+  const dropdown = document.getElementById('more-menu-dropdown');
   if (dropdown) dropdown.classList.toggle('hidden');
 };
 
@@ -226,13 +228,13 @@ function updateButtonUI() {
 
   const weekendBtn = document.getElementById('btn-toggle-weekend');
   if (weekendBtn) {
-    weekendBtn.innerHTML = window.showWeekend ? '주말 숨기기' : '주말 보이기';
+    weekendBtn.innerHTML = window.showWeekend ? '📅 주말 숨기기' : '📅 주말 보이기';
     weekendBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
   const classBtn = document.getElementById('btn-toggle-class');
   if (classBtn) {
-    classBtn.innerHTML = window.showClass ? '수업 숨기기' : '수업 보이기';
+    classBtn.innerHTML = window.showClass ? '🎒 수업 숨기기' : '🎒 수업 보이기';
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
@@ -240,17 +242,17 @@ function updateButtonUI() {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
     if (currentMode === 'viewer') {
-      editorBtn.innerHTML = '작성';
+      editorBtn.innerHTML = '✏️ 작성';
       editorBtn.title = '단축키: Ctrl + ↓';
       editorBtn.className = 'btn-mode';
     } else {
-      editorBtn.innerHTML = '저장';
+      editorBtn.innerHTML = '💾 저장';
       editorBtn.title = '단축키: Ctrl + Enter';
       editorBtn.className = 'btn-mode save-mode';
     }
   }
 
-  const dropdown = document.getElementById('more-dropdown');
+  const dropdown = document.getElementById('more-menu-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 }
 
@@ -258,24 +260,28 @@ window.saveCurrentViewData = async function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
   if (editorBtn && !silent) {
-    editorBtn.innerHTML = "저장중..";
+    editorBtn.innerHTML = "⏳ 저장중..";
     editorBtn.disabled = true;
   }
 
-  if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
-  else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
-  else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
-  else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+  try {
+    if (currentScope === 'day' && window.dayViewInstance) await window.dayViewInstance.saveData();
+    else if (currentScope === 'week' && window.weekViewInstance) await window.weekViewInstance.saveData();
+    else if (currentScope === 'month' && window.monthViewInstance) await window.monthViewInstance.saveData();
+    else if (currentScope === 'year' && window.yearViewInstance) await window.yearViewInstance.saveData();
 
-  if (window.autoForwardIncompleteEvents) {
-      await window.autoForwardIncompleteEvents();
+    if (window.autoForwardIncompleteEvents) {
+        await window.autoForwardIncompleteEvents();
+    }
+  } catch (e) {
+    console.error("데이터 저장 중 오류 발생:", e);
   }
 
   if (editorBtn && !silent) {
-    editorBtn.innerHTML = '저장 완료';
+    editorBtn.innerHTML = '✅ 저장 완료';
     setTimeout(() => {
       if (currentMode === 'editor') {
-        editorBtn.innerHTML = '저장';
+        editorBtn.innerHTML = '💾 저장';
         editorBtn.disabled = false;
       }
     }, 1500); 
@@ -311,13 +317,23 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  window.addEventListener('click', function(e) {
+    const btn = document.getElementById('btn-more-menu');
+    const dropdown = document.getElementById('more-menu-dropdown');
+    if (btn && dropdown) {
+      if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+      }
+    }
+  });
+
   if (window.auth) {
     const loginBtn = document.querySelector('#login-screen button');
     let originalBtnHtml = '';
     
     if (loginBtn) {
         originalBtnHtml = loginBtn.innerHTML;
-        loginBtn.innerHTML = '로그인 상태 확인 중...';
+        loginBtn.innerHTML = '⏳ 로그인 상태 확인 중...';
         loginBtn.disabled = true;
     }
 
@@ -325,15 +341,14 @@ window.addEventListener('DOMContentLoaded', () => {
       if (user) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-info').style.display = 'flex';
-        if (user.photoURL) {
-            const userPhotoEl = document.getElementById('user-photo');
-            if (userPhotoEl) {
-                userPhotoEl.src = user.photoURL;
-            }
+        
+        const userNameEl = document.getElementById('user-name');
+        if (userNameEl) {
+            userNameEl.textContent = user.displayName || user.email.split('@')[0];
         }
         
         await window.loadSettings();
-        await window.autoForwardIncompleteEvents();
+        if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
 
         window.render();
         
@@ -862,9 +877,89 @@ window.executePeriodDelete = async function(mode, baseDateStr, groupId, labelNam
 window.dDayList = [];
 window.selectedDDayId = null;
 
-// D-Day 메뉴 토글 및 리스트 렌더링
+window.openClassSwapModal = function(sourcePeriod) {
+    if (window.currentMode === 'editor') return;
+
+    const sourceDate = window.formatDate(window.currentDate);
+    const sourceName = window.periodNames[sourcePeriod - 1] || sourcePeriod + '교시';
+    
+    const modalHtml = `
+    <div id="class-swap-modal" class="modal-overlay" style="display:flex;">
+        <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px;">
+            <h3 style="color:#2563eb; margin-top:0; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">
+                🔄 ${sourceName} 교환
+            </h3>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
+                선택한 <b>${sourceName}</b>의 내용을 다른 날짜/시간과 서로 맞바꿉니다.
+            </p>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px;">목표 날짜</label>
+                <input type="date" id="swap-target-date" value="${sourceDate}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none;">
+            </div>
+
+            <div style="margin-bottom:25px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px;">목표 시간</label>
+                <select id="swap-target-period" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; background:#fff;">
+                ${window.periodNames.map((name, i) => `<option value="${i + 1}" ${i + 1 === sourcePeriod ? 'selected' : ''}>${name}</option>`).join('')}
+                </select>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btn-swap-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button id="btn-swap-execute" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">교환 실행</button>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('btn-swap-cancel').onclick = () => document.getElementById('class-swap-modal').remove();
+    document.getElementById('btn-swap-execute').onclick = () => {
+        const targetDate = document.getElementById('swap-target-date').value;
+        const targetPeriod = parseInt(document.getElementById('swap-target-period').value, 10);
+        document.getElementById('class-swap-modal').remove();
+        window.executeClassSwap(sourceDate, sourcePeriod, targetDate, targetPeriod);
+    };
+};
+
+window.executeClassSwap = async function(sourceDate, sourcePeriod, targetDate, targetPeriod) {
+    if (sourceDate === targetDate && sourcePeriod === targetPeriod) {
+        return alert("같은 날짜의 같은 시간과는 교환할 수 없습니다.");
+    }
+
+    try {
+        const sourceData = await window.dbAPI.loadDayData(sourceDate);
+        const targetData = sourceDate === targetDate ? sourceData : await window.dbAPI.loadDayData(targetDate);
+
+        const sourcePeriods = sourceData.periods || {};
+        const targetPeriods = targetData.periods || {};
+
+        const sourceContent = sourcePeriods[sourcePeriod] || { subject: '', memo: '', supplies: '' };
+        const targetContent = targetPeriods[targetPeriod] || { subject: '', memo: '', supplies: '' };
+
+        sourcePeriods[sourcePeriod] = targetContent;
+        targetPeriods[targetPeriod] = sourceContent;
+
+        const operations = [];
+        const sRefSource = window.db.collection('schedules').doc(sourceDate);
+        operations.push({ type: 'set', ref: sRefSource, data: { periods: sourcePeriods, updatedAt: Date.now() } });
+
+        if (sourceDate !== targetDate) {
+            const sRefTarget = window.db.collection('schedules').doc(targetDate);
+            operations.push({ type: 'set', ref: sRefTarget, data: { periods: targetPeriods, updatedAt: Date.now() } });
+        }
+
+        await window.executeBatchOperations(operations);
+        alert(`✅ 교환이 성공적으로 완료되었습니다!\n\n${sourceDate} (${sourcePeriod}교시) ↔ ${targetDate} (${targetPeriod}교시)`);
+        window.render();
+    } catch(e) {
+        console.error("교환 처리 중 에러:", e);
+        alert("교환 처리 중 문제가 발생했습니다.");
+    }
+};
+
 window.toggleDdayMenu = function() {
-    // 💡 UX 향상: 만약 등록된 D-Day가 단 1개도 없다면 무의미한 드롭다운 대신 바로 설정창을 띄워줍니다.
     if (!window.dDayList || window.dDayList.length === 0) {
         window.openDdaySettingsModal();
         return;
@@ -892,19 +987,18 @@ window.toggleDdayMenu = function() {
     dropdown.classList.toggle('hidden');
 };
 
-// 화면 아무 곳이나 클릭 시 D-Day 드롭다운 닫기
 window.addEventListener('click', function(e) {
-    const btn = document.getElementById('btn-dday-display');
+    const btn = document.getElementById('dday-container');
     const dropdown = document.getElementById('dday-dropdown');
     if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.classList.add('hidden');
     }
 });
 
-// 특정 D-Day 선택 처리
 window.selectDday = async function(id) {
     window.selectedDDayId = id;
-    document.getElementById('dday-dropdown').classList.add('hidden');
+    const dropdown = document.getElementById('dday-dropdown');
+    if(dropdown) dropdown.classList.add('hidden');
     window.updateDdayUI();
     
     if (window.auth && window.auth.currentUser) {
@@ -914,30 +1008,26 @@ window.selectDday = async function(id) {
     }
 };
 
-// 버튼 텍스트 업데이트 로직
 window.updateDdayUI = function() {
-    const btn = document.getElementById('btn-dday-display');
-    if (!btn) return;
+    const badge = document.getElementById('dday-badge');
+    if (!badge) return;
 
-    if (!window.selectedDDayId || window.dDayList.length === 0) {
-        btn.textContent = "D-Day 설정";
-        btn.style.color = "#64748b";
-        btn.style.backgroundColor = "#f1f5f9";
-        btn.style.borderColor = "#cbd5e1";
+    if (!window.dDayList || window.dDayList.length === 0 || !window.selectedDDayId) {
+        badge.textContent = "D-Day 설정";
+        badge.style.color = "#854d0e";
+        badge.style.backgroundColor = "#fef08a";
         return;
     }
 
     const selected = window.dDayList.find(d => d.id === window.selectedDDayId);
     if (selected) {
         const dDayText = window.calculateDday(selected.date);
-        btn.textContent = `${selected.title} ${dDayText}`;
-        btn.style.color = "#ef4444";
-        btn.style.backgroundColor = "#fef2f2";
-        btn.style.borderColor = "#fca5a5";
+        badge.textContent = `${selected.title} ${dDayText}`;
+        badge.style.color = "#ef4444";
+        badge.style.backgroundColor = "#fee2e2";
     }
 };
 
-// D-Day 계산 유틸리티
 window.calculateDday = function(targetDateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
@@ -952,12 +1042,10 @@ window.calculateDday = function(targetDateStr) {
     return `D+${Math.abs(diffDays)}`;
 };
 
-// D-Day 설정 모달창 열기 (충돌 방지를 위해 HTML 직접 조작 방식으로 고정)
 window.openDdaySettingsModal = function() {
     const dropdown = document.getElementById('dday-dropdown');
     if(dropdown) dropdown.classList.add('hidden');
     
-    // 이미 창이 열려있으면 중복 생성 방지
     const existing = document.getElementById('dday-modal');
     if (existing) existing.remove();
     
@@ -987,7 +1075,6 @@ window.openDdaySettingsModal = function() {
     window.renderDdaySettingsList();
 };
 
-// 모달 내부 리스트 렌더링
 window.renderDdaySettingsList = function() {
     const listEl = document.getElementById('dday-settings-list');
     if(!listEl) return;
@@ -1010,7 +1097,6 @@ window.renderDdaySettingsList = function() {
     });
 };
 
-// 새 D-Day 추가
 window.addDday = async function() {
     const titleInput = document.getElementById('new-dday-title');
     const dateInput = document.getElementById('new-dday-date');
@@ -1039,7 +1125,6 @@ window.addDday = async function() {
     window.updateDdayUI();
 };
 
-// D-Day 삭제
 window.deleteDday = async function(id) {
     if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
     
@@ -1051,7 +1136,6 @@ window.deleteDday = async function(id) {
     window.updateDdayUI();
 };
 
-// Firebase에 D-Day 저장
 window.saveDdayDataToFirebase = async function() {
     if (!window.auth || !window.auth.currentUser) return;
     try {
