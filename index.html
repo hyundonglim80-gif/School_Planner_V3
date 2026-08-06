@@ -1,12 +1,10 @@
-<!--index.html-->
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=700, user-scalable=no">
   <title>School Planner</title>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
 
@@ -14,89 +12,77 @@
       <div style="background:#fff; padding:50px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,0.1); text-align:center;">
           <h1 style="margin-bottom:10px; font-size: clamp(1.5rem, 5vw, 2rem); color:var(--primary-color); white-space: nowrap; overflow: hidden;">School Planner</h1>
           <p style="color:#64748b; font-size: 1.2rem; margin-bottom:40px;">나만의 데이터를 안전하게 동기화하기 위해<br>구글 계정으로 시작해주세요.</p>
-          <button onclick="signInWithGoogle()" style="background:#4285F4; color:#fff; border:none; padding:12px 24px; font-size:1.2rem; border-radius:8px; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:10px; margin:0 auto; box-shadow: 0 4px 6px rgba(66, 133, 244, 0.3); transition: 0.2s;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          <button onclick="signInWithGoogle()" style="background:#4285f4; color:#fff; border:none; padding:15px 32px; border-radius:8px; font-size:1.1rem; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:12px; margin:0 auto; box-shadow:0 4px 6px rgba(66,133,244,0.2);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.18 1-.78 1.85-1.63 2.53v2.1h2.64c1.55-1.42 2.43-3.5 2.43-6.64z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-2.64-2.1c-.98.66-2.23 1.06-3.64 1.06-2.86 0-5.29-1.93-6.16-4.53H4.06v2.13C5.87 20.25 8.69 23 12 23z" fill="#34A853"/><path d="M5.84 14.77c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V8.46H4.06C3.38 9.8 3 11.31 3 12.68s.38 2.88 1.06 4.22l1.78-2.13z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 8.69 1 5.87 3.75 4.06 6.46l1.78 2.13c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
               Google 계정으로 로그인
           </button>
       </div>
   </div>
 
-  <header class="app-header">
-    <div class="header-row">
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <div class="title-group">
-                <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;">School Planner</h1>
-            </div>
-
-            <div style="position: relative;">
-                <button class="nav-btn" id="btn-dday-display" onclick="window.toggleDdayMenu()" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; min-width: 90px; cursor:pointer;">D-Day 설정</button>
-                <div id="dday-dropdown" class="dropdown-menu hidden" style="min-width: 220px; left: 0; right: auto;">
-                    <div id="dday-list-container"></div>
-                    <button class="dropdown-item" onclick="window.openDdaySettingsModal()" style="border-top: 1px solid #e2e8f0; font-weight: bold; color: #1a73e8; font-size: 0.95rem;">⚙️ D-Day 설정</button>
-                </div>
-            </div>
+  <div id="app" style="display:none;">
+    <header class="app-header">
+      <div class="header-row">
+        <div class="title-group">
+          <h1>School Planner</h1>
         </div>
 
-        <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button class="nav-btn" id="btn-search" onclick="openSearchModal()" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
+        <div class="btn-group">
+          <button class="btn-scope" onclick="window.setScope('year')">년</button>
+          <button class="btn-scope" onclick="window.setScope('month')">월</button>
+          <button class="btn-scope" onclick="window.setScope('week')">주</button>
+          <button class="btn-scope" onclick="window.setScope('day')">일</button>
+          <button class="btn-scope" onclick="window.setScope('memo')">업무</button>
+        </div>
 
-            <div class="btn-group" title="보기 이동 단축키: Shift + ← / →" style="flex-wrap: wrap;">
-                <button class="btn-scope" onclick="setScope('memo')">메모</button>
-                <button class="btn-scope" onclick="setScope('year')">년간</button>
-                <button class="btn-scope" onclick="setScope('month')">월간</button>
-                <button class="btn-scope" onclick="setScope('week')">주간</button>
-                <button class="btn-scope" onclick="setScope('day')">하루</button>
-            </div>
+        <div class="mode-group">
+          <button id="btn-mode-viewer" class="btn-mode" onclick="window.setMode('viewer')">👁️ 보기</button>
+          <button id="btn-mode-editor" class="btn-mode" onclick="window.setMode('editor')">✏️ 작성</button>
+        </div>
 
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <div style="position: relative;">
-                    <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
-                    <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
-                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
-                        <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
-                        <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
-                        <button class="dropdown-item" onclick="window.openSettingsModal()">수업 명칭 및 시수 관리</button>
-                        <button class="dropdown-item" onclick="window.openRecurringEventModal()">반복 일정 등록</button>
-                        <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
-                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
-                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
-                        <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
-                    </div>
-                </div>
+        <div id="dday-container" style="display:inline-block; cursor:pointer;" onclick="window.openDdayModal()">
+           <span id="dday-badge" class="badge-tag" style="background:#fef08a; color:#854d0e; font-size:0.9rem; padding:4px 8px; border-radius:6px; font-weight:bold;">D-Day 설정</span>
+        </div>
 
-                <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
-                    <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
-                    <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
-                </div>
+        <button id="btn-search" class="nav-btn" onclick="window.openSearchModal()" style="display:none;">🔍 검색</button>
+        <button id="btn-toggle-class" class="nav-btn" onclick="window.toggleClass()">🎒 수업 숨기기</button>
+
+        <div style="position:relative; display:inline-block;">
+            <button id="btn-more-menu" class="nav-btn" onclick="window.toggleMoreMenu(event)">⋮</button>
+            <div id="more-menu-dropdown" class="dropdown-menu hidden">
+                <button class="dropdown-item" onclick="window.openTimetableModal()">🗓️ 기준시간표 관리</button>
+                <button class="dropdown-item" onclick="window.openRecurringModal()">🔁 반복 일정 관리</button>
+                <button class="dropdown-item" onclick="window.openLabelsModal()">🏷️ 일정/일지 라벨 관리</button>
+                <button class="dropdown-item" onclick="window.openBackupModal()">💾 데이터 백업 및 복원</button>
+                <button class="dropdown-item" onclick="window.openSettingsModal()">⚙️ 환경 설정</button>
+                <button class="dropdown-item" onclick="window.openHelpModal()">❓ 사용 설명서</button>
             </div>
         </div>
-    </div>
 
-    <div class="header-row" style="border-top: 1px dashed #cbd5e1; padding-top: 8px;">
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-            <button class="nav-btn" id="btn-toggle-weekend" onclick="toggleWeekend()" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">주말 숨기기</button>
-            <button class="nav-btn" id="btn-toggle-class" onclick="toggleClass()" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">수업 숨기기</button>
+        <div id="user-info" style="display:flex; align-items:center; gap:8px;">
+            <span id="user-name" style="font-weight:bold; font-size:0.9rem; color:#475569;"></span>
+            <button onclick="signOutWithGoogle()" class="nav-btn" style="padding:3px 8px; font-size:0.8rem; color:#ef4444; border-color:#fca5a5;">로그아웃</button>
         </div>
+      </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;" id="date-nav-group">
-            <button class="nav-btn" onclick="moveDate(-1)" title="단축키: Ctrl + ←">&lt; 이전</button>
-            <span class="current-range" id="date-range-text" onclick="goToToday()" style="cursor:pointer; transition: color 0.2s; min-width: 150px; text-align: center; font-size: 1.15rem;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
-            <button class="nav-btn" onclick="moveDate(1)" title="단축키: Ctrl + →">다음 &gt;</button>
+      <div class="header-row" id="nav-bar-row" style="justify-content:center;">
+        <div class="nav-bar" style="display:flex; align-items:center; gap:10px;">
+          <button class="nav-btn" onclick="window.navigateDate(-1)">◀ 이전</button>
+          <span id="current-range" class="current-range"></span>
+          <button class="nav-btn" onclick="window.navigateDate(1)">다음 ▶</button>
+          <button class="nav-btn" onclick="window.goToToday()">오늘</button>
+          <button id="btn-toggle-weekend" class="nav-btn" onclick="window.toggleWeekend()">📅 주말 숨기기</button>
         </div>
+      </div>
+    </header>
 
-        <div class="mode-group" style="display: flex; flex-wrap: wrap; margin-left: 5px;">
-            <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
-            <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="min-width: 65px; justify-content: center; white-space: nowrap;">작성</button>
-        </div>
-    </div>
-
-  </header>
-
-  <main class="main-container" id="main-view"></main>
+    <main class="main-container">
+      <div id="main-view"></div>
+    </main>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
   
   <script src="js/firebase.js"></script>
@@ -119,9 +105,13 @@
   <script src="js/viewMemo.js"></script>
   <script src="js/modules/sync.js"></script>
   
-  <div id="image-viewer-modal" class="modal-overlay hidden" style="z-index: 10006; flex-direction: column;" onclick="this.classList.add('hidden')">
-      <img id="full-size-image" src="" style="max-width: 90%; max-height: 85vh; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); object-fit: contain;">
-      <span style="color: white; margin-top: 15px; font-size: 1.2rem; font-weight: bold; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;">화면 아무 곳이나 클릭하면 닫힙니다</span>
+  <div id="image-viewer-modal" class="modal-overlay hidden" style="z-index: 10010;">
+    <div class="modal-content" style="width: auto; max-width: 95vw; background: transparent; box-shadow: none;">
+      <div style="text-align: right; margin-bottom: 8px;">
+        <button onclick="document.getElementById('image-viewer-modal').classList.add('hidden')" style="background: rgba(0,0,0,0.7); color: white; border: none; font-size: 1.5rem; padding: 4px 12px; border-radius: 50%; cursor: pointer;">✕</button>
+      </div>
+      <img id="enlarged-image" src="" alt="확대 이미지" style="max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: block; margin: 0 auto;">
+    </div>
   </div>
 
 </body>
