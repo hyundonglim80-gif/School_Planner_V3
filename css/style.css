@@ -1,4 +1,4 @@
-/*css/style.css*/
+/* css/style.css */
 
 /* ==========================================================================
    ⚙️ [디자인 컨트롤 타워 - CSS 변수 모음]
@@ -19,27 +19,27 @@
   --today-border-color: #2563eb;   
   --today-border-width: 3px;       
 
-  /* 📏 3. 헤더 & 공통 글자 크기 설정 */
-  --font-header-title: 1.2rem;    
-  --font-header-btn: 0.9rem;      
-  --font-date-range: 1.1rem;      
-  --font-base: 0.95rem;            
+  /* 📏 3. 폰트 다이어트 (700px 기준에 맞게 살짝 축소) */
+  --font-header-title: 1.1rem;    
+  --font-header-btn: 0.85rem;      
+  --font-date-range: 1rem;      
+  --font-base: 0.9rem;            
 
-  /* 📌 4. 주(Week) 보기 전용 레이아웃 설정 */
-  --week-table-min-width: 500px;  
+  /* 📌 4. 테이블 최소 가로길이 축소 (기존 1000px -> 600px 수준으로 유연화) */
+  --week-table-min-width: 600px;  
   --week-cell-height: 50px;       
-  --week-date-font-size: 1.5rem;  
-  --week-event-font-size: 1.5rem; 
+  --week-date-font-size: 1.3rem;  
+  --week-event-font-size: 1.2rem; 
 
   /* 📌 5. 월(Month) 보기 전용 레이아웃 설정 */
   --month-date-align: left;       
-  --month-date-font-size: 1.1rem; 
-  --month-event-font-size: 0.95rem;
-  --month-cell-min-height: 85px;  
+  --month-date-font-size: 1rem; 
+  --month-event-font-size: 0.85rem;
+  --month-cell-min-height: 80px;  
 
   /* 📌 6. 일(Day) 보기 전용 레이아웃 설정 */
-  --day-title-font-size: 1.5rem;  
-  --day-content-font-size: 1.3rem;
+  --day-title-font-size: 1.3rem;  
+  --day-content-font-size: 1.2rem;
   --day-event-min-height: 70px;  
 }
 
@@ -51,8 +51,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
   background-color: var(--bg-body); 
   color: #0f172a; 
-  padding: 0; 
-  margin: 0; 
 }
 
 .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
@@ -61,47 +59,51 @@ body {
 }
 
 /* ==========================================================================
-   🔝 [최상단 고정 헤더 영역 (2줄 양쪽 정렬 구조)]
+   🔝 [최상단 고정 헤더 영역 - 다이어트 최적화]
    ========================================================================== */
 .app-header { 
   position: sticky; 
   top: 0; 
   z-index: 1000; 
   background: var(--bg-card); 
-  padding: 10px 14px; 
+  /* 💡 패딩 압축: 상하 8px, 좌우 10px */
+  padding: 8px 10px; 
   border-bottom: 1px solid var(--border-color); 
   box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
   display: flex; 
   flex-direction: column;
-  gap: 12px; 
+  gap: 6px; /* 기존 12px에서 대폭 축소 */
 }
 
-/* 💡 화면 좁아질 때 넘침 방지를 위한 flex-wrap 추가 */
 .header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   flex-wrap: wrap; 
-  gap: 10px;
+  gap: 4px; /* 그룹 사이 틈새 최소화 */
 }
 
-.title-group h1 { font-size: var(--font-header-title); font-weight: 800; color: #1e293b; }
-.btn-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; gap: 2px; }
-.btn-scope { 
-  border: none; background: transparent; padding: 5px 10px; 
+/* 버튼들을 감싸는 컨테이너 여백 축소 */
+.title-group, .btn-group, .mode-group, .nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px; /* 버튼 사이 틈새를 2px로 바짝 붙임 */
+}
+
+.title-group h1 { font-size: var(--font-header-title); font-weight: 800; color: #1e293b; margin-right: 4px; }
+.btn-group { background-color: #e2e8f0; padding: 2px; border-radius: 6px; }
+.mode-group { background-color: #e2e8f0; padding: 2px; border-radius: 6px; }
+
+.btn-scope, .btn-mode, .nav-btn { 
+  border: none; background: transparent; 
+  padding: 4px 8px; /* 내부 여백 다이어트 */
   font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
-  border-radius: 6px; cursor: pointer; transition: all 0.2s; 
+  border-radius: 4px; cursor: pointer; transition: all 0.2s; 
   white-space: nowrap;
 }
+
 .btn-scope.active { background-color: #ffffff; color: var(--primary-color); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.mode-group { display: flex; background-color: #e2e8f0; padding: 3px; border-radius: 8px; }
-.btn-mode { 
-  border: none; background: transparent; padding: 5px 12px; 
-  font-size: var(--font-header-btn); font-weight: 700; color: #64748b; 
-  border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; 
-  white-space: nowrap;
-}
 .btn-mode.active-viewer { background-color: #3b82f6; color: #ffffff; }
 
 /* 🎯 수정 버튼 -> 저장 버튼 변신 스타일 */
@@ -112,329 +114,144 @@ body {
 }
 .btn-mode.save-mode:hover { background-color: #15803d !important; }
 
-/* 💡 날짜 표시부 및 공통 버튼 */
 .nav-btn { 
-  border: 1px solid var(--border-color); background: #ffffff; padding: 5px 12px; 
-  border-radius: 6px; font-size: var(--font-header-btn); font-weight: 700; cursor: pointer; color: #334155; 
-  white-space: nowrap;
+  border: 1px solid var(--border-color); background: #ffffff; color: #334155; 
 }
-.current-range { font-weight: 800; font-size: var(--font-date-range); color: #0f172a; text-align: center; }
+
+.current-range { 
+  font-weight: 800; font-size: var(--font-date-range); color: #0f172a; text-align: center; 
+  min-width: 150px; /* 기존 250px에서 대폭 줄여서 공간 확보 */
+}
 
 /* 메인 컨텐츠 감싸는 용기 */
-.main-container { padding: 12px; max-width: 1200px; margin: 0 auto; }
+.main-container { padding: 10px; max-width: 1200px; margin: 0 auto; }
 
 /* ==========================================================================
-   📊 [공통 테이블 및 에디터 셀 스타일]
+   📊 [작성 에디터 뷰 테이블 최적화 (날짜/교시 폭 고정)]
    ========================================================================== */
 .table-container { 
   background: var(--bg-card); 
   border-radius: 8px; 
   border: 1px solid var(--border-color); 
   box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
-  max-height: calc(100vh - 120px); 
+  max-height: calc(100vh - 100px); 
   overflow: auto; 
   -webkit-overflow-scrolling: touch; 
 }
-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: var(--week-table-min-width); table-layout: fixed; }
-thead th { position: sticky; top: 0; z-index: 100; background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: center; padding: 10px 4px; border-bottom: 2px solid var(--border-color); border-right: 1px solid var(--border-color); }
-th, td { border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); padding: 6px; font-size: var(--font-base); word-break: break-all; }
-td.date-cell { background-color: #f8fafc; text-align: center; vertical-align: middle; font-weight: 700; }
-td.period-cell { background-color: #fafafa; text-align: center; vertical-align: middle; font-weight: 600; color: #475569; }
 
-/* 수정 가능 셀 Focus 효과 */
+table { 
+  width: 100%; 
+  border-collapse: separate; 
+  border-spacing: 0; 
+  min-width: var(--week-table-min-width); 
+  table-layout: fixed; /* 💡 컬럼 폭을 강제로 유지하여 퍼센트 분배가 작동하도록 함 */
+}
+
+thead th { position: sticky; top: 0; z-index: 100; background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: center; padding: 8px 4px; border-bottom: 2px solid var(--border-color); border-right: 1px solid var(--border-color); }
+th, td { border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); padding: 6px; font-size: var(--font-base); word-break: break-all; }
+
+/* 💡 날짜 열과 교시 열의 넓이를 아주 좁게 고정! (나머지 셀들이 넓어짐) */
+th:nth-child(1), td.date-cell {
+  width: 55px !important;
+  min-width: 55px !important;
+  background-color: #f8fafc; text-align: center; vertical-align: middle; font-weight: 700;
+  word-break: keep-all; padding: 4px !important;
+}
+
+th:nth-child(2), td.period-cell {
+  width: 45px !important;
+  min-width: 45px !important;
+  background-color: #fafafa; text-align: center; vertical-align: middle; font-weight: 600; color: #475569;
+  word-break: keep-all; padding: 4px !important;
+}
+
 .editable-cell[contenteditable="true"]:focus { background-color: var(--edit-focus-bg); box-shadow: inset 0 0 0 2px #eab308; outline: none; }
-.badge-tag { display: inline-block; padding: 3px 6px; background-color: var(--tag-bg); color: var(--tag-color); border-radius: 4px; font-size: var(--font-base); font-weight: 700; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.badge-tag { display: inline-block; padding: 3px 6px; background-color: var(--tag-bg); color: var(--tag-color); border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-align: center; margin-bottom: 2px;}
 
 /* ==========================================================================
-   📅 [주간 뷰어 스타일]
+   📅 [주간/일간/월간/연간 뷰어 스타일 유지]
    ========================================================================== */
-.clean-viewer-board { 
-  background: #ffffff; 
-  border: 2px solid var(--border-color); 
-  border-radius: 6px; 
-  max-height: calc(100vh - 120px); 
-  overflow-x: auto; 
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; 
-}
+.clean-viewer-board { background: #ffffff; border: 2px solid var(--border-color); border-radius: 6px; max-height: calc(100vh - 100px); overflow-x: auto; overflow-y: auto; }
 .clean-viewer-board table { border-collapse: collapse; min-width: var(--week-table-min-width); }
-.clean-viewer-board thead th { background: #f8fafc; color: #0f172a; padding: 12px; font-size: var(--font-base); border: 1px solid var(--border-color); }
+.clean-viewer-board thead th { background: #f8fafc; color: #0f172a; padding: 8px; font-size: var(--font-base); border: 1px solid var(--border-color); }
 .clean-viewer-board th, .clean-viewer-board td { border: 1px solid var(--border-color); }
 .clean-viewer-board .day-header { background: #f1f5f9; text-align: center; font-weight: bold; color: #1e293b; vertical-align: middle; }
-.clean-viewer-board .event-cell { background: #fdf8f6; color: #d97706; font-size: var(--week-event-font-size); font-weight: 600; padding: 8px; }
-.clean-cell-content { display: flex; flex-direction: column; gap: 6px; height: 100%; }
-.clean-cell-memo { font-size: var(--font-base); color: #334155; line-height: 1.4; }
+.clean-viewer-board .event-cell { background: #fdf8f6; color: #d97706; font-size: var(--font-base); font-weight: 600; padding: 6px; }
+.clean-cell-content { display: flex; flex-direction: column; gap: 4px; height: 100%; }
+.clean-cell-memo { font-size: 0.85rem; color: #334155; line-height: 1.4; }
 
-/* 오늘 날짜 주간 셀 강조 클래스 */
-.week-today-cell {
-  background-color: var(--today-bg-color) !important;
-  border: var(--today-border-width) solid var(--today-border-color) !important;
-}
+.week-today-cell { background-color: var(--today-bg-color) !important; border: var(--today-border-width) solid var(--today-border-color) !important; }
+.month-today-cell { border: var(--today-border-width) solid var(--today-border-color) !important; background-color: var(--today-bg-color) !important; box-sizing: border-box; }
+.year-today-card { border: var(--today-border-width) solid var(--today-border-color) !important; background-color: #f8fafc !important; box-shadow: 0 4px 6px rgba(37,99,235,0.1); }
 
-/* ==========================================================================
-   🗓️ [일/월/년 뷰어 스타일]
-   ========================================================================== */
-.day-viewer-container { display: flex; flex-direction: column; gap: 14px; }
+.day-viewer-container { display: flex; flex-direction: column; gap: 10px; }
+.day-event-card { display: flex; align-items: center; padding: 12px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 12px; background: #fff; min-height: var(--day-event-min-height); }
+.period-card-list { display: flex; flex-direction: column; gap: 8px; }
+.period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 10px; }
 
-.day-event-card {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border: 1px solid #cbd5e1;
-  border-left: 5px solid #2563eb;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  min-height: var(--day-event-min-height);
-}
+.calendar-grid { display: grid; gap: 4px; background: var(--bg-card); padding: 8px; border-radius: 8px; border: 1px solid var(--border-color); }
+.cal-header { font-weight: 700; text-align: center; padding: 6px; background: #f1f5f9; border-radius: 4px; font-size: 1rem; }
+.cal-day { min-height: var(--month-cell-min-height); border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; font-size: var(--month-date-font-size); background: #fff; text-align: var(--month-date-align); }
+.cal-event { background: #e0f2fe; color: #0369a1; padding: 2px 4px; border-radius: 4px; margin-top: 4px; font-size: var(--month-event-font-size); text-align: left; }
 
-.daily-event-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid #2563eb; padding: 12px 16px; border-radius: 8px; }
-.period-card-list { display: flex; flex-direction: column; gap: 10px; }
-.period-card { background: #ffffff; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); border-radius: 8px; padding: 12px 14px; }
-.period-card-header { 
-  display: flex; 
-  justify-content: flex-start; 
-  gap: 8px; 
-  align-items: center; 
-  margin-bottom: 8px; 
-  border-bottom: 1px dashed #e2e8f0; 
-  padding-bottom: 6px; 
-}
-
-/* 월 보기 달력 그리드 (평일 5일 전용) */
-.calendar-grid { 
-  display: grid; 
-  grid-template-columns: repeat(5, 1fr); 
-  gap: 4px; 
-  background: var(--bg-card); 
-  padding: 10px; 
-  border-radius: 8px; 
-  border: 1px solid var(--border-color); 
-}
-.cal-header { font-weight: 700; text-align: center; padding: 8px; background: #f1f5f9; border-radius: 4px; font-size: 1.2rem; }
-.cal-day { 
-  min-height: var(--month-cell-min-height); 
-  border: 1px solid #e2e8f0; 
-  border-radius: 4px; 
-  padding: 6px; 
-  font-size: var(--month-date-font-size); 
-  background: #fff; 
-  text-align: var(--month-date-align);
-}
-.cal-event { 
-  background: #e0f2fe; 
-  color: #0369a1; 
-  padding: 4px; 
-  border-radius: 4px; 
-  margin-top: 4px; 
-  font-size: var(--month-event-font-size); 
-  text-align: left;
-}
-
-/* 오늘 날짜 월간 셀 강조 클래스 */
-.month-today-cell {
-  border: var(--today-border-width) solid var(--today-border-color) !important;
-  background-color: var(--today-bg-color) !important;
-  box-sizing: border-box;
-}
-
-/* 연 보기 그리드 */
-.year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.mini-month { background: #fff; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; text-align: left; }
-.mini-month h3 { font-size: var(--year-month-title-size); }
-
-/* 오늘 달 연간 카드 강조 클래스 */
-.year-today-card {
-  border: var(--today-border-width) solid var(--today-border-color) !important;
-  background-color: #f8fafc !important;
-  box-shadow: 0 4px 6px rgba(37,99,235,0.1);
-}
+.year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.mini-month { background: #fff; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; text-align: left; }
 
 /* ==========================================================================
-   📱 [모바일 및 태블릿 화면용 최적화 (반응형 뷰포트 대응)]
+   📱 [모바일 700px 최적화 미디어 쿼리 - 1000px과 병합]
    ========================================================================== */
-
-/* 💡 기존 1000px과 768px 분기점을 700px로 통합 및 최적화 */
 @media screen and (max-width: 700px) {
-  table { font-size: 0.85rem; }
+  table { font-size: 0.8rem; min-width: 100% !important; }
   th, td { padding: 4px; }
-  .main-container { padding: 8px; }
+  .main-container { padding: 6px; }
   
-  /* 헤더 여백 및 간격 다이어트 */
-  .app-header { padding: 8px; gap: 8px; }
-  .header-row { justify-content: center; gap: 8px; }
-  .title-group h1 { font-size: 1.1rem !important; }
-  .current-range { font-size: 1rem !important; min-width: auto !important; }
+  /* 헤더 완전 다이어트 */
+  .app-header { padding: 6px 4px; gap: 4px; }
+  .header-row { justify-content: space-between; gap: 2px; }
+  .title-group h1 { font-size: 1rem !important; }
+  .current-range { font-size: 0.95rem !important; min-width: 120px !important; }
   
-  /* 버튼 다이어트 */
-  .btn-scope, .btn-mode, .nav-btn { padding: 4px 6px !important; font-size: 0.85rem !important; }
+  /* 버튼 극한 다이어트 */
+  .btn-scope, .btn-mode, .nav-btn { padding: 3px 4px !important; font-size: 0.75rem !important; }
   
-  /* 테이블 및 그리드 레이아웃 유지 */
-  table { min-width: var(--week-table-min-width) !important; }
-  .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
+  /* 날짜 교시 모바일에서도 고정 */
+  th:nth-child(1), td.date-cell { width: 45px !important; min-width: 45px !important; padding: 2px !important; }
+  th:nth-child(2), td.period-cell { width: 35px !important; min-width: 35px !important; padding: 2px !important; }
+
+  /* 뷰어 그리드 조정 */
+  .clean-viewer-board table { min-width: 100% !important; }
   .year-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px; }
-  .mini-month { padding: 8px; }
+  .mini-month { padding: 6px; }
 }
 
 @media screen and (max-width: 480px) {
-  .app-header { padding: 6px; }
-  .header-row { justify-content: center; gap: 6px; }
-  .btn-scope { padding: 3px 5px !important; font-size: 0.75rem !important; }
-  .nav-btn { padding: 3px 6px !important; font-size: 0.75rem !important; }
-  .btn-group { gap: 1px; }
+  .app-header { padding: 4px; }
   .year-grid { grid-template-columns: repeat(1, 1fr) !important; }
+  .btn-group, .mode-group { flex-wrap: wrap; justify-content: center;}
 }
 
 /* ==========================================================================
-   🛠️ 월간 에디터 레이아웃 최적화
+   🛠️ 모달, 드롭다운, 메모 등 공통 시스템 (기존 유지)
    ========================================================================== */
-.month-editor-wrapper {
-  display: flex;
-  flex-direction: column;
-}
+.dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 6px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; min-width: 200px; z-index: 2000; overflow: hidden; }
+.dropdown-menu.hidden { display: none !important; }
+.dropdown-item { background: transparent; border: none; padding: 8px 12px; text-align: left; font-size: 0.9rem; color: #334155; font-weight: 600; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #f1f5f9; }
+.dropdown-item:hover { background: #f1f5f9; color: var(--primary-color); }
 
-.month-class-cell, .month-event-cell {
-  height: auto !important;
-  min-height: 40px !important;
-  padding: 8px 12px !important;
-  line-height: 1.5 !important;
-  outline: none;
-  word-break: break-all;
-}
-
-.month-class-cell {
-  background-color: #ecfdf5 !important;
-  color: #047857 !important;
-  border-bottom: 1px dashed #cbd5e1 !important;
-}
-
-.month-event-cell {
-  background-color: #f0f9ff !important;
-  color: #0369a1 !important;
-}
-
-/* ==========================================================================
-   🎯 드롭다운 메뉴 스타일 (점 세 개 버튼용)
-   ========================================================================== */
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  background: #ffffff;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  min-width: 220px;
-  z-index: 2000;
-  overflow: hidden;
-}
-
-.dropdown-menu.hidden {
-  display: none !important;
-}
-
-.dropdown-item {
-  background: transparent;
-  border: none;
-  padding: 8px 12px;
-  text-align: left;
-  font-size: 0.95rem;
-  color: #334155;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background: #f1f5f9;
-  color: var(--primary-color);
-}
-
-/* ==========================================================================
-   ✨ [모달 및 팝업창 공통 시스템 클래스]
-   ========================================================================== */
 .hidden { display: none !important; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10005; display: flex; justify-content: center; align-items: center; }
+.modal-content { background: #ffffff; border-radius: 12px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); overflow: hidden; }
+.modal-header { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+.modal-body { padding: 16px; overflow-y: auto; }
+.btn-close-modal { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b; }
 
-.modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.5); z-index: 10005;
-  display: flex; justify-content: center; align-items: center;
-}
-
-.modal-content {
-  background: #ffffff; border-radius: 12px; width: 90%; max-height: 85vh;
-  display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-}
-
-.modal-header {
-  padding: 15px 20px; border-bottom: 1px solid #e2e8f0;
-  display: flex; justify-content: space-between; align-items: center; background: #f8fafc;
-}
-
-.modal-body { padding: 20px; overflow-y: auto; }
-
-.btn-close-modal {
-  background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;
-}
-
-/* ==========================================================================
-   🎨 [모달(팝업) 내부 다이어트용 공통 클래스 모음]
-   ========================================================================== */
-.modal-info-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6; font-size: 0.95rem; color: #334155; line-height: 1.5; }
+.modal-info-box { background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #3b82f6; font-size: 0.9rem; color: #334155; line-height: 1.4; }
 .modal-info-box.alt { background: #eff6ff; color: #1e40af; }
-.modal-info-box.journal { background: #fdf2f8; border-left-color: #be185d; color: #831843; }
-
-.modal-list-container { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-bottom: 15px; padding-right: 5px; }
-.modal-input-row { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 6px; }
-.modal-input-row.alt { background: #f8fafc; padding: 10px; }
-.modal-input-row.journal { border-color: #fbcfe8; }
-
-.modal-btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.modal-btn-primary { background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
 .modal-btn-primary:hover { background: #1d4ed8; }
-.modal-btn-primary.journal { background: #9d174d; }
-.modal-btn-primary.journal:hover { background: #831843; }
 .modal-btn-primary.success { background: #059669; }
-.modal-btn-primary.success:hover { background: #047857; }
-.modal-btn-secondary { background: #3b82f6; color: #fff; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-.modal-btn-secondary.journal { background: #be185d; }
-.modal-btn-dashed { margin-top: 15px; width: 100%; padding: 10px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #3b82f6; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-.modal-btn-dashed:hover { background: #f1f5f9; }
-.modal-delete-btn { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; }
-.modal-footer-actions { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
+.modal-footer-actions { margin-top: 15px; padding-top: 12px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
 
-.modal-item-text { font-weight: bold; color: #1e40af; font-size: 1.05rem; }
-.modal-item-text.journal { color: #9d174d; }
-.modal-input-text { flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; font-size: 1rem; }
-.modal-checkbox-label { display: flex; align-items: center; gap: 4px; font-size: 0.85rem; color: #64748b; cursor: pointer; }
-.modal-checkbox-label.alert { color: #ef4444; font-weight: bold; }
-.modal-checkbox { accent-color: #ef4444; }
-
-.search-execute-btn { width: 100%; padding: 12px; background: #1e40af; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; font-size: 1.1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-.search-results-area { border-top: 1px solid #e2e8f0; padding-top: 15px; max-height: 350px; overflow-y: auto; }
-.search-result-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
-.search-result-card:hover { border-color: #3b82f6 !important; transform: translateY(-2px); }
-
-.tt-action-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.tt-apply-box { display: flex; gap: 10px; align-items: center; background: #f1f5f9; padding: 15px; border-radius: 8px; flex-wrap: wrap; }
-
-.modal-help-container { line-height: 1.6; color: #334155; font-size: 0.95rem; }
-.modal-help-title { color: #1e40af; border-bottom: 2px solid #bfdbfe; padding-bottom: 5px; margin-top: 15px; }
-.modal-help-title:first-child { margin-top: 0; }
-.modal-help-footer { display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid #cbd5e1; margin-top: 20px; padding-top: 15px; }
-.modal-help-checkbox-label { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.95rem; font-weight: bold; color: #475569; }
-.modal-help-checkbox { accent-color: #3b82f6; width: 16px; height: 16px; }
-
-.label-chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.label-chip { padding: 6px 14px; border-radius: 20px; background-color: #f1f3f5; color: #495057; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; transition: all 0.2s ease; user-select: none; }
-.label-chip:hover { background-color: #e9ecef; }
-.label-chip.active { background-color: #4CAF50; color: white; border-color: #4CAF50; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3); }
+.label-chip-container { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.label-chip { padding: 4px 10px; border-radius: 20px; background: #f1f3f5; color: #495057; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid #dee2e6; }
+.label-chip.active { background-color: #4CAF50; color: white; border-color: #4CAF50; }
