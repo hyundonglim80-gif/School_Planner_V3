@@ -254,27 +254,27 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 /* ==========================================================================
    📱 [모바일 및 태블릿 화면용 최적화 (반응형 뷰포트 대응)]
    ========================================================================== */
-@media screen and (max-width: 1000px) {
-  table { font-size: var(--font-base); }
+
+/* 💡 기존 1000px과 768px 분기점을 700px로 통합 및 최적화 */
+@media screen and (max-width: 700px) {
+  table { font-size: 0.85rem; }
   th, td { padding: 4px; }
   .main-container { padding: 8px; }
-  .title-group h1 { font-size: var(--font-header-title); }
-  .current-range { font-size: var(--font-date-range); min-width: auto !important; }
-  .btn-scope, .btn-mode { padding: 4px 8px; font-size: var(--font-header-btn); }
-  table { min-width: var(--week-table-min-width) !important; }
-  .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
-  .year-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px; }
-  .mini-month { padding: 8px; }
-}
-
-@media screen and (max-width: 768px) {
-  table { font-size: 0.85rem; }
+  
+  /* 헤더 여백 및 간격 다이어트 */
   .app-header { padding: 8px; gap: 8px; }
   .header-row { justify-content: center; gap: 8px; }
   .title-group h1 { font-size: 1.1rem !important; }
-  .current-range { font-size: 1rem !important; }
+  .current-range { font-size: 1rem !important; min-width: auto !important; }
+  
+  /* 버튼 다이어트 */
   .btn-scope, .btn-mode, .nav-btn { padding: 4px 6px !important; font-size: 0.85rem !important; }
-  .year-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  
+  /* 테이블 및 그리드 레이아웃 유지 */
+  table { min-width: var(--week-table-min-width) !important; }
+  .clean-viewer-board table { min-width: var(--week-table-min-width) !important; }
+  .year-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px; }
+  .mini-month { padding: 8px; }
 }
 
 @media screen and (max-width: 480px) {
