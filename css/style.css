@@ -19,14 +19,14 @@
   --today-border-color: #2563eb;   
   --today-border-width: 3px;       
 
-  /* 📏 3. 700px 레이아웃 맞춤 글자 크기 설정 */
+  /* 📏 3. 800px 레이아웃 맞춤 글자 크기 설정 */
   --font-header-title: 1.15rem;    
   --font-header-btn: 0.85rem;      
   --font-date-range: 1.05rem;      
   --font-base: 0.9rem;            
 
-  /* 📌 4. 주(Week) 보기 및 표 가로 폭 최소화 (700px에 딱 맞춰 유연 조절) */
-  --week-table-min-width: 600px;  
+  /* 📌 4. 주(Week) 보기 및 표 가로 폭 유연화 (800px 맞춤) */
+  --week-table-min-width: 650px;  
   --week-cell-height: 50px;       
   --week-date-font-size: 1.3rem;  
   --week-event-font-size: 1.2rem; 
@@ -61,7 +61,7 @@ body {
 }
 
 /* ==========================================================================
-   🔝 [최상단 고정 헤더 영역 - 700px 밀도 높은 여백 조절]
+   🔝 [최상단 고정 헤더 영역 - 800px 맞춤 밀도 설정]
    ========================================================================== */
 .app-header { 
   position: sticky; 
@@ -82,7 +82,7 @@ body {
   justify-content: space-between;
   width: 100%;
   flex-wrap: nowrap; 
-  gap: 3px; /* 버튼 간격 간결하게 축소 */
+  gap: 3px;
 }
 
 .title-group, .btn-group, .mode-group, .nav-bar {
@@ -180,7 +180,6 @@ th:nth-child(2), td.period-cell {
 .clean-cell-content { display: flex; flex-direction: column; gap: 4px; height: 100%; }
 .clean-cell-memo { font-size: 0.85rem; color: #334155; line-height: 1.4; }
 
-/* 오늘 날짜 주간 셀 강조 클래스 */
 .week-today-cell {
   background-color: var(--today-bg-color) !important;
   border: var(--today-border-width) solid var(--today-border-color) !important;
@@ -247,18 +246,15 @@ th:nth-child(2), td.period-cell {
   text-align: left;
 }
 
-/* 오늘 날짜 월간 셀 강조 클래스 */
 .month-today-cell {
   border: var(--today-border-width) solid var(--today-border-color) !important;
   background-color: var(--today-bg-color) !important;
   box-sizing: border-box;
 }
 
-/* 연 보기 그리드 */
 .year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 .mini-month { background: #fff; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; text-align: left; }
 
-/* 오늘 달 연간 카드 강조 클래스 */
 .year-today-card {
   border: var(--today-border-width) solid var(--today-border-color) !important;
   background-color: #f8fafc !important;
@@ -266,9 +262,9 @@ th:nth-child(2), td.period-cell {
 }
 
 /* ==========================================================================
-   📱 [안전한 반응형 보완 설정]
+   📱 [안전한 반응형 보완 설정 - 800px 기준]
    ========================================================================== */
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 800px) {
   table { font-size: 0.85rem; }
   th, td { padding: 4px; }
   .main-container { padding: 6px; }
