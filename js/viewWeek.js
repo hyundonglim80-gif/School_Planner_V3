@@ -60,8 +60,11 @@ class WeekView extends window.BaseView {
       const todayClass = isToday ? 'week-today-cell' : '';
 
       let dateColor = '#1e40af';
-      if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
+      const holidayName = window.getHolidayName(d.dateStr);
+      if (d.dayOfWeekNum === 0 || holidayName) dateColor = '#ef4444';
       else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+
+      const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
 
       html += `
         <tr>
@@ -69,6 +72,7 @@ class WeekView extends window.BaseView {
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+              ${holidayHtml}
             </div>
           </td>
           <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
@@ -118,17 +122,23 @@ class WeekView extends window.BaseView {
       
       window[`tempEvents_${d.dateStr}`] = eventList; 
       
+      // 💡 [핵심] 주간 시간표 데이터 백업용 전역 변수 초기화
+      window[`tempSchedules_${d.dateStr}`] = dayData.periods || {};
+      
       let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
       compactEditorHtml += this.generateCompactEventEditor(d.dateStr);
       compactEditorHtml += `</div>`; 
 
-      const periods = dayData.periods || {};
+      const periods = window[`tempSchedules_${d.dateStr}`];
       const isToday = (d.dateStr === realTodayStr);
       const todayClass = isToday ? 'week-today-cell' : '';
 
       let dateColor = '#1e40af';
-      if (d.dayOfWeekNum === 0) dateColor = '#ef4444';
+      const holidayName = window.getHolidayName(d.dateStr);
+      if (d.dayOfWeekNum === 0 || holidayName) dateColor = '#ef4444';
       else if (d.dayOfWeekNum === 6) dateColor = '#3b82f6';
+
+      const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
 
       html += `
         <tr data-week-date="${d.dateStr}">
@@ -136,6 +146,7 @@ class WeekView extends window.BaseView {
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+              ${holidayHtml}
             </div>
           </td>
           <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">
@@ -155,7 +166,7 @@ class WeekView extends window.BaseView {
             const p = i + 1;
             const pObj = periods[p] || {};
             const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-            return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;">${cellText}</td>`;
+            return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText}</td>`;
           }).join('')}
         </tr>
       `;
@@ -221,6 +232,33 @@ class WeekView extends window.BaseView {
       return html;
   }
 
+  // 💡 [핵심 추가] 입력 중인 주간 시간표 데이터를 즉시 전역 변수에 백업
+  syncScheduleInputs() {
+      const scheduleRows = document.querySelectorAll(`tr[data-week-schedule-date]`);
+      scheduleRows.forEach(row => {
+          const dateStr = row.getAttribute('data-week-schedule-date');
+          const periodCells = row.querySelectorAll('.week-period-cell');
+          
+          if (!window[`tempSchedules_${dateStr}`]) {
+              window[`tempSchedules_${dateStr}`] = {};
+          }
+
+          periodCells.forEach(cell => {
+              const p = cell.getAttribute('data-p');
+              const text = (cell.innerText || cell.textContent || '').trim();
+              
+              let subject = ''; let memo = text;
+              const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
+              if (match) { subject = match[1]; memo = match[2]; }
+              
+              // 기존의 supplies(비고) 값 유지
+              const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
+              
+              window[`tempSchedules_${dateStr}`][p] = { subject, memo, supplies: existingSupplies };
+          });
+      });
+  }
+
   toggleCompactEventLabel(dateStr, idx, labelName) {
       window.hasUnsavedChanges = true;
       const ev = window[`tempEvents_${dateStr}`][idx];
@@ -248,15 +286,13 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 💡 [핵심] 콤팩트 에디터에서 X버튼 클릭 시 완료 속성 일정은 모달 선택창으로 연결
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
-      const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
-      const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
-      const forwardLabel = labelsToRender.find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+      const isGrouped = !!ev.groupId; 
+      const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
-      if (periodLabel) {
-          window.showPeriodDeleteModal(dateStr, periodLabel, ev.content, ev.groupId, 
+      if (isGrouped) {
+          window.showGroupDeleteModal(dateStr, ev.labels[0] || '', ev.content, ev.groupId, 
               () => { window.render(); }, 
               () => { this.removeCompactEvent(dateStr, idx); }
           );
@@ -275,55 +311,47 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  async save() {
-    for (const d of this.getWeekDates()) {
-      const rawList = window[`tempEvents_${d.dateStr}`] || [];
-      const validEvents = rawList.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
-      const cleanEventText = window.formatEventListToText(validEvents);
+  // 💡 [핵심 수정] DOM 탐색 없이 미리 동기화된 메모리 변수 기반으로 DB 전송
+  // 💡 [핵심 수정] 렌더링 날아가지 않게 스냅샷 백업 후 DB 전송
+  save() {
+    // [1단계: 동기적 데이터 캡처]
+    this.syncScheduleInputs();
+    const datesToSave = this.getWeekDates(); // 화면이 넘어가기 전의 주간 날짜 캡처
 
-      await window.getUserCol('events').doc(d.dateStr).set({
-          eventList: validEvents,
-          eventText: cleanEventText, 
-          updatedAt: Date.now()
-      });
+    const snapshot = datesToSave.map(d => {
+        const dateStr = d.dateStr;
+        const rawList = window[`tempEvents_${dateStr}`] || [];
+        const validEvents = rawList
+            .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+            .map(e => ({...e}));
+        const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
+        return { dateStr, validEvents, periodsData };
+    });
 
-      let isSkipDay = false;
-      for (const e of validEvents) {
-          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
-              isSkipDay = true;
-              break;
-          }
-      }
-      
-      const scheduleRow = document.querySelector(`tr[data-week-schedule-date="${d.dateStr}"]`);
-      
-      if (scheduleRow) {
-        let existingPeriods = {};
-        try {
-          const existingData = await window.dbAPI.loadDayData(d.dateStr);
-          existingPeriods = existingData.periods || {};
-        } catch(e) {}
+    // [2단계: 비동기 클라우드 저장]
+    return (async () => {
+        for (const item of snapshot) {
+            const cleanEventText = window.formatEventListToText ? window.formatEventListToText(item.validEvents) : '';
+            await window.getUserCol('events').doc(item.dateStr).set({
+                eventList: item.validEvents,
+                eventText: cleanEventText, 
+                updatedAt: Date.now()
+            });
 
-        const periodsData = {};
-        const periodCells = scheduleRow.querySelectorAll('.week-period-cell');
+            let isSkipDay = false;
+            for (const e of item.validEvents) {
+                if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                    isSkipDay = true; break;
+                }
+            }
+            
+            if (isSkipDay) {
+                for (const p in item.periodsData) { item.periodsData[p].subject = ''; }
+            }
 
-        periodCells.forEach(cell => {
-          const p = cell.getAttribute('data-p');
-          const text = (cell.innerText || cell.textContent || '').trim();
-          
-          let subject = ''; let memo = text;
-          const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-          if (match) { subject = match[1]; memo = match[2]; }
-          if (isSkipDay) subject = '';
-
-          periodsData[p] = { 
-            subject: subject, memo: memo, 
-            supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
-          };
-        });
-        await window.dbAPI.saveSchedule(d.dateStr, periodsData);
-      }
-    }
+            await window.dbAPI.saveSchedule(item.dateStr, item.periodsData);
+        }
+    })();
   }
 }
 
@@ -340,26 +368,25 @@ window.handleCompactLabelClick = async function(dateStr, idx, lName) {
     
     const isActive = ev.labels.includes(lName);
     
-    // 💡 선택한 라벨의 속성 파악 (기간인지 반복인지)
     const labelObj = window.getEventLabels().find(l => l.name === lName);
     const isPeriod = labelObj ? labelObj.isPeriod : false;
     const isRecur = labelObj ? labelObj.isRecur : false;
     const isForward = labelObj ? labelObj.isForward : false;
 
     if (isActive) {
-        // 이미 켜진 라벨을 끄는 경우
         ev.labels = ev.labels.filter(l => l !== lName);
     } else {
-        // 💡 [핵심 UX] '기간' 이나 '반복' 속성 라벨을 켰을 때, 백그라운드 저장 후 자동 팝업 호출
         if (isPeriod || isRecur) {
             const evContent = ev.content || '';
             const backupEvent = { ...ev };
             
-            // 임시 배열에서 해당 이벤트를 지우고 먼저 저장 (팝업에서 취소할 경우를 대비)
+            // 💡 팝업 전환 전에 현재 입력 상태 백업
+            if(window.weekViewInstance) window.weekViewInstance.syncScheduleInputs();
+            if(window.monthViewInstance) window.monthViewInstance.syncScheduleInputs();
+
             window[`tempEvents_${dateStr}`].splice(idx, 1);
             await window.saveCurrentViewData(true);
             
-            // 팝업 콜백 함수 (팝업에서 등록 누르면 렌더링, 취소 누르면 원상복구)
             const callback = function(isSaved){ 
                 if(isSaved) {
                     window.render(); 
@@ -370,28 +397,24 @@ window.handleCompactLabelClick = async function(dateStr, idx, lName) {
                 }
             };
 
-            // 속성에 따라 알맞은 팝업창 띄우기
             if (isPeriod) {
                 window.openPeriodModal(dateStr, lName, evContent, callback);
             } else if (isRecur) {
                 window.openRecurringModal(dateStr, lName, evContent, callback);
             }
-            return; // 팝업으로 흐름을 넘기고 여기서 함수 종료
+            return; 
         }
         
         if (isForward) {
-            // 완료(이월) 라벨 선택 시, 혹시 기간이나 반복 라벨이 켜져있다면 충돌 방지를 위해 꺼줌
             ev.labels = ev.labels.filter(l => {
                 const lObj = window.getEventLabels().find(x => x.name === l);
                 return !(lObj && (lObj.isPeriod || lObj.isRecur));
             });
         }
         
-        // 일반 라벨 켜기
         ev.labels.push(lName);
     }
     
-    // UI 즉시 업데이트 (에디터 다시 그리기)
     const container = document.getElementById(`compact-events-${dateStr}`);
     if (container) {
         container.innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(dateStr) : (window.monthViewInstance ? window.monthViewInstance.generateCompactEventEditor(dateStr) : window.yearViewInstance.generateCompactEventEditor(dateStr));
