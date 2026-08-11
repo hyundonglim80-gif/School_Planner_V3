@@ -86,7 +86,7 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 [수정/2-B] 렌더링 분리 방식 적용 (기호는 화면에 뿌릴 때만 동적 계산하여 부착)
+// 🚀 렌더링 분리 방식 적용 (기호는 화면에 뿌릴 때만 동적 계산하여 부착)
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -167,39 +167,55 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
     return html;
 };
 
-// 🚀 [수정] 완료 제어를 스캔 엔진에 전적으로 위임하여 꼬임 방지
-window.toggleEventCompletion = async function(dateStr, index, currentStatus) {
-    try {
-        const eventDoc = await window.getUserCol('events').doc(dateStr).get();
-        if (!eventDoc.exists) return;
-        const data = eventDoc.data();
-        let eventList = data.eventList || [];
+// 💡 [V3.5 최적화] 낙관적 업데이트 기반 완료 제어 엔진 (스캔 위임 방식 결합)
+window.toggleEventCompletion = function(dateStr, index, currentStatus) {
+    const willBeComplete = !currentStatus;
 
-        if (eventList.length === 0 && data.eventText) {
-            eventList = window.parseRawEventTextToEventList(data.eventText);
+    // [1단계: 화면(UI) 즉시 갱신] - 메모리 상의 데이터를 먼저 바꾸고 화면을 즉시 다시 그립니다.
+    if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
+        if (window.dayViewInstance.currentEvents[index]) {
+            window.dayViewInstance.currentEvents[index].completed = willBeComplete;
         }
+    }
+    if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][index]) {
+        window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
+    }
 
-        if (eventList[index]) {
-            const willBeComplete = !currentStatus;
-            eventList[index].completed = willBeComplete;
-            const newText = window.formatEventListToText(eventList);
-            
-            await window.getUserCol('events').doc(dateStr).set({
-                eventList: eventList,
-                eventText: newText,
-                updatedAt: Date.now()
-            }, { merge: true });
+    // DB 대기 없이 화면 즉시 다시 그리기
+    if (window.render) window.render();
 
-            // 체크하자마자 스캔 엔진 가동시켜 연쇄 삭제(동기화) 수행
-            if (window.autoForwardIncompleteEvents) {
-                await window.autoForwardIncompleteEvents();
+    // [2단계: 백그라운드 DB 동기화] - 화면 뒤에서 조용히 저장 및 이월 엔진을 돌립니다.
+    setTimeout(async () => {
+        try {
+            const eventDoc = await window.getUserCol('events').doc(dateStr).get();
+            if (!eventDoc.exists) return;
+            const data = eventDoc.data();
+            let eventList = data.eventList || [];
+
+            if (eventList.length === 0 && data.eventText) {
+                eventList = window.parseRawEventTextToEventList(data.eventText);
             }
 
-            if (window.render) window.render(); 
+            if (eventList[index]) {
+                eventList[index].completed = willBeComplete;
+                const newText = window.formatEventListToText(eventList);
+                
+                await window.getUserCol('events').doc(dateStr).set({
+                    eventList: eventList,
+                    eventText: newText,
+                    updatedAt: Date.now()
+                }, { merge: true });
+
+                // 체크하자마자 스캔 엔진 가동시켜 연쇄 삭제(동기화) 수행
+                if (window.autoForwardIncompleteEvents) {
+                    await window.autoForwardIncompleteEvents();
+                }
+                console.log(`✅ [Optimistic UI] ${dateStr} 완료 상태 백그라운드 동기화 완료`);
+            }
+        } catch (error) {
+            console.error("🚨 완료 상태 변경 중 오류:", error);
         }
-    } catch (error) {
-        console.error("완료 상태 변경 중 오류:", error);
-    }
+    }, 0);
 };
 
 window.parseRawEventTextToEventList = function(rawText) {
