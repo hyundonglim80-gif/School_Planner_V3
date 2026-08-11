@@ -5,19 +5,17 @@
 // ==========================================================================
 
 window.parseLocalDate = function(dateString) {
-    if (!dateString) return new Date();
-    const parts = dateString.split('-');
-    if (parts.length === 3) {
-        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    }
-    return new Date(dateString);
+  if (!dateString) return new Date();
+  const parts = dateString.split('-');
+  if (parts.length === 3) return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  return new Date(dateString);
 };
 
 window.formatDate = function(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
 
 window.LABEL_PALETTE = {
@@ -35,7 +33,6 @@ window.getLabelStyle = function(labelName, type = 'event') {
     const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
     const target = labels.find(l => l.name === labelName);
     if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
-    
     if (type === 'event' && target && target.isSkip) return window.LABEL_PALETTE['red'];
     if (type === 'event') return window.LABEL_PALETTE['blue'];
     return window.LABEL_PALETTE['purple'];
@@ -60,8 +57,7 @@ window.getEventLabels = function() {
 };
 
 window.isSkipLabel = function(labelName) {
-    const labels = window.getEventLabels();
-    const target = labels.find(l => l.name === labelName);
+    const target = window.getEventLabels().find(l => l.name === labelName);
     return target ? target.isSkip : false; 
 };
 
@@ -87,7 +83,7 @@ window.checkSkipConditionFromText = function(rawText) {
 };
 
 // ==========================================================================
-// 🚀 렌더링 엔진 (그룹 일정 🔗 아이콘 시각적 힌트 추가)
+// 🚀 렌더링 엔진 (DOM 조작을 위해 id 속성 추가)
 // ==========================================================================
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
@@ -100,25 +96,16 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         const isCompleted = !!e.completed;
         const canComplete = labelsToRender.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l)); 
         const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
-        
-        // 💡 [신규] 그룹(반복/기간)으로 묶인 일정인지 확인
         const isGrouped = !!e.groupId; 
 
-        // DB 오염 방지를 위해 출력 직전 혹시 모를 기호들을 한 번 더 청소
         let pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
         let isMissedPast = false;
         let isForwardedToToday = false;
 
         if (canComplete && dateStr) {
-            // 과거 일정이 미완료면 경고 아이콘 부여
-            if (!isCompleted && dateStr < realTodayStr) {
-                isMissedPast = true;
-            }
-            // 원본 작성일보다 미래로 복사되어 넘어온 일정이면 전달받음 아이콘 부여
-            if (e.originalDate && e.originalDate < dateStr) {
-                isForwardedToToday = true;
-            }
+            if (!isCompleted && dateStr < realTodayStr) isMissedPast = true;
+            if (e.originalDate && e.originalDate < dateStr) isForwardedToToday = true;
         }
 
         let badgesHtml = '';
@@ -127,13 +114,9 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
                 const style = window.getLabelStyle(lName, 'event');
                 let badgeStyle;
                 
-                if (isMissedPast) {
-                    badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
-                } else if (isCompleted && canComplete) {
-                    badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
-                } else {
-                    badgeStyle = `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
-                }
+                if (isMissedPast) badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
+                else if (isCompleted && canComplete) badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
+                else badgeStyle = `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
                 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
                 
@@ -142,8 +125,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         }
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
-        
-        // 💡 [신규] 그룹 일정일 경우 텍스트 앞에 체인(🔗) 아이콘을 붙여 시각적 힌트 제공
         let groupIcon = isGrouped ? `<span style="font-size:0.8rem; margin-right:3px;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
 
         if (isMissedPast) {
@@ -160,28 +141,23 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
-        let layoutStyle = `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
-        if (viewType === 'compact') {
-            layoutStyle = `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;`;
-        }
+        let layoutStyle = viewType === 'compact' ? 
+            `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;` : 
+            `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
 
         html += `
-        <div style="${layoutStyle}">
+        <div id="evt-row-${dateStr}-${index}" style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${groupIcon}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
     return html;
 };
 
-// ==========================================================================
-// 💡 [V3.5 최적화] 낙관적 업데이트 기반 완료 제어 엔진 (스캔 위임 방식 결합)
-// ==========================================================================
 window.toggleEventCompletion = function(dateStr, index, currentStatus) {
     const willBeComplete = !currentStatus;
 
-    // [1단계: 화면(UI) 즉시 갱신] DB 통신을 기다리지 않고 메모리 상의 데이터를 먼저 바꿈
     if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
         if (window.dayViewInstance.currentEvents[index]) {
             window.dayViewInstance.currentEvents[index].completed = willBeComplete;
@@ -191,10 +167,44 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
         window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
     }
 
-    // 딜레이 없이 화면 다시 그리기
-    if (window.render) window.render();
+    const rowEl = document.getElementById(`evt-row-${dateStr}-${index}`);
+    if (rowEl) {
+        const badges = rowEl.querySelectorAll('span[onclick*="toggleEventCompletion"]');
+        badges.forEach(badge => {
+            badge.setAttribute('onclick', `event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${willBeComplete})`);
+            
+            if (willBeComplete) {
+                badge.style.background = '#e2e8f0';
+                badge.style.color = '#94a3b8';
+                badge.style.border = '1px solid #cbd5e1';
+            } else {
+                const lName = badge.innerText;
+                const style = window.getLabelStyle(lName, 'event');
+                if (style) {
+                    badge.style.background = style.bg;
+                    badge.style.color = style.text;
+                    badge.style.border = `1px solid ${style.border}`;
+                }
+            }
+        });
 
-    // [2단계: 백그라운드 DB 동기화] 화면 뒤에서 조용히 저장 및 이월 엔진을 구동
+        const textEl = document.getElementById(`evt-txt-${dateStr}-${index}`);
+        if (textEl) {
+            let inner = textEl.innerHTML;
+            if (willBeComplete) {
+                textEl.style.color = '#94a3b8';
+                textEl.style.textDecoration = 'line-through';
+                textEl.style.fontStyle = 'italic';
+                if (!inner.includes('✓ ')) textEl.innerHTML = '✓ ' + inner;
+            } else {
+                textEl.style.color = '#1e293b';
+                textEl.style.textDecoration = 'none';
+                textEl.style.fontStyle = 'normal';
+                if (inner.includes('✓ ')) textEl.innerHTML = inner.replace('✓ ', '');
+            }
+        }
+    }
+
     setTimeout(async () => {
         try {
             const eventDoc = await window.getUserCol('events').doc(dateStr).get();
@@ -202,9 +212,7 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
             const data = eventDoc.data();
             let eventList = data.eventList || [];
 
-            if (eventList.length === 0 && data.eventText) {
-                eventList = window.parseRawEventTextToEventList(data.eventText);
-            }
+            if (eventList.length === 0 && data.eventText) eventList = window.parseRawEventTextToEventList(data.eventText);
 
             if (eventList[index]) {
                 eventList[index].completed = willBeComplete;
@@ -216,14 +224,9 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
                     updatedAt: Date.now()
                 }, { merge: true });
 
-                // 체크하자마자 자동 이월 엔진 가동시켜 연쇄 동기화 수행
-                if (window.autoForwardIncompleteEvents) {
-                    await window.autoForwardIncompleteEvents();
-                }
+                if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
             }
-        } catch (error) {
-            console.error("🚨 완료 상태 변경 중 오류:", error);
-        }
+        } catch (error) { console.error("🚨 완료 상태 변경 중 오류:", error); }
     }, 0);
 };
 
@@ -326,4 +329,42 @@ window.getSemesterDates = function(baseDate = window.currentDate) {
         sem2Start: sem2Start,
         sem2End: yearEnd
     };
+};
+
+// ==========================================================================
+// 🚀 [신규] 대한민국 공휴일 데이터 및 판별 엔진
+// ==========================================================================
+window.KOR_HOLIDAYS = {
+    // 1. 매년 고정 공휴일 (월-일)
+    "01-01": "신정",
+    "03-01": "삼일절",
+    "05-05": "어린이날",
+    "06-06": "현충일",
+    "08-15": "광복절",
+    "10-03": "개천절",
+    "10-09": "한글날",
+    "12-25": "성탄절",
+
+    // 2. 유동/음력 공휴일 (2024년 ~ 2026년 기준)
+    "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
+    "2024-04-10": "국회의원선거", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
+    "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
+    
+    "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
+    "2025-03-03": "대체공휴일", "2025-05-05": "부처님오신날", "2025-05-06": "대체공휴일",
+    "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
+
+    "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
+    "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
+    "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-27": "대체공휴일"
+};
+
+window.getHolidayName = function(dateStr) {
+    // dateStr 형식: "YYYY-MM-DD"
+    const mmdd = dateStr.substring(5);
+    // 1순위: 특정 연도 휴일 (설날, 추석, 대체휴일 등)
+    if (window.KOR_HOLIDAYS[dateStr]) return window.KOR_HOLIDAYS[dateStr]; 
+    // 2순위: 매년 반복 고정 휴일 (광복절, 크리스마스 등)
+    if (window.KOR_HOLIDAYS[mmdd]) return window.KOR_HOLIDAYS[mmdd];     
+    return null;
 };
