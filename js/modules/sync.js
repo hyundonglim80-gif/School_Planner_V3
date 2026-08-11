@@ -1,7 +1,6 @@
 // js/modules/sync.js
 
 window.openGoogleSyncModal = async function() {
-    // 🌟 동기화 모달을 열기 전에도 자동 연장 시스템으로 검사합니다.
     const token = await window.getValidGoogleToken();
     if (!token) return;
 
@@ -10,23 +9,16 @@ window.openGoogleSyncModal = async function() {
 
     const modalHtml = `
     <div id="google-sync-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 550px;">
             <div class="modal-header">
-                <h2>📅 구글 서비스 동기화 (단방향)</h2>
+                <h2>☁️ 구글 서비스 양방향 동기화</h2>
                 <button class="btn-close-modal" onclick="document.getElementById('google-sync-modal').remove()">×</button>
             </div>
-            <div class="modal-body">
-                <div class="modal-info-box" style="margin-bottom: 20px;">
-                    웹사이트의 데이터를 선생님의 <b>개인 구글 계정</b>으로 동기화합니다.<br>
-                    - 일정 ➔ 수업 ➔ 기록 순서대로 <b>개별 블록</b>이 정렬되어 깔끔하게 쌓입니다.
-                </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 
-                <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택 (캘린더용)</h3>
+                <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택</h3>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
                     <select id="sync-period-select" class="modal-input-text" style="width:100%; cursor:pointer; font-weight:bold; font-size:1.05rem;" onchange="window.handleSyncPeriodChange()">
-                        <option value="today">오늘</option>
-                        <option value="week">해당 주 (이번 주)</option>
-                        <option value="month">해당 월 (이번 달)</option>
                         <option value="sem1">1학기 전체</option>
                         <option value="sem2">2학기 전체</option>
                         <option value="year">해당 학년도 전체</option>
@@ -39,37 +31,58 @@ window.openGoogleSyncModal = async function() {
                     </div>
                 </div>
 
-                <h3 class="modal-item-text" style="margin-bottom: 10px;">2. 동기화 항목 선택</h3>
-                <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                    <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
-                        <input type="checkbox" id="sync-chk-event" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [캘린더] 일정 & 행사 기록
-                    </label>
-                    <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
-                        <input type="checkbox" id="sync-chk-class" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [캘린더] 시간표 및 수업 메모/비고
-                    </label>
-                    <label class="modal-checkbox-label" style="font-size:1rem; color:#1e293b;">
-                        <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [캘린더] 업무 일지 및 교단 기록
-                    </label>
-                    <hr style="border:0; border-top:1px dashed #cbd5e1; margin:5px 0;">
-                    <label class="modal-checkbox-label" style="font-size:1rem; color:#0f766e;">
-                        <input type="checkbox" id="sync-chk-tasks" class="modal-checkbox" checked style="width:18px; height:18px;">
-                        [Tasks] 웹 메모 데이터를 구글 할 일(Tasks)로 덮어쓰기
-                    </label>
+                <div style="border: 2px solid #bfdbfe; border-radius: 8px; padding: 15px; margin-bottom: 20px; background: #eff6ff;">
+                    <h3 style="margin-top:0; color:#1e40af; display:flex; align-items:center; justify-content:space-between;">
+                        <span>[내보내기] SP3 ➔ 구글 캘린더</span>
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
+                            <input type="checkbox" id="sync-chk-event" class="modal-checkbox" checked> [캘린더] 일정 & 행사 기록
+                        </label>
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
+                            <input type="checkbox" id="sync-chk-class" class="modal-checkbox" checked> [캘린더] 시간표 및 수업 메모
+                        </label>
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
+                            <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked> [캘린더] 업무 일지 및 교단 기록
+                        </label>
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#0f766e;">
+                            <input type="checkbox" id="sync-chk-tasks" class="modal-checkbox" checked> [Tasks] 웹 메모 ➔ 구글 할 일
+                        </label>
+                    </div>
+                    <button class="modal-btn-primary" style="width:100%; background:#2563eb;" onclick="window.executeGoogleExport()">🚀 구글로 내보내기</button>
+                </div>
+
+                <div style="border: 2px solid #bbf7d0; border-radius: 8px; padding: 15px; background: #f0fdf4;">
+                    <h3 style="margin-top:0; color:#166534; display:flex; align-items:center; justify-content:space-between;">
+                        <span>[가져오기] 구글 캘린더 ➔ SP3</span>
+                    </h3>
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b; font-weight:bold;">
+                            <input type="checkbox" id="import-chk-primary" class="modal-checkbox" checked> 내 기본 캘린더 일정 가져오기
+                        </label>
+                        <label class="modal-checkbox-label" style="font-size:0.95rem; color:#ef4444; font-weight:bold;">
+                            <input type="checkbox" id="import-chk-holiday" class="modal-checkbox" checked> 🇰🇷 대한민국 공휴일/기념일 가져오기
+                        </label>
+                    </div>
+                    <div style="background:#fff; padding:10px; border-radius:6px; border:1px solid #d1d5db; margin-bottom:15px;">
+                        <div style="font-size:0.9rem; font-weight:bold; margin-bottom:8px; color:#475569;">저장 방식 선택</div>
+                        <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;">
+                            <input type="radio" name="import_mode" value="append" style="accent-color:#16a34a;"> ➕ 기존 일정에 단순히 <b>추가</b>하기
+                        </label>
+                        <label style="display:block; font-size:0.9rem; cursor:pointer;" title="기존에 직접 쓴 일정은 보호하고, 과거에 구글에서 가져왔던 일정만 지우고 최신화합니다.">
+                            <input type="radio" name="import_mode" value="replace" checked style="accent-color:#16a34a;"> 🔄 구글/공휴일 데이터만 <b>스마트 덮어쓰기</b> (추천)
+                        </label>
+                    </div>
+                    <button class="modal-btn-primary" style="width:100%; background:#16a34a;" onclick="window.executeGoogleImport()">📥 SP3로 가져오기</button>
                 </div>
 
                 <div id="sync-progress-area" class="hidden" style="margin-top: 20px; text-align:center;">
-                    <div style="color:#2563eb; font-weight:bold; margin-bottom:8px;" id="sync-status-text">동기화 준비 중...</div>
+                    <div style="color:#2563eb; font-weight:bold; margin-bottom:8px;" id="sync-status-text">진행 중...</div>
                     <div style="width:100%; background:#e2e8f0; height:10px; border-radius:5px; overflow:hidden;">
                         <div id="sync-progress-bar" style="width:0%; height:100%; background:#2563eb; transition:0.3s;"></div>
                     </div>
                 </div>
 
-                <div class="modal-footer-actions">
-                    <button id="btn-run-sync" class="modal-btn-primary" onclick="window.executeGoogleSync()">🚀 동기화 시작</button>
-                </div>
             </div>
         </div>
     </div>`;
@@ -88,21 +101,11 @@ window.handleSyncPeriodChange = function() {
 
     const d = window.currentDate ? new Date(window.currentDate) : new Date();
     const y = d.getFullYear();
-    const m = d.getMonth();
 
-    let sDate = new Date(d);
-    let eDate = new Date(d);
+    let sDate = new Date();
+    let eDate = new Date();
 
-    if (val === 'today') {
-        // 오늘 날짜 유지
-    } else if (val === 'week') {
-        const day = d.getDay();
-        sDate.setDate(d.getDate() - day);
-        eDate.setDate(sDate.getDate() + 6);
-    } else if (val === 'month') {
-        sDate = new Date(y, m, 1);
-        eDate = new Date(y, m + 1, 0);
-    } else if (val === 'sem1' || val === 'sem2' || val === 'year') {
+    if (val === 'sem1' || val === 'sem2' || val === 'year') {
         let datesInfo = {
             sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
             sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
@@ -135,78 +138,6 @@ window.handleSyncPeriodChange = function() {
     }
 };
 
-window.executeGoogleSync = async function() {
-    // 🌟 동기화를 시작할 때 한 번 더 최신 연장 토큰을 가져옵니다.
-    const token = await window.getValidGoogleToken();
-    if (!token) return;
-
-    const startStr = document.getElementById('sync-start-date').value;
-    const endStr = document.getElementById('sync-end-date').value;
-    
-    const syncEvent = document.getElementById('sync-chk-event').checked;
-    const syncClass = document.getElementById('sync-chk-class').checked;
-    const syncJournal = document.getElementById('sync-chk-journal').checked;
-    const syncTasks = document.getElementById('sync-chk-tasks').checked;
-
-    if (!syncEvent && !syncClass && !syncJournal && !syncTasks) { alert("동기화할 항목을 1개 이상 선택해 주세요."); return; }
-    let startD = new Date(startStr); let endD = new Date(endStr);
-    if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
-
-    document.getElementById('btn-run-sync').disabled = true;
-    document.getElementById('sync-progress-area').classList.remove('hidden');
-    const statusText = document.getElementById('sync-status-text');
-    const progressBar = document.getElementById('sync-progress-bar');
-
-    try {
-        if (syncTasks) {
-            statusText.innerText = "📝 구글 Tasks 목록 확인 및 동기화 중...";
-            progressBar.style.width = "10%";
-            await syncMemosToGoogleTasks(token);
-        }
-
-        if (syncEvent || syncClass || syncJournal) {
-            statusText.innerText = "📅 전용 캘린더(School Planner V3) 준비 중...";
-            progressBar.style.width = "20%";
-            const calId = await getOrCreateDedicatedCalendar(token);
-            
-            let datesToSync = [];
-            let curD = new Date(startD);
-            while (curD <= endD) {
-                datesToSync.push(window.formatDate(curD));
-                curD.setDate(curD.getDate() + 1);
-            }
-
-            const total = datesToSync.length;
-            for (let i = 0; i < total; i++) {
-                const dateStr = datesToSync[i];
-                statusText.innerText = `📅 캘린더 동기화 중... (${dateStr}) [${i+1}/${total}]`;
-                progressBar.style.width = `${20 + (80 * ((i+1)/total))}%`;
-                
-                await syncSingleDateToCalendar(token, calId, dateStr, syncEvent, syncClass, syncJournal);
-            }
-        }
-
-        statusText.innerText = "🎉 동기화가 성공적으로 완료되었습니다!";
-        statusText.style.color = "#059669";
-        progressBar.style.background = "#059669";
-        progressBar.style.width = "100%";
-        setTimeout(() => {
-            const modal = document.getElementById('google-sync-modal');
-            if (modal) modal.remove();
-        }, 2500);
-
-    } catch (error) {
-        console.error("동기화 에러:", error);
-        statusText.innerText = "❌ 오류 발생: " + error.message;
-        statusText.style.color = "#ef4444";
-        document.getElementById('btn-run-sync').disabled = false;
-        
-        if(error.message.includes('401') || error.message.includes('403')) {
-            alert("구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 창을 닫고 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 'Google Calendar' 및 'Google Tasks' 접근 권한 체크박스를 반드시 체크해주세요!");
-        }
-    }
-};
-
 async function googleFetch(url, method, token, body = null) {
     const options = {
         method: method,
@@ -223,6 +154,238 @@ async function googleFetch(url, method, token, body = null) {
     return await response.json();
 }
 
+// ==========================================================================
+// 🚀 [1] 내보내기 (SP3 ➔ 구글) 로직
+// ==========================================================================
+window.executeGoogleExport = async function() {
+    const token = await window.getValidGoogleToken();
+    if (!token) return;
+
+    const startStr = document.getElementById('sync-start-date').value;
+    const endStr = document.getElementById('sync-end-date').value;
+    
+    const syncEvent = document.getElementById('sync-chk-event').checked;
+    const syncClass = document.getElementById('sync-chk-class').checked;
+    const syncJournal = document.getElementById('sync-chk-journal').checked;
+    const syncTasks = document.getElementById('sync-chk-tasks').checked;
+
+    if (!syncEvent && !syncClass && !syncJournal && !syncTasks) { alert("동기화할 항목을 선택해 주세요."); return; }
+    
+    let startD = new Date(startStr); let endD = new Date(endStr);
+    if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
+
+    startProgress("내보내기 준비 중...", "#2563eb");
+
+    try {
+        if (syncTasks) {
+            updateProgress("📝 구글 Tasks 확인 및 동기화 중...", 10);
+            await syncMemosToGoogleTasks(token);
+        }
+
+        if (syncEvent || syncClass || syncJournal) {
+            updateProgress("📅 구글 캘린더 준비 중...", 20);
+            const calId = await getOrCreateDedicatedCalendar(token);
+            
+            let datesToSync = [];
+            let curD = new Date(startD);
+            while (curD <= endD) {
+                datesToSync.push(window.formatDate(curD));
+                curD.setDate(curD.getDate() + 1);
+            }
+
+            const total = datesToSync.length;
+            for (let i = 0; i < total; i++) {
+                const dateStr = datesToSync[i];
+                updateProgress(`📅 내보내는 중... (${dateStr}) [${i+1}/${total}]`, 20 + (80 * ((i+1)/total)));
+                await syncSingleDateToCalendar(token, calId, dateStr, syncEvent, syncClass, syncJournal);
+            }
+        }
+
+        finishProgress("🎉 구글로 내보내기가 완료되었습니다!");
+    } catch (error) {
+        handleSyncError(error);
+    }
+};
+
+// ==========================================================================
+// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직 (공휴일 포함 + 스마트 덮어쓰기 지원)
+// ==========================================================================
+window.executeGoogleImport = async function() {
+    const token = await window.getValidGoogleToken();
+    if (!token) return;
+
+    const startStr = document.getElementById('sync-start-date').value;
+    const endStr = document.getElementById('sync-end-date').value;
+    
+    const importPrimary = document.getElementById('import-chk-primary').checked;
+    const importHoliday = document.getElementById('import-chk-holiday').checked;
+    const mode = document.querySelector('input[name="import_mode"]:checked').value; // 'append' or 'replace'
+
+    if (!importPrimary && !importHoliday) { alert("가져올 항목을 선택해 주세요."); return; }
+    
+    let startD = new Date(startStr); let endD = new Date(endStr);
+    if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
+
+    startProgress("가져오기 준비 중...", "#16a34a");
+
+    try {
+        // 구글 API용 RFC3339 시간 포맷 변환
+        const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
+        const timeMax = new Date(endStr + 'T23:59:59+09:00').toISOString();
+
+        let importedEvents = [];
+
+        // 1. 대한민국 공휴일 가져오기
+        if (importHoliday) {
+            updateProgress("🇰🇷 대한민국 공휴일 달력 읽는 중...", 20);
+            const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
+            const url = `https://www.googleapis.com/calendar/v3/calendars/${holidayCalId}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+            const res = await googleFetch(url, 'GET', token);
+            
+            if (res.items) {
+                res.items.forEach(ev => {
+                    const dateArr = getDatesFromGoogleEvent(ev);
+                    dateArr.forEach(dStr => {
+                        importedEvents.push({ dateStr: dStr, label: '공휴일', labels: ['공휴일'], content: ev.summary, source: 'holiday' });
+                    });
+                });
+            }
+        }
+
+        // 2. 내 기본 캘린더 일정 가져오기
+        if (importPrimary) {
+            updateProgress("📅 내 기본 캘린더 읽는 중...", 40);
+            const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+            const res = await googleFetch(url, 'GET', token);
+            
+            if (res.items) {
+                res.items.forEach(ev => {
+                    const dateArr = getDatesFromGoogleEvent(ev);
+                    dateArr.forEach(dStr => {
+                        // School Planner V3가 내보낸 일정(invisiblePrefix 포함)은 무시하여 무한 반복 방지
+                        if (!ev.summary.includes('\u200C') && !ev.summary.includes('\u200D')) {
+                            importedEvents.push({ dateStr: dStr, label: '구글일정', labels: ['구글일정'], content: ev.summary, source: 'google' });
+                        }
+                    });
+                });
+            }
+        }
+
+        // 3. 날짜별로 분류
+        updateProgress("💾 SP3 데이터베이스에 저장 중...", 60);
+        let eventsByDate = {};
+        importedEvents.forEach(e => {
+            if (!eventsByDate[e.dateStr]) eventsByDate[e.dateStr] = [];
+            eventsByDate[e.dateStr].push(e);
+        });
+
+        // 4. Firestore에 기록 (append vs replace)
+        let curD = new Date(startD);
+        let processedCount = 0;
+        const totalDays = (endD - startD) / (1000 * 60 * 60 * 24) + 1;
+        let batch = window.db.batch();
+        let batchOpCount = 0;
+
+        while (curD <= endD) {
+            const dStr = window.formatDate(curD);
+            const newEvents = eventsByDate[dStr] || [];
+            
+            const docRef = window.getUserCol('events').doc(dStr);
+            const docSnap = await docRef.get();
+            let currentList = docSnap.exists ? (docSnap.data().eventList || []) : [];
+
+            if (mode === 'replace') {
+                // 기존에 가져왔던 구글/공휴일 일정만 삭제 (SP3에서 직접 쓴건 보존)
+                currentList = currentList.filter(e => e.source !== 'google' && e.source !== 'holiday');
+            }
+
+            if (newEvents.length > 0 || mode === 'replace') {
+                const mergedList = [...currentList, ...newEvents];
+                batch.set(docRef, { eventList: mergedList, updatedAt: Date.now() }, { merge: true });
+                batchOpCount++;
+            }
+
+            if (batchOpCount >= 400) {
+                await batch.commit();
+                batch = window.db.batch();
+                batchOpCount = 0;
+            }
+
+            processedCount++;
+            updateProgress(`💾 SP3 데이터베이스에 저장 중... [${processedCount}/${totalDays}]`, 60 + (40 * (processedCount/totalDays)));
+            curD.setDate(curD.getDate() + 1);
+        }
+
+        if (batchOpCount > 0) await batch.commit();
+
+        finishProgress("🎉 SP3로 가져오기가 성공적으로 완료되었습니다!");
+        window.render(); // 화면 새로고침
+        
+    } catch (error) {
+        handleSyncError(error);
+    }
+};
+
+// ==========================================================================
+// 🛠️ 내부 유틸 함수들
+// ==========================================================================
+
+function getDatesFromGoogleEvent(ev) {
+    let dates = [];
+    if (ev.start.date) { // 종일 일정
+        let startD = new Date(ev.start.date);
+        let endD = new Date(ev.end.date);
+        endD.setDate(endD.getDate() - 1); // 종일 일정의 end는 익일 0시 기준이므로 하루 뺌
+        while (startD <= endD) {
+            dates.push(window.formatDate(startD));
+            startD.setDate(startD.getDate() + 1);
+        }
+    } else if (ev.start.dateTime) { // 시간 지정 일정
+        dates.push(window.formatDate(new Date(ev.start.dateTime)));
+    }
+    return dates;
+}
+
+function startProgress(text, color) {
+    document.querySelectorAll('.modal-btn-primary').forEach(b => b.disabled = true);
+    document.getElementById('sync-progress-area').classList.remove('hidden');
+    const statusText = document.getElementById('sync-status-text');
+    const progressBar = document.getElementById('sync-progress-bar');
+    statusText.innerText = text;
+    statusText.style.color = color;
+    progressBar.style.background = color;
+    progressBar.style.width = "0%";
+}
+
+function updateProgress(text, percent) {
+    document.getElementById('sync-status-text').innerText = text;
+    document.getElementById('sync-progress-bar').style.width = `${percent}%`;
+}
+
+function finishProgress(text) {
+    const statusText = document.getElementById('sync-status-text');
+    const progressBar = document.getElementById('sync-progress-bar');
+    statusText.innerText = text;
+    progressBar.style.width = "100%";
+    setTimeout(() => {
+        const modal = document.getElementById('google-sync-modal');
+        if (modal) modal.remove();
+    }, 2000);
+}
+
+function handleSyncError(error) {
+    console.error("동기화 에러:", error);
+    const statusText = document.getElementById('sync-status-text');
+    statusText.innerText = "❌ 오류 발생: " + error.message;
+    statusText.style.color = "#ef4444";
+    document.querySelectorAll('.modal-btn-primary').forEach(b => b.disabled = false);
+    
+    if(error.message.includes('401') || error.message.includes('403')) {
+        alert("구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 창을 닫고 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!");
+    }
+}
+
+// 기존 SP3 -> 구글 내보내기용 유틸리티 유지
 async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
     const data = await googleFetch(listUrl, 'GET', token);
@@ -247,7 +410,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     const endStr = window.formatDate(d);
 
     let seq = 1; 
-    
     const getInvisiblePrefix = (num) => {
         return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
     };
@@ -255,7 +417,8 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
-            const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '');
+            // 구글/공휴일에서 가져온 일정은 내보낼 때 제외 (무한루프 방지)
+            const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '' && e.source !== 'google' && e.source !== 'holiday');
             list.forEach(e => {
                 let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
                 let invisiblePrefix = getInvisiblePrefix(seq++);
