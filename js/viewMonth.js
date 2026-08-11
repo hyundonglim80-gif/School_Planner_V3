@@ -224,11 +224,38 @@ class MonthView extends window.BaseView {
   updateCompactEvent(dateStr, idx, field, value) {
       if(window.weekViewInstance) window.weekViewInstance.updateCompactEvent(dateStr, idx, field, value);
   }
+  
+  // 💡 [방어 코드 추가] weekViewInstance가 없더라도 자체적으로 삭제/모달 처리 가능하도록
   requestRemoveCompactEvent(dateStr, idx) {
-      if(window.weekViewInstance) window.weekViewInstance.requestRemoveCompactEvent(dateStr, idx);
+      if(window.weekViewInstance) {
+          window.weekViewInstance.requestRemoveCompactEvent(dateStr, idx);
+      } else {
+          const ev = window[`tempEvents_${dateStr}`][idx];
+          const isGrouped = !!ev.groupId;
+          const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+
+          if (isGrouped) {
+              window.showGroupDeleteModal(dateStr, ev.labels[0]||'', ev.content, ev.groupId, 
+                  () => { window.render(); }, 
+                  () => { this.removeCompactEvent(dateStr, idx); }
+              );
+          } else if (forwardLabel && ev.forwardChainId) {
+              window.showForwardDeleteModal(dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+                  () => { window.render(); }
+              );
+          } else {
+              this.removeCompactEvent(dateStr, idx);
+          }
+      }
   }
   removeCompactEvent(dateStr, idx) {
-      if(window.weekViewInstance) window.weekViewInstance.removeCompactEvent(dateStr, idx);
+      if(window.weekViewInstance) {
+          window.weekViewInstance.removeCompactEvent(dateStr, idx);
+      } else {
+          window.hasUnsavedChanges = true;
+          window[`tempEvents_${dateStr}`].splice(idx, 1);
+          window.render();
+      }
   }
 
   async save() {
