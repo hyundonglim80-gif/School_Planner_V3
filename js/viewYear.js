@@ -146,12 +146,17 @@ class YearView extends window.BaseView {
           <tbody>
     `;
 
+    // 💡 [초기화] 연간 뷰 렌더링 시 기존 메모리 변수 목록을 초기화 (데이터 중복 방지)
+    this.renderedDateStrings = [];
+
     yearData.forEach(item => {
       const dateObj = new Date(item.year, item.month - 1, item.day);
       const dayOfWeekNum = dateObj.getDay();
       const dayOfWeek = dayNames[dayOfWeekNum];
 
       if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
+
+      this.renderedDateStrings.push(item.dateStr);
 
       let eventList = [];
       if (item.eventData.eventList && item.eventData.eventList.length > 0) {
@@ -161,12 +166,13 @@ class YearView extends window.BaseView {
       }
       
       window[`tempEvents_${item.dateStr}`] = eventList;
+      window[`tempSchedules_${item.dateStr}`] = item.data.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
       compactEditorHtml += window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(item.dateStr) : window.generateCompactEventEditor(item.dateStr); 
       compactEditorHtml += `</div>`; 
 
-      const periods = item.data.periods || {};
+      const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
       if (dayOfWeekNum === 0) dateColor = '#ef4444';
@@ -190,7 +196,7 @@ class YearView extends window.BaseView {
 
         for (let p = 1; p <= this.maxPeriod; p++) {
            const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
-           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;">${subjText}</td>`;
+           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;" oninput="window.yearViewInstance.syncScheduleInputs()">${subjText}</td>`;
         }
 
       html += `</tr>`;
@@ -200,57 +206,71 @@ class YearView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  async save() {
-    const rows = document.querySelectorAll("tr[data-year-date]");
-    for (const row of rows) {
-      const dateStr = row.getAttribute("data-year-date");
-      
-      const rawList = window[`tempEvents_${dateStr}`] || [];
-      const validEvents = rawList.filter(e => e.content.trim() !== '');
-      const cleanEventText = window.formatEventListToText(validEvents);
-
-      await window.getUserCol('events').doc(dateStr).set({
-          eventList: validEvents,
-          eventText: cleanEventText,
-          updatedAt: Date.now()
-      });
-
-      let isSkipDay = false;
-      for (const e of validEvents) {
-          if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
-              isSkipDay = true;
-              break;
+  // 💡 [핵심 추가] 입력 중인 수업 데이터를 즉시 전역 변수에 백업
+  syncScheduleInputs() {
+      const scheduleRows = document.querySelectorAll(`tr[data-year-sub]`);
+      scheduleRows.forEach(row => {
+          const dateStr = row.getAttribute('data-year-sub');
+          const classCells = row.querySelectorAll('.edit-class-cell');
+          
+          if (!window[`tempSchedules_${dateStr}`]) {
+              window[`tempSchedules_${dateStr}`] = {};
           }
-      }
 
-      let existingPeriods = {};
-      try {
-        const existingData = await window.dbAPI.loadDayData(dateStr);
-        existingPeriods = existingData.periods || {};
-      } catch(e) {}
+          classCells.forEach(cell => {
+              const p = cell.getAttribute("data-p");
+              const subjRaw = (cell.innerText || cell.textContent || "").trim();
+              let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
 
-      const subRow = document.querySelector(`tr[data-year-sub="${dateStr}"]`);
-      if (subRow) {
-        const classCells = subRow.querySelectorAll(".edit-class-cell");
-        const periodsData = {};
-        
-        classCells.forEach(cell => {
-           const p = cell.getAttribute("data-p");
-           const subjRaw = (cell.innerText || cell.textContent || "").trim();
-           let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
+              const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
+              const existingMemo = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].memo : '';
 
-           if (isSkipDay) subjText = '';
+              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, supplies: existingSupplies, memo: existingMemo };
+          });
+      });
+  }
 
-           periodsData[p] = {
-              subject: subjText,
-              supplies: existingPeriods[p] ? existingPeriods[p].supplies : '',
-              memo: existingPeriods[p] ? existingPeriods[p].memo : ''
-           };
-        });
+  // 💡 [핵심 수정] DOM 탐색 없이 동기화된 메모리 배열 기반으로 DB 비동기 전송
+  // 💡 [핵심 수정] 스냅샷 캡처 및 백그라운드 비동기 처리
+  save() {
+    // [1단계: 동기적 데이터 캡처]
+    if (!this.renderedDateStrings) return Promise.resolve();
+    this.syncScheduleInputs(); 
 
-        await window.dbAPI.saveSchedule(dateStr, periodsData);
-      }
+    const snapshot = [];
+    for (const dateStr of this.renderedDateStrings) {
+        const rawList = window[`tempEvents_${dateStr}`] || [];
+        const validEvents = rawList
+            .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+            .map(e => ({...e}));
+        const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
+        snapshot.push({ dateStr, validEvents, periodsData });
     }
+
+    // [2단계: 비동기 클라우드 저장]
+    return (async () => {
+        for (const item of snapshot) {
+            const cleanEventText = window.formatEventListToText ? window.formatEventListToText(item.validEvents) : '';
+            await window.getUserCol('events').doc(item.dateStr).set({
+                eventList: item.validEvents,
+                eventText: cleanEventText,
+                updatedAt: Date.now()
+            });
+
+            let isSkipDay = false;
+            for (const e of item.validEvents) {
+                if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                    isSkipDay = true; break;
+                }
+            }
+
+            if (isSkipDay) {
+                for (const p in item.periodsData) { item.periodsData[p].subject = ''; }
+            }
+
+            await window.dbAPI.saveSchedule(item.dateStr, item.periodsData);
+        }
+    })();
   }
 }
 
