@@ -14,13 +14,18 @@ class DayView extends window.BaseView {
     return [];
   }
 
-  renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback, onPeriodRequest) {
+  // 💡 [수정] 라벨 클릭 이벤트를 공통화하고, '기간' 및 '반복' 팝업을 모두 지원하도록 콜백 수정
+  renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback, onSpecialLabelRequest) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
       containerElement.style.margin = "0";
 
       allLabelsObj.forEach(labelObj => {
           const labelText = labelObj.name;
+          const isPeriod = labelObj.isPeriod;
+          const isRecur = labelObj.isRecur;
+          const isForward = labelObj.isForward;
+
           const chip = document.createElement('div');
           chip.className = 'label-chip';
           chip.innerText = labelText;
@@ -34,15 +39,20 @@ class DayView extends window.BaseView {
               if (isActive) {
                   selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
               } else {
-                  if (window.isPeriodLabel && window.isPeriodLabel(labelText)) {
-                      if (onPeriodRequest) {
-                          onPeriodRequest(labelText);
+                  // 💡 [핵심] '기간' 또는 '반복' 라벨 클릭 시 콜백으로 흐름을 넘김 (팝업 호출)
+                  if (isPeriod || isRecur) {
+                      if (onSpecialLabelRequest) {
+                          onSpecialLabelRequest(labelText, isPeriod ? 'period' : 'recur');
                       }
                       return;
                   }
                   
-                  if (window.isForwardLabel && window.isForwardLabel(labelText)) {
-                      selectedLabelsArray = selectedLabelsArray.filter(l => !window.isPeriodLabel(l));
+                  if (isForward) {
+                      // 완료 라벨 선택 시 기간/반복 라벨 해제
+                      selectedLabelsArray = selectedLabelsArray.filter(l => {
+                          const lObj = allLabelsObj.find(x => x.name === l);
+                          return !(lObj && (lObj.isPeriod || lObj.isRecur));
+                      });
                   }
                   
                   selectedLabelsArray.push(labelText);
@@ -251,25 +261,32 @@ class DayView extends window.BaseView {
             }
         }
 
+        // 💡 [수정] 콜백 함수에서 period, recur 분기 처리
         this.renderLabelChips(chipContainer, labelObjs, e.labels, 
             (newLabels) => {
                 this.currentEvents[index].labels = newLabels;
             },
-            async (labelText) => {
+            async (labelText, popupType) => {
                 const content = this.currentEvents[index].content;
                 const backupEvent = { ...this.currentEvents[index] };
                 this.syncEventInputs();
                 this.currentEvents.splice(index, 1);
                 await window.saveCurrentViewData(true); 
                 
-                window.openPeriodModal(window.dayViewInstance.dateStr, labelText, content, function(isSaved) {
+                const callback = function(isSaved) {
                     if(!isSaved) {
                         window.dayViewInstance.currentEvents.push(backupEvent);
                         window.saveCurrentViewData(true).then(() => window.render());
                     } else {
                         window.render();
                     }
-                });
+                };
+
+                if (popupType === 'period') {
+                    window.openPeriodModal(window.dayViewInstance.dateStr, labelText, content, callback);
+                } else if (popupType === 'recur') {
+                    window.openRecurringModal(window.dayViewInstance.dateStr, labelText, content, callback);
+                }
             }
         );
 
@@ -297,15 +314,14 @@ class DayView extends window.BaseView {
             chkWrapper.querySelector('.event-complete-check').addEventListener('change', () => { this.syncEventInputs(); this.renderEventEntries(); });
         }
 
-        // 💡 [핵심] X버튼 클릭 시 완료 속성 일정은 모달 선택창으로 연결
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
-            const labelsToRender = ev.labels || (ev.label ? [ev.label] : []);
-            const periodLabel = labelsToRender.find(l => typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(l));
-            const forwardLabel = labelsToRender.find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+            const isGrouped = !!ev.groupId;
+            const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
-            if (periodLabel) {
-                window.showPeriodDeleteModal(this.dateStr, periodLabel, ev.content, ev.groupId, 
+            // 💡 [수정] 그룹(반복/기간) 일정 삭제 시 3가지 옵션 모달 연결
+            if (isGrouped) {
+                window.showGroupDeleteModal(this.dateStr, ev.labels[0]||'', ev.content, ev.groupId, 
                     () => { window.render(); }, 
                     () => { this.removeEventEntry(index); }
                 );
