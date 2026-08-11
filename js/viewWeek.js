@@ -340,17 +340,27 @@ window.handleCompactLabelClick = async function(dateStr, idx, lName) {
     
     const isActive = ev.labels.includes(lName);
     
+    // 💡 선택한 라벨의 속성 파악 (기간인지 반복인지)
+    const labelObj = window.getEventLabels().find(l => l.name === lName);
+    const isPeriod = labelObj ? labelObj.isPeriod : false;
+    const isRecur = labelObj ? labelObj.isRecur : false;
+    const isForward = labelObj ? labelObj.isForward : false;
+
     if (isActive) {
+        // 이미 켜진 라벨을 끄는 경우
         ev.labels = ev.labels.filter(l => l !== lName);
     } else {
-        if (typeof window.isPeriodLabel === 'function' && window.isPeriodLabel(lName)) {
+        // 💡 [핵심 UX] '기간' 이나 '반복' 속성 라벨을 켰을 때, 백그라운드 저장 후 자동 팝업 호출
+        if (isPeriod || isRecur) {
             const evContent = ev.content || '';
             const backupEvent = { ...ev };
             
+            // 임시 배열에서 해당 이벤트를 지우고 먼저 저장 (팝업에서 취소할 경우를 대비)
             window[`tempEvents_${dateStr}`].splice(idx, 1);
             await window.saveCurrentViewData(true);
             
-            window.openPeriodModal(dateStr, lName, evContent, function(isSaved){ 
+            // 팝업 콜백 함수 (팝업에서 등록 누르면 렌더링, 취소 누르면 원상복구)
+            const callback = function(isSaved){ 
                 if(isSaved) {
                     window.render(); 
                 } else {
@@ -358,17 +368,30 @@ window.handleCompactLabelClick = async function(dateStr, idx, lName) {
                     window[`tempEvents_${dateStr}`].push(backupEvent);
                     window.saveCurrentViewData(true).then(() => window.render());
                 }
+            };
+
+            // 속성에 따라 알맞은 팝업창 띄우기
+            if (isPeriod) {
+                window.openPeriodModal(dateStr, lName, evContent, callback);
+            } else if (isRecur) {
+                window.openRecurringModal(dateStr, lName, evContent, callback);
+            }
+            return; // 팝업으로 흐름을 넘기고 여기서 함수 종료
+        }
+        
+        if (isForward) {
+            // 완료(이월) 라벨 선택 시, 혹시 기간이나 반복 라벨이 켜져있다면 충돌 방지를 위해 꺼줌
+            ev.labels = ev.labels.filter(l => {
+                const lObj = window.getEventLabels().find(x => x.name === l);
+                return !(lObj && (lObj.isPeriod || lObj.isRecur));
             });
-            return; 
         }
         
-        if (typeof window.isForwardLabel === 'function' && window.isForwardLabel(lName)) {
-            ev.labels = ev.labels.filter(l => !window.isPeriodLabel(l));
-        }
-        
+        // 일반 라벨 켜기
         ev.labels.push(lName);
     }
     
+    // UI 즉시 업데이트 (에디터 다시 그리기)
     const container = document.getElementById(`compact-events-${dateStr}`);
     if (container) {
         container.innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(dateStr) : (window.monthViewInstance ? window.monthViewInstance.generateCompactEventEditor(dateStr) : window.yearViewInstance.generateCompactEventEditor(dateStr));
