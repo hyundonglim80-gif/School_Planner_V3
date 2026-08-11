@@ -5,19 +5,19 @@
 // ==========================================================================
 
 window.parseLocalDate = function(dateString) {
-  if (!dateString) return new Date();
-  const parts = dateString.split('-');
-  if (parts.length === 3) {
-    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-  }
-  return new Date(dateString);
+    if (!dateString) return new Date();
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    return new Date(dateString);
 };
 
 window.formatDate = function(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 window.LABEL_PALETTE = {
@@ -86,7 +86,9 @@ window.checkSkipConditionFromText = function(rawText) {
     return false;
 };
 
-// 🚀 렌더링 분리 방식 적용 (기호는 화면에 뿌릴 때만 동적 계산하여 부착)
+// ==========================================================================
+// 🚀 렌더링 엔진 (그룹 일정 🔗 아이콘 시각적 힌트 추가)
+// ==========================================================================
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
@@ -98,6 +100,9 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         const isCompleted = !!e.completed;
         const canComplete = labelsToRender.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l)); 
         const isSkip = labelsToRender.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l));
+        
+        // 💡 [신규] 그룹(반복/기간)으로 묶인 일정인지 확인
+        const isGrouped = !!e.groupId; 
 
         // DB 오염 방지를 위해 출력 직전 혹시 모를 기호들을 한 번 더 청소
         let pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
@@ -138,6 +143,9 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         
+        // 💡 [신규] 그룹 일정일 경우 텍스트 앞에 체인(🔗) 아이콘을 붙여 시각적 힌트 제공
+        let groupIcon = isGrouped ? `<span style="font-size:0.8rem; margin-right:3px;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
+
         if (isMissedPast) {
             textStyle = 'color:#ef4444; font-weight:bold;';
             pureContent = `${pureContent} <span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (미완료)</span>`;
@@ -160,18 +168,20 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         html += `
         <div style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${pureContent}</span>
+            <span style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${groupIcon}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
     return html;
 };
 
+// ==========================================================================
 // 💡 [V3.5 최적화] 낙관적 업데이트 기반 완료 제어 엔진 (스캔 위임 방식 결합)
+// ==========================================================================
 window.toggleEventCompletion = function(dateStr, index, currentStatus) {
     const willBeComplete = !currentStatus;
 
-    // [1단계: 화면(UI) 즉시 갱신] - 메모리 상의 데이터를 먼저 바꾸고 화면을 즉시 다시 그립니다.
+    // [1단계: 화면(UI) 즉시 갱신] DB 통신을 기다리지 않고 메모리 상의 데이터를 먼저 바꿈
     if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
         if (window.dayViewInstance.currentEvents[index]) {
             window.dayViewInstance.currentEvents[index].completed = willBeComplete;
@@ -181,10 +191,10 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
         window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
     }
 
-    // DB 대기 없이 화면 즉시 다시 그리기
+    // 딜레이 없이 화면 다시 그리기
     if (window.render) window.render();
 
-    // [2단계: 백그라운드 DB 동기화] - 화면 뒤에서 조용히 저장 및 이월 엔진을 돌립니다.
+    // [2단계: 백그라운드 DB 동기화] 화면 뒤에서 조용히 저장 및 이월 엔진을 구동
     setTimeout(async () => {
         try {
             const eventDoc = await window.getUserCol('events').doc(dateStr).get();
@@ -206,11 +216,10 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
                     updatedAt: Date.now()
                 }, { merge: true });
 
-                // 체크하자마자 스캔 엔진 가동시켜 연쇄 삭제(동기화) 수행
+                // 체크하자마자 자동 이월 엔진 가동시켜 연쇄 동기화 수행
                 if (window.autoForwardIncompleteEvents) {
                     await window.autoForwardIncompleteEvents();
                 }
-                console.log(`✅ [Optimistic UI] ${dateStr} 완료 상태 백그라운드 동기화 완료`);
             }
         } catch (error) {
             console.error("🚨 완료 상태 변경 중 오류:", error);
