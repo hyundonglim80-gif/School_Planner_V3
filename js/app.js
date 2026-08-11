@@ -10,77 +10,78 @@ window.showClass = localStorage.getItem('workCalendar_showClass') !== 'false';
 window.currentDate = new Date(); 
 window.hasUnsavedChanges = false;
 
-window.toggleWeekend = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showWeekend = !window.showWeekend;
-  localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
-  window.render();
+// 💡 [V3.5 최적화] 화면 전환 시 await(대기) 제거 및 즉각 반응 적용
+window.toggleWeekend = function() {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
+    window.showWeekend = !window.showWeekend;
+    localStorage.setItem('workCalendar_showWeekend', window.showWeekend);
+    window.render();
 };
 
-window.toggleClass = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.showClass = !window.showClass;
-  localStorage.setItem('workCalendar_showClass', window.showClass);
-  window.render();
+window.toggleClass = function() {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
+    window.showClass = !window.showClass;
+    localStorage.setItem('workCalendar_showClass', window.showClass);
+    window.render();
 };
 
-window.setScope = async function(scope) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  currentScope = scope;
-  localStorage.setItem('workCalendar_scope', scope);
-  window.render();
+window.setScope = function(scope) {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
+    currentScope = scope;
+    localStorage.setItem('workCalendar_scope', scope);
+    window.render();
 };
 
-window.setMode = async function(mode) {
-  if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
-    await window.saveCurrentViewData(true);
-  }
-  currentMode = mode;
-  localStorage.setItem('workCalendar_mode', mode);
-  if (mode === 'viewer') window.hasUnsavedChanges = false;
-  window.render();
+window.setMode = function(mode) {
+    if (currentMode === 'editor' && mode === 'viewer' && window.hasUnsavedChanges) {
+        window.saveCurrentViewData(true);
+    }
+    currentMode = mode;
+    localStorage.setItem('workCalendar_mode', mode);
+    if (mode === 'viewer') window.hasUnsavedChanges = false;
+    window.render();
 };
 
 window.handleEditSaveClick = function() {
-  if (currentMode === 'viewer') {
-    window.setMode('editor');
-  } else {
-    window.saveCurrentViewData(false);
-  }
+    if (currentMode === 'viewer') {
+        window.setMode('editor');
+    } else {
+        window.saveCurrentViewData(false);
+    }
 };
 
-window.moveDate = async function(dir) {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  
-  if (currentScope === 'day') {
-      window.currentDate.setDate(window.currentDate.getDate() + dir);
-  } else if (currentScope === 'week') {
-      window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
-  } else if (currentScope === 'month') {
-      const currentDay = window.currentDate.getDate();
-      window.currentDate.setMonth(window.currentDate.getMonth() + dir);
-      if (window.currentDate.getDate() < currentDay) {
-          window.currentDate.setDate(0); 
-      }
-  } else if (currentScope === 'year') {
-      window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
-  }
-  window.render();
+window.moveDate = function(dir) {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
+    
+    if (currentScope === 'day') {
+        window.currentDate.setDate(window.currentDate.getDate() + dir);
+    } else if (currentScope === 'week') {
+        window.currentDate.setDate(window.currentDate.getDate() + (dir * 7));
+    } else if (currentScope === 'month') {
+        const currentDay = window.currentDate.getDate();
+        window.currentDate.setMonth(window.currentDate.getMonth() + dir);
+        if (window.currentDate.getDate() < currentDay) {
+            window.currentDate.setDate(0); 
+        }
+    } else if (currentScope === 'year') {
+        window.currentDate.setFullYear(window.currentDate.getFullYear() + dir);
+    }
+    window.render();
 };
 
-window.goToToday = async function() {
-  if (currentMode === 'editor' && window.hasUnsavedChanges) await window.saveCurrentViewData(true);
-  window.currentDate = new Date();
-  window.render();
-  
-  requestAnimationFrame(() => {
-      setTimeout(() => {
-          const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
-          if (todayEl) {
-              todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-      }, 50); 
-  });
+window.goToToday = function() {
+    if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
+    window.currentDate = new Date();
+    window.render();
+    
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+            if (todayEl) {
+                todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 50); 
+    });
 };
 
 // ==========================================================================
@@ -254,35 +255,52 @@ function updateButtonUI() {
   if (dropdown) dropdown.classList.add('hidden');
 }
 
-window.saveCurrentViewData = async function(silent = false) {
+// 💡 [V3.5 최적화] 낙관적 업데이트 기반 백그라운드 데이터 저장 엔진
+window.saveCurrentViewData = function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
   if (editorBtn && !silent) {
     editorBtn.innerHTML = "저장중..";
-    editorBtn.disabled = true;
+    // 멈춤을 방지하기 위해 disabled 대신 opacity 적용
+    editorBtn.style.opacity = '0.7'; 
   }
 
-  if (currentScope === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
-  else if (currentScope === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
-  else if (currentScope === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
-  else if (currentScope === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
-
-  if (window.autoForwardIncompleteEvents) {
-      await window.autoForwardIncompleteEvents();
+  // 동기화: 화면이 전환되기 전 현재 입력 상태를 메모리에 즉각 반영
+  if (currentScope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
+      window.dayViewInstance.syncEventInputs();
+      if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
   }
 
-  if (editorBtn && !silent) {
-    editorBtn.innerHTML = '저장 완료';
-    setTimeout(() => {
-      if (currentMode === 'editor') {
-        editorBtn.innerHTML = '저장';
-        editorBtn.disabled = false;
-      }
-    }, 1500); 
-  }
-  
   window.hasUnsavedChanges = false; 
+  const scopeToSave = currentScope;
+
+  // 비동기 처리: 클라우드 DB 저장은 백그라운드로 던짐
+  setTimeout(async () => {
+      try {
+          if (scopeToSave === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
+          else if (scopeToSave === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
+          else if (scopeToSave === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
+          else if (scopeToSave === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+
+          if (window.autoForwardIncompleteEvents) {
+              await window.autoForwardIncompleteEvents();
+          }
+
+          if (editorBtn && !silent) {
+            editorBtn.innerHTML = '저장 완료';
+            editorBtn.style.opacity = '1';
+            setTimeout(() => {
+              if (currentMode === 'editor') {
+                editorBtn.innerHTML = '저장';
+              }
+            }, 1500); 
+          }
+      } catch (e) {
+          console.error("🚨 백그라운드 저장 에러:", e);
+      }
+  }, 0);
   
+  // 낙관적 렌더링: DB 결과를 기다리지 않고 즉시 렌더링
   if (!silent && currentMode === 'editor') {
       window.render();
   }
@@ -538,12 +556,12 @@ window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, ch
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
     document.getElementById('btn-fwd-del-stop').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('stop', baseDateStr, chainId, onConfirm);
     };
     
     document.getElementById('btn-fwd-del-all').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('all', baseDateStr, chainId, onConfirm);
     };
 };
@@ -778,14 +796,14 @@ window.showPeriodDeleteModal = function(baseDateStr, labelName, textContent, gro
 
     document.getElementById('btn-del-after-this').onclick = async () => {
         if(window.hasUnsavedChanges) {
-            await window.saveCurrentViewData(true);
+            window.saveCurrentViewData(true);
         }
         await window.executePeriodDelete('after', baseDateStr, groupId, labelName, baseContent, onConfirm);
     };
     
     document.getElementById('btn-del-all').onclick = async () => {
         if(window.hasUnsavedChanges) {
-            await window.saveCurrentViewData(true);
+            window.saveCurrentViewData(true);
         }
         await window.executePeriodDelete('all', baseDateStr, groupId, labelName, baseContent, onConfirm);
     };
