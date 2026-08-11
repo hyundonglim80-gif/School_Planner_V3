@@ -39,30 +39,47 @@ window.BackupManager = {
 
             <div id="backup-memo-section" style="display:none; margin-bottom:15px; padding:15px; background:#f1f5f9; border-radius:8px; border: 1px dashed #cbd5e1;">
                 <p style="margin:0; color:#475569; font-size:0.95rem; line-height:1.5;">
-                    저장된 <strong>모든 메모 데이터</strong>와 <strong>자주 쓰는 문서/링크</strong> 목록을 처리합니다.<br><br>
-                    * 파일이나 시트에서 수정 후 복원 시, 기존 메모/링크는 유지되며 새로운 항목들은 병합됩니다.
+                    저장된 <strong>모든 메모 데이터</strong>와 <strong>자주 쓰는 문서/링크</strong> 목록을 처리합니다.<br>
                 </p>
             </div>
 
-            <div style="background:#eef2ff; padding:15px; border-radius:8px; border:1px solid #c7d2fe; margin-top:20px;">
-                <p style="margin:0 0 10px 0; font-weight:bold; color:#3730a3; font-size:1.05rem;">☁️ 구글 스프레드시트 동기화</p>
+            <div style="background:#fef2f2; padding:15px; border-radius:8px; border:1px solid #fca5a5; margin-bottom:15px;">
+                <p style="margin:0 0 10px 0; font-weight:bold; color:#b91c1c; font-size:1.05rem;">📥 가져오기 방식 선택</p>
+                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; cursor:pointer;">
+                    <input type="radio" name="import-mode" value="merge" checked style="margin-top:3px; accent-color:#059669;">
+                    <div>
+                        <span style="font-weight:bold; color:#059669; font-size:0.95rem;">기존 데이터 유지하며 추가 (병합)</span><br>
+                        <span style="font-size:0.8rem; color:#64748b;">현재 데이터를 보존하고, 백업 데이터를 합칩니다. (중복 자동 제외)</span>
+                    </div>
+                </label>
+                <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                    <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
+                    <div>
+                        <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">모두 지우고 덮어쓰기 (교체)</span><br>
+                        <span style="font-size:0.8rem; color:#64748b;">현재 데이터를 싹 지우고, 가져오는 데이터로 완전히 교체합니다.</span>
+                    </div>
+                </label>
+            </div>
+
+            <div style="background:#eef2ff; padding:15px; border-radius:8px; border:1px solid #c7d2fe; margin-top:10px;">
+                <p style="margin:0 0 10px 0; font-weight:bold; color:#3730a3; font-size:1.05rem;">☁️ 구글 스프레드시트</p>
                 <div style="display:flex; justify-content:space-between; gap:10px;">
-                    <button id="btn-sheets-import" onclick="window.BackupManager.importFromSheets()" class="modal-btn-secondary" style="flex:1; background:#fff; border: 2px solid #0f9d58; color:#0f9d58; font-size:1rem;">📗 시트에서 복원</button>
-                    <button id="btn-sheets-export" onclick="window.BackupManager.exportToSheets()" class="modal-btn-primary" style="flex:1; background:#0f9d58; font-size:1rem;">📗 시트로 백업</button>
+                    <button id="btn-sheets-import" onclick="window.BackupManager.importFromSheets()" class="modal-btn-secondary" style="flex:1; background:#fff; border: 2px solid #0f9d58; color:#0f9d58; font-size:1rem;">📗 가져오기</button>
+                    <button id="btn-sheets-export" onclick="window.BackupManager.exportToSheets()" class="modal-btn-primary" style="flex:1; background:#0f9d58; font-size:1rem;">📗 내보내기</button>
                 </div>
                 <div id="sheet-link-area"></div>
             </div>
 
             <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
-                <p style="margin:0 0 10px 0; font-weight:bold; color:#475569; font-size:1.05rem;">💾 로컬 파일 (CSV) 동기화</p>
+                <p style="margin:0 0 10px 0; font-weight:bold; color:#475569; font-size:1.05rem;">💾 로컬 파일(CSV)</p>
                 <div style="display:flex; justify-content:space-between; gap:10px;">
                     <input type="file" id="backup-upload-file" accept=".csv" style="display:none;" onchange="window.BackupManager.handleUpload(this)">
-                    <button onclick="document.getElementById('backup-upload-file').click()" class="modal-btn-secondary" style="flex:1; background:#fff; border-color:#64748b; color:#475569; font-size:1rem;">📤 파일에서 복원</button>
-                    <button id="btn-backup-download" onclick="window.BackupManager.handleDownload()" class="modal-btn-primary" style="flex:1; background:#475569; font-size:1rem;">📥 CSV 다운로드</button>
+                    <button onclick="document.getElementById('backup-upload-file').click()" class="modal-btn-secondary" style="flex:1; background:#fff; border-color:#64748b; color:#475569; font-size:1rem;">📤 가져오기</button>
+                    <button id="btn-backup-download" onclick="window.BackupManager.handleDownload()" class="modal-btn-primary" style="flex:1; background:#475569; font-size:1rem;">📥 내보내기</button>
                 </div>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v5', title: '데이터 통합 백업/복원소', width: '520px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v5', title: '백업 관리', width: '520px', content: html });
         }
         this.modal.open();
         this.setTab('schedule');
@@ -164,7 +181,7 @@ window.BackupManager = {
             await window.getUserCol('settings').doc('backup_config').delete();
             this.currentSpreadsheetId = null;
             this.checkExistingSheet();
-            alert("초기화 완료!\n이제 [📗 시트로 백업] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
+            alert("초기화 완료!\n이제 [📗 내보내기] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
         }
     },
 
@@ -244,7 +261,7 @@ window.BackupManager = {
         return rows;
     },
 
-    processScheduleRows: async function(rows) {
+    processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
         const header = rows[0];
@@ -262,18 +279,52 @@ window.BackupManager = {
         let batch = window.db.batch();
         let opCount = 0;
 
+        // 덮어쓰기(overwrite) 모드일 경우 해당 기간의 기존 데이터를 먼저 지움
+        if (mode === 'overwrite') {
+            let startStr = document.getElementById('backup-start-date').value;
+            let endStr = document.getElementById('backup-end-date').value;
+            
+            const cols = ['events', 'schedules', 'journals'];
+            for (const col of cols) {
+                const snap = await window.getUserCol(col).where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
+                snap.forEach(doc => {
+                    batch.delete(doc.ref);
+                    opCount++;
+                    if(opCount >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+                });
+            }
+            if(opCount > 0) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+            await Promise.all(batchPromises);
+            batchPromises.length = 0; // 초기화
+        }
+
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const dStr = row[dateIdx];
             if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
 
+            // 1. 일정(events) 처리
             const evText = row[eventIdx] || "";
-            const eventList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
-            batch.set(window.getUserCol('events').doc(dStr), { eventList: eventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
+            let newEventList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
+            
+            if (mode === 'merge') {
+                const existDoc = await window.getUserCol('events').doc(dStr).get();
+                if (existDoc.exists) {
+                    const existList = existDoc.data().eventList || [];
+                    const combinedList = [...existList];
+                    newEventList.forEach(newItem => {
+                        const isDup = existList.some(old => old.content === newItem.content);
+                        if(!isDup) combinedList.push(newItem);
+                    });
+                    newEventList = combinedList;
+                }
+            }
+            batch.set(window.getUserCol('events').doc(dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
+            // 2. 수업/시간표(schedules) 처리 (수업은 무조건 덮어쓰기)
             const periodsData = {};
-            let isSkipDay = eventList.some(ev => ev.labels && ev.labels.some(l => window.isSkipLabel && window.isSkipLabel(l)));
+            let isSkipDay = newEventList.some(ev => ev.labels && ev.labels.some(l => window.isSkipLabel && window.isSkipLabel(l)));
 
             let pNum = 1;
             let endPIdx = journalIdx !== -1 ? journalIdx : row.length;
@@ -289,10 +340,24 @@ window.BackupManager = {
             batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
+            // 3. 기록(journals) 처리
             if (journalIdx !== -1) {
                 const joText = row[journalIdx] || ""; 
-                const joList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
-                batch.set(window.getUserCol('journals').doc(dStr), { entries: joList, updatedAt: Date.now() }, { merge: true });
+                let newJournalList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
+                
+                if (mode === 'merge') {
+                    const existDoc = await window.getUserCol('journals').doc(dStr).get();
+                    if (existDoc.exists) {
+                        const existList = existDoc.data().entries || [];
+                        const combinedList = [...existList];
+                        newJournalList.forEach(newItem => {
+                            const isDup = existList.some(old => old.content === newItem.content);
+                            if(!isDup) combinedList.push(newItem);
+                        });
+                        newJournalList = combinedList;
+                    }
+                }
+                batch.set(window.getUserCol('journals').doc(dStr), { entries: newJournalList, updatedAt: Date.now() }, { merge: true });
                 opCount++;
             }
 
@@ -306,12 +371,26 @@ window.BackupManager = {
         await Promise.all(batchPromises);
     },
 
-    processMemoRows: async function(rows) {
+    processMemoRows: async function(rows, mode) {
         if (rows.length < 2) return;
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
         let newLinks = [];
+
+        // 덮어쓰기(overwrite) 모드일 경우 기존 메모 싹 지우기
+        if (mode === 'overwrite') {
+            const snap = await window.getUserCol('tasks').get();
+            snap.forEach(doc => {
+                batch.delete(doc.ref);
+                opCount++;
+                if(opCount >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+            });
+            await window.getUserCol('settings').doc('user_links').delete(); // 링크도 지우기
+            if(opCount > 0) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+            await Promise.all(batchPromises);
+            batchPromises.length = 0; 
+        }
 
         for (let i=1; i<rows.length; i++) {
             const r = rows[i];
@@ -344,8 +423,16 @@ window.BackupManager = {
         if (newLinks.length > 0) {
             const linkDoc = await window.getUserCol('settings').doc('user_links').get();
             let existingLinks = linkDoc.exists ? (linkDoc.data().links || []) : [];
-            const mergedLinks = [...existingLinks, ...newLinks];
-            batch.set(window.getUserCol('settings').doc('user_links'), { links: mergedLinks }, { merge: true });
+            
+            // 💡 병합 모드일 때 중복 링크 방지
+            if (mode === 'merge') {
+                const combinedLinks = [...existingLinks];
+                newLinks.forEach(nl => {
+                    if (!existingLinks.some(el => el.url === nl.url)) combinedLinks.push(nl);
+                });
+                newLinks = combinedLinks;
+            }
+            batch.set(window.getUserCol('settings').doc('user_links'), { links: newLinks }, { merge: true });
             opCount++;
         }
 
@@ -378,7 +465,6 @@ window.BackupManager = {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     properties: { title: '업무 및 수업 계획표 클라우드 백업' },
-                    // 🌟 탭(시트) 이름을 '메모링크'에서 '메모'로 변경
                     sheets: [ { properties: { title: '일정기록' } }, { properties: { title: '메모' } } ]
                 })
             });
@@ -415,7 +501,6 @@ window.BackupManager = {
             btn.textContent = "⏳ 내보내는 중...";
 
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
-            // 🌟 참조하는 탭 이름을 '메모'로 변경
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             
             const newRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
@@ -532,7 +617,10 @@ window.BackupManager = {
     },
 
     importFromSheets: async function() {
-        if(!confirm(`구글 시트의 데이터로 현재 화면을 복원(덮어쓰기 및 병합)하시겠습니까?`)) return;
+        const mode = document.querySelector('input[name="import-mode"]:checked').value;
+        const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터에 병합';
+
+        if(!confirm(`[${modeName}]\n구글 시트의 데이터로 현재 화면을 복원하시겠습니까?`)) return;
 
         const btn = document.getElementById('btn-sheets-import');
         const oldText = btn.textContent;
@@ -548,19 +636,18 @@ window.BackupManager = {
             const spreadsheetId = doc.exists ? doc.data().spreadsheetId : null;
             if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 백업'을 진행해주세요.");
 
-            // 🌟 참조하는 탭 이름을 '메모'로 변경
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
                 method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
             });
             
-            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (파일이 구글 드라이브에서 삭제되었거나, 탭 이름이 다르거나 접근 권한이 없습니다.)");
+            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (접근 권한이 없거나 파일이 삭제되었습니다.)");
             
             const data = await res.json();
             const rows = data.values || [];
 
-            if (this.currentTab === 'schedule') await this.processScheduleRows(rows);
-            else await this.processMemoRows(rows);
+            if (this.currentTab === 'schedule') await this.processScheduleRows(rows, mode);
+            else await this.processMemoRows(rows, mode);
 
             alert("✅ 구글 시트에서 성공적으로 복원되었습니다!");
             this.modal.close();
@@ -614,7 +701,11 @@ window.BackupManager = {
     handleUpload: async function(input) {
         const file = input.files[0];
         if (!file) return;
-        if(!confirm(`선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
+
+        const mode = document.querySelector('input[name="import-mode"]:checked').value;
+        const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터에 병합';
+
+        if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
 
         const btn = input.nextElementSibling;
         const oldText = btn.textContent; btn.textContent = "⏳ 업로드 적용 중..."; btn.disabled = true;
@@ -622,13 +713,17 @@ window.BackupManager = {
         try {
             const text = await file.text();
             const rows = this.parseCSV(text);
-            if (this.currentTab === 'schedule') await this.processScheduleRows(rows);
-            else await this.processMemoRows(rows);
+            
+            if (this.currentTab === 'schedule') await this.processScheduleRows(rows, mode);
+            else await this.processMemoRows(rows, mode);
             
             this.modal.close();
             if(window.render) window.render();
+            alert("✅ CSV 파일에서 성공적으로 복원되었습니다!");
         } catch (e) { 
             alert("업로드 처리 중 오류가 발생했습니다."); 
+            console.error(e);
+        } finally {
             btn.textContent = oldText; 
             btn.disabled = false; 
             input.value = '';
