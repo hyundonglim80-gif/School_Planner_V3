@@ -95,8 +95,8 @@ const LabelManager = {
           <p style="margin:0;">
               <strong>[일정 라벨]</strong> 왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
               💡 <b>기간:</b> 선택 시 며칠부터 며칠까지인지 달력 팝업이 뜹니다.<br>
-              💡 <b>완료(이월):</b> 체크박스가 생성되며, 미완료 시 다음 날로 이월됩니다.<br>
-              <span style="color:#ef4444; font-size:0.85rem;">* '기간'과 '완료' 속성은 동시에 사용할 수 없습니다.</span>
+              💡 <b>반복:</b> 선택 시 매주 반복되는 일정을 등록하는 팝업이 뜹니다.<br>
+              💡 <b>완료(이월):</b> 체크박스가 생성되며, 미완료 시 다음 날로 이월됩니다.
           </p>
       </div>
       <div id="event-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
@@ -107,10 +107,13 @@ const LabelManager = {
               
               <div style="display:flex; gap:12px; align-items:center; text-align:center;">
                   <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#2563eb; cursor:pointer;">
-                      <span>기간</span><input type="checkbox" id="new-label-period" onchange="if(this.checked) document.getElementById('new-label-forward').checked = false;" class="modal-checkbox" style="margin-top:2px;">
+                      <span>기간</span><input type="checkbox" id="new-label-period" onchange="if(this.checked){ document.getElementById('new-label-forward').checked = false; document.getElementById('new-label-recur').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
+                  </label>
+                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#16a34a; cursor:pointer;">
+                      <span>반복</span><input type="checkbox" id="new-label-recur" onchange="if(this.checked){ document.getElementById('new-label-period').checked = false; document.getElementById('new-label-forward').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
                   </label>
                   <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#059669; cursor:pointer;">
-                      <span>완료</span><input type="checkbox" id="new-label-forward" onchange="if(this.checked) document.getElementById('new-label-period').checked = false;" class="modal-checkbox" style="margin-top:2px;">
+                      <span>완료</span><input type="checkbox" id="new-label-forward" onchange="if(this.checked){ document.getElementById('new-label-period').checked = false; document.getElementById('new-label-recur').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
                   </label>
                   <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#ef4444; cursor:pointer;">
                       <span>수업삭제</span><input type="checkbox" id="new-label-skip" class="modal-checkbox" style="margin-top:2px;">
@@ -150,6 +153,7 @@ const LabelManager = {
     
     container.innerHTML = window.tempEditingLabels.map((label, index) => {
         const periodChecked = label.isPeriod ? 'checked' : '';
+        const recurChecked = label.isRecur ? 'checked' : '';
         const forwardChecked = label.isForward ? 'checked' : '';
         const skipChecked = label.isSkip ? 'checked' : '';
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
@@ -164,10 +168,13 @@ const LabelManager = {
             <div style="flex:1;"></div>
             <div style="display:flex; gap:10px; align-items:center; text-align:center;">
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;">
-                    <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked) window.tempEditingLabels[${index}].isForward = false; LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isForward = false; window.tempEditingLabels[${index}].isRecur = false; } LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
+                </label>
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isRecur ? '#16a34a' : '#94a3b8'}; cursor:pointer;">
+                    <span>반복</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isRecur = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isForward = false; } LabelManager.renderEventLabels();" ${recurChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;">
-                    <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked) window.tempEditingLabels[${index}].isPeriod = false; LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isRecur = false; } LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;">
                     <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
@@ -181,6 +188,7 @@ const LabelManager = {
   addNewEventLabel: function() {
     const nameInput = document.getElementById('new-label-name');
     const periodCheck = document.getElementById('new-label-period');
+    const recurCheck = document.getElementById('new-label-recur');
     const forwardCheck = document.getElementById('new-label-forward');
     const skipCheck = document.getElementById('new-label-skip');
     const colorInput = document.getElementById('event-selected-color');
@@ -193,12 +201,18 @@ const LabelManager = {
     window.tempEditingLabels.push({ 
         name: name, 
         isPeriod: periodCheck.checked,
+        isRecur: recurCheck.checked,
         isForward: forwardCheck.checked, 
         isSkip: skipCheck.checked, 
         color: color, 
         originalName: null 
     });
-    nameInput.value = ''; periodCheck.checked = false; forwardCheck.checked = false; skipCheck.checked = false;
+    
+    nameInput.value = ''; 
+    periodCheck.checked = false; 
+    recurCheck.checked = false;
+    forwardCheck.checked = false; 
+    skipCheck.checked = false;
     this.renderEventLabels();
   },
 
@@ -296,7 +310,6 @@ const LabelManager = {
     this.eventModal.close();
     alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     
-    // 🚀 [옵션 2-A] 저장 완료 후 변경 사항 소급 적용을 위해 즉시 이월 스캔 실행
     if (window.autoForwardIncompleteEvents) {
         await window.autoForwardIncompleteEvents();
     }
