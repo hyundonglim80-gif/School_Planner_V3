@@ -101,7 +101,6 @@ window.loadSettings = async function() {
                 window.periodNames = ["1", "2", "3", "4", "5", "6"];
             }
 
-            // 💡 D-Day 데이터 로드
             window.dDayList = data.dDayList || [];
             window.selectedDDayId = data.selectedDDayId || null;
             window.updateDdayUI();
@@ -256,31 +255,34 @@ function updateButtonUI() {
 }
 
 // 💡 [V3.5 최적화] 낙관적 업데이트 기반 백그라운드 데이터 저장 엔진
+// 💡 [수정] 낙관적 업데이트 기반 백그라운드 데이터 저장 엔진 (경쟁 상태 오류 해결)
 window.saveCurrentViewData = function(silent = false) {
   const editorBtn = document.getElementById('btn-mode-editor');
   
   if (editorBtn && !silent) {
     editorBtn.innerHTML = "저장중..";
-    // 멈춤을 방지하기 위해 disabled 대신 opacity 적용
     editorBtn.style.opacity = '0.7'; 
-  }
-
-  // 동기화: 화면이 전환되기 전 현재 입력 상태를 메모리에 즉각 반영
-  if (currentScope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
-      window.dayViewInstance.syncEventInputs();
-      if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
   }
 
   window.hasUnsavedChanges = false; 
   const scopeToSave = currentScope;
 
-  // 비동기 처리: 클라우드 DB 저장은 백그라운드로 던짐
+  // 💡 [핵심 해결] setTimeout 밖에서 save 함수를 "먼저 호출"하여
+  // 화면이 바뀌어 엎어지기 전의 날짜와 입력 데이터를 동기적으로 캡처(메모리 복사)합니다.
+  let savePromise = null;
+  try {
+      if (scopeToSave === 'day' && window.saveDayDataFromEditor) savePromise = window.saveDayDataFromEditor();
+      else if (scopeToSave === 'week' && window.saveWeekDataFromEditor) savePromise = window.saveWeekDataFromEditor();
+      else if (scopeToSave === 'month' && window.saveMonthDataFromEditor) savePromise = window.saveMonthDataFromEditor();
+      else if (scopeToSave === 'year' && window.saveYearDataFromEditor) savePromise = window.saveYearDataFromEditor();
+  } catch (e) {
+      console.error("데이터 캡처 중 오류:", e);
+  }
+
+  // 비동기 처리: 클라우드 DB 저장은 백그라운드로 던짐 (캡처된 데이터를 바탕으로 진행)
   setTimeout(async () => {
       try {
-          if (scopeToSave === 'day' && window.saveDayDataFromEditor) await window.saveDayDataFromEditor();
-          else if (scopeToSave === 'week' && window.saveWeekDataFromEditor) await window.saveWeekDataFromEditor();
-          else if (scopeToSave === 'month' && window.saveMonthDataFromEditor) await window.saveMonthDataFromEditor();
-          else if (scopeToSave === 'year' && window.saveYearDataFromEditor) await window.saveYearDataFromEditor();
+          if (savePromise) await savePromise;
 
           if (window.autoForwardIncompleteEvents) {
               await window.autoForwardIncompleteEvents();
@@ -322,11 +324,32 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('input', markUnsaved);
   document.addEventListener('change', markUnsaved);
 
+  // 💡 [핵심] 새로고침(F5)/창 닫기/페이지 이탈 시 무조건 강제 저장 (데이터 유실 방지)
   window.addEventListener('beforeunload', (e) => {
     if (currentMode === 'editor' && window.hasUnsavedChanges) {
-      e.preventDefault();
+      // 1. 동기적으로 현재 입력창 데이터를 메모리에 우선 반영
+      if (currentScope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
+          window.dayViewInstance.syncEventInputs();
+          if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
+      }
+      
+      // 2. 비동기 저장 함수 호출 (브라우저가 닫히기 전 최선을 다해 Firestore에 전송)
+      window.saveCurrentViewData(true);
+      
+      // 3. 사용자가 실수로 껐을 때를 대비해 브라우저 기본 경고창 띄우기 (데이터 전송할 시간 벌기)
+      e.preventDefault(); 
       e.returnValue = ''; 
     }
+  });
+
+  // 💡 [핵심 보완] 모바일 기기 홈 버튼 누르거나 앱이 숨겨질 때 즉시 저장 (Visibility API)
+  document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === 'hidden' && currentMode === 'editor' && window.hasUnsavedChanges) {
+          if (currentScope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
+              window.dayViewInstance.syncEventInputs();
+          }
+          window.saveCurrentViewData(true);
+      }
   });
 
   if (window.auth) {
@@ -531,12 +554,9 @@ window.autoForwardIncompleteEvents = async function() {
     }
 };
 
-// ==========================================================================
-// 🚀 완료(이월) 일정 다중 삭제 모달 및 안전 처리 로직
-// ==========================================================================
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
     const modalHtml = `
-    <div id="forward-delete-modal" class="modal-overlay" style="display:flex;">
+    <div id="forward-delete-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
         <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
             <h3 style="color:#ef4444; margin-top:0;">🗑️ 이월 일정 삭제</h3>
             <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
@@ -556,12 +576,12 @@ window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, ch
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
     document.getElementById('btn-fwd-del-stop').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('stop', baseDateStr, chainId, onConfirm);
     };
     
     document.getElementById('btn-fwd-del-all').onclick = async () => {
-        if(window.hasUnsavedChanges) await window.saveCurrentViewData(true);
+        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('all', baseDateStr, chainId, onConfirm);
     };
 };
@@ -665,7 +685,7 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
 
 
 // ==========================================================================
-// 🚀 [신규 기능] 1. 기간 일정 다중 등록 달력 팝업
+// 🚀 1. 기간 일정 다중 등록 달력 팝업
 // ==========================================================================
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback) {
     const modalHtml = `
@@ -706,7 +726,7 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
 
 
 // ==========================================================================
-// 🚀 [신규 기능] 2. 매주 반복 일정 다중 등록 달력 팝업
+// 🚀 2. 매주 반복 일정 다중 등록 달력 팝업
 // ==========================================================================
 window.openRecurringModal = function(startDateStr, labelName, textContent, callback) {
     const startD = new Date(startDateStr);
@@ -745,7 +765,7 @@ window.openRecurringModal = function(startDateStr, labelName, textContent, callb
 
 
 // ==========================================================================
-// 🚀 [신규 기능] 3. 그룹 일정(기간/반복) 통합 DB 저장 엔진
+// 🚀 3. 그룹 일정(기간/반복) 통합 DB 저장 엔진
 // ==========================================================================
 window.executeGroupSave = async function(labelName, callback, mode) {
     const isPeriod = (mode === 'period');
@@ -806,7 +826,7 @@ window.executeGroupSave = async function(labelName, callback, mode) {
 
 
 // ==========================================================================
-// 🚀 [신규 기능] 4. 그룹(기간/반복) 일정 다중 삭제 및 수정 제어 (3가지 옵션 완벽 지원)
+// 🚀 4. 그룹(기간/반복) 일정 다중 삭제 및 수정 제어 (3가지 옵션 완벽 지원)
 // ==========================================================================
 window.showGroupDeleteModal = function(baseDateStr, labelName, textContent, groupId, onConfirm, onOnlyThisDay) {
     const modalHtml = `
@@ -922,9 +942,7 @@ window.executeGroupDelete = async function(mode, baseDateStr, groupId, labelName
 window.dDayList = [];
 window.selectedDDayId = null;
 
-// D-Day 메뉴 토글 및 리스트 렌더링
 window.toggleDdayMenu = function() {
-    // 💡 UX 향상: 만약 등록된 D-Day가 단 1개도 없다면 무의미한 드롭다운 대신 바로 설정창을 띄워줍니다.
     if (!window.dDayList || window.dDayList.length === 0) {
         window.openDdaySettingsModal();
         return;
@@ -952,7 +970,6 @@ window.toggleDdayMenu = function() {
     dropdown.classList.toggle('hidden');
 };
 
-// 화면 아무 곳이나 클릭 시 D-Day 드롭다운 닫기
 window.addEventListener('click', function(e) {
     const btn = document.getElementById('btn-dday-display');
     const dropdown = document.getElementById('dday-dropdown');
@@ -961,7 +978,6 @@ window.addEventListener('click', function(e) {
     }
 });
 
-// 특정 D-Day 선택 처리
 window.selectDday = async function(id) {
     window.selectedDDayId = id;
     document.getElementById('dday-dropdown').classList.add('hidden');
@@ -974,7 +990,6 @@ window.selectDday = async function(id) {
     }
 };
 
-// 버튼 텍스트 업데이트 로직
 window.updateDdayUI = function() {
     const btn = document.getElementById('btn-dday-display');
     if (!btn) return;
@@ -997,7 +1012,6 @@ window.updateDdayUI = function() {
     }
 };
 
-// D-Day 계산 유틸리티
 window.calculateDday = function(targetDateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
@@ -1012,12 +1026,10 @@ window.calculateDday = function(targetDateStr) {
     return `D+${Math.abs(diffDays)}`;
 };
 
-// D-Day 설정 모달창 열기 (충돌 방지를 위해 HTML 직접 조작 방식으로 고정)
 window.openDdaySettingsModal = function() {
     const dropdown = document.getElementById('dday-dropdown');
     if(dropdown) dropdown.classList.add('hidden');
     
-    // 이미 창이 열려있으면 중복 생성 방지
     const existing = document.getElementById('dday-modal');
     if (existing) existing.remove();
     
@@ -1047,7 +1059,6 @@ window.openDdaySettingsModal = function() {
     window.renderDdaySettingsList();
 };
 
-// 모달 내부 리스트 렌더링
 window.renderDdaySettingsList = function() {
     const listEl = document.getElementById('dday-settings-list');
     if(!listEl) return;
@@ -1070,7 +1081,6 @@ window.renderDdaySettingsList = function() {
     });
 };
 
-// 새 D-Day 추가
 window.addDday = async function() {
     const titleInput = document.getElementById('new-dday-title');
     const dateInput = document.getElementById('new-dday-date');
@@ -1099,7 +1109,6 @@ window.addDday = async function() {
     window.updateDdayUI();
 };
 
-// D-Day 삭제
 window.deleteDday = async function(id) {
     if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
     
@@ -1111,7 +1120,6 @@ window.deleteDday = async function(id) {
     window.updateDdayUI();
 };
 
-// Firebase에 D-Day 저장
 window.saveDdayDataToFirebase = async function() {
     if (!window.auth || !window.auth.currentUser) return;
     try {
