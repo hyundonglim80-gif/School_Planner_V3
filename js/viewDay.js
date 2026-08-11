@@ -5,6 +5,7 @@ class DayView extends window.BaseView {
     super(container);
     this.currentEvents = [];
     this.currentJournals = [];
+    this.currentSchedules = {}; // 💡 시간표 데이터 백업용 변수 추가
   }
 
   parseEvents(docData) {
@@ -14,7 +15,6 @@ class DayView extends window.BaseView {
     return [];
   }
 
-  // 💡 [수정] 라벨 클릭 이벤트를 공통화하고, '기간' 및 '반복' 팝업을 모두 지원하도록 콜백 수정
   renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback, onSpecialLabelRequest) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
@@ -39,7 +39,6 @@ class DayView extends window.BaseView {
               if (isActive) {
                   selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
               } else {
-                  // 💡 [핵심] '기간' 또는 '반복' 라벨 클릭 시 콜백으로 흐름을 넘김 (팝업 호출)
                   if (isPeriod || isRecur) {
                       if (onSpecialLabelRequest) {
                           onSpecialLabelRequest(labelText, isPeriod ? 'period' : 'recur');
@@ -48,7 +47,6 @@ class DayView extends window.BaseView {
                   }
                   
                   if (isForward) {
-                      // 완료 라벨 선택 시 기간/반복 라벨 해제
                       selectedLabelsArray = selectedLabelsArray.filter(l => {
                           const lObj = allLabelsObj.find(x => x.name === l);
                           return !(lObj && (lObj.isPeriod || lObj.isRecur));
@@ -151,6 +149,7 @@ class DayView extends window.BaseView {
     const dateStr = this.dateStr;
     const dayData = await window.dbAPI.loadDayData(dateStr);
     const periods = dayData.periods || {};
+    this.currentSchedules = periods; // 초기 데이터 백업
     
     const eventDoc = await window.getUserCol('events').doc(dateStr).get();
     const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
@@ -202,9 +201,9 @@ class DayView extends window.BaseView {
       html += `
               <tr data-period="${p}">
                 <td class="period-cell" onclick="window.dayViewInstance.openClassSwapModal(${p})" style="cursor:pointer; color:#2563eb; text-decoration:underline; font-weight:900; font-size:0.9rem;" title="클릭하여 교환">${periodName}</td>
-                <td class="editable-cell cell-subject" contenteditable="true">${pObj.subject || ''}</td>
-                <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;">${pObj.memo || ''}</td>
-                <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;">${pObj.supplies || ''}</td>
+                <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.subject || ''}</td>
+                <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
+                <td class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.supplies || ''}</td>
               </tr>
       `;
     }
@@ -261,7 +260,6 @@ class DayView extends window.BaseView {
             }
         }
 
-        // 💡 [수정] 콜백 함수에서 period, recur 분기 처리
         this.renderLabelChips(chipContainer, labelObjs, e.labels, 
             (newLabels) => {
                 this.currentEvents[index].labels = newLabels;
@@ -270,6 +268,7 @@ class DayView extends window.BaseView {
                 const content = this.currentEvents[index].content;
                 const backupEvent = { ...this.currentEvents[index] };
                 this.syncEventInputs();
+                this.syncScheduleInputs(); // 💡 시간표 동기화 추가
                 this.currentEvents.splice(index, 1);
                 await window.saveCurrentViewData(true); 
                 
@@ -319,7 +318,6 @@ class DayView extends window.BaseView {
             const isGrouped = !!ev.groupId;
             const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
 
-            // 💡 [수정] 그룹(반복/기간) 일정 삭제 시 3가지 옵션 모달 연결
             if (isGrouped) {
                 window.showGroupDeleteModal(this.dateStr, ev.labels[0]||'', ev.content, ev.groupId, 
                     () => { window.render(); }, 
@@ -351,6 +349,20 @@ class DayView extends window.BaseView {
         
         setTimeout(() => { ta.style.height = ta.scrollHeight + 'px'; }, 0);
     });
+  }
+
+  // 💡 [핵심 추가] 시간표 입력값을 메모리에 동기화
+  syncScheduleInputs() {
+      const rows = document.querySelectorAll("tr[data-period]");
+      if (rows.length === 0) return; // 편집 모드가 아니면 패스
+      
+      rows.forEach(row => {
+          const p = row.getAttribute("data-period");
+          const subject = (row.querySelector(".cell-subject").innerText || '').trim();
+          const memo = (row.querySelector(".cell-memo").innerText || '').trim();
+          const supplies = (row.querySelector(".cell-supplies").innerText || '').trim();
+          this.currentSchedules[p] = { subject, memo, supplies };
+      });
   }
 
   syncEventInputs() {
@@ -483,32 +495,25 @@ class DayView extends window.BaseView {
 
     if (!targetDate) return alert("목표 날짜를 선택해주세요.");
 
-    const currentDOMPeriods = {};
-    for(let p=1; p<=this.maxPeriod; p++) {
-        const row = document.querySelector(`tr[data-period="${p}"]`);
-        currentDOMPeriods[p] = {
-            subject: (row.querySelector(".cell-subject").innerText||'').trim(),
-            memo: (row.querySelector(".cell-memo").innerText||'').trim(),
-            supplies: (row.querySelector(".cell-supplies").innerText||'').trim()
-        };
-    }
-
-    const sourceData = currentDOMPeriods[sourcePeriod];
+    this.syncScheduleInputs();
+    const sourceData = this.currentSchedules[sourcePeriod];
 
     if (sourceDate === targetDate) {
         if (sourcePeriod === targetPeriod) {
             document.getElementById('swap-modal').remove();
             return;
         }
-        const targetData = currentDOMPeriods[targetPeriod];
-        currentDOMPeriods[targetPeriod] = sourceData;
-        currentDOMPeriods[sourcePeriod] = targetData;
+        const targetData = this.currentSchedules[targetPeriod];
+        this.currentSchedules[targetPeriod] = sourceData;
+        this.currentSchedules[sourcePeriod] = targetData;
 
         for(let p=1; p<=this.maxPeriod; p++) {
             const row = document.querySelector(`tr[data-period="${p}"]`);
-            row.querySelector(".cell-subject").innerText = currentDOMPeriods[p].subject;
-            row.querySelector(".cell-memo").innerText = currentDOMPeriods[p].memo;
-            row.querySelector(".cell-supplies").innerText = currentDOMPeriods[p].supplies;
+            if(row) {
+                row.querySelector(".cell-subject").innerText = this.currentSchedules[p].subject;
+                row.querySelector(".cell-memo").innerText = this.currentSchedules[p].memo;
+                row.querySelector(".cell-supplies").innerText = this.currentSchedules[p].supplies;
+            }
         }
     } else {
         document.getElementById('swap-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드 통신 중...</div>`;
@@ -520,10 +525,14 @@ class DayView extends window.BaseView {
         targetPeriodsDB[targetPeriod] = sourceData;
         await window.getUserCol('schedules').doc(targetDate).set({ periods: targetPeriodsDB, updatedAt: Date.now() });
 
+        this.currentSchedules[sourcePeriod] = targetData;
+
         const sourceRow = document.querySelector(`tr[data-period="${sourcePeriod}"]`);
-        sourceRow.querySelector(".cell-subject").innerText = targetData.subject;
-        sourceRow.querySelector(".cell-memo").innerText = targetData.memo;
-        sourceRow.querySelector(".cell-supplies").innerText = targetData.supplies;
+        if(sourceRow) {
+            sourceRow.querySelector(".cell-subject").innerText = targetData.subject;
+            sourceRow.querySelector(".cell-memo").innerText = targetData.memo;
+            sourceRow.querySelector(".cell-supplies").innerText = targetData.supplies;
+        }
         
         alert(`✅ 변경되었습니다! \n반드시 상단의 [💾 저장] 버튼을 누르세요.`);
     }
@@ -534,46 +543,47 @@ class DayView extends window.BaseView {
     window.hasUnsavedChanges = true; 
   }
 
-  async save() {
-    const dateStr = this.dateStr;
-
+  // 💡 [핵심] 낙관적 업데이트에 맞춘 비동기 저장 방식 적용 (DOM 참조 제거)
+  // 💡 [핵심] 스냅샷 캡처 후 백그라운드 저장 적용
+  save() {
+    // [1단계: 동기적 데이터 캡처] 화면이 넘어가기 전에 현재 날짜와 데이터를 확정지어 복사
+    const targetDateStr = this.dateStr;
     this.syncEventInputs();
-    const validEvents = this.currentEvents.filter(e => e.content.trim() !== '' || (e.labels && e.labels.length > 0));
-    
-    const eventTextForLegacy = window.formatEventListToText(validEvents);
-    
-    await window.getUserCol('events').doc(dateStr).set({
-        eventList: validEvents,
-        eventText: eventTextForLegacy,
-        updatedAt: Date.now()
-    });
-
-    let isSkipDay = false;
-    for (const e of validEvents) {
-        if (e.labels && e.labels.some(l => window.isSkipLabel(l))) {
-            isSkipDay = true;
-            break;
-        }
-    }
-
-    const periodsData = {};
-    const rows = document.querySelectorAll("tr[data-period]");
-    
-    rows.forEach(row => {
-      const p = row.getAttribute("data-period");
-      let subject = (row.querySelector(".cell-subject").innerText || '').trim();
-      const memo = (row.querySelector(".cell-memo").innerText || '').trim();
-      const supplies = (row.querySelector(".cell-supplies").innerText || '').trim();
-
-      if (isSkipDay) subject = ''; 
-      periodsData[p] = { subject, memo, supplies };
-    });
-
-    await window.dbAPI.saveSchedule(dateStr, periodsData);
-    
+    this.syncScheduleInputs();
     this.syncJournalInputs();
-    const validJournals = this.currentJournals.filter(j => j.content.trim() !== '' || (j.labels && j.labels.length > 0));
-    await window.getUserCol('journals').doc(dateStr).set({ entries: validJournals, updatedAt: Date.now() });
+
+    // 화면이 엎어져도 영향받지 않게 깊은 복사(Deep Copy)
+    const validEvents = this.currentEvents
+        .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+        .map(e => ({...e}));
+    const periodsData = JSON.parse(JSON.stringify(this.currentSchedules || {}));
+    const validJournals = this.currentJournals
+        .filter(j => (j.content || '').trim() !== '' || (j.labels && j.labels.length > 0))
+        .map(j => ({...j}));
+
+    // [2단계: 비동기 클라우드 저장] 캡처된 데이터를 바탕으로 백그라운드에서 전송 (Promise 반환)
+    return (async () => {
+        const eventTextForLegacy = window.formatEventListToText ? window.formatEventListToText(validEvents) : '';
+        await window.getUserCol('events').doc(targetDateStr).set({
+            eventList: validEvents,
+            eventText: eventTextForLegacy,
+            updatedAt: Date.now()
+        });
+
+        let isSkipDay = false;
+        for (const e of validEvents) {
+            if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                isSkipDay = true; break;
+            }
+        }
+
+        if (isSkipDay) {
+            for (const p in periodsData) { periodsData[p].subject = ''; }
+        }
+
+        await window.dbAPI.saveSchedule(targetDateStr, periodsData);
+        await window.getUserCol('journals').doc(targetDateStr).set({ entries: validJournals, updatedAt: Date.now() });
+    })();
   }
 }
 
