@@ -2,11 +2,12 @@
 
 const RecurringEventModule = {
   modalInstance: null,
+  currentCallback: null,
+  currentLabelName: '',
+  currentContent: '',
+  currentStartDate: '',
 
   getContentHTML: function() {
-    const labels = window.getEventLabels();
-    const labelOptions = labels.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
-
     let monthDayCheckboxes = '';
     for (let d = 1; d <= 31; d++) {
         monthDayCheckboxes += `
@@ -17,22 +18,8 @@ const RecurringEventModule = {
     }
 
     return `
-      <div class="modal-info-box">
-        <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">📌 1. 일정 정보 입력</h4>
-        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
-          <span style="font-weight:bold; width:80px; color:#334155;">라벨 선택:</span>
-          <select id="rec-label-select" style="padding:8px; border-radius:6px; border:1px solid #cbd5e1; outline:none; font-weight:bold; color:#1e40af; background:#fff; flex:1;">
-            ${labelOptions}
-          </select>
-        </div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <span style="font-weight:bold; width:80px; color:#334155;">일정 내용:</span>
-          <input type="text" id="rec-event-content" placeholder="예: 학년 협의회, 안전점검의 날" class="modal-input-text" style="flex:1; padding:8px;">
-        </div>
-      </div>
-
-      <div class="modal-info-box alt">
-        <h4 style="margin-top:0; margin-bottom:10px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">🔄 2. 반복 조건 설정</h4>
+      <div class="modal-info-box alt" style="margin-top:0;">
+        <h4 style="margin-top:0; margin-bottom:10px; color:#16a34a; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">🔄 1. 반복 조건 설정</h4>
         <div style="display:flex; gap:15px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
           <span style="font-weight:bold; width:80px; color:#334155;">반복 주기:</span>
           <label style="cursor:pointer; font-weight:bold; color:#1e293b;">
@@ -72,7 +59,7 @@ const RecurringEventModule = {
 
       <div class="modal-info-box">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #bfdbfe; padding-bottom:5px;">
-          <h4 style="margin:0; color:#1e40af;">📅 3. 적용 기간 지정</h4>
+          <h4 style="margin:0; color:#1e40af;">📅 2. 적용 기간 지정</h4>
           <div style="display:flex; gap:6px;">
             <button onclick="RecurringEventModule.setQuickRange('sem1')" style="padding:2px 8px; font-size:0.8rem; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; border-radius:4px; cursor:pointer; font-weight:bold;">1학기</button>
             <button onclick="RecurringEventModule.setQuickRange('sem2')" style="padding:2px 8px; font-size:0.8rem; background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; border-radius:4px; cursor:pointer; font-weight:bold;">2학기</button>
@@ -92,26 +79,65 @@ const RecurringEventModule = {
         </div>
       </div>
 
-      <button onclick="RecurringEventModule.executeBatch()" class="search-execute-btn" style="background:#2563eb;">
-        🚀 반복 일정 일괄 등록 실행
-      </button>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+        <button id="btn-recur-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-weight:bold;">취소</button>
+        <button id="btn-recur-execute" class="modal-btn-primary" style="background:#16a34a; border-color:#15803d; font-weight:bold;">🚀 반복 일정 등록</button>
+      </div>
     `;
   },
 
-  open: async function() {
-    if (!this.modalInstance) {
-      this.modalInstance = new window.Modal({
-        id: 'recurring-event-modal',
-        title: '🔄 반복 일정 일괄 등록',
-        width: '540px',
-        content: this.getContentHTML()
-      });
-    }
-    this.modalInstance.open();
+  open: async function(startDateStr, labelName, textContent, callback) {
+    this.currentLabelName = labelName || '';
+    this.currentContent = textContent || '';
+    this.currentStartDate = startDateStr || window.formatDate(new Date());
+    this.currentCallback = callback;
+
+    // 이전 모달이 켜져있다면 제거하여 충돌 방지
+    const existingModal = document.getElementById('recurring-event-modal');
+    if (existingModal) existingModal.remove();
+
+    // 💡 팝업 제목을 유동적으로 변경하여 사용자가 무엇을 등록하는지 바로 알 수 있게 함
+    const displayTitle = this.currentContent ? `🔁 [${this.currentLabelName}] ${this.currentContent}` : `🔁 [${this.currentLabelName}] 반복 등록`;
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+    <div id="recurring-event-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; justify-content:center; align-items:center;">
+        <div class="modal-content" style="width:540px; padding:25px; background:#fff; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#16a34a; border-bottom:2px solid #bbf7d0; padding-bottom:10px;">${displayTitle}</h3>
+            ${this.getContentHTML()}
+        </div>
+    </div>`;
+    document.body.appendChild(wrapper.firstElementChild);
+
+    // 이벤트 리스너 바인딩
+    document.getElementById('btn-recur-cancel').onclick = () => this.cancel();
+    document.getElementById('btn-recur-execute').onclick = () => this.executeBatch();
+
+    // 바탕화면 클릭 시 닫기(취소) 처리
+    document.getElementById('recurring-event-modal').addEventListener('click', (e) => {
+        if(e.target.id === 'recurring-event-modal') this.cancel();
+    });
+
+    // 시작일 자동 세팅
+    document.getElementById('rec-start-date').value = this.currentStartDate;
     
-    // 💡 열 때 환경설정을 불러와서 정확한 2학기 날짜를 기반으로 기간 세팅
+    // 시작일의 요일을 계산하여 해당 요일 체크박스를 자동으로 켜줌 (UX 최적화)
+    const startD = window.parseLocalDate(this.currentStartDate);
+    const dayOfWeek = startD.getDay();
+    if(dayOfWeek >= 1 && dayOfWeek <= 5) {
+        const cb = document.querySelector(`.rec-day-check[value="${dayOfWeek}"]`);
+        if(cb) cb.checked = true;
+    }
+
+    // 1학기 기간으로 자동 초기화 세팅
     await window.loadGlobalPreferences();
-    this.setQuickRange('sem1'); 
+    this.setQuickRange('sem1');
+  },
+
+  cancel: function() {
+    const modal = document.getElementById('recurring-event-modal');
+    if(modal) modal.remove();
+    if (this.currentCallback) this.currentCallback(false); // 취소했음을 에디터에 알림 (원상복구)
   },
 
   toggleRecType: function(type) {
@@ -133,7 +159,6 @@ const RecurringEventModule = {
     });
   },
 
-  // 💡 전역 엔진을 사용해 1학기/2학기 기간 자동 지정
   setQuickRange: function(type) {
     const dates = window.getSemesterDates();
     const startInput = document.getElementById('rec-start-date');
@@ -152,13 +177,12 @@ const RecurringEventModule = {
   },
 
   executeBatch: async function() {
-    const label = document.getElementById('rec-label-select').value;
-    const content = document.getElementById('rec-event-content').value.trim();
+    const label = this.currentLabelName;
+    const content = this.currentContent;
     const startStr = document.getElementById('rec-start-date').value;
     const endStr = document.getElementById('rec-end-date').value;
     const skipHolidays = document.getElementById('rec-skip-holidays').checked;
 
-    if (!content) return alert("일정 내용을 입력해주세요.");
     if (!startStr || !endStr) return alert("시작 날짜와 종료 날짜를 모두 선택해주세요.");
 
     const startDate = window.parseLocalDate(startStr);
@@ -169,6 +193,7 @@ const RecurringEventModule = {
     const targetDates = [];
     let cur = new Date(startDate);
 
+    // 날짜 계산 로직 (기존 로직 유지)
     if (recType === 'weekly' || recType === 'biweekly') {
       const selectedDays = Array.from(document.querySelectorAll('.rec-day-check:checked')).map(cb => parseInt(cb.value, 10));
       if (selectedDays.length === 0) return alert("반복할 요일을 하나 이상 선택해주세요.");
@@ -204,8 +229,12 @@ const RecurringEventModule = {
     }
 
     if (targetDates.length === 0) return alert("조건에 해당하는 날짜가 지정한 기간 내에 없습니다.");
+    if (!confirm(`총 ${targetDates.length}일의 반복 일정을 클라우드에 등록하시겠습니까?`)) return;
 
-    if (!confirm(`총 ${targetDates.length}개의 날짜에 [${label}] "${content}" 일정을 일괄 등록하시겠습니까?`)) return;
+    // 💡 [핵심] 일괄 삭제(옵션 3가지)와 연동하기 위해 '통합 그룹 ID' 생성
+    const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+
+    document.getElementById('recurring-event-modal').innerHTML = `<div style="background:#fff; padding:40px; border-radius:12px; font-weight:bold; color:#16a34a; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);">⏳ 클라우드에 일괄 등록 중...</div>`;
 
     try {
       const eventSnap = await window.getUserCol('events').get();
@@ -225,16 +254,24 @@ const RecurringEventModule = {
           list = window.parseRawEventTextToEventList(docData.eventText);
         }
 
+        // 🛡️ 휴일 건너뛰기 기능
         if (skipHolidays) {
-          const hasSkipLabel = list.some(ev => window.isSkipLabel(ev.label));
+          const hasSkipLabel = list.some(ev => window.isSkipLabel(ev.label) || (ev.labels && ev.labels.some(l => window.isSkipLabel(l))));
           if (hasSkipLabel) {
             skippedCount++;
             continue;
           }
         }
 
-        if (!list.some(ev => ev.label === label && ev.content === content)) {
-          list.push({ label: label, content: content, completed: false });
+        // 중복 등록 방지
+        if (!list.some(ev => (ev.label === label || (ev.labels && ev.labels.includes(label))) && ev.content === content)) {
+          list.push({ 
+              label: label, 
+              labels: [label], 
+              content: content, 
+              completed: false,
+              groupId: groupId // 🔗 반복 일정 꼬리표 부착 (삭제 연동용)
+          });
           const newText = window.formatEventListToText(list);
 
           const docRef = window.getUserCol('events').doc(dateStr);
@@ -248,15 +285,19 @@ const RecurringEventModule = {
             batch = window.db.batch();
             opCount = 0;
           }
+        } else {
+            skippedCount++; // 이미 같은 내용이 있음
         }
       }
 
       if (opCount > 0) batchPromises.push(batch.commit());
       await Promise.all(batchPromises);
 
-      this.modalInstance.close();
-      alert(`✅ 성공적으로 완료되었습니다!\n- 등록 완료: ${addedCount}건\n- 건너뜀(휴일/중복): ${skippedCount}건`);
-      window.render(); 
+      const modal = document.getElementById('recurring-event-modal');
+      if(modal) modal.remove();
+      alert(`✅ 성공적으로 등록 완료되었습니다!\n- 등록: ${addedCount}건\n- 건너뜀(휴일/중복): ${skippedCount}건`);
+      
+      if (this.currentCallback) this.currentCallback(true);
     } catch (e) {
       console.error("반복 일정 일괄 등록 오류:", e);
       alert("일정 등록 도중 오류가 발생했습니다.");
@@ -264,4 +305,7 @@ const RecurringEventModule = {
   }
 };
 
-window.openRecurringEventModal = () => RecurringEventModule.open();
+// 💡 app.js에서 호출하는 트리거 함수를 이 강력한 모듈로 덮어씌움
+window.openRecurringModal = (startDateStr, labelName, textContent, callback) => {
+    RecurringEventModule.open(startDateStr, labelName, textContent, callback);
+};
