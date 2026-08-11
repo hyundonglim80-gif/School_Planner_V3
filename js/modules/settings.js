@@ -1,4 +1,4 @@
-//js/modules/settings.js
+// js/modules/settings.js
 
 const SettingsModule = {
   modalInstance: null,
@@ -94,3 +94,32 @@ const SettingsModule = {
 };
 
 window.openSettingsModal = () => SettingsModule.open();
+
+// ==========================================================================
+// 💡 [UX 개선] 외부 영역 클릭 및 ESC 키 입력 시 '더보기' 메뉴 닫기 로직
+// ==========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // 1. 바탕화면 아무 곳이나 클릭 시 닫기
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('more-dropdown');
+        const container = document.getElementById('more-menu-container'); // index.html에 추가한 래퍼 ID
+        
+        // 클릭한 곳이 메뉴 내부나 '⋮' 버튼이 아니면서 메뉴가 열려있다면 닫기
+        if (dropdown && !dropdown.classList.contains('hidden')) {
+            if (container && !container.contains(event.target)) {
+                dropdown.classList.add('hidden');
+            }
+        }
+    });
+
+    // 2. ESC 키보드 입력 시 닫기
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const dropdown = document.getElementById('more-dropdown');
+            if (dropdown && !dropdown.classList.contains('hidden')) {
+                dropdown.classList.add('hidden');
+            }
+        }
+    });
+});
