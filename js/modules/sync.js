@@ -7,6 +7,9 @@ window.openGoogleSyncModal = async function() {
     let existingModal = document.getElementById('google-sync-modal');
     if (existingModal) existingModal.remove();
 
+    const defaultApiKey = '61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D';
+    const savedGovApiKey = localStorage.getItem('gov_holiday_api_key') || defaultApiKey;
+
     const modalHtml = `
     <div id="google-sync-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 550px;">
@@ -54,27 +57,45 @@ window.openGoogleSyncModal = async function() {
 
                 <div style="border: 2px solid #bbf7d0; border-radius: 8px; padding: 15px; background: #f0fdf4;">
                     <h3 style="margin-top:0; color:#166534; display:flex; align-items:center; justify-content:space-between;">
-                        <span>[가져오기] 구글 캘린더 ➔ SP3</span>
+                        <span>[가져오기] 외부 데이터 ➔ SP3</span>
                     </h3>
                     <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b; font-weight:bold;">
-                            <input type="checkbox" id="import-chk-primary" class="modal-checkbox" checked> 내 기본 캘린더 일정 가져오기
+                            <input type="checkbox" id="import-chk-primary" class="modal-checkbox" checked> 내 기본 캘린더(구글) 일정 가져오기
                         </label>
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#ef4444; font-weight:bold;">
-                            <input type="checkbox" id="import-chk-holiday" class="modal-checkbox" checked> 🇰🇷 대한민국 공휴일/기념일 가져오기
+                            <input type="checkbox" id="import-chk-holiday" class="modal-checkbox" checked onchange="document.getElementById('holiday-source-box').style.display = this.checked ? 'block' : 'none'"> 🇰🇷 대한민국 공휴일/기념일 가져오기
                         </label>
+                        
+                        <div id="holiday-source-box" style="margin-left: 24px; padding: 10px 12px; background: #fff; border: 1px solid #fca5a5; border-radius: 6px; margin-top:2px;">
+                            <div style="font-size:0.85rem; font-weight:bold; color:#991b1b; margin-bottom:6px;">공휴일 데이터 출처 선택:</div>
+                            
+                            <label style="display:block; font-size:0.88rem; margin-bottom:4px; cursor:pointer; color:#1e293b;">
+                                <input type="radio" name="holiday_source" value="gov_api" checked onclick="document.getElementById('gov-api-key-container').style.display='block'"> 🏛️ 정부 공식 데이터 <span style="font-size:0.8rem; color:#059669; font-weight:bold;">(추천 / 대체공휴일 완벽 지원)</span>
+                            </label>
+                            
+                            <div id="gov-api-key-container" style="margin-left:20px; margin-bottom:8px;">
+                                <input type="text" id="gov-api-key-input" placeholder="공공데이터 Service Key 입력..." style="width:100%; padding:6px 8px; font-size:0.82rem; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box;" value="${savedGovApiKey}">
+                                <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">* 에러 발생 시 앱 내장 오프라인 데이터로 자동 전환됩니다.</div>
+                            </div>
+
+                            <label style="display:block; font-size:0.88rem; cursor:pointer; color:#1e293b;">
+                                <input type="radio" name="holiday_source" value="google" onclick="document.getElementById('gov-api-key-container').style.display='none'"> 📅 구글 캘린더 한국 공휴일 <span style="font-size:0.8rem; color:#64748b;">(Google 기본 제공)</span>
+                            </label>
+                        </div>
                     </div>
+                    
                     <div style="background:#fff; padding:10px; border-radius:6px; border:1px solid #d1d5db; margin-bottom:15px;">
                         <div style="font-size:0.9rem; font-weight:bold; margin-bottom:8px; color:#475569;">저장 방식 선택</div>
                         <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;">
                             <input type="radio" name="import_mode" value="append" style="accent-color:#16a34a;"> ➕ 기존 일정에 단순히 <b>추가</b>하기
                         </label>
-                        <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;" title="기존에 직접 쓴 일정은 보호하고, 과거에 구글에서 가져왔던 일정만 지우고 최신화합니다.">
-                            <input type="radio" name="import_mode" value="replace" checked style="accent-color:#16a34a;"> 🔄 구글/공휴일 데이터만 <b>스마트 덮어쓰기</b> (안전·추천)
+                        <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;" title="기존에 직접 쓴 일정은 보호하고, 과거에 가져왔던 외부 일정만 지우고 최신화합니다.">
+                            <input type="radio" name="import_mode" value="replace" checked style="accent-color:#16a34a;"> 🔄 가져온 외부 데이터만 <b>스마트 덮어쓰기</b> <span style="font-size:0.85rem; color:#059669; font-weight:bold;">(직접 작성한 일정 보호)</span>
                         </label>
                         <hr style="border:0; border-top:1px dashed #e2e8f0; margin:8px 0;">
-                        <label style="display:block; font-size:0.9rem; cursor:pointer; color:#ef4444;" title="선택한 기간의 SP3 기존 일정을 모두 지우고 구글 일정으로 완전히 교체합니다.">
-                            <input type="radio" name="import_mode" value="overwrite" style="accent-color:#ef4444;"> ⚠️ 기존 일정 <b>완전 덮어쓰기</b> (직접 쓴 SP 일정 삭제됨)
+                        <label style="display:block; font-size:0.9rem; cursor:pointer; color:#ef4444;" title="선택한 기간의 SP3 기존 일정을 모두 지우고 외부 일정으로 완전히 교체합니다.">
+                            <input type="radio" name="import_mode" value="overwrite" style="accent-color:#ef4444;"> ⚠️ <b>완전 덮어쓰기</b> <span style="font-size:0.85rem; color:#ef4444; font-weight:bold;">(내가 직접 쓴 일정도 모두 삭제됨)</span>
                         </label>
                     </div>
                     <button class="modal-btn-primary" style="width:100%; background:#16a34a;" onclick="window.executeGoogleImport()">📥 SP3로 가져오기</button>
@@ -158,6 +179,40 @@ async function googleFetch(url, method, token, body = null) {
     return await response.json();
 }
 
+// 🏛️ 공공데이터포털 API 호출 함수
+window.fetchHolidaysFromGovApi = async function(year, apiKey) {
+    if (!apiKey) throw new Error("공공데이터포털 API Service Key가 필요합니다.");
+    
+    let cleanKey = apiKey.trim();
+    let safeKey = encodeURIComponent(decodeURIComponent(cleanKey));
+    let url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?solYear=${year}&ServiceKey=${safeKey}&_type=json&numOfRows=100`;
+    
+    let res = await fetch(url);
+    let text = await res.text();
+    
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch(e) {
+        throw new Error("공공데이터 API 응답이 JSON 형태가 아닙니다. (인증키 오류 또는 CORS 제한)");
+    }
+    
+    let holidays = {};
+    if (data.response && data.response.body && data.response.body.items && data.response.body.items.item) {
+        let items = data.response.body.items.item;
+        if (!Array.isArray(items)) items = [items];
+        
+        items.forEach(item => {
+            if (item.isHoliday === 'Y') {
+                const locStr = item.locdate.toString();
+                const dateStr = locStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+                holidays[dateStr] = item.dateName;
+            }
+        });
+    }
+    return holidays;
+};
+
 // ==========================================================================
 // 🚀 [1] 내보내기 (SP3 ➔ 구글) 로직
 // ==========================================================================
@@ -212,7 +267,7 @@ window.executeGoogleExport = async function() {
 };
 
 // ==========================================================================
-// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직 (공휴일 포함 + 스마트 덮어쓰기 지원)
+// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직
 // ==========================================================================
 window.executeGoogleImport = async function() {
     const token = await window.getValidGoogleToken();
@@ -223,7 +278,7 @@ window.executeGoogleImport = async function() {
     
     const importPrimary = document.getElementById('import-chk-primary').checked;
     const importHoliday = document.getElementById('import-chk-holiday').checked;
-    const mode = document.querySelector('input[name="import_mode"]:checked').value; // 'append' or 'replace'
+    const mode = document.querySelector('input[name="import_mode"]:checked').value;
 
     if (!importPrimary && !importHoliday) { alert("가져올 항목을 선택해 주세요."); return; }
     
@@ -233,49 +288,131 @@ window.executeGoogleImport = async function() {
     startProgress("가져오기 준비 중...", "#16a34a");
 
     try {
-        // 구글 API용 RFC3339 시간 포맷 변환
         const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
         const timeMax = new Date(endStr + 'T23:59:59+09:00').toISOString();
 
         let importedEvents = [];
+        const masterLabels = window.getEventLabels ? window.getEventLabels() : [];
 
-        // 1. 대한민국 공휴일 가져오기
         if (importHoliday) {
-            updateProgress("🇰🇷 대한민국 공휴일 달력 읽는 중...", 20);
-            const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
-            const url = `https://www.googleapis.com/calendar/v3/calendars/${holidayCalId}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
-            const res = await googleFetch(url, 'GET', token);
-            
-            if (res.items) {
-                res.items.forEach(ev => {
-                    const dateArr = getDatesFromGoogleEvent(ev);
-                    dateArr.forEach(dStr => {
-                        importedEvents.push({ dateStr: dStr, label: '공휴일', labels: ['공휴일'], content: ev.summary, source: 'holiday' });
-                    });
-                });
+            const holidaySource = document.querySelector('input[name="holiday_source"]:checked')?.value || 'gov_api';
+            const holidayLabelObj = masterLabels.find(l => l.isSkip) || masterLabels.find(l => l.name === '휴일');
+            const labelId = holidayLabelObj ? holidayLabelObj.id : '';
+            const labelName = holidayLabelObj ? holidayLabelObj.name : '공휴일';
+
+            if (holidaySource === 'gov_api') {
+                updateProgress("🏛️ 정부 공식 공휴일(API/내장) 처리 중...", 20);
+                const apiKeyInput = document.getElementById('gov-api-key-input')?.value.trim() || '';
+                if (apiKeyInput) localStorage.setItem('gov_holiday_api_key', apiKeyInput);
+
+                const sYear = startD.getFullYear();
+                const eYear = endD.getFullYear();
+                let apiSuccess = false;
+
+                for (let y = sYear; y <= eYear; y++) {
+                    try {
+                        const govHolidays = await window.fetchHolidaysFromGovApi(y, apiKeyInput);
+                        if (govHolidays && Object.keys(govHolidays).length > 0) {
+                            apiSuccess = true;
+                            for (const [dStr, hName] of Object.entries(govHolidays)) {
+                                if (dStr >= startStr && dStr <= endStr) {
+                                    importedEvents.push({ 
+                                        dateStr: dStr, 
+                                        labelIds: labelId ? [labelId] : [], 
+                                        label: labelName, 
+                                        labels: [labelName], 
+                                        content: hName, 
+                                        source: 'holiday' 
+                                    });
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`${y}년 공공데이터 API 가져오기 실패:`, err);
+                    }
+                }
+
+                // 💡 [안전장치] API 실패 시 "내장 오프라인 공휴일" 코드가 자동으로 작동하여 사용자 모르게 빈틈을 메워줍니다.
+                if (!apiSuccess) {
+                    console.log("공공데이터 API 호출 실패로 내장 오프라인 DB로 자동 전환합니다.");
+                    updateProgress("⚠️ 시스템 내장 대체공휴일 데이터 적용 중...", 25);
+                    let curD = new Date(startD);
+                    while (curD <= endD) {
+                        const dStr = window.formatDate(curD);
+                        const holidayName = window.getHolidayName ? window.getHolidayName(dStr) : null;
+                        if (holidayName) {
+                            importedEvents.push({ 
+                                dateStr: dStr, 
+                                labelIds: labelId ? [labelId] : [], 
+                                label: labelName, 
+                                labels: [labelName], 
+                                content: holidayName, 
+                                source: 'holiday' 
+                            });
+                        }
+                        curD.setDate(curD.getDate() + 1);
+                    }
+                }
+            } else if (holidaySource === 'google') {
+                updateProgress("📅 구글 캘린더 한국 공휴일 읽는 중...", 20);
+                const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
+                const url = `https://www.googleapis.com/calendar/v3/calendars/${holidayCalId}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+                
+                try {
+                    const res = await googleFetch(url, 'GET', token);
+                    if (res && res.items) {
+                        res.items.forEach(ev => {
+                            const dateArr = getDatesFromGoogleEvent(ev);
+                            dateArr.forEach(dStr => {
+                                if (dStr >= startStr && dStr <= endStr) {
+                                    importedEvents.push({ 
+                                        dateStr: dStr, 
+                                        labelIds: labelId ? [labelId] : [],
+                                        label: labelName, 
+                                        labels: [labelName], 
+                                        content: ev.summary, 
+                                        source: 'holiday' 
+                                    });
+                                }
+                            });
+                        });
+                    }
+                } catch (e) {
+                    console.warn("구글 공휴일 가져오기 실패:", e);
+                }
             }
         }
 
-        // 2. 내 기본 캘린더 일정 가져오기
         if (importPrimary) {
             updateProgress("📅 내 기본 캘린더 읽는 중...", 40);
             const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
             const res = await googleFetch(url, 'GET', token);
             
-            if (res.items) {
+            const defaultLabelObj = masterLabels.length > 0 ? masterLabels[0] : null;
+            const defLabelId = defaultLabelObj ? defaultLabelObj.id : '';
+            const defLabelName = defaultLabelObj ? defaultLabelObj.name : '일정';
+
+            if (res && res.items) {
                 res.items.forEach(ev => {
                     const dateArr = getDatesFromGoogleEvent(ev);
                     dateArr.forEach(dStr => {
-                        // School Planner V3가 내보낸 일정(invisiblePrefix 포함)은 무시하여 무한 반복 방지
-                        if (!ev.summary.includes('\u200C') && !ev.summary.includes('\u200D')) {
-                            importedEvents.push({ dateStr: dStr, label: '구글일정', labels: ['구글일정'], content: ev.summary, source: 'google' });
+                        if (dStr >= startStr && dStr <= endStr) {
+                            if (!ev.summary.includes('\u200C') && !ev.summary.includes('\u200D')) {
+                                importedEvents.push({ 
+                                    dateStr: dStr, 
+                                    labelIds: defLabelId ? [defLabelId] : [], 
+                                    label: defLabelName, 
+                                    labels: [defLabelName], 
+                                    content: ev.summary, 
+                                    source: 'google' 
+                                });
+                            }
                         }
                     });
                 });
             }
         }
 
-        // 3. 날짜별로 분류
         updateProgress("💾 SP3 데이터베이스에 저장 중...", 60);
         let eventsByDate = {};
         importedEvents.forEach(e => {
@@ -283,7 +420,6 @@ window.executeGoogleImport = async function() {
             eventsByDate[e.dateStr].push(e);
         });
 
-        // 4. Firestore에 기록 (append vs replace vs overwrite)
         let curD = new Date(startD);
         let processedCount = 0;
         const totalDays = (endD - startD) / (1000 * 60 * 60 * 24) + 1;
@@ -298,24 +434,18 @@ window.executeGoogleImport = async function() {
             const docSnap = await docRef.get();
             let currentList = docSnap.exists ? (docSnap.data().eventList || []) : [];
 
-            // 💡 [핵심 옵션 분기 처리]
             if (mode === 'replace') {
-                // 기존에 가져왔던 구글/공휴일 일정만 삭제 (SP3에서 직접 쓴건 보존)
                 currentList = currentList.filter(e => e.source !== 'google' && e.source !== 'holiday');
             } else if (mode === 'overwrite') {
-                // 🚨 완전 덮어쓰기: 해당 날짜의 기존 일정을 묻지도 따지지도 않고 싹 다 비움
                 currentList = [];
             }
 
-            // 완전 덮어쓰기(overwrite) 모드이거나, 새롭게 추가할 일정이 있을 때만 DB 갱신
             if (newEvents.length > 0 || mode === 'replace' || mode === 'overwrite') {
                 const mergedList = [...currentList, ...newEvents];
                 batch.set(docRef, { eventList: mergedList, updatedAt: Date.now() }, { merge: true });
                 batchOpCount++;
 
-                // 💡 [보완] 동기화 중 '공휴일(수업삭제)' 속성이 포함되었다면 수업 과목명도 비워줌
                 let isSkipDay = false;
-                const masterLabels = window.getEventLabels ? window.getEventLabels() : [];
                 for (const e of mergedList) {
                     if (e.source === 'holiday' || 
                        (e.labelIds && e.labelIds.some(id => {
@@ -337,7 +467,7 @@ window.executeGoogleImport = async function() {
                         
                         for (let p in periods) {
                             if (periods[p].subject && periods[p].subject.trim() !== '') {
-                                periods[p].subject = ''; // 과목명만 비우고 메모/비고 유지
+                                periods[p].subject = ''; 
                                 scheduleChanged = true;
                             }
                         }
@@ -361,6 +491,10 @@ window.executeGoogleImport = async function() {
             curD.setDate(curD.getDate() + 1);
         }
         
+        if (batchOpCount > 0) await batch.commit();
+        
+        finishProgress("🎉 가져오기가 완료되었습니다!");
+
     } catch (error) {
         handleSyncError(error);
     }
@@ -372,15 +506,15 @@ window.executeGoogleImport = async function() {
 
 function getDatesFromGoogleEvent(ev) {
     let dates = [];
-    if (ev.start.date) { // 종일 일정
+    if (ev.start && ev.start.date) { 
         let startD = new Date(ev.start.date);
         let endD = new Date(ev.end.date);
-        endD.setDate(endD.getDate() - 1); // 종일 일정의 end는 익일 0시 기준이므로 하루 뺌
+        endD.setDate(endD.getDate() - 1); 
         while (startD <= endD) {
             dates.push(window.formatDate(startD));
             startD.setDate(startD.getDate() + 1);
         }
-    } else if (ev.start.dateTime) { // 시간 지정 일정
+    } else if (ev.start && ev.start.dateTime) { 
         dates.push(window.formatDate(new Date(ev.start.dateTime)));
     }
     return dates;
@@ -391,46 +525,55 @@ function startProgress(text, color) {
     document.getElementById('sync-progress-area').classList.remove('hidden');
     const statusText = document.getElementById('sync-status-text');
     const progressBar = document.getElementById('sync-progress-bar');
-    statusText.innerText = text;
-    statusText.style.color = color;
-    progressBar.style.background = color;
-    progressBar.style.width = "0%";
+    if (statusText) {
+        statusText.innerText = text;
+        statusText.style.color = color;
+    }
+    if (progressBar) {
+        progressBar.style.background = color;
+        progressBar.style.width = "0%";
+    }
 }
 
 function updateProgress(text, percent) {
-    document.getElementById('sync-status-text').innerText = text;
-    document.getElementById('sync-progress-bar').style.width = `${percent}%`;
+    const statusText = document.getElementById('sync-status-text');
+    const progressBar = document.getElementById('sync-progress-bar');
+    if (statusText) statusText.innerText = text;
+    if (progressBar) progressBar.style.width = `${percent}%`;
 }
 
 function finishProgress(text) {
     const statusText = document.getElementById('sync-status-text');
     const progressBar = document.getElementById('sync-progress-bar');
-    statusText.innerText = text;
-    progressBar.style.width = "100%";
+    if (statusText) statusText.innerText = text;
+    if (progressBar) progressBar.style.width = "100%";
+    
     setTimeout(() => {
         const modal = document.getElementById('google-sync-modal');
         if (modal) modal.remove();
-    }, 2000);
+        if (typeof window.render === 'function') window.render();
+    }, 1200);
 }
 
 function handleSyncError(error) {
     console.error("동기화 에러:", error);
     const statusText = document.getElementById('sync-status-text');
-    statusText.innerText = "❌ 오류 발생: " + error.message;
-    statusText.style.color = "#ef4444";
+    if (statusText) {
+        statusText.innerText = "❌ 오류 발생: " + error.message;
+        statusText.style.color = "#ef4444";
+    }
     document.querySelectorAll('.modal-btn-primary').forEach(b => b.disabled = false);
     
-    if(error.message.includes('401') || error.message.includes('403')) {
+    if(error.message && (error.message.includes('401') || error.message.includes('403'))) {
         alert("구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 창을 닫고 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!");
     }
 }
 
-// 기존 SP3 -> 구글 내보내기용 유틸리티 유지
 async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
     const data = await googleFetch(listUrl, 'GET', token);
     
-    let targetCal = data.items.find(cal => cal.summary === 'School Planner V3');
+    let targetCal = data.items ? data.items.find(cal => cal.summary === 'School Planner V3') : null;
     if (targetCal) return targetCal.id;
 
     const createUrl = "https://www.googleapis.com/calendar/v3/calendars";
@@ -457,7 +600,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     if (incEvent) {
         const eDoc = await window.getUserCol('events').doc(dateStr).get();
         if (eDoc.exists && eDoc.data().eventList) {
-            // 구글/공휴일에서 가져온 일정은 내보낼 때 제외 (무한루프 방지)
             const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '' && e.source !== 'google' && e.source !== 'holiday');
             list.forEach(e => {
                 let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
@@ -507,7 +649,6 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
             journals.forEach(j => {
                 let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
                 let invisiblePrefix = getInvisiblePrefix(seq++);
-                
                 let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
                 
                 payloadsToCreate.push({
