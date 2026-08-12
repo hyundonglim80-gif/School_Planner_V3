@@ -577,6 +577,20 @@ const LabelManager = {
   }
 };
 
+removeEventLabel: function(index) {
+    const targetLabel = window.tempEditingLabels[index];
+    
+    // 💡 [핵심] 시스템 필수 5대 라벨은 삭제 버튼을 눌러도 경고창을 띄우고 지우지 못하게 방어합니다.
+    if (targetLabel && targetLabel.isSystem) {
+        alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.\n\n단, 라벨의 '이름', '색상', '위아래 순서'는 선생님의 취향대로 자유롭게 변경하실 수 있습니다.");
+        return;
+    }
+
+    // 필수 라벨이 아닌 일반 추가 라벨만 정상 삭제 진행
+    window.tempEditingLabels.splice(index, 1);
+    this.renderEventLabels(); // 화면 다시 그리기
+},
+
 window.LabelManager = LabelManager;
 
 window.openEventLabelModal = () => LabelManager.openEventModal();
