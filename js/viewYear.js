@@ -19,18 +19,7 @@ class YearView extends window.BaseView {
         let htmlOutput = '';
 
         if (data.eventList && data.eventList.length > 0) {
-          let processed = data.eventList.map(e => ({
-              ...e,
-              labels: e.labels || (e.label ? [e.label] : [])
-          }));
-          htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
-          hasContent = true;
-        } else if (data.eventText && data.eventText.trim() !== '') {
-          const parsed = window.parseRawEventTextToEventList(data.eventText);
-          let processed = parsed.map(e => ({
-              ...e,
-              labels: e.labels || (e.label ? [e.label] : [])
-          }));
+          let processed = data.eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
           htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
           hasContent = true;
         }
@@ -146,7 +135,6 @@ class YearView extends window.BaseView {
           <tbody>
     `;
 
-    // 💡 [초기화] 연간 뷰 렌더링 시 기존 메모리 변수 목록을 초기화 (데이터 중복 방지)
     this.renderedDateStrings = [];
 
     yearData.forEach(item => {
@@ -158,14 +146,8 @@ class YearView extends window.BaseView {
 
       this.renderedDateStrings.push(item.dateStr);
 
-      let eventList = [];
-      if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-        eventList = item.eventData.eventList;
-      } else if (item.eventData.eventText) {
-        eventList = window.parseRawEventTextToEventList(item.eventData.eventText);
-      }
-      
-      window[`tempEvents_${item.dateStr}`] = eventList;
+      let eventList = item.eventData.eventList || [];
+      window[`tempEvents_${item.dateStr}`] = eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
       window[`tempSchedules_${item.dateStr}`] = item.data.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
@@ -206,7 +188,6 @@ class YearView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 💡 [핵심 추가] 입력 중인 수업 데이터를 즉시 전역 변수에 백업
   syncScheduleInputs() {
       const scheduleRows = document.querySelectorAll(`tr[data-year-sub]`);
       scheduleRows.forEach(row => {
@@ -230,10 +211,7 @@ class YearView extends window.BaseView {
       });
   }
 
-  // 💡 [핵심 수정] DOM 탐색 없이 동기화된 메모리 배열 기반으로 DB 비동기 전송
-  // 💡 [핵심 수정] 스냅샷 캡처 및 백그라운드 비동기 처리
   save() {
-    // [1단계: 동기적 데이터 캡처]
     if (!this.renderedDateStrings) return Promise.resolve();
     this.syncScheduleInputs(); 
 
@@ -241,14 +219,14 @@ class YearView extends window.BaseView {
     for (const dateStr of this.renderedDateStrings) {
         const rawList = window[`tempEvents_${dateStr}`] || [];
         const validEvents = rawList
-            .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+            .filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0))
             .map(e => ({...e}));
         const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
         snapshot.push({ dateStr, validEvents, periodsData });
     }
 
-    // [2단계: 비동기 클라우드 저장]
     return (async () => {
+        const masterLabels = window.getEventLabels();
         for (const item of snapshot) {
             const cleanEventText = window.formatEventListToText ? window.formatEventListToText(item.validEvents) : '';
             await window.getUserCol('events').doc(item.dateStr).set({
@@ -259,7 +237,10 @@ class YearView extends window.BaseView {
 
             let isSkipDay = false;
             for (const e of item.validEvents) {
-                if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                if (e.labelIds && e.labelIds.some(id => {
+                    const match = masterLabels.find(l => l.id === id);
+                    return match && match.isSkip;
+                })) {
                     isSkipDay = true; break;
                 }
             }
