@@ -167,7 +167,19 @@ class MonthView extends window.BaseView {
       if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
       let eventList = item.eventData.eventList || [];
-      window[`tempEvents_${item.dateStr}`] = eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+      const masterLabels = window.getEventLabels(); // 💡 마스터 라벨 참조 추가
+
+      window[`tempEvents_${item.dateStr}`] = eventList.map(e => {
+          let labelIds = e.labelIds || [];
+          if (labelIds.length === 0 && (e.labels || e.label)) {
+              let legacyNames = e.labels || [e.label];
+              legacyNames.forEach(name => {
+                  const match = masterLabels.find(l => l.name === name);
+                  if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
+              });
+          }
+          return { ...e, labelIds: labelIds };
+      });
       window[`tempSchedules_${item.dateStr}`] = item.data.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
