@@ -84,10 +84,15 @@ window.signInWithGoogle = function() {
             }
         });
 };
-
 window.signOut = function() {
   window.auth.signOut().then(() => {
     sessionStorage.removeItem('google_api_token');
+    
+    // 💡 [핵심 해결] 로그아웃 시 다음 접속자를 위해 브라우저의 라벨 캐시를 싹 비워줍니다.
+    localStorage.removeItem('workCalendar_eventLabels_v4');
+    localStorage.removeItem('workCalendar_journalLabels_v4');
+    localStorage.removeItem('workCalendar_memoLabels');
+    
     window.location.href = window.location.href.split('#')[0];
   });
 };
