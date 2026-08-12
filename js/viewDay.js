@@ -256,7 +256,6 @@ class DayView extends window.BaseView {
             const row = document.createElement('div');
             row.style.cssText = "display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; position:relative;";
             
-            // 💡 [수정] ev.content가 없을 때 충돌을 방지하기 위해 (ev.content || '') 처리를 추가했습니다.
             if (ev.groupId || (ev.forwardChainId && ev.originalDate && ev.originalDate !== this.dateStr)) {
                 let badgeTxt = ev.groupId ? '🔗 반복/기간 그룹 일정' : '↪️ 과거에서 이월된 일정';
                 let badgeColor = ev.groupId ? '#2563eb' : '#059669';
@@ -332,7 +331,6 @@ class DayView extends window.BaseView {
         const textareas = container.querySelectorAll('textarea');
         textareas.forEach((ta, idx) => {
             if (this.currentEvents[idx]) {
-                // 💡 [수정] 사용자가 타이핑 중 공백을 잃지 않도록 trim() 삭제
                 this.currentEvents[idx].content = ta.value; 
             }
         });
@@ -398,7 +396,6 @@ class DayView extends window.BaseView {
         const textareas = container.querySelectorAll('textarea');
         textareas.forEach((ta, idx) => {
             if (this.currentJournals[idx]) {
-                // 💡 [수정] 동일하게 trim() 제거
                 this.currentJournals[idx].content = ta.value; 
             }
         });
@@ -408,7 +405,10 @@ class DayView extends window.BaseView {
         const tbody = this.container.querySelector('tbody');
         if (!tbody) return;
         
+        // 💡 [안전장치 추가] 혹시 에디터 화면이 아닌 보기 모드에서 이 함수가 실행되더라도 시간표를 날리지 않도록 보호합니다.
         const rows = tbody.querySelectorAll('tr[data-period]');
+        if (rows.length === 0) return;
+        
         this.currentSchedules = {};
         rows.forEach(row => {
             const p = row.getAttribute('data-period');
@@ -474,39 +474,36 @@ class DayView extends window.BaseView {
         this.renderEditor();
     }
 
+    // 💡 [핵심 버그 수정] 방해물 조건문(if currentMode === 'editor')을 삭제하여 무조건 저장되도록 수정!
     async save() {
         const dateStr = this.dateStr;
         
-        if (this.currentMode === 'editor') {
-            this.syncEventInputs();
-            this.syncJournalInputs();
-            this.syncScheduleInputs();
-            
-            // 💡 [핵심 수정] 내용(content)이 없더라도, 라벨(label)이 선택되어 있다면 절대 삭제하지 않도록 필터링 규칙 수정
-            const validEvents = this.currentEvents.filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0));
-            const eventText = window.formatEventListToText ? window.formatEventListToText(validEvents) : '';
-            
-            await window.getUserCol('events').doc(dateStr).set({ 
-                eventList: validEvents,
-                eventText: eventText,
-                updatedAt: Date.now() 
-            }, { merge: true });
+        this.syncEventInputs();
+        this.syncJournalInputs();
+        this.syncScheduleInputs();
+        
+        const validEvents = this.currentEvents.filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0));
+        const eventText = window.formatEventListToText ? window.formatEventListToText(validEvents) : '';
+        
+        await window.getUserCol('events').doc(dateStr).set({ 
+            eventList: validEvents,
+            eventText: eventText,
+            updatedAt: Date.now() 
+        }, { merge: true });
 
-            // 💡 기록(Journal)도 동일하게 라벨만 있어도 보존되도록 규칙 수정
-            const validJournals = this.currentJournals.filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0));
-            await window.getUserCol('journals').doc(dateStr).set({ 
-                entries: validJournals, 
-                updatedAt: Date.now() 
-            }, { merge: true });
+        const validJournals = this.currentJournals.filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0));
+        await window.getUserCol('journals').doc(dateStr).set({ 
+            entries: validJournals, 
+            updatedAt: Date.now() 
+        }, { merge: true });
 
-            await window.getUserCol('schedules').doc(dateStr).set({ 
-                periods: this.currentSchedules, 
-                updatedAt: Date.now() 
-            }, { merge: true });
+        await window.getUserCol('schedules').doc(dateStr).set({ 
+            periods: this.currentSchedules, 
+            updatedAt: Date.now() 
+        }, { merge: true });
 
-            window[`tempEvents_${dateStr}`] = validEvents;
-            window[`tempSchedules_${dateStr}`] = this.currentSchedules;
-        }
+        window[`tempEvents_${dateStr}`] = validEvents;
+        window[`tempSchedules_${dateStr}`] = this.currentSchedules;
     }
 }
 
