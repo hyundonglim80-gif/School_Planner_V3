@@ -43,14 +43,10 @@ class WeekView extends window.BaseView {
       
       if (eventDoc.exists) {
         const eData = eventDoc.data();
-        const parsedEvents = window.parseRawEventTextToEventList(eData.eventText || ''); 
-        const finalEvents = (eData.eventList && eData.eventList.length > 0) ? eData.eventList : parsedEvents;
+        const finalEvents = eData.eventList || [];
         
         if (finalEvents.length > 0) {
-            let processedEvents = finalEvents.map(e => ({
-                ...e,
-                labels: e.labels || (e.label ? [e.label] : [])
-            }));
+            let processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
             eventHtml = window.generateEventBadgesHTML(processedEvents, d.dateStr); 
         }
       }
@@ -113,16 +109,10 @@ class WeekView extends window.BaseView {
       let eventList = [];
       if (eventDoc.exists) {
         const eData = eventDoc.data();
-        if (eData.eventList && eData.eventList.length > 0) {
-          eventList = eData.eventList;
-        } else if (eData.eventText) {
-          eventList = window.parseRawEventTextToEventList(eData.eventText);
-        }
+        eventList = eData.eventList || [];
       }
       
-      window[`tempEvents_${d.dateStr}`] = eventList; 
-      
-      // 💡 [핵심] 주간 시간표 데이터 백업용 전역 변수 초기화
+      window[`tempEvents_${d.dateStr}`] = eventList.map(e => ({ ...e, labelIds: e.labelIds || [] })); 
       window[`tempSchedules_${d.dateStr}`] = dayData.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
@@ -182,9 +172,12 @@ class WeekView extends window.BaseView {
       let html = '';
       
       list.forEach((e, idx) => {
-          const eLabels = e.labels || (e.label ? [e.label] : []);
+          const eLabelIds = e.labelIds || [];
           const isCompleted = !!e.completed;
-          const canComplete = eLabels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+          const canComplete = eLabelIds.some(id => {
+              const match = labelObjs.find(l => l.id === id);
+              return match && match.isForward;
+          });
           
           let warningIcon = '';
           if (canComplete) {
@@ -197,12 +190,10 @@ class WeekView extends window.BaseView {
 
           let chipsHtml = `<div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;">`;
           labelObjs.forEach(labelObj => {
-              const lName = labelObj.name;
-              const isActive = eLabels.includes(lName);
+              const isActive = eLabelIds.includes(labelObj.id);
               const activeClass = isActive ? 'active' : '';
-              
-              const clickCode = `window.handleCompactLabelClick('${dateStr}', ${idx}, '${lName}')`;
-              chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lName}</div>`;
+              const clickCode = `window.handleCompactLabelClick('${dateStr}', ${idx}, '${labelObj.id}')`;
+              chipsHtml += `<div class="label-chip ${activeClass}" onclick="${clickCode}" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${labelObj.name}</div>`;
           });
           if (warningIcon) chipsHtml += warningIcon;
           chipsHtml += `</div>`;
@@ -232,7 +223,6 @@ class WeekView extends window.BaseView {
       return html;
   }
 
-  // 💡 [핵심 추가] 입력 중인 주간 시간표 데이터를 즉시 전역 변수에 백업
   syncScheduleInputs() {
       const scheduleRows = document.querySelectorAll(`tr[data-week-schedule-date]`);
       scheduleRows.forEach(row => {
@@ -251,23 +241,21 @@ class WeekView extends window.BaseView {
               const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
               if (match) { subject = match[1]; memo = match[2]; }
               
-              // 기존의 supplies(비고) 값 유지
               const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
-              
               window[`tempSchedules_${dateStr}`][p] = { subject, memo, supplies: existingSupplies };
           });
       });
   }
 
-  toggleCompactEventLabel(dateStr, idx, labelName) {
+  toggleCompactEventLabel(dateStr, idx, labelId) {
       window.hasUnsavedChanges = true;
       const ev = window[`tempEvents_${dateStr}`][idx];
       if (!ev) return;
-      ev.labels = ev.labels || (ev.label ? [ev.label] : []);
-      if (ev.labels.includes(labelName)) {
-          ev.labels = ev.labels.filter(l => l !== labelName);
+      ev.labelIds = ev.labelIds || [];
+      if (ev.labelIds.includes(labelId)) {
+          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
       } else {
-          ev.labels.push(labelName);
+          ev.labelIds.push(labelId);
       }
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
@@ -282,22 +270,28 @@ class WeekView extends window.BaseView {
   addCompactEvent(dateStr) {
       window.hasUnsavedChanges = true;
       if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
-      window[`tempEvents_${dateStr}`].push({ labels: [], content: '', completed: false });
+      window[`tempEvents_${dateStr}`].push({ labelIds: [], content: '', completed: false });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
   requestRemoveCompactEvent(dateStr, idx) {
       const ev = window[`tempEvents_${dateStr}`][idx];
       const isGrouped = !!ev.groupId; 
-      const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+      
+      const labelObjs = window.getEventLabels();
+      const forwardLabelId = (ev.labelIds || []).find(id => {
+          const match = labelObjs.find(l => l.id === id);
+          return match && match.isForward;
+      });
+      const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
 
       if (isGrouped) {
-          window.showGroupDeleteModal(dateStr, ev.labels[0] || '', ev.content, ev.groupId, 
+          window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
               () => { window.render(); }, 
               () => { this.removeCompactEvent(dateStr, idx); }
           );
-      } else if (forwardLabel && ev.forwardChainId) {
-          window.showForwardDeleteModal(dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+      } else if (forwardLabelId && ev.forwardChainId) {
+          window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, 
               () => { window.render(); }
           );
       } else {
@@ -311,25 +305,22 @@ class WeekView extends window.BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 💡 [핵심 수정] DOM 탐색 없이 미리 동기화된 메모리 변수 기반으로 DB 전송
-  // 💡 [핵심 수정] 렌더링 날아가지 않게 스냅샷 백업 후 DB 전송
   save() {
-    // [1단계: 동기적 데이터 캡처]
     this.syncScheduleInputs();
-    const datesToSave = this.getWeekDates(); // 화면이 넘어가기 전의 주간 날짜 캡처
+    const datesToSave = this.getWeekDates(); 
 
     const snapshot = datesToSave.map(d => {
         const dateStr = d.dateStr;
         const rawList = window[`tempEvents_${dateStr}`] || [];
         const validEvents = rawList
-            .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+            .filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0))
             .map(e => ({...e}));
         const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
         return { dateStr, validEvents, periodsData };
     });
 
-    // [2단계: 비동기 클라우드 저장]
     return (async () => {
+        const masterLabels = window.getEventLabels();
         for (const item of snapshot) {
             const cleanEventText = window.formatEventListToText ? window.formatEventListToText(item.validEvents) : '';
             await window.getUserCol('events').doc(item.dateStr).set({
@@ -340,7 +331,10 @@ class WeekView extends window.BaseView {
 
             let isSkipDay = false;
             for (const e of item.validEvents) {
-                if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                if (e.labelIds && e.labelIds.some(id => {
+                    const match = masterLabels.find(l => l.id === id);
+                    return match && match.isSkip;
+                })) {
                     isSkipDay = true; break;
                 }
             }
@@ -360,27 +354,26 @@ window.renderWeekViewer = (container) => { window.weekViewInstance.container = c
 window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
 
-window.handleCompactLabelClick = async function(dateStr, idx, lName) {
+window.handleCompactLabelClick = async function(dateStr, idx, labelId) {
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
     if (!ev) return;
-    ev.labels = ev.labels || (ev.label ? [ev.label] : []);
+    ev.labelIds = ev.labelIds || [];
     
-    const isActive = ev.labels.includes(lName);
+    const isActive = ev.labelIds.includes(labelId);
     
-    const labelObj = window.getEventLabels().find(l => l.name === lName);
+    const labelObj = window.getEventLabels().find(l => l.id === labelId);
     const isPeriod = labelObj ? labelObj.isPeriod : false;
     const isRecur = labelObj ? labelObj.isRecur : false;
     const isForward = labelObj ? labelObj.isForward : false;
 
     if (isActive) {
-        ev.labels = ev.labels.filter(l => l !== lName);
+        ev.labelIds = ev.labelIds.filter(id => id !== labelId);
     } else {
         if (isPeriod || isRecur) {
             const evContent = ev.content || '';
             const backupEvent = { ...ev };
             
-            // 💡 팝업 전환 전에 현재 입력 상태 백업
             if(window.weekViewInstance) window.weekViewInstance.syncScheduleInputs();
             if(window.monthViewInstance) window.monthViewInstance.syncScheduleInputs();
 
@@ -398,21 +391,21 @@ window.handleCompactLabelClick = async function(dateStr, idx, lName) {
             };
 
             if (isPeriod) {
-                window.openPeriodModal(dateStr, lName, evContent, callback);
+                window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId);
             } else if (isRecur) {
-                window.openRecurringModal(dateStr, lName, evContent, callback);
+                window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
             }
             return; 
         }
         
         if (isForward) {
-            ev.labels = ev.labels.filter(l => {
-                const lObj = window.getEventLabels().find(x => x.name === l);
+            ev.labelIds = ev.labelIds.filter(id => {
+                const lObj = window.getEventLabels().find(x => x.id === id);
                 return !(lObj && (lObj.isPeriod || lObj.isRecur));
             });
         }
         
-        ev.labels.push(lName);
+        ev.labelIds.push(labelId);
     }
     
     const container = document.getElementById(`compact-events-${dateStr}`);
