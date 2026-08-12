@@ -1,3 +1,5 @@
+// js/modules/search.js
+
 const SearchModule = {
   modalInstance: null,
   filterIdCounter: 0,
@@ -239,6 +241,11 @@ const SearchModule = {
         const journalSnap = await window.getUserCol('journals').get();
         const taskSnap = await window.getUserCol('tasks').get(); 
 
+        const masterEventLabels = window.getEventLabels();
+        const masterJournalLabels = window.getJournalLabels();
+        const masterMemoLabels = window.LabelManager ? window.LabelManager.getMemoLabels() : [];
+
+        // 메모(Tasks) 파싱 (ID 호환 지원)
         const taskList = [];
         const processMemoData = (doc, data) => {
             const arrayFields = ['tasks', 'memos', 'entries', 'list', 'items'];
@@ -250,10 +257,22 @@ const SearchModule = {
                         if (item) {
                             const content = item.content || item.text || item.memo || item.title || '';
                             if (content.trim()) {
+                                let labelNames = [];
+                                if (item.labelIds) {
+                                    labelNames = item.labelIds.map(id => {
+                                        const lObj = masterMemoLabels.find(l => l.id === id || l.name === id);
+                                        return lObj ? lObj.name : id;
+                                    });
+                                } else if (item.labels) {
+                                    labelNames = item.labels;
+                                } else if (item.label) {
+                                    labelNames = [item.label];
+                                }
+                                
                                 taskList.push({
                                     id: item.id || doc.id,
                                     content: content,
-                                    labels: item.labels || (item.label ? [item.label] : []),
+                                    labelNames: labelNames,
                                     completed: !!(item.completed || item.isDone || item.done || item.checked)
                                 });
                             }
@@ -279,10 +298,22 @@ const SearchModule = {
                 
                 const content = contentParts.join(' ');
                 if (content.trim()) {
+                    let labelNames = [];
+                    if (data.labelIds) {
+                        labelNames = data.labelIds.map(id => {
+                            const lObj = masterMemoLabels.find(l => l.id === id || l.name === id);
+                            return lObj ? lObj.name : id;
+                        });
+                    } else if (data.labels) {
+                        labelNames = data.labels;
+                    } else if (data.label) {
+                        labelNames = [data.label];
+                    }
+
                     taskList.push({
                         id: doc.id,
                         content: content,
-                        labels: data.labels || (data.label ? [data.label] : []),
+                        labelNames: labelNames,
                         completed: !!(data.completed || data.isDone || data.done || data.checked)
                     });
                 }
@@ -292,6 +323,7 @@ const SearchModule = {
         try { taskSnap.forEach(doc => processMemoData(doc, doc.data())); } catch(e) {}
         try { const memoSnap = await window.getUserCol('memos').get(); memoSnap.forEach(doc => processMemoData(doc, doc.data())); } catch(e) {}
 
+        // 일정(Events) 파싱 (ID 호환 지원)
         const eventMap = {};
         eventSnap.forEach(doc => { 
             const data = doc.data();
@@ -301,17 +333,25 @@ const SearchModule = {
             if (data.eventList && Array.isArray(data.eventList)) {
                 items = data.eventList;
                 text = data.eventList.map(e => {
-                    let l = '';
-                    if (e.labels && e.labels.length > 0 && e.labels[0] && e.labels[0] !== '기타') {
-                        l = `[${e.labels.join(',')}] `;
-                    } else if (e.label && e.label !== '기타') {
-                        l = `[${e.label}] `;
+                    let lNames = [];
+                    if (e.labelIds) {
+                        lNames = e.labelIds.map(id => {
+                            const lObj = masterEventLabels.find(l => l.id === id || l.name === id);
+                            return lObj ? lObj.name : id;
+                        });
+                    } else if (e.labels) {
+                        lNames = e.labels;
+                    } else if (e.label) {
+                        lNames = [e.label];
                     }
-                    return `${l}${e.content}`;
+                    
+                    let lStr = lNames.length > 0 && lNames[0] !== '기타' ? `[${lNames.join(',')}] ` : '';
+                    e.parsedLabelNames = lNames; // 임시 저장
+                    return `${lStr}${e.content}`;
                 }).join(' / ');
             } else {
                 text = data.eventText || '';
-                if(text) items = [{content: text, labels: []}];
+                if(text) items = [{content: text, parsedLabelNames: []}];
             }
             text = text.replace(/\[\]\s*/g, '').trim(); 
             eventMap[doc.id] = { text: text, items: items }; 
@@ -320,6 +360,7 @@ const SearchModule = {
         const scheduleMap = {};
         scheduleSnap.forEach(doc => { scheduleMap[doc.id] = doc.data().periods || {}; });
         
+        // 기록(Journals) 파싱
         const journalMap = {};
         journalSnap.forEach(doc => { journalMap[doc.id] = doc.data().entries || []; });
 
@@ -341,9 +382,22 @@ const SearchModule = {
           const dayJournals = journalMap[dateStr] || [];
           
           let daySubjectText = []; let dayMemoText = []; let daySuppliesText = [];
+          
           let dayJournalText = dayJournals.map(j => {
-            let l = (j.labels && j.labels.length > 0) ? j.labels.join(', ') : (j.label || '');
-            return `[${l}] ${j.content}`;
+            let lNames = [];
+            if (j.labelIds) {
+                lNames = j.labelIds.map(id => {
+                    const lObj = masterJournalLabels.find(l => l.id === id || l.name === id);
+                    return lObj ? lObj.name : id;
+                });
+            } else if (j.labels) {
+                lNames = j.labels;
+            } else if (j.label) {
+                lNames = [j.label];
+            }
+            j.parsedLabelNames = lNames; // 임시 저장
+            let lStr = lNames.length > 0 ? lNames.join(', ') : '';
+            return `[${lStr}] ${j.content}`;
           }).join(' ');
 
           for (let p = 1; p <= maxPeriod; p++) {
@@ -395,9 +449,10 @@ const SearchModule = {
           if (isMatch) matchedResults.push({ dateStr, dayEventObj, dayPeriods, dayJournals });
         });
 
+        // 태스크(메모) 검색 체크
         const matchedTasks = [];
         taskList.forEach(task => {
-          const taskText = [task.content, (task.labels || []).join(' ')].join(' ');
+          const taskText = [task.content, (task.labelNames || []).join(' ')].join(' ');
           const taskTextMap = {
             'all': taskText,
             'task': taskText,
@@ -451,9 +506,10 @@ const SearchModule = {
           return;
         }
 
+        // 결과 렌더링: 메모(Tasks)
         if (matchedTasks.length > 0) {
           matchedTasks.forEach(task => {
-            const labelsHtml = (task.labels || []).map(l => {
+            const labelsHtml = (task.labelNames || []).map(l => {
               const style = window.getLabelStyle ? window.getLabelStyle(l, 'memo') : { bg: '#dcfce7', text: '#166534', border: '#86efac' };
               return `<span style="display:inline-block; font-weight:bold; color:${style.text}; background:${style.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.85rem; border:1px solid ${style.border};">${l}</span>`;
             }).join('');
@@ -489,22 +545,19 @@ const SearchModule = {
               </div>
           `;
 
-          // 💡 [수정] 라벨이 공백이거나 지워졌을 때 기형적으로 출력되는 문제 방지
           if (res.dayEventObj && res.dayEventObj.items && res.dayEventObj.items.length > 0) {
             res.dayEventObj.items.forEach(e => {
               if (!e.content) return;
-              let l = '';
-              if (e.labels && e.labels.length > 0 && e.labels[0] && e.labels[0] !== '기타') {
-                  l = e.labels.join(', ');
-              } else if (e.label && e.label !== '기타') {
-                  l = e.label;
-              }
               
-              const style = window.getLabelStyle ? window.getLabelStyle(l.split(',')[0], 'event') : { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' };
+              let lNames = e.parsedLabelNames || [];
+              let lStr = lNames.join(', ');
+              const mainLabel = lNames.length > 0 ? lNames[0] : '';
+              
+              const style = window.getLabelStyle ? window.getLabelStyle(mainLabel, 'event') : { bg: '#f0f9ff', text: '#0369a1', border: '#bae6fd' };
               
               let eText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
-              if (l) {
-                  eText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">일정(${highlight(l)}):</div>`;
+              if (lStr && lStr !== '기타') {
+                  eText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">일정(${highlight(lStr)}):</div>`;
               } else {
                   eText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">일정:</div>`;
               }
@@ -528,18 +581,15 @@ const SearchModule = {
           
           if (res.dayJournals && res.dayJournals.length > 0) {
             res.dayJournals.forEach(j => {
-              if (j.content || (j.labels && j.labels.length > 0) || j.label) {
-                let l = '';
-                if (j.labels && j.labels.length > 0) l = j.labels.join(', ');
-                else if (j.label) l = j.label;
-                
-                let mainLabel = l ? l.split(',')[0] : '기타';
+              if (j.content || (j.parsedLabelNames && j.parsedLabelNames.length > 0)) {
+                let lStr = (j.parsedLabelNames || []).join(', ');
+                let mainLabel = (j.parsedLabelNames && j.parsedLabelNames.length > 0) ? j.parsedLabelNames[0] : '기타';
                 const style = window.getLabelStyle ? window.getLabelStyle(mainLabel, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 
                 let jText = `<div style="display:flex; flex-direction:column; background:${style.bg}; padding:8px; border-radius:6px; margin-bottom:6px; border:1px dashed ${style.border};">`;
                 
-                if (l && l !== '기타') {
-                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(l)}):</div>`;
+                if (lStr && lStr !== '기타') {
+                    jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록(${highlight(lStr)}):</div>`;
                 } else {
                     jText += `<div style="font-weight:bold; color:${style.text}; margin-bottom:4px;">기록:</div>`;
                 }
