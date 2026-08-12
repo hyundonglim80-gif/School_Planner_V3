@@ -5,22 +5,23 @@ class DayView extends window.BaseView {
     super(container);
     this.currentEvents = [];
     this.currentJournals = [];
-    this.currentSchedules = {}; // 💡 시간표 데이터 백업용 변수 추가
+    this.currentSchedules = {};
   }
 
   parseEvents(docData) {
     if (!docData) return [];
     if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
-    if (docData.eventText && docData.eventText.trim() !== '') return window.parseRawEventTextToEventList(docData.eventText);
     return [];
   }
 
-  renderLabelChips(containerElement, allLabelsObj, selectedLabelsArray, onChangeCallback, onSpecialLabelRequest) {
+  // 💡 ID 기반으로 칩 렌더링
+  renderLabelChips(containerElement, allLabelsObj, selectedLabelIdsArray, onChangeCallback, onSpecialLabelRequest) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
       containerElement.style.margin = "0";
 
       allLabelsObj.forEach(labelObj => {
+          const labelId = labelObj.id;
           const labelText = labelObj.name;
           const isPeriod = labelObj.isPeriod;
           const isRecur = labelObj.isRecur;
@@ -29,34 +30,35 @@ class DayView extends window.BaseView {
           const chip = document.createElement('div');
           chip.className = 'label-chip';
           chip.innerText = labelText;
-          if (selectedLabelsArray.includes(labelText)) {
+          
+          if (selectedLabelIdsArray.includes(labelId)) {
               chip.classList.add('active');
           }
           
           chip.addEventListener('click', () => {
-              const isActive = selectedLabelsArray.includes(labelText);
+              const isActive = selectedLabelIdsArray.includes(labelId);
               
               if (isActive) {
-                  selectedLabelsArray = selectedLabelsArray.filter(l => l !== labelText);
+                  selectedLabelIdsArray = selectedLabelIdsArray.filter(id => id !== labelId);
               } else {
                   if (isPeriod || isRecur) {
                       if (onSpecialLabelRequest) {
-                          onSpecialLabelRequest(labelText, isPeriod ? 'period' : 'recur');
+                          onSpecialLabelRequest(labelText, isPeriod ? 'period' : 'recur', labelId);
                       }
                       return;
                   }
                   
                   if (isForward) {
-                      selectedLabelsArray = selectedLabelsArray.filter(l => {
-                          const lObj = allLabelsObj.find(x => x.name === l);
+                      selectedLabelIdsArray = selectedLabelIdsArray.filter(id => {
+                          const lObj = allLabelsObj.find(x => x.id === id);
                           return !(lObj && (lObj.isPeriod || lObj.isRecur));
                       });
                   }
                   
-                  selectedLabelsArray.push(labelText);
+                  selectedLabelIdsArray.push(labelId);
               }
               
-              if (onChangeCallback) onChangeCallback(selectedLabelsArray);
+              if (onChangeCallback) onChangeCallback(selectedLabelIdsArray);
               window.dayViewInstance.renderEventEntries();
           });
           containerElement.appendChild(chip);
@@ -83,10 +85,8 @@ class DayView extends window.BaseView {
               <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
               
     if (events.length > 0) {
-      let processedEvents = events.map(e => ({
-          ...e,
-          labels: e.labels || (e.label ? [e.label] : [])
-      }));
+      let processedEvents = events.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+      // 💡 유틸리티 함수도 ID 배열을 받아서 처리하도록 호환 (앱 단에서 보완 예정)
       html += window.generateEventBadgesHTML(processedEvents, dateStr);
     } else {
       html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
@@ -120,14 +120,18 @@ class DayView extends window.BaseView {
       html += `<div class="day-journal-section" style="margin-top:20px;">
                 <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘 기록</h3>`;
       
+      const masterJournalLabels = window.getJournalLabels();
       journals.forEach(j => {
-        let labels = j.labels || (j.label ? [j.label] : []); 
+        let labelIds = j.labelIds || []; 
 
-        const mainStyle = labels.length > 0 ? window.getLabelStyle(labels[0], 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+        const firstLabel = labelIds.length > 0 ? masterJournalLabels.find(l => l.id === labelIds[0]) : null;
+        const mainStyle = firstLabel ? window.getLabelStyle(firstLabel.id, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
         
-        const labelsHtml = labels.map(l => {
-             const s = window.getLabelStyle(l, 'journal');
-             return `<span style="display:inline-block; font-weight:bold; color:${s.text}; background:${s.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.9rem; border:1px solid ${s.border};">${l}</span>`;
+        const labelsHtml = labelIds.map(id => {
+             const lbl = masterJournalLabels.find(l => l.id === id);
+             if(!lbl) return '';
+             const s = window.getLabelStyle(id, 'journal');
+             return `<span style="display:inline-block; font-weight:bold; color:${s.text}; background:${s.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.9rem; border:1px solid ${s.border};">${lbl.name}</span>`;
         }).join('');
 
         html += `
@@ -149,25 +153,19 @@ class DayView extends window.BaseView {
     const dateStr = this.dateStr;
     const dayData = await window.dbAPI.loadDayData(dateStr);
     const periods = dayData.periods || {};
-    this.currentSchedules = periods; // 초기 데이터 백업
+    this.currentSchedules = periods;
     
     const eventDoc = await window.getUserCol('events').doc(dateStr).get();
     const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
     
-    this.currentEvents = events.map(e => ({
-        ...e,
-        labels: e.labels || (e.label ? [e.label] : [])
-    }));
-    if (this.currentEvents.length === 0) this.currentEvents.push({ labels: [], content: '', completed: false });
+    this.currentEvents = events.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+    if (this.currentEvents.length === 0) this.currentEvents.push({ labelIds: [], content: '', completed: false });
     
     const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
     const journals = journalDoc.exists ? journalDoc.data().entries || [] : [];
     
-    this.currentJournals = journals.map(j => ({
-        ...j,
-        labels: j.labels || (j.label ? [j.label] : [])
-    }));
-    if (this.currentJournals.length === 0) this.currentJournals.push({ labels: [], content: '' });
+    this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
+    if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
     let html = `<div class="day-viewer-container">`;
 
@@ -249,7 +247,10 @@ class DayView extends window.BaseView {
         chipContainer.style.margin = "0";
 
         const isCompleted = !!e.completed;
-        const canComplete = e.labels && e.labels.some(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+        const canComplete = e.labelIds && e.labelIds.some(id => {
+            const match = labelObjs.find(l => l.id === id);
+            return match && match.isForward;
+        });
         
         let warningIcon = '';
         if (canComplete) {
@@ -260,15 +261,15 @@ class DayView extends window.BaseView {
             }
         }
 
-        this.renderLabelChips(chipContainer, labelObjs, e.labels, 
-            (newLabels) => {
-                this.currentEvents[index].labels = newLabels;
+        this.renderLabelChips(chipContainer, labelObjs, e.labelIds, 
+            (newLabelIds) => {
+                this.currentEvents[index].labelIds = newLabelIds;
             },
-            async (labelText, popupType) => {
+            async (labelText, popupType, labelId) => {
                 const content = this.currentEvents[index].content;
                 const backupEvent = { ...this.currentEvents[index] };
                 this.syncEventInputs();
-                this.syncScheduleInputs(); // 💡 시간표 동기화 추가
+                this.syncScheduleInputs(); 
                 this.currentEvents.splice(index, 1);
                 await window.saveCurrentViewData(true); 
                 
@@ -282,9 +283,9 @@ class DayView extends window.BaseView {
                 };
 
                 if (popupType === 'period') {
-                    window.openPeriodModal(window.dayViewInstance.dateStr, labelText, content, callback);
+                    window.openPeriodModal(window.dayViewInstance.dateStr, labelText, content, callback, labelId);
                 } else if (popupType === 'recur') {
-                    window.openRecurringModal(window.dayViewInstance.dateStr, labelText, content, callback);
+                    window.openRecurringModal(window.dayViewInstance.dateStr, labelText, content, callback, labelId);
                 }
             }
         );
@@ -316,15 +317,19 @@ class DayView extends window.BaseView {
         actions.querySelector('.delete-btn').addEventListener('click', () => {
             const ev = this.currentEvents[index];
             const isGrouped = !!ev.groupId;
-            const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+            const forwardLabelId = (ev.labelIds || []).find(id => {
+                const match = labelObjs.find(l => l.id === id);
+                return match && match.isForward;
+            });
+            const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
 
             if (isGrouped) {
-                window.showGroupDeleteModal(this.dateStr, ev.labels[0]||'', ev.content, ev.groupId, 
+                window.showGroupDeleteModal(this.dateStr, ev.labelIds[0]||'', ev.content, ev.groupId, 
                     () => { window.render(); }, 
                     () => { this.removeEventEntry(index); }
                 );
-            } else if (forwardLabel && ev.forwardChainId) {
-                window.showForwardDeleteModal(this.dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+            } else if (forwardLabelId && ev.forwardChainId) {
+                window.showForwardDeleteModal(this.dateStr, forwardLabelName, ev.content, ev.forwardChainId, 
                     () => { window.render(); }
                 );
             } else {
@@ -351,10 +356,9 @@ class DayView extends window.BaseView {
     });
   }
 
-  // 💡 [핵심 추가] 시간표 입력값을 메모리에 동기화
   syncScheduleInputs() {
       const rows = document.querySelectorAll("tr[data-period]");
-      if (rows.length === 0) return; // 편집 모드가 아니면 패스
+      if (rows.length === 0) return;
       
       rows.forEach(row => {
           const p = row.getAttribute("data-period");
@@ -378,7 +382,7 @@ class DayView extends window.BaseView {
 
   addEventEntry() {
     this.syncEventInputs();
-    this.currentEvents.push({ labels: [], content: '', completed: false });
+    this.currentEvents.push({ labelIds: [], content: '', completed: false });
     this.renderEventEntries();
   }
 
@@ -408,8 +412,8 @@ class DayView extends window.BaseView {
         chipContainer.className = "label-chip-container";
         chipContainer.style.margin = "0";
         
-        this.renderLabelChips(chipContainer, labelObjs, j.labels, (newLabels) => {
-            this.currentJournals[index].labels = newLabels;
+        this.renderLabelChips(chipContainer, labelObjs, j.labelIds, (newLabelIds) => {
+            this.currentJournals[index].labelIds = newLabelIds;
         });
 
         const delBtn = document.createElement('button');
@@ -448,7 +452,7 @@ class DayView extends window.BaseView {
 
   addJournalEntry() {
     this.syncJournalInputs();
-    this.currentJournals.push({ labels: [], content: '' });
+    this.currentJournals.push({ labelIds: [], content: '' });
     this.renderJournalEntries();
   }
 
@@ -543,26 +547,22 @@ class DayView extends window.BaseView {
     window.hasUnsavedChanges = true; 
   }
 
-  // 💡 [핵심] 낙관적 업데이트에 맞춘 비동기 저장 방식 적용 (DOM 참조 제거)
-  // 💡 [핵심] 스냅샷 캡처 후 백그라운드 저장 적용
   save() {
-    // [1단계: 동기적 데이터 캡처] 화면이 넘어가기 전에 현재 날짜와 데이터를 확정지어 복사
     const targetDateStr = this.dateStr;
     this.syncEventInputs();
     this.syncScheduleInputs();
     this.syncJournalInputs();
 
-    // 화면이 엎어져도 영향받지 않게 깊은 복사(Deep Copy)
     const validEvents = this.currentEvents
-        .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+        .filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0))
         .map(e => ({...e}));
     const periodsData = JSON.parse(JSON.stringify(this.currentSchedules || {}));
     const validJournals = this.currentJournals
-        .filter(j => (j.content || '').trim() !== '' || (j.labels && j.labels.length > 0))
+        .filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0))
         .map(j => ({...j}));
 
-    // [2단계: 비동기 클라우드 저장] 캡처된 데이터를 바탕으로 백그라운드에서 전송 (Promise 반환)
     return (async () => {
+        // ID 환경에서 텍스트 변환은 보완용 래퍼 사용
         const eventTextForLegacy = window.formatEventListToText ? window.formatEventListToText(validEvents) : '';
         await window.getUserCol('events').doc(targetDateStr).set({
             eventList: validEvents,
@@ -571,8 +571,12 @@ class DayView extends window.BaseView {
         });
 
         let isSkipDay = false;
+        const masterLabels = window.getEventLabels();
         for (const e of validEvents) {
-            if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+            if (e.labelIds && e.labelIds.some(id => {
+                const match = masterLabels.find(l => l.id === id);
+                return match && match.isSkip;
+            })) {
                 isSkipDay = true; break;
             }
         }
