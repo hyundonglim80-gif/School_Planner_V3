@@ -5,17 +5,17 @@
 // ==========================================================================
 
 window.parseLocalDate = function(dateString) {
-  if (!dateString) return new Date();
-  const parts = dateString.split('-');
-  if (parts.length === 3) return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-  return new Date(dateString);
+    if (!dateString) return new Date();
+    const parts = dateString.split('-');
+    if (parts.length === 3) return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    return new Date(dateString);
 };
 
 window.formatDate = function(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 window.LABEL_PALETTE = {
@@ -31,21 +31,21 @@ window.LABEL_PALETTE = {
 
 window.getLabelStyle = function(labelId, type = 'event') {
     const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
-    const target = labels.find(l => l.id === labelId);
+    const target = labels.find(l => l.id === labelId || l.name === labelId); // 과거 데이터 호환
     if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
     if (type === 'event' && target && target.isSkip) return window.LABEL_PALETTE['red'];
     if (type === 'event') return window.LABEL_PALETTE['blue'];
     return window.LABEL_PALETTE['purple'];
 };
 
-// 💡 보조: ID 생성기 (초기 세팅용)
 window.generateTempId = function(prefix = 'id') {
     return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
 };
 
-// 💡 [초기 일정 라벨 지정] ID 포함 기본 라벨 5종 생성
+// 💡 [초기 일정 라벨 지정] ID 자동 생성 및 부여
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
+    let changed = false;
     if (!labels || labels.length === 0) {
         labels = [
             { id: window.generateTempId('lbl_ev'), name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue' },
@@ -54,26 +54,52 @@ window.getEventLabels = function() {
             { id: window.generateTempId('lbl_ev'), name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange' },
             { id: window.generateTempId('lbl_ev'), name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple' }
         ];
-        localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
+        changed = true;
+    } else {
+        labels.forEach(l => { if (!l.id) { l.id = window.generateTempId('lbl_ev'); changed = true; } });
     }
-    // app.js의 자동 보완 로직이 있다면 거치기
-    if (window.ensureDefaultEventLabels) labels = window.ensureDefaultEventLabels(labels);
+    if (changed) localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
     return labels;
 };
 
-// 속성 판별기들도 모두 ID 기반으로 작동합니다.
+window.getJournalLabels = function() {
+    let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
+    let changed = false;
+    if (!labels) {
+        let oldLabels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v3')) || JSON.parse(localStorage.getItem('workCalendar_journalLabels'));
+        if (oldLabels && Array.isArray(oldLabels)) {
+            labels = oldLabels.map(l => {
+                if (typeof l === 'string') return { id: window.generateTempId('lbl_jr'), name: l, color: 'purple' };
+                return { id: window.generateTempId('lbl_jr'), name: l.name, color: l.color || 'purple' };
+            });
+        } else {
+            labels = [
+                { id: window.generateTempId('lbl_jr'), name: '참고', color: 'gray' }, 
+                { id: window.generateTempId('lbl_jr'), name: '사건', color: 'red' }, 
+                { id: window.generateTempId('lbl_jr'), name: '감상', color: 'green' }, 
+                { id: window.generateTempId('lbl_jr'), name: '상담', color: 'orange' }
+            ];
+        }
+        changed = true;
+    } else {
+        labels.forEach(l => { if (!l.id) { l.id = window.generateTempId('lbl_jr'); changed = true; } });
+    }
+    if (changed) localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
+    return labels;
+};
+
 window.isSkipLabel = function(labelId) {
-    const target = window.getEventLabels().find(l => l.id === labelId);
+    const target = window.getEventLabels().find(l => l.id === labelId || l.name === labelId);
     return target ? target.isSkip : false; 
 };
 
 window.isForwardLabel = function(labelId) {
-    const target = window.getEventLabels().find(l => l.id === labelId);
+    const target = window.getEventLabels().find(l => l.id === labelId || l.name === labelId);
     return target ? target.isForward : false; 
 };
 
 window.isPeriodLabel = function(labelId) {
-    const target = window.getEventLabels().find(l => l.id === labelId);
+    const target = window.getEventLabels().find(l => l.id === labelId || l.name === labelId);
     return target ? target.isPeriod : false; 
 };
 
@@ -84,35 +110,116 @@ window.checkSkipConditionFromText = function(rawText) {
     let match;
     const labels = window.getEventLabels();
     while ((match = regex.exec(rawText)) !== null) {
-        const target = labels.find(l => l.name === match[1]); // 텍스트 파싱 시에는 이름 비교
+        const target = labels.find(l => l.name === match[1]);
         if (target && target.isSkip) return true;
     }
     return false;
 };
 
-window.isForwardLabel = function(labelName) {
-    const target = window.getEventLabels().find(l => l.name === labelName);
-    return target ? target.isForward : false; 
-};
+// ==========================================================================
+// 🚀 [핵심 추가] 누락되었던 자동 마이그레이션 엔진 탑재
+// ==========================================================================
+window.autoCheckAndRunMigration = async function() {
+    if (localStorage.getItem('v4_label_migration_done') === 'true') return;
+    
+    try {
+        const prefDoc = await window.getUserCol('settings').doc('preferences').get();
+        if (prefDoc.exists && prefDoc.data().v4LabelMigrationDone === true) {
+            localStorage.setItem('v4_label_migration_done', 'true');
+            return;
+        }
+    } catch(e) { return; } // 미로그인 시 패스
 
-window.isPeriodLabel = function(labelName) {
-    const target = window.getEventLabels().find(l => l.name === labelName);
-    return target ? target.isPeriod : false; 
-};
+    const loaderHtml = `<div id="migration-loader" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.95); z-index:99999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+        <h2 style="color:#2563eb; font-size:1.8rem; margin-bottom:10px;">⚙️ V4 시스템 데이터 최적화 중...</h2>
+        <p style="color:#64748b; font-size:1rem; font-weight:bold;">새로운 라벨 시스템을 적용하고 있습니다. 잠시만 기다려주세요!</p>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', loaderHtml);
 
-window.checkSkipConditionFromText = function(rawText) {
-    if (!rawText) return false;
-    if (rawText.includes('(휴일)') || rawText.includes('(행사)')) return true;
-    const regex = /\[(.*?)\]/g;
-    let match;
-    while ((match = regex.exec(rawText)) !== null) {
-        if (window.isSkipLabel(match[1])) return true;
+    try {
+        const masterEventLabels = window.getEventLabels();
+        const masterJournalLabels = window.getJournalLabels();
+
+        const findIdByName = (name, type) => {
+            const list = type === 'event' ? masterEventLabels : masterJournalLabels;
+            const match = list.find(l => l.name === name);
+            return match ? match.id : null;
+        };
+
+        let batch = window.db.batch();
+        let opCount = 0;
+        let promises = [];
+
+        // 1. 일정 데이터 변환
+        const eventsSnap = await window.getUserCol('events').get();
+        eventsSnap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || [];
+            let docChanged = false;
+
+            list.forEach(ev => {
+                if (ev.labels || ev.label) {
+                    let oldNames = ev.labels || [ev.label];
+                    ev.labelIds = ev.labelIds || [];
+                    oldNames.forEach(name => {
+                        const id = findIdByName(name, 'event');
+                        if (id && !ev.labelIds.includes(id)) ev.labelIds.push(id);
+                    });
+                    delete ev.labels; delete ev.label;
+                    docChanged = true;
+                }
+            });
+
+            if (docChanged) {
+                batch.update(doc.ref, { eventList: list });
+                opCount++;
+                if (opCount >= 400) { promises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+            }
+        });
+
+        // 2. 기록 데이터 변환
+        const journalsSnap = await window.getUserCol('journals').get();
+        journalsSnap.forEach(doc => {
+            const data = doc.data();
+            let entries = data.entries || [];
+            let docChanged = false;
+
+            entries.forEach(j => {
+                if (j.labels || j.label) {
+                    let oldNames = j.labels || [j.label];
+                    j.labelIds = j.labelIds || [];
+                    oldNames.forEach(name => {
+                        const id = findIdByName(name, 'journal');
+                        if (id && !j.labelIds.includes(id)) j.labelIds.push(id);
+                    });
+                    delete j.labels; delete j.label;
+                    docChanged = true;
+                }
+            });
+
+            if (docChanged) {
+                batch.update(doc.ref, { entries: entries });
+                opCount++;
+                if (opCount >= 400) { promises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
+            }
+        });
+
+        if (opCount > 0) promises.push(batch.commit());
+        await Promise.all(promises);
+
+        await window.getUserCol('settings').doc('preferences').set({ v4LabelMigrationDone: true }, { merge: true });
+        localStorage.setItem('v4_label_migration_done', 'true');
+
+        document.getElementById('migration-loader').remove();
+        console.log("🎉 V4 마이그레이션 완료!");
+    } catch(e) {
+        console.error("마이그레이션 에러:", e);
+        if(document.getElementById('migration-loader')) document.getElementById('migration-loader').remove();
     }
-    return false;
 };
 
 // ==========================================================================
-// 🚀 렌더링 엔진 (DOM 조작을 위해 id 속성 추가)
+// 🚀 렌더링 엔진 (구버전 데이터도 즉석에서 고쳐서 보여주는 자동 힐링 탑재)
 // ==========================================================================
 window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 'normal') {
     if (!eventList || eventList.length === 0) return '';
@@ -121,7 +228,15 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
     const masterLabels = window.getEventLabels();
     
     eventList.forEach((e, index) => {
-        let labelIdsToRender = e.labelIds || []; // 💡 텍스트가 아닌 ID 배열 참조
+        // 💡 [중요] 아직 마이그레이션이 덜 끝난 데이터라도 화면에 100% 정상 출력되게 복구
+        let labelIdsToRender = e.labelIds || [];
+        if (labelIdsToRender.length === 0 && (e.labels || e.label)) {
+            let legacyNames = e.labels || [e.label];
+            legacyNames.forEach(name => {
+                const match = masterLabels.find(l => l.name === name);
+                if (match && match.id) labelIdsToRender.push(match.id);
+            });
+        }
 
         const isCompleted = !!e.completed;
         const canComplete = labelIdsToRender.some(id => {
@@ -148,7 +263,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
         if (labelIdsToRender.length > 0) {
             badgesHtml = labelIdsToRender.map(id => {
                 const lObj = masterLabels.find(l => l.id === id);
-                if (!lObj) return ''; // 💡 삭제된 라벨 ID는 화면에 그리지 않고 유령화 방지
+                if (!lObj) return ''; 
                 
                 const style = window.getLabelStyle(id, 'event');
                 let badgeStyle;
@@ -215,7 +330,7 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
                 badge.style.color = '#94a3b8';
                 badge.style.border = '1px solid #cbd5e1';
             } else {
-                const labelId = badge.getAttribute('data-id'); // 💡 ID 속성으로 라벨 스타일 복구
+                const labelId = badge.getAttribute('data-id');
                 const style = window.getLabelStyle(labelId, 'event');
                 if (style) {
                     badge.style.background = style.bg;
@@ -267,81 +382,6 @@ window.toggleEventCompletion = function(dateStr, index, currentStatus) {
     }, 0);
 };
 
-window.toggleEventCompletion = function(dateStr, index, currentStatus) {
-    const willBeComplete = !currentStatus;
-
-    if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
-        if (window.dayViewInstance.currentEvents[index]) {
-            window.dayViewInstance.currentEvents[index].completed = willBeComplete;
-        }
-    }
-    if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][index]) {
-        window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
-    }
-
-    const rowEl = document.getElementById(`evt-row-${dateStr}-${index}`);
-    if (rowEl) {
-        const badges = rowEl.querySelectorAll('span[onclick*="toggleEventCompletion"]');
-        badges.forEach(badge => {
-            badge.setAttribute('onclick', `event.stopPropagation(); window.toggleEventCompletion('${dateStr}', ${index}, ${willBeComplete})`);
-            
-            if (willBeComplete) {
-                badge.style.background = '#e2e8f0';
-                badge.style.color = '#94a3b8';
-                badge.style.border = '1px solid #cbd5e1';
-            } else {
-                const lName = badge.innerText;
-                const style = window.getLabelStyle(lName, 'event');
-                if (style) {
-                    badge.style.background = style.bg;
-                    badge.style.color = style.text;
-                    badge.style.border = `1px solid ${style.border}`;
-                }
-            }
-        });
-
-        const textEl = document.getElementById(`evt-txt-${dateStr}-${index}`);
-        if (textEl) {
-            let inner = textEl.innerHTML;
-            if (willBeComplete) {
-                textEl.style.color = '#94a3b8';
-                textEl.style.textDecoration = 'line-through';
-                textEl.style.fontStyle = 'italic';
-                if (!inner.includes('✓ ')) textEl.innerHTML = '✓ ' + inner;
-            } else {
-                textEl.style.color = '#1e293b';
-                textEl.style.textDecoration = 'none';
-                textEl.style.fontStyle = 'normal';
-                if (inner.includes('✓ ')) textEl.innerHTML = inner.replace('✓ ', '');
-            }
-        }
-    }
-
-    setTimeout(async () => {
-        try {
-            const eventDoc = await window.getUserCol('events').doc(dateStr).get();
-            if (!eventDoc.exists) return;
-            const data = eventDoc.data();
-            let eventList = data.eventList || [];
-
-            if (eventList.length === 0 && data.eventText) eventList = window.parseRawEventTextToEventList(data.eventText);
-
-            if (eventList[index]) {
-                eventList[index].completed = willBeComplete;
-                const newText = window.formatEventListToText(eventList);
-                
-                await window.getUserCol('events').doc(dateStr).set({
-                    eventList: eventList,
-                    eventText: newText,
-                    updatedAt: Date.now()
-                }, { merge: true });
-
-                if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
-            }
-        } catch (error) { console.error("🚨 완료 상태 변경 중 오류:", error); }
-    }, 0);
-};
-
 window.parseRawEventTextToEventList = function(rawText) {
     if (!rawText || !rawText.trim()) return [];
     const lines = rawText.split('\n');
@@ -362,7 +402,6 @@ window.parseRawEventTextToEventList = function(rawText) {
         if (match) {
             let labelName = match[1].trim();
             let lObj = masterLabels.find(l => l.name === labelName);
-            // 💡 텍스트에서 라벨명을 발견하면 ID를 찾아 넣어줍니다. 매칭 안되면 빈 배열
             eventList.push({ labelIds: lObj ? [lObj.id] : [], content: match[2].trim(), completed: completed });
         } else {
             let defaultLabelIds = [];
@@ -385,66 +424,16 @@ window.formatEventListToText = function(eventList) {
         if (e.labelIds && e.labelIds.length > 0) {
             const lObj = masterLabels.find(l => l.id === e.labelIds[0]);
             if (lObj) labelStr = `[${lObj.name}] `;
-        } else if (e.labels && e.labels.length > 0) { // 마이그레이션 전 데이터 호환용
+        } else if (e.labels && e.labels.length > 0) { 
             labelStr = `[${e.labels[0]}] `;
         }
         return `${e.completed ? '[v] ' : ''}${labelStr}${e.content}`;
     }).join('\n');
 };
 
-// 💡 기록 라벨도 초기 생성 시 ID를 부여해줍니다.
-window.getJournalLabels = function() {
-    let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
-    if (!labels) {
-        let oldLabels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v3')) || JSON.parse(localStorage.getItem('workCalendar_journalLabels'));
-        if (oldLabels && Array.isArray(oldLabels)) {
-            labels = oldLabels.map(l => {
-                if (typeof l === 'string') return { id: window.generateTempId('lbl_jr'), name: l, color: 'purple' };
-                return { id: window.generateTempId('lbl_jr'), name: l.name, color: l.color || 'purple' };
-            });
-        } else {
-            labels = [
-                { id: window.generateTempId('lbl_jr'), name: '참고', color: 'gray' }, 
-                { id: window.generateTempId('lbl_jr'), name: '사건', color: 'red' }, 
-                { id: window.generateTempId('lbl_jr'), name: '감상', color: 'green' }, 
-                { id: window.generateTempId('lbl_jr'), name: '상담', color: 'orange' }
-            ];
-        }
-        localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
-    }
-    return labels;
-};
-
-// ... 하단의 getSemesterDates 등은 그대로 유지합니다.
-
-window.formatEventListToText = function(eventList) {
-    if (!eventList || eventList.length === 0) return '';
-    return eventList.map(e => {
-        let labelStr = (e.labels && e.labels.length > 0) ? `[${e.labels[0]}] ` : (e.label ? `[${e.label}] ` : '');
-        return `${e.completed ? '[v]' : ''}${labelStr}${e.content}`;
-    }).join('\n');
-};
-
-window.getJournalLabels = function() {
-    let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
-    if (!labels) {
-        let oldLabels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v3')) || JSON.parse(localStorage.getItem('workCalendar_journalLabels'));
-        if (oldLabels && Array.isArray(oldLabels)) {
-            labels = oldLabels.map(l => {
-                if (typeof l === 'string') return { name: l, color: 'purple' };
-                return { name: l.name, color: l.color || 'purple' };
-            });
-        } else {
-            labels = [
-                { name: '참고', color: 'gray' }, { name: '사건', color: 'red' }, 
-                { name: '감상', color: 'green' }, { name: '상담', color: 'orange' }
-            ];
-        }
-        localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
-    }
-    return labels;
-};
-
+// ==========================================================================
+// 🚀 설정 및 공휴일 (유지)
+// ==========================================================================
 window.sem2StartMMDD = '08-16'; 
 window.isPreferencesLoaded = false;
 
@@ -477,50 +466,28 @@ window.getSemesterDates = function(baseDate = window.currentDate) {
     sem1End.setDate(sem1End.getDate() - 1); 
 
     return {
-        acYear: acYear,
-        yearStart: yearStart,
-        yearEnd: yearEnd,
-        sem1Start: yearStart,
-        sem1End: sem1End,
-        sem2Start: sem2Start,
-        sem2End: yearEnd
+        acYear: acYear, yearStart: yearStart, yearEnd: yearEnd,
+        sem1Start: yearStart, sem1End: sem1End, sem2Start: sem2Start, sem2End: yearEnd
     };
 };
 
-// ==========================================================================
-// 🚀 [신규] 대한민국 공휴일 데이터 및 판별 엔진
-// ==========================================================================
 window.KOR_HOLIDAYS = {
-    // 1. 매년 고정 공휴일 (월-일)
-    "01-01": "신정",
-    "03-01": "삼일절",
-    "05-05": "어린이날",
-    "06-06": "현충일",
-    "08-15": "광복절",
-    "10-03": "개천절",
-    "10-09": "한글날",
-    "12-25": "성탄절",
-
-    // 2. 유동/음력 공휴일 (2024년 ~ 2026년 기준)
+    "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
+    "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절",
     "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
     "2024-04-10": "국회의원선거", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
     "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
-    
     "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
     "2025-03-03": "대체공휴일", "2025-05-05": "부처님오신날", "2025-05-06": "대체공휴일",
     "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
-
     "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
     "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
     "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-27": "대체공휴일"
 };
 
 window.getHolidayName = function(dateStr) {
-    // dateStr 형식: "YYYY-MM-DD"
     const mmdd = dateStr.substring(5);
-    // 1순위: 특정 연도 휴일 (설날, 추석, 대체휴일 등)
     if (window.KOR_HOLIDAYS[dateStr]) return window.KOR_HOLIDAYS[dateStr]; 
-    // 2순위: 매년 반복 고정 휴일 (광복절, 크리스마스 등)
     if (window.KOR_HOLIDAYS[mmdd]) return window.KOR_HOLIDAYS[mmdd];     
     return null;
 };
