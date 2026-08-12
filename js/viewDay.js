@@ -15,6 +15,7 @@ class DayView extends window.BaseView {
   }
 
   // 💡 ID 기반으로 칩 렌더링
+  // 💡 1. renderLabelChips 함수 교체
   renderLabelChips(containerElement, allLabelsObj, selectedLabelIdsArray, onChangeCallback, onSpecialLabelRequest) {
       if (!containerElement) return;
       containerElement.innerHTML = '';
@@ -36,6 +37,10 @@ class DayView extends window.BaseView {
           }
           
           chip.addEventListener('click', () => {
+              // 💡 라벨 클릭 직전에 입력 중이던 텍스트 메모리에 저장! (텍스트 증발 방지)
+              if (window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') window.dayViewInstance.syncEventInputs();
+              if (window.dayViewInstance && typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
+
               const isActive = selectedLabelIdsArray.includes(labelId);
               
               if (isActive) {
@@ -65,88 +70,7 @@ class DayView extends window.BaseView {
       });
   }
 
-  async renderViewer() {
-    this.showLoading('클라우드 데이터를 불러오는 중...'); 
-
-    const dateStr = this.dateStr; 
-    const dayData = await window.dbAPI.loadDayData(dateStr);
-    const periods = dayData.periods || {};
-    
-    const eventDoc = await window.getUserCol('events').doc(dateStr).get();
-    const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
-    
-    const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
-    const journals = journalDoc.exists ? journalDoc.data().entries || [] : [];
-
-    let html = `<div class="day-viewer-container">`;
-
-    html += `<div class="day-event-card" style="display: flex; align-items: flex-start; padding: 16px; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 8px; margin-bottom: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-              <div style="width: 110px; font-weight: 700; font-size: 1.1rem; color: #1e40af; flex-shrink: 0;">📌 오늘 할 일</div>
-              <div style="flex-grow: 1; padding-left:12px; border-left: 2px solid #e2e8f0;">`;
-              
-    if (events.length > 0) {
-      let processedEvents = events.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-      // 💡 유틸리티 함수도 ID 배열을 받아서 처리하도록 호환 (앱 단에서 보완 예정)
-      html += window.generateEventBadgesHTML(processedEvents, dateStr);
-    } else {
-      html += `<div style="color:#94a3b8; font-size:1.05rem;">등록된 일정이 없습니다.</div>`;
-    }
-    html += `</div></div>`;
-        
-    if (window.showClass) {
-      html += `<div class="period-card-list">`;
-      for (let p = 1; p <= this.maxPeriod; p++) {
-        const pData = periods[p] || {};
-        const periodName = window.periodNames[p - 1] || p + '교시'; 
-        const subject = pData.subject || '';
-        const supplies = pData.supplies || '';
-        const memo = pData.memo || '';
-
-        const memoHtml = memo.trim() !== '' ? `<div class="period-memo" style="margin-top: 4px; font-size: 0.95rem; color: #475569;">📝 수업 메모: ${memo}</div>` : '';
-        const suppliesHtml = supplies.trim() !== '' ? `<div class="period-supplies" style="margin-top: 6px; font-size: 0.95rem; color: #b45309;">📌 비고: ${supplies}</div>` : '';
-
-        html += `
-          <div class="day-period-card" style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; background: #fff;">
-            <div class="period-title" style="font-weight: 700; font-size: 1.1rem; color: #1e3a8a;">${periodName}: ${subject}</div>
-            ${memoHtml}
-            ${suppliesHtml}
-          </div>
-        `;
-      }
-      html += `</div>`;
-    }
-
-    if (journals.length > 0) {
-      html += `<div class="day-journal-section" style="margin-top:20px;">
-                <h3 style="font-size:1.2rem; color:#be185d; margin-bottom:10px;">📔 오늘 기록</h3>`;
-      
-      const masterJournalLabels = window.getJournalLabels();
-      journals.forEach(j => {
-        let labelIds = j.labelIds || []; 
-
-        const firstLabel = labelIds.length > 0 ? masterJournalLabels.find(l => l.id === labelIds[0]) : null;
-        const mainStyle = firstLabel ? window.getLabelStyle(firstLabel.id, 'journal') : { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
-        
-        const labelsHtml = labelIds.map(id => {
-             const lbl = masterJournalLabels.find(l => l.id === id);
-             if(!lbl) return '';
-             const s = window.getLabelStyle(id, 'journal');
-             return `<span style="display:inline-block; font-weight:bold; color:${s.text}; background:${s.bg}; padding:2px 8px; border-radius:12px; margin-right:6px; font-size:0.9rem; border:1px solid ${s.border};">${lbl.name}</span>`;
-        }).join('');
-
-        html += `
-          <div style="background:#fff; border:1px solid ${mainStyle.border}; border-left:5px solid ${mainStyle.text}; border-radius:8px; padding:12px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-              ${labelsHtml ? `<div style="margin-bottom:8px;">${labelsHtml}</div>` : ''}
-              <div style="color:#1e293b; font-size:1.05rem; line-height:1.5; white-space:pre-wrap; word-break:break-all;">${j.content}</div>
-          </div>`;
-      });
-      html += `</div>`;
-    }
-
-    html += `</div>`;
-    this.container.innerHTML = html;
-  }
-
+  // 💡 2. renderEditor 함수 교체
   async renderEditor() {
     this.showLoading('편집 화면을 준비 중...');
 
@@ -158,7 +82,19 @@ class DayView extends window.BaseView {
     const eventDoc = await window.getUserCol('events').doc(dateStr).get();
     const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
     
-    this.currentEvents = events.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+    // 💡 [핵심] V3 방식의 옛날 일정들도 ID를 찾아내어 편집 모드에 정상적으로 띄움
+    const masterLabels = window.getEventLabels();
+    this.currentEvents = events.map(e => {
+        let labelIds = e.labelIds || [];
+        if (labelIds.length === 0 && (e.labels || e.label)) {
+            let legacyNames = e.labels || [e.label];
+            legacyNames.forEach(name => {
+                const match = masterLabels.find(l => l.name === name);
+                if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
+            });
+        }
+        return { ...e, labelIds: labelIds };
+    });
     if (this.currentEvents.length === 0) this.currentEvents.push({ labelIds: [], content: '', completed: false });
     
     const journalDoc = await window.getUserCol('journals').doc(dateStr).get();
