@@ -36,7 +36,6 @@ class DayView extends window.BaseView {
             }
             
             chip.addEventListener('click', () => {
-                // 라벨 클릭 직전에 입력 중이던 텍스트 메모리에 저장! (텍스트 증발 방지)
                 if (window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') window.dayViewInstance.syncEventInputs();
                 if (window.dayViewInstance && typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
 
@@ -67,7 +66,6 @@ class DayView extends window.BaseView {
         });
     }
 
-    // 💡 실수로 지워졌던 보기 모드(Viewer) 함수 완벽 복구
     async renderViewer() {
         this.showLoading('클라우드 데이터를 불러오는 중...');
 
@@ -83,7 +81,6 @@ class DayView extends window.BaseView {
 
         let html = `<div class="day-viewer-container">`;
         
-        // --- 1. 일정 영역 ---
         html += `
           <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
             <h3 style="font-size:1.2rem; color:#1e40af; margin-top:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
@@ -91,7 +88,6 @@ class DayView extends window.BaseView {
           </div>
         `;
 
-        // --- 2. 시간표 영역 ---
         html += `
             <div class="table-container" style="margin-top:10px; ${window.showClass ? '' : 'display:none;'}">
               <table style="text-align: center;">
@@ -119,7 +115,6 @@ class DayView extends window.BaseView {
         }
         html += `</tbody></table></div>`;
 
-        // --- 3. 기록 영역 ---
         html += `
           <div class="day-journal-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
             <h3 style="font-size:1.2rem; color:#be185d; margin-top:0; margin-bottom:10px; font-weight:bold;">📔 오늘 기록</h3>
@@ -171,7 +166,6 @@ class DayView extends window.BaseView {
         const eventDoc = await window.getUserCol('events').doc(dateStr).get();
         const events = eventDoc.exists ? this.parseEvents(eventDoc.data()) : [];
         
-        // V4 옛날 일정 ID 자동 변환 호환
         const masterLabels = window.getEventLabels();
         this.currentEvents = events.map(e => {
             let labelIds = e.labelIds || [];
@@ -262,13 +256,14 @@ class DayView extends window.BaseView {
             const row = document.createElement('div');
             row.style.cssText = "display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; position:relative;";
             
+            // 💡 [수정] ev.content가 없을 때 충돌을 방지하기 위해 (ev.content || '') 처리를 추가했습니다.
             if (ev.groupId || (ev.forwardChainId && ev.originalDate && ev.originalDate !== this.dateStr)) {
                 let badgeTxt = ev.groupId ? '🔗 반복/기간 그룹 일정' : '↪️ 과거에서 이월된 일정';
                 let badgeColor = ev.groupId ? '#2563eb' : '#059669';
                 let badgeBg = ev.groupId ? '#dbeafe' : '#dcfce3';
                 let delHandler = ev.groupId 
-                    ? `window.showGroupDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${ev.content.replace(/`/g, '\\`')}\`, '${ev.groupId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; }, () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; })`
-                    : `window.showForwardDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${ev.content.replace(/`/g, '\\`')}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; })`;
+                    ? `window.showGroupDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.groupId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; }, () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; })`
+                    : `window.showForwardDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); window.hasUnsavedChanges = true; })`;
                 
                 row.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -337,7 +332,8 @@ class DayView extends window.BaseView {
         const textareas = container.querySelectorAll('textarea');
         textareas.forEach((ta, idx) => {
             if (this.currentEvents[idx]) {
-                this.currentEvents[idx].content = ta.value.trim();
+                // 💡 [수정] 사용자가 타이핑 중 공백을 잃지 않도록 trim() 삭제
+                this.currentEvents[idx].content = ta.value; 
             }
         });
     }
@@ -402,7 +398,8 @@ class DayView extends window.BaseView {
         const textareas = container.querySelectorAll('textarea');
         textareas.forEach((ta, idx) => {
             if (this.currentJournals[idx]) {
-                this.currentJournals[idx].content = ta.value.trim();
+                // 💡 [수정] 동일하게 trim() 제거
+                this.currentJournals[idx].content = ta.value; 
             }
         });
     }
@@ -485,15 +482,18 @@ class DayView extends window.BaseView {
             this.syncJournalInputs();
             this.syncScheduleInputs();
             
-            const validEvents = this.currentEvents.filter(e => e.content.trim() !== '');
+            // 💡 [핵심 수정] 내용(content)이 없더라도, 라벨(label)이 선택되어 있다면 절대 삭제하지 않도록 필터링 규칙 수정
+            const validEvents = this.currentEvents.filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0));
             const eventText = window.formatEventListToText ? window.formatEventListToText(validEvents) : '';
+            
             await window.getUserCol('events').doc(dateStr).set({ 
                 eventList: validEvents,
                 eventText: eventText,
                 updatedAt: Date.now() 
             }, { merge: true });
 
-            const validJournals = this.currentJournals.filter(j => j.content.trim() !== '');
+            // 💡 기록(Journal)도 동일하게 라벨만 있어도 보존되도록 규칙 수정
+            const validJournals = this.currentJournals.filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0));
             await window.getUserCol('journals').doc(dateStr).set({ 
                 entries: validJournals, 
                 updatedAt: Date.now() 
