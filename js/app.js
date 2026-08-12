@@ -271,6 +271,21 @@ window.saveCurrentViewData = function(silent = false) {
   window.hasUnsavedChanges = false; 
   const scopeToSave = currentScope;
 
+  // 1. 메모리 캡처 전, 혹시 모를 입력창 텍스트 유실을 막기 위해 모든 입력값 강제 동기화
+  try {
+      if (scopeToSave === 'day' && window.dayViewInstance) {
+          if(typeof window.dayViewInstance.syncEventInputs === 'function') window.dayViewInstance.syncEventInputs();
+          if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
+          if(typeof window.dayViewInstance.syncScheduleInputs === 'function') window.dayViewInstance.syncScheduleInputs();
+      } else if (scopeToSave === 'week' && window.weekViewInstance && typeof window.weekViewInstance.syncScheduleInputs === 'function') {
+          window.weekViewInstance.syncScheduleInputs();
+      } else if (scopeToSave === 'month' && window.monthViewInstance && typeof window.monthViewInstance.syncScheduleInputs === 'function') {
+          window.monthViewInstance.syncScheduleInputs();
+      } else if (scopeToSave === 'year' && window.yearViewInstance && typeof window.yearViewInstance.syncScheduleInputs === 'function') {
+          window.yearViewInstance.syncScheduleInputs();
+      }
+  } catch(e) {}
+
   let savePromise = null;
   try {
       if (scopeToSave === 'day' && window.saveDayDataFromEditor) savePromise = window.saveDayDataFromEditor();
@@ -300,7 +315,8 @@ window.saveCurrentViewData = function(silent = false) {
       }
   }, 0);
   
-  if (!silent && currentMode === 'editor') window.render();
+  // 💡 [핵심 버그 수정] 에디터 상태에서 저장 버튼을 눌렀을 때는 절대로 DB를 재호출(render)하지 않습니다!
+  // 기존의 if (!silent && currentMode === 'editor') window.render(); 코드를 삭제하여 덮어씌움 현상 방지
 };
 
 window.addEventListener('DOMContentLoaded', () => {
