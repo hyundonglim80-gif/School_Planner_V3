@@ -90,17 +90,19 @@ window.goToToday = function() {
 window.periodNames = ["1", "2", "3", "4", "5", "6"];
 window.tempPeriodNames = [];
 
-window.loadSettings = async function() {
-    try {
-        const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists) {
+// js/app.js
+
+window.loadSettings = async function() { 
+    try { 
+        // 1. 수업 시수 및 D-Day 설정 불러오기
+        const doc = await window.getUserCol('settings').doc('preferences').get(); 
+        if (doc.exists) { 
             const data = doc.data();
             if (data.periodNames && data.periodNames.length > 0) {
-                window.periodNames = data.periodNames;
-            } else {
+                window.periodNames = data.periodNames; 
+            } else { 
                 window.periodNames = ["1", "2", "3", "4", "5", "6"];
-            }
-
+            } 
             window.dDayList = data.dDayList || [];
             window.selectedDDayId = data.selectedDDayId || null;
             window.updateDdayUI();
@@ -110,18 +112,26 @@ window.loadSettings = async function() {
             window.selectedDDayId = null;
         }
 
-        const labelDoc = await window.getUserCol('settings').doc('labels').get();
-        if (labelDoc.exists) {
+        // 2. 💡 [핵심] 라벨 데이터 자동 업데이트 및 불러오기
+        const labelDoc = await window.getUserCol('settings').doc('labels').get(); 
+        if (labelDoc.exists) { 
             const data = labelDoc.data();
-            if (data.eventLabels) localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(data.eventLabels));
+            if (data.eventLabels) {
+                // 기존 라벨을 가져온 후, 시스템 필수 라벨 5종이 없으면 자동 보완(마이그레이션)
+                const updatedLabels = window.ensureDefaultEventLabels(data.eventLabels);
+                localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(updatedLabels));
+            }
             if (data.journalLabels) localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(data.journalLabels));
             if (data.memoLabels) localStorage.setItem('workCalendar_memoLabels', JSON.stringify(data.memoLabels));
+        } else {
+            // DB에 라벨 설정이 아예 없는 경우 기본 5종 라벨 자동 생성
+            const defaultLabels = window.getEventLabels();
+            localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(defaultLabels));
         }
     } catch (error) {
-        console.warn("설정 데이터를 불러올 권한이 없거나 에러가 발생했습니다. 기본값을 적용합니다.", error);
-        window.periodNames = ["1", "2", "3", "4", "5", "6"];
-        window.dDayList = [];
-        window.selectedDDayId = null;
+        console.warn("설정 로드 중 기본 라벨을 적용합니다.", error);
+        const defaultLabels = window.getEventLabels();
+        localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(defaultLabels));
     }
 };
 
@@ -1131,4 +1141,59 @@ window.saveDdayDataToFirebase = async function() {
         console.error("D-Day 저장 실패", e);
         alert("저장에 실패했습니다.");
     }
+};
+
+// 💡 [자동 보완 엔진] 기존 라벨 목록을 검사하여 필수 5종 라벨 및 속성을 자동으로 채워줍니다.
+window.ensureDefaultEventLabels = function(existingLabels = []) {
+    const defaultMustLabels = [
+        { name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue' },
+        { name: '휴일', isSkip: true,  isForward: false, isPeriod: false, isRecur: false, color: 'red' },
+        { name: '확인', isSkip: false, isForward: true,  isPeriod: false, isRecur: false, color: 'green' },
+        { name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange' },
+        { name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple' }
+    ];
+
+    let merged = [...existingLabels];
+
+    // 필수 5종 라벨 중 이름이 빠져있는 항목이 있으면 자동으로 추가
+    defaultMustLabels.forEach(mustLabel => {
+        const exists = merged.some(l => l.name === mustLabel.name);
+        if (!exists) {
+            merged.push(mustLabel);
+        } else {
+            // 이름은 있지만 속성값(isSkip, isForward 등)이 구버전이라 빠져있다면 보완
+            merged = merged.map(l => {
+                if (l.name === mustLabel.name) {
+                    return {
+                        ...l,
+                        isSkip: l.isSkip !== undefined ? l.isSkip : mustLabel.isSkip,
+                        isForward: l.isForward !== undefined ? l.isForward : mustLabel.isForward,
+                        isPeriod: l.isPeriod !== undefined ? l.isPeriod : mustLabel.isPeriod,
+                        isRecur: l.isRecur !== undefined ? l.isRecur : mustLabel.isRecur,
+                    };
+                }
+                return l;
+            });
+        }
+    });
+
+    return merged;
+};
+
+// 💡 기본 5종 라벨 정의 함수 (기존 getEventLabels 보완)
+window.getEventLabels = function() {
+    let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
+    if (!labels || labels.length === 0) {
+        labels = [
+            { name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue' },
+            { name: '휴일', isSkip: true,  isForward: false, isPeriod: false, isRecur: false, color: 'red' },
+            { name: '확인', isSkip: false, isForward: true,  isPeriod: false, isRecur: false, color: 'green' },
+            { name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange' },
+            { name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple' }
+        ];
+    } else {
+        labels = window.ensureDefaultEventLabels(labels);
+    }
+    localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
+    return labels;
 };
