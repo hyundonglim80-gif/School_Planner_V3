@@ -90,47 +90,43 @@ const LabelManager = {
   // 🏷️ 1. 일정 라벨 관리
   // ====================================================
   getEventContentHTML: function() {
-    return `
-      <div class="modal-info-box">
-          <p style="margin:0;">
-              <strong>[일정 라벨]</strong> 왼쪽 '≡'를 끌어 순서를 바꾸거나 이름을 클릭해 수정하세요.<br>
-              💡 <b>기간:</b> 선택 시 며칠부터 며칠까지인지 달력 팝업이 뜹니다.<br>
-              💡 <b>반복:</b> 선택 시 매주 반복되는 일정을 등록하는 팝업이 뜹니다.<br>
-              💡 <b>완료(이월):</b> 체크박스가 생성되며, 미완료 시 다음 날로 이월됩니다.
-          </p>
-      </div>
-      <div id="event-label-list-container" class="modal-list-container" style="max-height: 250px; padding-right:8px;"></div>
-      
-      <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
-          <div style="display:flex; gap:10px; align-items:center; width:100%;">
-              <input type="text" id="new-label-name" placeholder="새 라벨 (예: 방학)" class="modal-input-text" style="flex:1;">
-              
-              <div style="display:flex; gap:12px; align-items:center; text-align:center;">
-                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#2563eb; cursor:pointer;">
-                      <span>기간</span><input type="checkbox" id="new-label-period" onchange="if(this.checked){ document.getElementById('new-label-forward').checked = false; document.getElementById('new-label-recur').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
-                  </label>
-                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#16a34a; cursor:pointer;">
-                      <span>반복</span><input type="checkbox" id="new-label-recur" onchange="if(this.checked){ document.getElementById('new-label-period').checked = false; document.getElementById('new-label-forward').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
-                  </label>
-                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#059669; cursor:pointer;">
-                      <span>완료</span><input type="checkbox" id="new-label-forward" onchange="if(this.checked){ document.getElementById('new-label-period').checked = false; document.getElementById('new-label-recur').checked = false; }" class="modal-checkbox" style="margin-top:2px;">
-                  </label>
-                  <label style="display:flex; flex-direction:column; align-items:center; font-size:0.75rem; font-weight:bold; color:#ef4444; cursor:pointer;">
-                      <span>수업삭제</span><input type="checkbox" id="new-label-skip" class="modal-checkbox" style="margin-top:2px;">
-                  </label>
-              </div>
-              <button onclick="LabelManager.addNewEventLabel()" class="modal-btn-secondary" style="flex-shrink:0;">추가</button>
-          </div>
-          <div style="padding-left:4px;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 라벨 색상:</span>
-              ${this.getColorPickerHTML('event', 'blue')}
-          </div>
-      </div>
-      <div class="modal-footer-actions">
-          <button onclick="LabelManager.saveEventLabels(event)" class="modal-btn-primary">저장 및 클라우드 반영</button>
-      </div>
-    `;
-  },
+        return `
+        <div style="font-size:0.9rem; color:#475569; margin-bottom:15px; line-height:1.5; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
+            💡 <b>라벨 속성 안내</b><br>
+            - <b>수업삭제</b>: 지정된 날짜의 수업 과목명을 자동으로 비웁니다.<br>
+            - <b>완료</b>: 체크박스가 생성되며 미완료 시 다음 날로 자동 이월됩니다.<br>
+            - <b>기간</b>: 선택 시 연속 기간 등록 달력 팝업이 실행됩니다.<br>
+            - <b>반복</b>: 선택 시 매주/매월 반복 등록 팝업이 실행됩니다.
+        </div>
+        <div id="event-label-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; margin-bottom:15px;"></div>
+        
+        <div style="background:#f1f5f9; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+            <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <input type="text" id="new-label-name" placeholder="라벨 이름" style="flex:1; padding:6px 10px; border:1px solid #cbd5e1; border-radius:4px;">
+                <select id="event-selected-color" style="padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
+                    <option value="blue">파랑</option>
+                    <option value="red">빨강</option>
+                    <option value="green">초록</option>
+                    <option value="orange">주황</option>
+                    <option value="purple">보라</option>
+                    <option value="yellow">노랑</option>
+                    <option value="gray">회색</option>
+                </select>
+                <button onclick="window.LabelManager.addNewEventLabel()" style="padding:6px 12px; background:#2563eb; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">추가</button>
+            </div>
+            
+            <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.85rem; color:#1e293b;">
+                <label style="cursor:pointer;"><input type="checkbox" id="new-label-skip"> 🚫 수업삭제</label>
+                <label style="cursor:pointer;"><input type="checkbox" id="new-label-forward"> ✅ 완료</label>
+                <label style="cursor:pointer;"><input type="checkbox" id="new-label-period"> 📅 기간</label>
+                <label style="cursor:pointer;"><input type="checkbox" id="new-label-recur"> 🔁 반복</label>
+            </div>
+        </div>
+        
+        <div class="modal-footer-actions" style="margin-top: 20px;">
+            <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="width: 100%; background: #2563eb; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">💾 저장 및 기존 일정 동기화</button>
+        </div>`;
+    },
 
   openEventModal: function() {
     if (!this.eventModal) {
@@ -217,104 +213,123 @@ const LabelManager = {
   },
 
   saveEventLabels: async function(e) {
-    for (let i=0; i<window.tempEditingLabels.length; i++) {
-        if (!window.tempEditingLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
-    }
-    
-    const renameMap = {};
-    window.tempEditingLabels.forEach(l => {
-        if (l.originalName && l.originalName !== l.name) {
-            renameMap[l.originalName] = l.name;
-        }
-    });
+      for (let i = 0; i < window.tempEditingLabels.length; i++) {
+          if (!window.tempEditingLabels[i].name.trim()) {
+              return alert(`${i + 1}번째 라벨의 이름이 비어있습니다.`);
+          }
+      }
 
-    const newLabels = window.tempEditingLabels.map(l => l.name);
-    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
-    const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getEventLabels ? window.getEventLabels().map(l=>l.name) : []);
-    
-    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
+      const oldLabels = window.getEventLabels();
+      const newLabels = window.tempEditingLabels.map(l => ({
+          name: l.name.trim(),
+          color: l.color || 'blue',
+          isSkip: !!l.isSkip,
+          isForward: !!l.isForward,
+          isPeriod: !!l.isPeriod,
+          isRecur: !!l.isRecur
+      }));
 
-    const dataToSave = window.tempEditingLabels.map(({originalName, ...rest}) => rest);
-    
-    localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
-    
-    if (window.db) {
-        window.getUserCol('settings').doc('labels').set({ eventLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
-    }
-    
-    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
-        const btn = e.target;
-        const originalText = btn.textContent;
-        btn.textContent = "클라우드 데이터 정리 중...";
-        btn.disabled = true;
-        
-        try {
-            const snap = await window.getUserCol('events').get();
-            let batch = window.db.batch();
-            let opCount = 0;
-            let batchPromises = [];
+      // 1. 이름 변경 및 삭제된 라벨 맵 추출
+      const renamedMap = {};
+      const deletedSet = new Set();
 
-            snap.forEach(doc => {
-                const data = doc.data();
-                let changed = false;
-                let list = data.eventList || [];
-                
-                if (list.length === 0 && data.eventText && window.parseRawEventTextToEventList) {
-                    list = window.parseRawEventTextToEventList(data.eventText);
-                }
+      oldLabels.forEach(oldL => {
+          const match = window.tempEditingLabels.find(t => t.originalName === oldL.name);
+          if (!match) {
+              deletedSet.add(oldL.name); // 삭제된 라벨
+          } else if (match.originalName !== match.name.trim()) {
+              renamedMap[match.originalName] = match.name.trim(); // 이름 변경된 라벨
+          }
+      });
 
-                list.forEach(ev => {
-                    let evLabels = ev.labels || (ev.label ? [ev.label] : []);
-                    const originalLength = evLabels.length;
-                    let changedThisEv = false;
-                    
-                    evLabels = evLabels.map(l => {
-                        if (renameMap[l]) { changedThisEv = true; return renameMap[l]; }
-                        return l;
-                    });
-                    
-                    const filteredLabels = evLabels.filter(l => !deletedLabels.includes(l));
-                    if (filteredLabels.length !== evLabels.length) {
-                        changedThisEv = true;
-                        evLabels = filteredLabels;
-                    }
-                    
-                    if (changedThisEv || evLabels.length !== originalLength) {
-                        ev.labels = evLabels;
-                        ev.label = evLabels[0] || ''; 
-                        changed = true;
-                    }
-                });
+      // 2. 새로운 라벨 설정 로컬 및 DB 저장
+      localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(newLabels));
+      if (window.auth && window.auth.currentUser) {
+          try {
+              await window.getUserCol('settings').doc('labels').set({
+                  eventLabels: newLabels
+              }, { merge: true });
+          } catch (err) {
+              console.error("라벨 설정 저장 오류:", err);
+          }
+      }
 
-                if (changed) {
-                    const updateData = { eventList: list, updatedAt: Date.now() };
-                    if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(list);
-                    batch.update(doc.ref, updateData);
-                    opCount++;
-                    if (opCount >= 400) { 
-                        batchPromises.push(batch.commit());
-                        batch = window.db.batch();
-                        opCount = 0;
-                    }
-                }
-            });
-            if (opCount > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
-        } catch(err) {
-            console.error("일정 라벨 자동 업데이트 실패", err);
-        }
-        btn.textContent = originalText;
-        btn.disabled = false;
-    }
+      // 3. 기존 일정(events 컬렉션) 데이터 일괄 동기화
+      const hasChangesToSync = Object.keys(renamedMap).length > 0 || deletedSet.size > 0;
+      if (hasChangesToSync && window.db) {
+          if (e && e.target) {
+              e.target.textContent = "클라우드 데이터 정리 중...";
+              e.target.disabled = true;
+          }
 
-    this.eventModal.close();
-    alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-    
-    if (window.autoForwardIncompleteEvents) {
-        await window.autoForwardIncompleteEvents();
-    }
+          try {
+              const eventsSnap = await window.getUserCol('events').get();
+              let batch = window.db.batch();
+              let count = 0;
+              let batchPromises = [];
 
-    if (typeof window.render === 'function') window.render(); 
+              eventsSnap.forEach(doc => {
+                  const data = doc.data();
+                  let list = data.eventList || [];
+                  let docChanged = false;
+
+                  list.forEach(item => {
+                      let labels = item.labels || (item.label ? [item.label] : []);
+                      let updatedLabels = [];
+
+                      labels.forEach(lbl => {
+                          if (deletedSet.has(lbl)) {
+                              docChanged = true; // 삭제된 라벨 해제
+                          } else if (renamedMap[lbl]) {
+                              updatedLabels.push(renamedMap[lbl]); // 바뀐 라벨 이름으로 변경
+                              docChanged = true;
+                          } else {
+                              updatedLabels.push(lbl);
+                          }
+                      });
+
+                      item.labels = updatedLabels;
+
+                      // 레거시 속성 동기화
+                      if (item.label) {
+                          if (deletedSet.has(item.label)) {
+                              item.label = updatedLabels[0] || '';
+                          } else if (renamedMap[item.label]) {
+                              item.label = renamedMap[item.label];
+                          }
+                      }
+                  });
+
+                  if (docChanged) {
+                      const updateData = { eventList: list, updatedAt: Date.now() };
+                      if (window.formatEventListToText) {
+                          updateData.eventText = window.formatEventListToText(list);
+                      }
+                      batch.update(doc.ref, updateData);
+                      count++;
+
+                      if (count >= 400) {
+                          batchPromises.push(batch.commit());
+                          batch = window.db.batch();
+                          count = 0;
+                      }
+                  }
+              });
+
+              if (count > 0) batchPromises.push(batch.commit());
+              await Promise.all(batchPromises);
+          } catch (err) {
+              console.error("기존 일정 라벨 동기화 오류:", err);
+          }
+      }
+
+      if (this.eventModal) this.eventModal.close();
+      alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+      
+      if (window.autoForwardIncompleteEvents) {
+          await window.autoForwardIncompleteEvents();
+      }
+      if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
@@ -408,92 +423,99 @@ const LabelManager = {
   },
 
   saveJournalLabels: async function(e) {
-    for (let i=0; i<window.tempEditingJournalLabels.length; i++) {
-        if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
-    }
-    
-    const renameMap = {};
-    window.tempEditingJournalLabels.forEach(l => {
-        if (l.originalName && l.originalName !== l.name) {
-            renameMap[l.originalName] = l.name;
-        }
-    });
+      for (let i = 0; i < window.tempEditingJournalLabels.length; i++) {
+          if (!window.tempEditingJournalLabels[i].name.trim()) {
+              return alert(`${i + 1}번째 기록 라벨의 이름이 비어있습니다.`);
+          }
+      }
 
-    const newLabels = window.tempEditingJournalLabels.map(l => l.name);
-    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
-    const oldLabels = oldLabelsData ? oldLabelsData.map(l => l.name) : (window.getJournalLabels ? window.getJournalLabels().map(l=>l.name) : []);
-    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
+      const oldLabels = window.getJournalLabels();
+      const newLabels = window.tempEditingJournalLabels.map(l => ({
+          name: l.name.trim(),
+          color: l.color || 'purple'
+      }));
 
-    const dataToSave = window.tempEditingJournalLabels.map(({originalName, ...rest}) => rest);
-    
-    localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
-    
-    if (window.db) {
-        window.getUserCol('settings').doc('labels').set({ journalLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
-    }
-    
-    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
-        const btn = e.target;
-        const originalText = btn.textContent;
-        btn.textContent = "클라우드 데이터 정리 중...";
-        btn.disabled = true;
+      const renamedMap = {};
+      const deletedSet = new Set();
 
-        try {
-            const snap = await window.getUserCol('journals').get();
-            let batch = window.db.batch();
-            let opCount = 0;
-            let batchPromises = [];
+      oldLabels.forEach(oldL => {
+          const match = window.tempEditingJournalLabels.find(t => t.originalName === oldL.name);
+          if (!match) {
+              deletedSet.add(oldL.name);
+          } else if (match.originalName !== match.name.trim()) {
+              renamedMap[match.originalName] = match.name.trim();
+          }
+      });
 
-            snap.forEach(doc => {
-                const data = doc.data();
-                let changed = false;
-                let list = data.entries || [];
+      localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(newLabels));
+      if (window.auth && window.auth.currentUser) {
+          try {
+              await window.getUserCol('settings').doc('labels').set({
+                  journalLabels: newLabels
+              }, { merge: true });
+          } catch (err) {
+              console.error("기록 라벨 저장 오류:", err);
+          }
+      }
 
-                list.forEach(j => {
-                    let jLabels = j.labels || (j.label ? [j.label] : []);
-                    const originalLength = jLabels.length;
-                    let changedThisEv = false;
-                    
-                    jLabels = jLabels.map(l => {
-                        if (renameMap[l]) { changedThisEv = true; return renameMap[l]; }
-                        return l;
-                    });
-                    
-                    const filteredLabels = jLabels.filter(l => !deletedLabels.includes(l));
-                    if (filteredLabels.length !== jLabels.length) {
-                        changedThisEv = true;
-                        jLabels = filteredLabels;
-                    }
-                    
-                    if (changedThisEv || jLabels.length !== originalLength) {
-                        j.labels = jLabels;
-                        j.label = jLabels[0] || '';
-                        changed = true;
-                    }
-                });
+      const hasChangesToSync = Object.keys(renamedMap).length > 0 || deletedSet.size > 0;
+      if (hasChangesToSync && window.db) {
+          if (e && e.target) {
+              e.target.textContent = "클라우드 데이터 정리 중...";
+              e.target.disabled = true;
+          }
 
-                if (changed) {
-                    batch.update(doc.ref, { entries: list, updatedAt: Date.now() });
-                    opCount++;
-                    if (opCount >= 400) {
-                        batchPromises.push(batch.commit());
-                        batch = window.db.batch();
-                        opCount = 0;
-                    }
-                }
-            });
-            if (opCount > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
-        } catch(err) {
-            console.error("기록 라벨 자동 업데이트 실패", err);
-        }
-        btn.textContent = originalText;
-        btn.disabled = false;
-    }
+          try {
+              const snap = await window.getUserCol('journals').get();
+              let batch = window.db.batch();
+              let count = 0;
+              let batchPromises = [];
 
-    this.journalModal.close();
-    alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-    if (typeof window.render === 'function') window.render(); 
+              snap.forEach(doc => {
+                  const data = doc.data();
+                  let entries = data.entries || [];
+                  let docChanged = false;
+
+                  entries.forEach(item => {
+                      let labels = item.labels || (item.label ? [item.label] : []);
+                      let updatedLabels = [];
+
+                      labels.forEach(lbl => {
+                          if (deletedSet.has(lbl)) {
+                              docChanged = true;
+                          } else if (renamedMap[lbl]) {
+                              updatedLabels.push(renamedMap[lbl]);
+                              docChanged = true;
+                          } else {
+                              updatedLabels.push(lbl);
+                          }
+                      });
+
+                      item.labels = updatedLabels;
+                  });
+
+                  if (docChanged) {
+                      batch.update(doc.ref, { entries: entries, updatedAt: Date.now() });
+                      count++;
+
+                      if (count >= 400) {
+                          batchPromises.push(batch.commit());
+                          batch = window.db.batch();
+                          count = 0;
+                      }
+                  }
+              });
+
+              if (count > 0) batchPromises.push(batch.commit());
+              await Promise.all(batchPromises);
+          } catch (err) {
+              console.error("기존 기록 라벨 동기화 오류:", err);
+          }
+      }
+
+      if (this.journalModal) this.journalModal.close();
+      alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+      if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
@@ -686,6 +708,8 @@ const LabelManager = {
     }
   }
 };
+
+window.LabelManager = LabelManager;
 
 window.openEventLabelModal = () => LabelManager.openEventModal();
 window.openJournalLabelModal = () => LabelManager.openJournalModal();
