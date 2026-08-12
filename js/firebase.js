@@ -21,7 +21,6 @@ if (typeof firebase !== 'undefined') {
     window.storage = firebase.storage(); 
     console.log("🔥 Firebase가 성공적으로 연결되었습니다.");
     
-    // 💡 [핵심 보완] Firebase 초기화가 끝난 직후 안전하게 Redirect 결과를 확인합니다.
     window.auth.getRedirectResult()
         .then((result) => {
             if (result && result.user) {
@@ -61,7 +60,7 @@ window.signInWithGoogle = function() {
 
     window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
         .then(() => {
-            // 💡 팝업 차단을 피하기 위해 무조건 화면 이동(Redirect) 방식으로 실행
+            // 💡 무조건 화면 이동(Redirect) 방식으로 실행 (팝업 차단 방지)
             return window.auth.signInWithRedirect(provider);
         })
         .catch(error => {
@@ -152,7 +151,7 @@ window.dbAPI = {
 };
 
 // ==========================================================
-// 4. 구글 API 토큰 스마트 연장 시스템
+// 4. 구글 API 토큰 스마트 연장 시스템 (Redirect 완벽 대응)
 // ==========================================================
 window.getValidGoogleToken = async function() {
     let token = sessionStorage.getItem('google_api_token');
@@ -169,7 +168,7 @@ window.getValidGoogleToken = async function() {
         console.warn("토큰 검증 실패 (만료됨)");
     }
 
-    alert("보안 정책(1시간 제한)으로 구글 연결이 만료되었습니다.\n[확인]을 누르시면 화면 이동 없이 1초 만에 자동으로 1시간 연장됩니다!");
+    alert("보안 정책(1시간 제한)으로 구글 연결이 만료되었습니다.\n[확인]을 누르시면 안전을 위해 데이터를 저장하고 다시 인증 화면으로 이동합니다.");
     return await window.forceRenewToken();
 };
 
@@ -179,18 +178,17 @@ window.forceRenewToken = async function() {
     renewProvider.addScope('https://www.googleapis.com/auth/tasks');
     renewProvider.addScope('https://www.googleapis.com/auth/spreadsheets');
     
+    // 💡 화면 이동 전 작성 중이던 데이터 강제 백업
     try {
-        const result = await window.auth.signInWithPopup(renewProvider);
-        if (result.credential && result.credential.accessToken) {
-            sessionStorage.setItem('google_api_token', result.credential.accessToken);
-            return result.credential.accessToken;
+        if (window.hasUnsavedChanges && window.currentScope) {
+            if (window.currentScope === 'day' && window.dayViewInstance) await window.dayViewInstance.save();
+            else if (window.currentScope === 'week' && window.weekViewInstance) await window.weekViewInstance.save();
+            else if (window.currentScope === 'month' && window.monthViewInstance) await window.monthViewInstance.save();
+            else if (window.currentScope === 'year' && window.yearViewInstance) await window.yearViewInstance.save();
         }
-    } catch (error) {
-        console.error("권한 연장 에러:", error);
-        if (error.code === 'auth/popup-blocked') {
-            throw new Error("팝업 차단이 감지되었습니다. 브라우저 주소창 우측에서 '팝업 차단 해제'를 해주세요.");
-        }
-        throw new Error("권한 연장에 실패했습니다. 우측 상단의 로그아웃 후 다시 로그인해 주세요.");
-    }
-    return null;
+    } catch(e) { console.warn("이동 전 임시 저장 실패", e); }
+    
+    // 💡 팝업 차단(COOP 에러) 방지를 위해 Redirect 실행
+    window.auth.signInWithRedirect(renewProvider);
+    return null; // 화면이 넘어가므로 이 아래 코드는 실행되지 않음
 };
