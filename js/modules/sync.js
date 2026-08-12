@@ -69,12 +69,8 @@ window.openGoogleSyncModal = async function() {
                         <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;">
                             <input type="radio" name="import_mode" value="append" style="accent-color:#16a34a;"> ➕ 기존 일정에 단순히 <b>추가</b>하기
                         </label>
-                        <label style="display:block; font-size:0.9rem; margin-bottom:5px; cursor:pointer;" title="기존에 직접 쓴 일정은 보호하고, 과거에 구글에서 가져왔던 일정만 지우고 최신화합니다.">
-                            <input type="radio" name="import_mode" value="replace" checked style="accent-color:#16a34a;"> 🔄 구글/공휴일 데이터만 <b>스마트 덮어쓰기</b> (안전·추천)
-                        </label>
-                        <hr style="border:0; border-top:1px dashed #e2e8f0; margin:8px 0;">
-                        <label style="display:block; font-size:0.9rem; cursor:pointer; color:#ef4444;" title="선택한 기간의 SP3 기존 일정을 모두 지우고 구글 일정으로 완전히 교체합니다.">
-                            <input type="radio" name="import_mode" value="overwrite" style="accent-color:#ef4444;"> ⚠️ 기존 일정 <b>완전 덮어쓰기</b> (직접 쓴 SP 일정 삭제됨)
+                        <label style="display:block; font-size:0.9rem; cursor:pointer;" title="기존에 직접 쓴 일정은 보호하고, 과거에 구글에서 가져왔던 일정만 지우고 최신화합니다.">
+                            <input type="radio" name="import_mode" value="replace" checked style="accent-color:#16a34a;"> 🔄 구글/공휴일 데이터만 <b>스마트 덮어쓰기</b> (추천)
                         </label>
                     </div>
                     <button class="modal-btn-primary" style="width:100%; background:#16a34a;" onclick="window.executeGoogleImport()">📥 SP3로 가져오기</button>
@@ -283,7 +279,7 @@ window.executeGoogleImport = async function() {
             eventsByDate[e.dateStr].push(e);
         });
 
-        // 4. Firestore에 기록 (append vs replace vs overwrite)
+        // 4. Firestore에 기록 (append vs replace)
         let curD = new Date(startD);
         let processedCount = 0;
         const totalDays = (endD - startD) / (1000 * 60 * 60 * 24) + 1;
@@ -298,30 +294,20 @@ window.executeGoogleImport = async function() {
             const docSnap = await docRef.get();
             let currentList = docSnap.exists ? (docSnap.data().eventList || []) : [];
 
-            // 💡 [핵심 옵션 분기 처리]
             if (mode === 'replace') {
                 // 기존에 가져왔던 구글/공휴일 일정만 삭제 (SP3에서 직접 쓴건 보존)
                 currentList = currentList.filter(e => e.source !== 'google' && e.source !== 'holiday');
-            } else if (mode === 'overwrite') {
-                // 🚨 완전 덮어쓰기: 해당 날짜의 기존 일정을 묻지도 따지지도 않고 싹 다 비움
-                currentList = [];
             }
 
-            // 완전 덮어쓰기(overwrite) 모드이거나, 새롭게 추가할 일정이 있을 때만 DB 갱신
-            if (newEvents.length > 0 || mode === 'replace' || mode === 'overwrite') {
+            if (newEvents.length > 0 || mode === 'replace') {
                 const mergedList = [...currentList, ...newEvents];
                 batch.set(docRef, { eventList: mergedList, updatedAt: Date.now() }, { merge: true });
                 batchOpCount++;
 
-                // 💡 [보완] 동기화 중 '공휴일(수업삭제)' 속성이 포함되었다면 수업 과목명도 비워줌
+                // 💡 [핵심 보완] 동기화 중 '공휴일'이 포함되었다면, 해당 날짜의 기존 수업(과목)도 즉시 비워줍니다!
                 let isSkipDay = false;
-                const masterLabels = window.getEventLabels ? window.getEventLabels() : [];
                 for (const e of mergedList) {
-                    if (e.source === 'holiday' || 
-                       (e.labelIds && e.labelIds.some(id => {
-                           const match = masterLabels.find(l => l.id === id);
-                           return match && match.isSkip;
-                       }))) {
+                    if (e.source === 'holiday' || (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l)))) {
                         isSkipDay = true; 
                         break;
                     }
@@ -337,7 +323,7 @@ window.executeGoogleImport = async function() {
                         
                         for (let p in periods) {
                             if (periods[p].subject && periods[p].subject.trim() !== '') {
-                                periods[p].subject = ''; // 과목명만 비우고 메모/비고 유지
+                                periods[p].subject = ''; // 💡 과목명만 비우고 메모/비고는 안전하게 유지!
                                 scheduleChanged = true;
                             }
                         }
