@@ -43,22 +43,72 @@ window.generateTempId = function(prefix = 'id') {
 };
 
 // 💡 [초기 일정 라벨 지정] ID 자동 생성 및 부여
+// js/core/utils.js
+
+// 💡 [초기 일정 라벨 지정] ID 자동 생성 및 5대 필수 라벨 강제 보호
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     let changed = false;
+
+    // 1. 초기 셋팅이 아예 없는 경우 (기본 5종 필수 세팅)
     if (!labels || labels.length === 0) {
         labels = [
-            { id: window.generateTempId('lbl_ev'), name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue' },
-            { id: window.generateTempId('lbl_ev'), name: '휴일', isSkip: true,  isForward: false, isPeriod: false, isRecur: false, color: 'red' },
-            { id: window.generateTempId('lbl_ev'), name: '확인', isSkip: false, isForward: true,  isPeriod: false, isRecur: false, color: 'green' },
-            { id: window.generateTempId('lbl_ev'), name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange' },
-            { id: window.generateTempId('lbl_ev'), name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple' }
+            { id: window.generateTempId('lbl_ev'), name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue', isSystem: true },
+            { id: window.generateTempId('lbl_ev'), name: '완료', isSkip: false, isForward: true,  isPeriod: false, isRecur: false, color: 'green', isSystem: true },
+            { id: window.generateTempId('lbl_ev'), name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange', isSystem: true },
+            { id: window.generateTempId('lbl_ev'), name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple', isSystem: true },
+            { id: window.generateTempId('lbl_ev'), name: '휴일', isSkip: true,  isForward: false, isPeriod: false, isRecur: false, color: 'red', isSystem: true }
         ];
         changed = true;
     } else {
-        labels.forEach(l => { if (!l.id) { l.id = window.generateTempId('lbl_ev'); changed = true; } });
+        // 2. 과거 데이터 호환 (전일행사 -> 휴일, 확인 -> 완료 로 이름 자동 업데이트)
+        labels.forEach(l => { 
+            if (!l.id) { l.id = window.generateTempId('lbl_ev'); changed = true; } 
+            if (l.isSkip && l.name === '전일행사') { l.name = '휴일'; changed = true; }
+            if (l.isForward && l.name === '확인') { l.name = '완료'; changed = true; }
+        });
+
+        // 3. 5대 필수 라벨이 혹시 지워졌다면 부활시키고, 삭제 방지 락(isSystem)을 걸어줌
+        const requiredSpecs = [
+            { defaultName: '일정', prop: 'isNormal', color: 'blue' },
+            { defaultName: '완료', prop: 'isForward', color: 'green' },
+            { defaultName: '주간', prop: 'isPeriod', color: 'orange' },
+            { defaultName: '반복', prop: 'isRecur', color: 'purple' },
+            { defaultName: '휴일', prop: 'isSkip', color: 'red' }
+        ];
+
+        requiredSpecs.forEach(spec => {
+            let target;
+            if (spec.prop === 'isNormal') {
+                target = labels.find(l => !l.isSkip && !l.isForward && !l.isPeriod && !l.isRecur);
+                if (!target) target = labels.find(l => l.name === '일정'); // 이름으로라도 찾음
+            } else {
+                target = labels.find(l => l[spec.prop] === true);
+            }
+
+            if (!target) {
+                // 삭제된 필수 라벨 강제 부활
+                labels.push({ 
+                    id: window.generateTempId('lbl_ev'), 
+                    name: spec.defaultName, 
+                    isSkip: spec.prop === 'isSkip', 
+                    isForward: spec.prop === 'isForward', 
+                    isPeriod: spec.prop === 'isPeriod', 
+                    isRecur: spec.prop === 'isRecur', 
+                    color: spec.color, 
+                    isSystem: true 
+                });
+                changed = true;
+            } else {
+                // 기존 필수 라벨에 삭제 방지(isSystem) 속성 확실히 부여
+                if (!target.isSystem) {
+                    target.isSystem = true;
+                    changed = true;
+                }
+            }
+        });
     }
-    
+
     if (changed) {
         localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
         if (window.auth && window.auth.currentUser) {
