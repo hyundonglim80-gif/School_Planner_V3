@@ -101,6 +101,7 @@ class WeekView extends window.BaseView {
 
     let html = `<div class="table-container"><table><tbody>`;
     const realTodayStr = window.formatDate(new Date());
+    const masterLabels = window.getEventLabels(); // 💡 마스터 라벨 참조
 
     for (const d of this.getWeekDates()) {
       const dayData = await window.dbAPI.loadDayData(d.dateStr);
@@ -112,7 +113,19 @@ class WeekView extends window.BaseView {
         eventList = eData.eventList || [];
       }
       
-      window[`tempEvents_${d.dateStr}`] = eventList.map(e => ({ ...e, labelIds: e.labelIds || [] })); 
+      // 💡 [핵심] 옛날 일정들도 에디터에서 라벨이 정상적으로 켜져 보이게 복구
+      window[`tempEvents_${d.dateStr}`] = eventList.map(e => {
+          let labelIds = e.labelIds || [];
+          if (labelIds.length === 0 && (e.labels || e.label)) {
+              let legacyNames = e.labels || [e.label];
+              legacyNames.forEach(name => {
+                  const match = masterLabels.find(l => l.name === name);
+                  if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
+              });
+          }
+          return { ...e, labelIds: labelIds };
+      });
+      
       window[`tempSchedules_${d.dateStr}`] = dayData.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
