@@ -13,6 +13,11 @@ const LabelManager = {
       blue: '파랑', indigo: '남색', purple: '보라', gray: '회색'
   },
 
+  // 고유 ID 생성기 (라벨용)
+  generateId: function(prefix) {
+      return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+  },
+
   getColorPickerHTML: function(idPrefix, defaultColor = 'blue') {
       let html = '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">';
       const palette = window.LABEL_PALETTE || {
@@ -29,7 +34,7 @@ const LabelManager = {
       for (const [key, val] of Object.entries(palette)) {
           const isChecked = key === defaultColor;
           html += `
-              <div onclick="LabelManager.selectColor('${idPrefix}', '${key}')" 
+              <div onclick="window.LabelManager.selectColor('${idPrefix}', '${key}')" 
                    id="${idPrefix}-color-${key}" title="${this.colorNames[key] || key}"
                    style="width:26px; height:26px; border-radius:50%; background:${val.bg}; border:2px solid ${isChecked ? val.text : val.border}; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.2s;">
                   <span style="display:${isChecked ? 'block' : 'none'}; color:${val.text}; font-size:12px; font-weight:bold;">✔</span>
@@ -87,7 +92,7 @@ const LabelManager = {
   },
 
   // ====================================================
-  // 🏷️ 1. 일정 라벨 관리
+  // 🏷️ 1. 일정 라벨 관리 (ID 기반)
   // ====================================================
   getEventContentHTML: function() {
         return `
@@ -124,7 +129,7 @@ const LabelManager = {
         </div>
         
         <div class="modal-footer-actions" style="margin-top: 20px;">
-            <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="width: 100%; background: #2563eb; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">💾 저장 및 기존 일정 동기화</button>
+            <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="width: 100%; background: #2563eb; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">💾 저장 및 클라우드 반영</button>
         </div>`;
     },
 
@@ -137,7 +142,8 @@ const LabelManager = {
         content: this.getEventContentHTML()
       });
     }
-    window.tempEditingLabels = window.getEventLabels().map(l => ({...l, originalName: l.name}));
+    // 객체 복사 시 ID 유지
+    window.tempEditingLabels = window.getEventLabels().map(l => ({...l}));
     this.eventModal.open();
     this.renderEventLabels();
   },
@@ -155,28 +161,28 @@ const LabelManager = {
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
         
         return `
-        <div class="modal-input-row" draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';" style="transition:0.2s;">
+        <div class="modal-input-row" draggable="true" ondragstart="window.LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="window.LabelManager.handleDragOver(event)" ondrop="window.LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';" style="transition:0.2s;">
             <div style="display:flex; align-items:center;"><span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px;">≡</span></div>
-            <input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); LabelManager.renderEventLabels();" style="width:80px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">
-            <select onchange="window.tempEditingLabels[${index}].color = this.value; LabelManager.renderEventLabels();" style="padding:4px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer; width:65px;">
-                ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${LabelManager.colorNames[k]}</option>`).join('')}
+            <input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); window.LabelManager.renderEventLabels();" style="width:80px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">
+            <select onchange="window.tempEditingLabels[${index}].color = this.value; window.LabelManager.renderEventLabels();" style="padding:4px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer; width:65px;">
+                ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${this.colorNames[k]}</option>`).join('')}
             </select>
             <div style="flex:1;"></div>
             <div style="display:flex; gap:10px; align-items:center; text-align:center;">
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;">
-                    <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isForward = false; window.tempEditingLabels[${index}].isRecur = false; } LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isForward = false; window.tempEditingLabels[${index}].isRecur = false; } window.LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isRecur ? '#16a34a' : '#94a3b8'}; cursor:pointer;">
-                    <span>반복</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isRecur = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isForward = false; } LabelManager.renderEventLabels();" ${recurChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>반복</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isRecur = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isForward = false; } window.LabelManager.renderEventLabels();" ${recurChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;">
-                    <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isRecur = false; } LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isRecur = false; } window.LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
                 <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;">
-                    <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
+                    <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; window.LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
             </div>
-            <button onclick="window.tempEditingLabels.splice(${index}, 1); LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
+            <button onclick="window.tempEditingLabels.splice(${index}, 1); window.LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
         </div>`;
     }).join('');
   },
@@ -192,16 +198,15 @@ const LabelManager = {
     const color = colorInput ? colorInput.value : 'blue';
     
     if (!name) return alert("라벨 이름을 입력하세요.");
-    if (window.tempEditingLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
     window.tempEditingLabels.push({ 
+        id: this.generateId('lbl_ev'), // 💡 핵심: 신규 라벨에 고유 ID 부여
         name: name, 
         isPeriod: periodCheck.checked,
         isRecur: recurCheck.checked,
         isForward: forwardCheck.checked, 
         isSkip: skipCheck.checked, 
-        color: color, 
-        originalName: null 
+        color: color
     });
     
     nameInput.value = ''; 
@@ -214,51 +219,28 @@ const LabelManager = {
 
   saveEventLabels: async function(e) {
       for (let i = 0; i < window.tempEditingLabels.length; i++) {
-          if (!window.tempEditingLabels[i].name.trim()) {
-              return alert(`${i + 1}번째 라벨의 이름이 비어있습니다.`);
-          }
+          if (!window.tempEditingLabels[i].name.trim()) return alert(`${i + 1}번째 라벨의 이름이 비어있습니다.`);
       }
 
       const oldLabels = window.getEventLabels();
-      const newLabels = window.tempEditingLabels.map(l => ({
-          name: l.name.trim(),
-          color: l.color || 'blue',
-          isSkip: !!l.isSkip,
-          isForward: !!l.isForward,
-          isPeriod: !!l.isPeriod,
-          isRecur: !!l.isRecur
-      }));
+      const dataToSave = window.tempEditingLabels.map(l => ({...l}));
 
-      // 1. 이름 변경 및 삭제된 라벨 맵 추출
-      const renamedMap = {};
-      const deletedSet = new Set();
+      // ID 기반이므로 이름이 바뀌어도 DB 검색 불필요. 삭제된 ID만 찾아냄.
+      const newIds = dataToSave.map(l => l.id);
+      const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
-      oldLabels.forEach(oldL => {
-          const match = window.tempEditingLabels.find(t => t.originalName === oldL.name);
-          if (!match) {
-              deletedSet.add(oldL.name); // 삭제된 라벨
-          } else if (match.originalName !== match.name.trim()) {
-              renamedMap[match.originalName] = match.name.trim(); // 이름 변경된 라벨
-          }
-      });
-
-      // 2. 새로운 라벨 설정 로컬 및 DB 저장
-      localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(newLabels));
+      localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
+      
       if (window.auth && window.auth.currentUser) {
           try {
-              await window.getUserCol('settings').doc('labels').set({
-                  eventLabels: newLabels
-              }, { merge: true });
-          } catch (err) {
-              console.error("라벨 설정 저장 오류:", err);
-          }
+              await window.getUserCol('settings').doc('labels').set({ eventLabels: dataToSave }, { merge: true });
+          } catch (err) { console.error(err); }
       }
 
-      // 3. 기존 일정(events 컬렉션) 데이터 일괄 동기화
-      const hasChangesToSync = Object.keys(renamedMap).length > 0 || deletedSet.size > 0;
-      if (hasChangesToSync && window.db) {
+      // 삭제된 라벨이 있을 때만 과거 일정에서 해당 ID를 제거하는 가벼운 정리 작업 수행
+      if (deletedIds.length > 0 && window.db) {
           if (e && e.target) {
-              e.target.textContent = "클라우드 데이터 정리 중...";
+              e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
               e.target.disabled = true;
           }
 
@@ -274,40 +256,16 @@ const LabelManager = {
                   let docChanged = false;
 
                   list.forEach(item => {
-                      let labels = item.labels || (item.label ? [item.label] : []);
-                      let updatedLabels = [];
-
-                      labels.forEach(lbl => {
-                          if (deletedSet.has(lbl)) {
-                              docChanged = true; // 삭제된 라벨 해제
-                          } else if (renamedMap[lbl]) {
-                              updatedLabels.push(renamedMap[lbl]); // 바뀐 라벨 이름으로 변경
-                              docChanged = true;
-                          } else {
-                              updatedLabels.push(lbl);
-                          }
-                      });
-
-                      item.labels = updatedLabels;
-
-                      // 레거시 속성 동기화
-                      if (item.label) {
-                          if (deletedSet.has(item.label)) {
-                              item.label = updatedLabels[0] || '';
-                          } else if (renamedMap[item.label]) {
-                              item.label = renamedMap[item.label];
-                          }
+                      if (item.labelIds) {
+                          const originalLength = item.labelIds.length;
+                          item.labelIds = item.labelIds.filter(id => !deletedIds.includes(id));
+                          if (item.labelIds.length !== originalLength) docChanged = true;
                       }
                   });
 
                   if (docChanged) {
-                      const updateData = { eventList: list, updatedAt: Date.now() };
-                      if (window.formatEventListToText) {
-                          updateData.eventText = window.formatEventListToText(list);
-                      }
-                      batch.update(doc.ref, updateData);
+                      batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
                       count++;
-
                       if (count >= 400) {
                           batchPromises.push(batch.commit());
                           batch = window.db.batch();
@@ -319,21 +277,17 @@ const LabelManager = {
               if (count > 0) batchPromises.push(batch.commit());
               await Promise.all(batchPromises);
           } catch (err) {
-              console.error("기존 일정 라벨 동기화 오류:", err);
+              console.error("일정 라벨 정리 오류:", err);
           }
       }
 
       if (this.eventModal) this.eventModal.close();
-      alert("일정 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-      
-      if (window.autoForwardIncompleteEvents) {
-          await window.autoForwardIncompleteEvents();
-      }
+      alert("일정 라벨 설정이 저장되었습니다.");
       if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
-  // 📔 2. 기록 라벨 관리
+  // 📔 2. 기록 라벨 관리 (ID 기반)
   // ====================================================
   getJournalContentHTML: function() {
     return `
@@ -348,7 +302,7 @@ const LabelManager = {
       <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
           <div style="display:flex; gap:10px; align-items:center; width:100%;">
               <input type="text" id="new-journal-label-name" placeholder="새 기록 라벨 이름 추가..." class="modal-input-text">
-              <button onclick="LabelManager.addNewJournalLabel()" class="modal-btn-secondary journal" style="flex-shrink:0;">추가</button>
+              <button onclick="window.LabelManager.addNewJournalLabel()" class="modal-btn-secondary journal" style="flex-shrink:0;">추가</button>
           </div>
           <div style="padding-left:4px;">
               <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 새 라벨 색상:</span>
@@ -357,7 +311,7 @@ const LabelManager = {
       </div>
       
       <div class="modal-footer-actions">
-          <button onclick="LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal">저장 및 클라우드 반영</button>
+          <button onclick="window.LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal">저장 및 클라우드 반영</button>
       </div>
     `;
   },
@@ -371,7 +325,7 @@ const LabelManager = {
         content: this.getJournalContentHTML()
       });
     }
-    window.tempEditingJournalLabels = window.getJournalLabels().map(l => ({...l, originalName: l.name}));
+    window.tempEditingJournalLabels = window.getJournalLabels().map(l => ({...l}));
     this.journalModal.open();
     this.renderJournalLabels();
   },
@@ -383,19 +337,15 @@ const LabelManager = {
     
     container.innerHTML = window.tempEditingJournalLabels.map((label, index) => {
         const style = palette[label.color || 'purple'] || { border: '#d8b4fe', bg: '#f3e8ff', text: '#6b21a8' };
-        
         const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;">≡</span>`;
-        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'journal')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'journal')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingJournalLabels[${index}].name = this.value.trim(); LabelManager.renderJournalLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
-
+        const dragAttrs = `draggable="true" ondragstart="window.LabelManager.handleDragStart(event, ${index}, 'journal')" ondragover="window.LabelManager.handleDragOver(event)" ondrop="window.LabelManager.handleDrop(event, ${index}, 'journal')" ondragend="this.style.opacity='1';"`;
+        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingJournalLabels[${index}].name = this.value.trim(); window.LabelManager.renderJournalLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
         const colorSelectHTML = `
-            <select onchange="window.tempEditingJournalLabels[${index}].color = this.value; LabelManager.renderJournalLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
+            <select onchange="window.tempEditingJournalLabels[${index}].color = this.value; window.LabelManager.renderJournalLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
                 ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${this.colorNames[k]}</option>`).join('')}
             </select>
         `;
-
-        const actionHTML = `<button onclick="window.tempEditingJournalLabels.splice(${index}, 1); LabelManager.renderJournalLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+        const actionHTML = `<button onclick="window.tempEditingJournalLabels.splice(${index}, 1); window.LabelManager.renderJournalLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
 
         return `
         <div class="modal-input-row journal" ${dragAttrs} style="transition:0.2s;">
@@ -415,53 +365,32 @@ const LabelManager = {
     const color = colorInput ? colorInput.value : 'purple';
     
     if (!name) return alert("라벨 이름을 입력하세요.");
-    if (window.tempEditingJournalLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingJournalLabels.push({ name: name, color: color, originalName: null });
+    window.tempEditingJournalLabels.push({ id: this.generateId('lbl_jr'), name: name, color: color });
     nameInput.value = '';
     this.renderJournalLabels();
   },
 
   saveJournalLabels: async function(e) {
       for (let i = 0; i < window.tempEditingJournalLabels.length; i++) {
-          if (!window.tempEditingJournalLabels[i].name.trim()) {
-              return alert(`${i + 1}번째 기록 라벨의 이름이 비어있습니다.`);
-          }
+          if (!window.tempEditingJournalLabels[i].name.trim()) return alert(`${i + 1}번째 기록 라벨의 이름이 비어있습니다.`);
       }
 
       const oldLabels = window.getJournalLabels();
-      const newLabels = window.tempEditingJournalLabels.map(l => ({
-          name: l.name.trim(),
-          color: l.color || 'purple'
-      }));
+      const dataToSave = window.tempEditingJournalLabels.map(l => ({...l}));
 
-      const renamedMap = {};
-      const deletedSet = new Set();
+      const newIds = dataToSave.map(l => l.id);
+      const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
-      oldLabels.forEach(oldL => {
-          const match = window.tempEditingJournalLabels.find(t => t.originalName === oldL.name);
-          if (!match) {
-              deletedSet.add(oldL.name);
-          } else if (match.originalName !== match.name.trim()) {
-              renamedMap[match.originalName] = match.name.trim();
-          }
-      });
-
-      localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(newLabels));
+      localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
+      
       if (window.auth && window.auth.currentUser) {
-          try {
-              await window.getUserCol('settings').doc('labels').set({
-                  journalLabels: newLabels
-              }, { merge: true });
-          } catch (err) {
-              console.error("기록 라벨 저장 오류:", err);
-          }
+          try { await window.getUserCol('settings').doc('labels').set({ journalLabels: dataToSave }, { merge: true }); } catch (err) {}
       }
 
-      const hasChangesToSync = Object.keys(renamedMap).length > 0 || deletedSet.size > 0;
-      if (hasChangesToSync && window.db) {
+      if (deletedIds.length > 0 && window.db) {
           if (e && e.target) {
-              e.target.textContent = "클라우드 데이터 정리 중...";
+              e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
               e.target.disabled = true;
           }
 
@@ -477,40 +406,23 @@ const LabelManager = {
                   let docChanged = false;
 
                   entries.forEach(item => {
-                      let labels = item.labels || (item.label ? [item.label] : []);
-                      let updatedLabels = [];
-
-                      labels.forEach(lbl => {
-                          if (deletedSet.has(lbl)) {
-                              docChanged = true;
-                          } else if (renamedMap[lbl]) {
-                              updatedLabels.push(renamedMap[lbl]);
-                              docChanged = true;
-                          } else {
-                              updatedLabels.push(lbl);
-                          }
-                      });
-
-                      item.labels = updatedLabels;
+                      if (item.labelIds) {
+                          const originalLength = item.labelIds.length;
+                          item.labelIds = item.labelIds.filter(id => !deletedIds.includes(id));
+                          if (item.labelIds.length !== originalLength) docChanged = true;
+                      }
                   });
 
                   if (docChanged) {
                       batch.update(doc.ref, { entries: entries, updatedAt: Date.now() });
                       count++;
-
-                      if (count >= 400) {
-                          batchPromises.push(batch.commit());
-                          batch = window.db.batch();
-                          count = 0;
-                      }
+                      if (count >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); count = 0; }
                   }
               });
 
               if (count > 0) batchPromises.push(batch.commit());
               await Promise.all(batchPromises);
-          } catch (err) {
-              console.error("기존 기록 라벨 동기화 오류:", err);
-          }
+          } catch (err) { console.error(err); }
       }
 
       if (this.journalModal) this.journalModal.close();
@@ -519,18 +431,12 @@ const LabelManager = {
   },
 
   // ====================================================
-  // 📝 3. 메모 라벨 관리
+  // 📝 3. 메모 라벨 관리 (ID 기반)
   // ====================================================
   getMemoLabels: function() {
       const saved = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
-      if (saved && saved.length > 0) {
-          return saved.map(item => typeof item === 'string' ? { name: item, color: 'green' } : item);
-      }
-      return [
-          { name: '긴급', color: 'red' }, { name: '중요', color: 'orange' },
-          { name: '학급운영', color: 'green' }, { name: '학부모상담', color: 'purple' },
-          { name: '수업준비', color: 'blue' }, { name: '행정업무', color: 'gray' }, { name: '개인', color: 'indigo' }
-      ];
+      if (saved && saved.length > 0) return saved;
+      return []; // V4 마이그레이션이 알아서 초기 ID들을 부여해줍니다.
   },
 
   getMemoContentHTML: function() {
@@ -545,8 +451,8 @@ const LabelManager = {
       
       <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
           <div style="display:flex; gap:10px; align-items:center; width:100%;">
-              <input type="text" id="new-memo-label-name" placeholder="새 메모 라벨 추가..." class="modal-input-text" onkeydown="if(event.key==='Enter') LabelManager.addNewMemoLabel()">
-              <button onclick="LabelManager.addNewMemoLabel()" class="modal-btn-secondary success" style="flex-shrink:0; background:#10b981;">추가</button>
+              <input type="text" id="new-memo-label-name" placeholder="새 메모 라벨 추가..." class="modal-input-text" onkeydown="if(event.key==='Enter') window.LabelManager.addNewMemoLabel()">
+              <button onclick="window.LabelManager.addNewMemoLabel()" class="modal-btn-secondary success" style="flex-shrink:0; background:#10b981;">추가</button>
           </div>
           <div style="padding-left:4px;">
               <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">🎨 태그 색상:</span>
@@ -555,7 +461,7 @@ const LabelManager = {
       </div>
       
       <div class="modal-footer-actions">
-          <button onclick="LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 클라우드 반영</button>
+          <button onclick="window.LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 클라우드 반영</button>
       </div>
     `;
   },
@@ -569,7 +475,7 @@ const LabelManager = {
         content: this.getMemoContentHTML()
       });
     }
-    window.tempEditingMemoLabels = this.getMemoLabels().map(l => ({...l, originalName: l.name}));
+    window.tempEditingMemoLabels = this.getMemoLabels().map(l => ({...l}));
     this.memoModal.open();
     this.renderMemoLabels();
   },
@@ -581,19 +487,15 @@ const LabelManager = {
     
     container.innerHTML = window.tempEditingMemoLabels.map((label, index) => {
         const style = palette[label.color || 'green'] || { border: '#86efac', bg: '#dcfce7', text: '#166534' };
-        
         const dragHandle = `<span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
-        const dragAttrs = `draggable="true" ondragstart="LabelManager.handleDragStart(event, ${index}, 'memo')" ondragover="LabelManager.handleDragOver(event)" ondrop="LabelManager.handleDrop(event, ${index}, 'memo')" ondragend="this.style.opacity='1';"`;
-        
-        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
-
+        const dragAttrs = `draggable="true" ondragstart="window.LabelManager.handleDragStart(event, ${index}, 'memo')" ondragover="window.LabelManager.handleDragOver(event)" ondrop="window.LabelManager.handleDrop(event, ${index}, 'memo')" ondragend="this.style.opacity='1';"`;
+        const nameInputHTML = `<input type="text" value="${label.name}" onchange="window.tempEditingMemoLabels[${index}].name = this.value.trim(); window.LabelManager.renderMemoLabels();" style="width:110px; padding:6px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">`;
         const colorSelectHTML = `
-            <select onchange="window.tempEditingMemoLabels[${index}].color = this.value; LabelManager.renderMemoLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
+            <select onchange="window.tempEditingMemoLabels[${index}].color = this.value; window.LabelManager.renderMemoLabels();" style="padding:6px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer;">
                 ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${this.colorNames[k]}</option>`).join('')}
             </select>
         `;
-
-        const actionHTML = `<button onclick="window.tempEditingMemoLabels.splice(${index}, 1); LabelManager.renderMemoLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
+        const actionHTML = `<button onclick="window.tempEditingMemoLabels.splice(${index}, 1); window.LabelManager.renderMemoLabels();" class="modal-delete-btn" style="padding:4px;" title="삭제">✖</button>`;
 
         return `
         <div class="modal-input-row" ${dragAttrs} style="transition:0.2s; border-left: 3px solid #10b981;">
@@ -613,9 +515,8 @@ const LabelManager = {
     const color = colorInput ? colorInput.value : 'green';
     
     if (!name) return alert("라벨 이름을 입력하세요.");
-    if (window.tempEditingMemoLabels.some(l => l.name === name)) return alert("이미 존재하는 라벨입니다.");
     
-    window.tempEditingMemoLabels.push({ name: name, color: color, originalName: null });
+    window.tempEditingMemoLabels.push({ id: this.generateId('lbl_mm'), name: name, color: color });
     nameInput.value = '';
     this.renderMemoLabels();
   },
@@ -625,37 +526,22 @@ const LabelManager = {
         if (!window.tempEditingMemoLabels[i].name.trim()) return alert(`${i+1}번째 라벨의 이름이 비어있습니다.`);
     }
     
-    const renameMap = {};
-    window.tempEditingMemoLabels.forEach(l => {
-        if (l.originalName && l.originalName !== l.name) {
-            renameMap[l.originalName] = l.name;
-        }
-    });
+    const oldLabels = this.getMemoLabels();
+    const dataToSave = window.tempEditingMemoLabels.map(l => ({...l}));
 
-    const newLabels = window.tempEditingMemoLabels.map(l => l.name);
-    const oldLabelsData = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
-    let oldLabels = [];
-    if (oldLabelsData && oldLabelsData.length > 0) {
-        oldLabels = oldLabelsData.map(item => typeof item === 'string' ? item : item.name);
-    } else {
-        oldLabels = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
-    }
-    
-    const deletedLabels = oldLabels.filter(oldName => !newLabels.includes(oldName) && !renameMap[oldName]);
+    const newIds = dataToSave.map(l => l.id);
+    const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
-    const dataToSave = window.tempEditingMemoLabels.map(({originalName, ...rest}) => rest);
-    
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(dataToSave));
-    
-    if (window.db) {
-        window.getUserCol('settings').doc('labels').set({ memoLabels: dataToSave }, { merge: true }).catch(e => console.warn(e));
+    if (window.db && window.auth && window.auth.currentUser) {
+        try { await window.getUserCol('settings').doc('labels').set({ memoLabels: dataToSave }, { merge: true }); } catch (err) {}
     }
     
-    if (deletedLabels.length > 0 || Object.keys(renameMap).length > 0) {
-        const btn = e.target;
-        const originalText = btn.textContent;
-        btn.textContent = "클라우드 데이터 정리 중...";
-        btn.disabled = true;
+    if (deletedIds.length > 0 && window.db) {
+        if (e && e.target) {
+            e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
+            e.target.disabled = true;
+        }
 
         try {
             const snap = await window.getUserCol('tasks').get();
@@ -665,37 +551,19 @@ const LabelManager = {
 
             snap.forEach(doc => {
                 const data = doc.data();
-                let mLabels = data.labels || (data.label ? [data.label] : []);
-                let changedThis = false;
-
-                mLabels = mLabels.map(l => {
-                    if (renameMap[l]) { changedThis = true; return renameMap[l]; }
-                    return l;
-                });
-
-                const filtered = mLabels.filter(l => !deletedLabels.includes(l));
-                if (filtered.length !== mLabels.length) {
-                    changedThis = true;
-                    mLabels = filtered;
-                }
-
-                if (changedThis) {
-                    batch.update(doc.ref, { labels: mLabels, updatedAt: Date.now() });
-                    opCount++;
-                    if (opCount >= 400) {
-                        batchPromises.push(batch.commit());
-                        batch = window.db.batch();
-                        opCount = 0;
+                if (data.labelIds) {
+                    const originalLength = data.labelIds.length;
+                    const filtered = data.labelIds.filter(id => !deletedIds.includes(id));
+                    if (filtered.length !== originalLength) {
+                        batch.update(doc.ref, { labelIds: filtered, updatedAt: Date.now() });
+                        opCount++;
+                        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
                     }
                 }
             });
             if (opCount > 0) batchPromises.push(batch.commit());
             await Promise.all(batchPromises);
-        } catch(err) {
-            console.error("메모 라벨 자동 업데이트 실패", err);
-        }
-        btn.textContent = originalText;
-        btn.disabled = false;
+        } catch(err) { console.error(err); }
     }
 
     this.memoModal.close();
