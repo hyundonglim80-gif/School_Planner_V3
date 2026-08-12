@@ -169,24 +169,8 @@ class YearView extends window.BaseView {
       const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
-      const holidayName = window.getHolidayName(d.dateStr);
-      
-      // 해당 날짜의 일정 목록에서 isSkip(수업삭제/휴일) 속성 가진 라벨이 있는지 확인
-      const dayEvents = window[`tempEvents_${d.dateStr}`] || [];
-      const masterLabels = window.getEventLabels();
-      const hasSkipLabel = dayEvents.some(ev => {
-          const ids = ev.labelIds || [];
-          return ids.some(id => {
-              const lObj = masterLabels.find(l => l.id === id);
-              return lObj && lObj.isSkip;
-          });
-      });
-
-      if (d.dayOfWeekNum === 0 || holidayName || hasSkipLabel) {
-          dateColor = '#ef4444'; // 일요일, 공식 공휴일, [휴일] 라벨 지정일은 모두 빨간색!
-      } else if (d.dayOfWeekNum === 6) {
-          dateColor = '#3b82f6'; // 토요일 파란색
-      }
+      if (dayOfWeekNum === 0) dateColor = '#ef4444';
+      else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
 
       html += `<tr data-year-date="${item.dateStr}">` +
         `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
