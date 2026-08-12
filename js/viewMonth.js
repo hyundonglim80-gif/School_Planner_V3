@@ -68,18 +68,10 @@ class MonthView extends window.BaseView {
       const dateStr = item.dateStr;
       
       let eventHtml = '';
-      let finalEvents = [];
-      if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-        finalEvents = item.eventData.eventList;
-      } else if (item.eventData.eventText) {
-        finalEvents = window.parseRawEventTextToEventList(item.eventData.eventText);
-      }
+      let finalEvents = item.eventData.eventList || [];
       
       if (finalEvents.length > 0) {
-        let processedEvents = finalEvents.map(e => ({
-            ...e,
-            labels: e.labels || (e.label ? [e.label] : [])
-        }));
+        let processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
         eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr, 'compact');
       }
       
@@ -174,16 +166,8 @@ class MonthView extends window.BaseView {
 
       if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
-      let eventList = [];
-      if (item.eventData.eventList && item.eventData.eventList.length > 0) {
-        eventList = item.eventData.eventList;
-      } else if (item.eventData.eventText) {
-        eventList = window.parseRawEventTextToEventList(item.eventData.eventText);
-      }
-      
-      window[`tempEvents_${item.dateStr}`] = eventList;
-      
-      // 💡 [추가] 월간 뷰도 시간표(Schedule) 데이터를 메모리에 세팅
+      let eventList = item.eventData.eventList || [];
+      window[`tempEvents_${item.dateStr}`] = eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
       window[`tempSchedules_${item.dateStr}`] = item.data.periods || {};
       
       let compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">`;
@@ -218,7 +202,6 @@ class MonthView extends window.BaseView {
         
         for(let p=1; p<=this.maxPeriod; p++) {
            const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
-           // 💡 [핵심] oninput 이벤트를 통해 수정 시 메모리 동기화 호출
            html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;" oninput="window.monthViewInstance.syncScheduleInputs()">${subjText}</td>`;
         }
         
@@ -229,7 +212,6 @@ class MonthView extends window.BaseView {
     this.container.innerHTML = html;
   }
 
-  // 💡 [핵심 추가] 입력 중인 수업 데이터를 즉시 전역 변수에 백업
   syncScheduleInputs() {
       const scheduleRows = document.querySelectorAll(`tr[data-month-sub]`);
       scheduleRows.forEach(row => {
@@ -253,8 +235,8 @@ class MonthView extends window.BaseView {
       });
   }
 
-  toggleCompactEventLabel(dateStr, idx, labelName) {
-      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelName);
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
   }
   updateCompactEvent(dateStr, idx, field, value) {
       if(window.weekViewInstance) window.weekViewInstance.updateCompactEvent(dateStr, idx, field, value);
@@ -266,15 +248,20 @@ class MonthView extends window.BaseView {
       } else {
           const ev = window[`tempEvents_${dateStr}`][idx];
           const isGrouped = !!ev.groupId;
-          const forwardLabel = (ev.labels || []).find(l => typeof window.isForwardLabel === 'function' && window.isForwardLabel(l));
+          const labelObjs = window.getEventLabels();
+          const forwardLabelId = (ev.labelIds || []).find(id => {
+              const match = labelObjs.find(l => l.id === id);
+              return match && match.isForward;
+          });
+          const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
 
           if (isGrouped) {
-              window.showGroupDeleteModal(dateStr, ev.labels[0]||'', ev.content, ev.groupId, 
+              window.showGroupDeleteModal(dateStr, ev.labelIds[0]||'', ev.content, ev.groupId, 
                   () => { window.render(); }, 
                   () => { this.removeCompactEvent(dateStr, idx); }
               );
-          } else if (forwardLabel && ev.forwardChainId) {
-              window.showForwardDeleteModal(dateStr, forwardLabel, ev.content, ev.forwardChainId, 
+          } else if (forwardLabelId && ev.forwardChainId) {
+              window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, 
                   () => { window.render(); }
               );
           } else {
@@ -292,10 +279,7 @@ class MonthView extends window.BaseView {
       }
   }
 
-  // 💡 [핵심 수정] DOM 탐색 없이 미리 동기화된 메모리 변수 기반으로 DB 전송
-  // 💡 [핵심 수정] 스냅샷 메모리 캡처 방식 도입
   save() {
-    // [1단계: 동기적 데이터 캡처] 화면 바뀌기 전 현재 월의 데이터 복사
     this.syncScheduleInputs(); 
     const y = this.currentDate.getFullYear();
     const m = this.currentDate.getMonth();
@@ -305,17 +289,17 @@ class MonthView extends window.BaseView {
     for(let i=1; i<=lastDate; i++) {
         const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         const rawList = window[`tempEvents_${dateStr}`];
-        if (rawList !== undefined) { // 에디터 렌더링에 포함되었던 날짜만
+        if (rawList !== undefined) {
             const validEvents = rawList
-                .filter(e => (e.content || '').trim() !== '' || (e.labels && e.labels.length > 0))
+                .filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0))
                 .map(e => ({...e}));
             const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
             snapshot.push({ dateStr, validEvents, periodsData });
         }
     }
 
-    // [2단계: 비동기 클라우드 저장]
     return (async () => {
+        const masterLabels = window.getEventLabels();
         for (const item of snapshot) {
             const cleanEventText = window.formatEventListToText ? window.formatEventListToText(item.validEvents) : '';
             await window.getUserCol('events').doc(item.dateStr).set({
@@ -326,7 +310,10 @@ class MonthView extends window.BaseView {
 
             let isSkipDay = false;
             for (const e of item.validEvents) {
-                if (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l))) {
+                if (e.labelIds && e.labelIds.some(id => {
+                    const match = masterLabels.find(l => l.id === id);
+                    return match && match.isSkip;
+                })) {
                     isSkipDay = true; break;
                 }
             }
