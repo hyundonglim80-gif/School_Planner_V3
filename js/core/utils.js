@@ -514,23 +514,70 @@ window.getSemesterDates = function(baseDate = window.currentDate) {
     };
 };
 
-window.KOR_HOLIDAYS = {
-    "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
-    "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절",
-    "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
-    "2024-04-10": "국회의원선거", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
-    "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
-    "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
-    "2025-03-03": "대체공휴일", "2025-05-05": "부처님오신날", "2025-05-06": "대체공휴일",
-    "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
-    "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
-    "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
-    "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-27": "대체공휴일"
+// ==========================================================================
+// 🚀 [V4 완벽판] 대한민국 공공데이터포털(특일정보) API 기반 공휴일 엔진
+// ==========================================================================
+
+// 🚨 [필수] 발급받은 '일반 인증키 (Decoding)' 값을 아래에 입력하세요!
+window.HOLIDAY_API_KEY = "61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D"; 
+
+window.cachedHolidays = {}; // API 호출을 줄이기 위한 메모리 캐시
+
+window.fetchHolidaysFromGov = async function(year) {
+    if (window.cachedHolidays[year]) return window.cachedHolidays[year];
+    
+    // DB(Firestore)에 캐싱된 해당 연도 데이터가 있는지 확인
+    if (window.db && window.auth && window.auth.currentUser) {
+        try {
+            const doc = await window.getUserCol('settings').doc(`holidays_${year}`).get();
+            if (doc.exists && doc.data().holidays) {
+                window.cachedHolidays[year] = doc.data().holidays;
+                return window.cachedHolidays[year];
+            }
+        } catch(e) {}
+    }
+
+    if (!window.HOLIDAY_API_KEY || window.HOLIDAY_API_KEY === "61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D") {
+        console.warn("공공데이터포털 API 키가 설정되지 않았습니다.");
+        return {};
+    }
+
+    try {
+        const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?solYear=${year}&ServiceKey=${encodeURIComponent(window.HOLIDAY_API_KEY)}&_type=json&numOfRows=100`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        let holidays = {};
+        if (data.response && data.response.body && data.response.body.items && data.response.body.items.item) {
+            let items = data.response.body.items.item;
+            if (!Array.isArray(items)) items = [items]; // 휴일이 1개일 경우 배열로 변환
+            
+            items.forEach(item => {
+                if (item.isHoliday === 'Y') {
+                    // locdate 포맷: 20240815 -> 2024-08-15
+                    const dateStr = item.locdate.toString().replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+                    holidays[dateStr] = item.dateName; // 예: "광복절", "대체공휴일"
+                }
+            });
+        }
+
+        window.cachedHolidays[year] = holidays;
+        
+        // 내년에도 API를 호출하지 않도록 Firestore에 캐싱 저장
+        if (window.db && window.auth && window.auth.currentUser) {
+            window.getUserCol('settings').doc(`holidays_${year}`).set({ holidays: holidays, updatedAt: Date.now() });
+        }
+        return holidays;
+    } catch (error) {
+        console.error(`${year}년 공휴일 정보 로드 실패:`, error);
+        return {};
+    }
 };
 
 window.getHolidayName = function(dateStr) {
-    const mmdd = dateStr.substring(5);
-    if (window.KOR_HOLIDAYS[dateStr]) return window.KOR_HOLIDAYS[dateStr]; 
-    if (window.KOR_HOLIDAYS[mmdd]) return window.KOR_HOLIDAYS[mmdd];     
-    return null;
+    const year = dateStr.substring(0, 4);
+    if (window.cachedHolidays[year] && window.cachedHolidays[year][dateStr]) {
+        return window.cachedHolidays[year][dateStr];
+    }
+    return null; // 캐시나 API에 없으면 일반 날짜
 };
