@@ -28,40 +28,52 @@ provider.addScope('https://www.googleapis.com/auth/calendar');
 provider.addScope('https://www.googleapis.com/auth/tasks');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets'); // 🟢 새로 추가된 구글 시트 접근 권한
 
-window.signInWithGoogle = function() {
-    const loginBtn = document.querySelector('#login-screen button');
-    let originalHtml = '';
-    
-    if (loginBtn) {
-        originalHtml = loginBtn.innerHTML;
-        loginBtn.innerHTML = '⏳ 팝업창에서 로그인(권한 허용)해주세요...';
-        loginBtn.disabled = true;
-    }
+// js/firebase.js
 
-    window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-        .then(() => {
-            return window.auth.signInWithPopup(provider);
-        })
-        .then((result) => {
-            console.log("✅ 로그인 성공:", result.user.displayName);
-            // 🌟 [핵심 추가] 동기화에 사용할 구글 API 토큰 저장
-            if (result.credential && result.credential.accessToken) {
-                sessionStorage.setItem('google_api_token', result.credential.accessToken);
-            }
-        })
-        .catch(error => {
-            console.error("로그인 실패:", error);
-            if (error.code === 'auth/popup-closed-by-user') {
-                alert("로그인 팝업창을 닫으셨습니다. 다시 시도해 주세요.");
-            } else {
-                alert("로그인 중 문제가 발생했습니다: " + error.message);
-            }
-            if (loginBtn) {
-                loginBtn.innerHTML = originalHtml;
-                loginBtn.disabled = false;
-            }
-        });
+window.signInWithGoogle = function() {
+    const loginBtn = document.querySelector('#login-screen button');
+    let originalHtml = '';
+    
+    if (loginBtn) {
+        originalHtml = loginBtn.innerHTML;
+        loginBtn.innerHTML = '⏳ 구글 로그인 화면으로 이동 중...';
+        loginBtn.disabled = true;
+    }
+
+    window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+        .then(() => {
+            // 💡 [핵심 변경] 보안 정책 차단을 피하기 위해 Popup 대신 Redirect 사용
+            return window.auth.signInWithRedirect(provider);
+        })
+        .catch(error => {
+            console.error("로그인 화면 이동 실패:", error);
+            alert("로그인 화면으로 이동 중 문제가 발생했습니다: " + error.message);
+            if (loginBtn) {
+                loginBtn.innerHTML = originalHtml;
+                loginBtn.disabled = false;
+            }
+        });
 };
+
+// 💡 [신규 추가] 화면이 구글 로그인을 거쳐 다시 돌아왔을 때 결과를 가로채는 로직
+// 이 코드는 signInWithGoogle 함수 바깥(파일 하단 등)에 독립적으로 위치해야 합니다.
+window.auth.getRedirectResult()
+    .then((result) => {
+        if (result && result.user) {
+            console.log("✅ 로그인 성공:", result.user.displayName);
+            // 🌟 [핵심 유지] 동기화에 사용할 구글 API 토큰을 성공적으로 받아와 저장합니다.
+            if (result.credential && result.credential.accessToken) {
+                sessionStorage.setItem('google_api_token', result.credential.accessToken);
+            }
+        }
+    })
+    .catch(error => {
+        console.error("리다이렉트 로그인 실패:", error);
+        // 사용자가 로그인을 취소하고 돌아온 경우 등 에러 처리
+        if (error.code !== 'auth/redirect-cancelled-by-user') {
+            alert("로그인 처리 중 문제가 발생했습니다: " + error.message);
+        }
+    });
 
 window.signOut = function() {
   window.auth.signOut().then(() => {
