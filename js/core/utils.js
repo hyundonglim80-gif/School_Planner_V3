@@ -58,14 +58,20 @@ window.getEventLabels = function() {
     } else {
         labels.forEach(l => { if (!l.id) { l.id = window.generateTempId('lbl_ev'); changed = true; } });
     }
-    if (changed) localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
+    
+    if (changed) {
+        localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
+        if (window.auth && window.auth.currentUser) {
+            window.getUserCol('settings').doc('labels').set({ eventLabels: labels }, { merge: true }).catch(e => console.warn(e));
+        }
+    }
     return labels;
 };
 
 window.getJournalLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
     let changed = false;
-    if (!labels) {
+    if (!labels || labels.length === 0) {
         let oldLabels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v3')) || JSON.parse(localStorage.getItem('workCalendar_journalLabels'));
         if (oldLabels && Array.isArray(oldLabels)) {
             labels = oldLabels.map(l => {
@@ -84,7 +90,13 @@ window.getJournalLabels = function() {
     } else {
         labels.forEach(l => { if (!l.id) { l.id = window.generateTempId('lbl_jr'); changed = true; } });
     }
-    if (changed) localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
+    
+    if (changed) {
+        localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
+        if (window.auth && window.auth.currentUser) {
+            window.getUserCol('settings').doc('labels').set({ journalLabels: labels }, { merge: true }).catch(e => console.warn(e));
+        }
+    }
     return labels;
 };
 
@@ -117,24 +129,53 @@ window.checkSkipConditionFromText = function(rawText) {
 };
 
 // ==========================================================================
-// 🚀 [핵심 추가] 누락되었던 자동 마이그레이션 엔진 탑재
+// 🚀 [핵심 추가] 누락되었던 자동 마이그레이션 엔진 탑재 (계정별 독립 팝업 처리)
 // ==========================================================================
 window.autoCheckAndRunMigration = async function() {
-    if (localStorage.getItem('v4_label_migration_done') === 'true') return;
+    const user = window.auth && window.auth.currentUser;
+    if (!user) return;
     
+    // 1. 현재 계정의 로컬 스토리지 도장 확인
+    const stampKey = 'v4_migration_done_' + user.uid;
+    if (localStorage.getItem(stampKey) === 'true') return;
+    
+    // 2. 다른 기기에서 완료했었는지 클라우드 DB 확인
     try {
         const prefDoc = await window.getUserCol('settings').doc('preferences').get();
         if (prefDoc.exists && prefDoc.data().v4LabelMigrationDone === true) {
-            localStorage.setItem('v4_label_migration_done', 'true');
+            localStorage.setItem(stampKey, 'true');
             return;
         }
-    } catch(e) { return; } // 미로그인 시 패스
+    } catch(e) { return; }
 
-    const loaderHtml = `<div id="migration-loader" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.95); z-index:99999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
-        <h2 style="color:#2563eb; font-size:1.8rem; margin-bottom:10px;">⚙️ V4 시스템 데이터 최적화 중...</h2>
-        <p style="color:#64748b; font-size:1rem; font-weight:bold;">새로운 라벨 시스템을 적용하고 있습니다. 잠시만 기다려주세요!</p>
+    // 3. 도장이 없다면 화면 중앙에 강제 팝업창 띄우기
+    const popupHtml = `
+    <div id="migration-prompt-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:100000; display:flex; justify-content:center; align-items:center;">
+        <div style="background:#fff; padding:35px 30px; border-radius:12px; width:400px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <div style="font-size:3.5rem; margin-bottom:10px;">🚀</div>
+            <h2 style="color:#2563eb; margin-top:0; margin-bottom:15px; font-size: 1.4rem;">V4 시스템 데이터 업데이트</h2>
+            <p style="color:#475569; font-size:0.95rem; line-height:1.6; margin-bottom:25px; word-break:keep-all;">
+                새로운 V4 라벨 시스템(ID 기반)이 적용되었습니다.<br>
+                선생님의 기존 데이터를 안전하게 최신화하기 위해<br>
+                <strong style="color:#ef4444;">반드시 아래 버튼을 눌러 업데이트를 진행해 주세요.</strong>
+            </p>
+            <button onclick="window.startV4MigrationProcess()" style="background:#2563eb; color:#fff; border:none; padding:14px 20px; font-size:1.1rem; font-weight:bold; border-radius:8px; cursor:pointer; width:100%; transition:0.2s;">
+                데이터 최적화 시작 (약 10초 소요)
+            </button>
+        </div>
     </div>`;
-    document.body.insertAdjacentHTML('beforeend', loaderHtml);
+    document.body.insertAdjacentHTML('beforeend', popupHtml);
+};
+
+// 실제 변환 로직
+window.startV4MigrationProcess = async function() {
+    const btn = document.querySelector('#migration-prompt-modal button');
+    if(btn) {
+        btn.innerHTML = "데이터 변환 중... 창을 닫지 마세요⏳";
+        btn.disabled = true;
+        btn.style.background = "#94a3b8";
+        btn.style.cursor = "wait";
+    }
 
     try {
         const masterEventLabels = window.getEventLabels();
@@ -150,7 +191,6 @@ window.autoCheckAndRunMigration = async function() {
         let opCount = 0;
         let promises = [];
 
-        // 1. 일정 데이터 변환
         const eventsSnap = await window.getUserCol('events').get();
         eventsSnap.forEach(doc => {
             const data = doc.data();
@@ -177,7 +217,6 @@ window.autoCheckAndRunMigration = async function() {
             }
         });
 
-        // 2. 기록 데이터 변환
         const journalsSnap = await window.getUserCol('journals').get();
         journalsSnap.forEach(doc => {
             const data = doc.data();
@@ -207,14 +246,18 @@ window.autoCheckAndRunMigration = async function() {
         if (opCount > 0) promises.push(batch.commit());
         await Promise.all(promises);
 
+        const uid = window.auth.currentUser.uid;
         await window.getUserCol('settings').doc('preferences').set({ v4LabelMigrationDone: true }, { merge: true });
-        localStorage.setItem('v4_label_migration_done', 'true');
+        localStorage.setItem('v4_migration_done_' + uid, 'true');
 
-        document.getElementById('migration-loader').remove();
-        console.log("🎉 V4 마이그레이션 완료!");
+        document.getElementById('migration-prompt-modal').remove();
+        alert("🎉 V4 데이터 업데이트가 완벽하게 완료되었습니다!\n확인을 누르면 앱이 새로고침됩니다.");
+        window.location.reload(); 
+
     } catch(e) {
         console.error("마이그레이션 에러:", e);
-        if(document.getElementById('migration-loader')) document.getElementById('migration-loader').remove();
+        alert("업데이트 중 오류가 발생했습니다. (F12 콘솔 확인 필요)");
+        if(document.getElementById('migration-prompt-modal')) document.getElementById('migration-prompt-modal').remove();
     }
 };
 
@@ -228,7 +271,7 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
     const masterLabels = window.getEventLabels();
     
     eventList.forEach((e, index) => {
-        // 💡 [중요] 아직 마이그레이션이 덜 끝난 데이터라도 화면에 100% 정상 출력되게 복구
+        // 💡 [중요] 아직 마이그레이션이 덜 끝난 데이터라도 화면에 정상 출력되게 복구
         let labelIdsToRender = e.labelIds || [];
         if (labelIdsToRender.length === 0 && (e.labels || e.label)) {
             let legacyNames = e.labels || [e.label];
