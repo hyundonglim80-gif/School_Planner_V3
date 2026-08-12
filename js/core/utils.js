@@ -38,19 +38,18 @@ window.getLabelStyle = function(labelName, type = 'event') {
     return window.LABEL_PALETTE['purple'];
 };
 
+// 💡 [초기 일정 라벨 지정] 시스템 기본 라벨 5종 및 속성 정의
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
-    if (!labels) {
-        let oldLabels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v3')) || JSON.parse(localStorage.getItem('workCalendar_eventLabels_v2'));
-        if (oldLabels) {
-            labels = oldLabels.map(l => ({ ...l, color: l.color || (l.isSkip ? 'red' : 'blue') }));
-        } else {
-            labels = [
-                { name: '일정', isSkip: false, color: 'blue' }, { name: '행사', isSkip: false, color: 'orange' },
-                { name: '전일행사', isSkip: true, color: 'red' }, { name: '제출', isSkip: false, color: 'yellow' },
-                { name: '기타', isSkip: false, color: 'gray' }
-            ];
-        }
+    
+    if (!labels || labels.length === 0) {
+        labels = [
+            { name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue' },
+            { name: '휴일', isSkip: true,  isForward: false, isPeriod: false, isRecur: false, color: 'red' },
+            { name: '확인', isSkip: false, isForward: true,  isPeriod: false, isRecur: false, color: 'green' },
+            { name: '주간', isSkip: false, isForward: false, isPeriod: true,  isRecur: false, color: 'orange' },
+            { name: '반복', isSkip: false, isForward: false, isPeriod: false, isRecur: true,  color: 'purple' }
+        ];
         localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
     }
     return labels;
