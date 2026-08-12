@@ -303,6 +303,37 @@ window.executeGoogleImport = async function() {
                 const mergedList = [...currentList, ...newEvents];
                 batch.set(docRef, { eventList: mergedList, updatedAt: Date.now() }, { merge: true });
                 batchOpCount++;
+
+                // 💡 [핵심 보완] 동기화 중 '공휴일'이 포함되었다면, 해당 날짜의 기존 수업(과목)도 즉시 비워줍니다!
+                let isSkipDay = false;
+                for (const e of mergedList) {
+                    if (e.source === 'holiday' || (e.labels && e.labels.some(l => typeof window.isSkipLabel === 'function' && window.isSkipLabel(l)))) {
+                        isSkipDay = true; 
+                        break;
+                    }
+                }
+                
+                if (isSkipDay) {
+                    const scheduleRef = window.getUserCol('schedules').doc(dStr);
+                    const scheduleSnap = await scheduleRef.get();
+                    if (scheduleSnap.exists) {
+                        const sData = scheduleSnap.data();
+                        let periods = sData.periods || {};
+                        let scheduleChanged = false;
+                        
+                        for (let p in periods) {
+                            if (periods[p].subject && periods[p].subject.trim() !== '') {
+                                periods[p].subject = ''; // 💡 과목명만 비우고 메모/비고는 안전하게 유지!
+                                scheduleChanged = true;
+                            }
+                        }
+                        
+                        if (scheduleChanged) {
+                            batch.set(scheduleRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
+                            batchOpCount++;
+                        }
+                    }
+                }
             }
 
             if (batchOpCount >= 400) {
@@ -315,11 +346,6 @@ window.executeGoogleImport = async function() {
             updateProgress(`💾 SP3 데이터베이스에 저장 중... [${processedCount}/${totalDays}]`, 60 + (40 * (processedCount/totalDays)));
             curD.setDate(curD.getDate() + 1);
         }
-
-        if (batchOpCount > 0) await batch.commit();
-
-        finishProgress("🎉 SP3로 가져오기가 성공적으로 완료되었습니다!");
-        window.render(); // 화면 새로고침
         
     } catch (error) {
         handleSyncError(error);
