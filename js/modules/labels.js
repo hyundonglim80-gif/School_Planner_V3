@@ -142,7 +142,6 @@ const LabelManager = {
         content: this.getEventContentHTML()
       });
     }
-    // 객체 복사 시 ID 유지
     window.tempEditingLabels = window.getEventLabels().map(l => ({...l}));
     this.eventModal.open();
     this.renderEventLabels();
@@ -160,6 +159,7 @@ const LabelManager = {
         const skipChecked = label.isSkip ? 'checked' : '';
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
         
+        // 💡 [핵심] 삭제 버튼의 onclick이 window.LabelManager.removeEventLabel(${index})를 호출하도록 연결 완료
         return `
         <div class="modal-input-row" draggable="true" ondragstart="window.LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="window.LabelManager.handleDragOver(event)" ondrop="window.LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';" style="transition:0.2s;">
             <div style="display:flex; align-items:center;"><span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px;">≡</span></div>
@@ -182,7 +182,7 @@ const LabelManager = {
                     <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; window.LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
             </div>
-            <button onclick="window.tempEditingLabels.splice(${index}, 1); window.LabelManager.renderEventLabels();" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
+            <button onclick="window.LabelManager.removeEventLabel(${index});" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
         </div>`;
     }).join('');
   },
@@ -200,13 +200,14 @@ const LabelManager = {
     if (!name) return alert("라벨 이름을 입력하세요.");
     
     window.tempEditingLabels.push({ 
-        id: this.generateId('lbl_ev'), // 💡 핵심: 신규 라벨에 고유 ID 부여
+        id: this.generateId('lbl_ev'),
         name: name, 
         isPeriod: periodCheck.checked,
         isRecur: recurCheck.checked,
         isForward: forwardCheck.checked, 
         isSkip: skipCheck.checked, 
-        color: color
+        color: color,
+        isSystem: false // 새로 만드는 건 지울 수 있음
     });
     
     nameInput.value = ''; 
@@ -217,6 +218,20 @@ const LabelManager = {
     this.renderEventLabels();
   },
 
+  // 💡 [핵심 방어 함수] 객체 내부에 정상적으로 통합되었습니다.
+  removeEventLabel: function(index) {
+      const targetLabel = window.tempEditingLabels[index];
+      
+      if (targetLabel && targetLabel.isSystem) {
+          alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.\n\n단, 라벨의 '이름', '색상', '위아래 순서'는 선생님의 취향대로 자유롭게 변경하실 수 있습니다.");
+          return;
+      }
+  
+      // 필수 라벨이 아닌 일반 추가 라벨만 정상 삭제 진행
+      window.tempEditingLabels.splice(index, 1);
+      this.renderEventLabels(); // 화면 다시 그리기
+  },
+
   saveEventLabels: async function(e) {
       for (let i = 0; i < window.tempEditingLabels.length; i++) {
           if (!window.tempEditingLabels[i].name.trim()) return alert(`${i + 1}번째 라벨의 이름이 비어있습니다.`);
@@ -225,7 +240,6 @@ const LabelManager = {
       const oldLabels = window.getEventLabels();
       const dataToSave = window.tempEditingLabels.map(l => ({...l}));
 
-      // ID 기반이므로 이름이 바뀌어도 DB 검색 불필요. 삭제된 ID만 찾아냄.
       const newIds = dataToSave.map(l => l.id);
       const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
@@ -237,7 +251,6 @@ const LabelManager = {
           } catch (err) { console.error(err); }
       }
 
-      // 삭제된 라벨이 있을 때만 과거 일정에서 해당 ID를 제거하는 가벼운 정리 작업 수행
       if (deletedIds.length > 0 && window.db) {
           if (e && e.target) {
               e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
@@ -436,7 +449,7 @@ const LabelManager = {
   getMemoLabels: function() {
       const saved = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
       if (saved && saved.length > 0) return saved;
-      return []; // V4 마이그레이션이 알아서 초기 ID들을 부여해줍니다.
+      return []; 
   },
 
   getMemoContentHTML: function() {
@@ -577,21 +590,7 @@ const LabelManager = {
   }
 };
 
-removeEventLabel: function(index) {
-    const targetLabel = window.tempEditingLabels[index];
-    
-    // 💡 [핵심] 시스템 필수 5대 라벨은 삭제 버튼을 눌러도 경고창을 띄우고 지우지 못하게 방어합니다.
-    if (targetLabel && targetLabel.isSystem) {
-        alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.\n\n단, 라벨의 '이름', '색상', '위아래 순서'는 선생님의 취향대로 자유롭게 변경하실 수 있습니다.");
-        return;
-    }
-
-    // 필수 라벨이 아닌 일반 추가 라벨만 정상 삭제 진행
-    window.tempEditingLabels.splice(index, 1);
-    this.renderEventLabels(); // 화면 다시 그리기
-},
-
-window.LabelManager = LabelManager;
+window.LabelManager = LabelManager; // 전역 객체 등록
 
 window.openEventLabelModal = () => LabelManager.openEventModal();
 window.openJournalLabelModal = () => LabelManager.openJournalModal();
