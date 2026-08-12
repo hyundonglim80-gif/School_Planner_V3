@@ -122,7 +122,7 @@ window.loadSettings = async function() {
             }
         }
         
-        // 💡 [핵심] 설정 불러오기가 다 끝난 후 메모리 캐싱 함수 명시적 실행
+        // 💡 [수정 완료] 라벨 설정 로딩까지만 정상 수행하고 종료 (불필요한 공휴일 API 자동 호출 코드 삭제)
         window.getEventLabels();
         window.getJournalLabels();
         
