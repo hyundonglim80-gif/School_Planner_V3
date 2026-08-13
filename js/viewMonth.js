@@ -195,16 +195,24 @@ class MonthView extends window.BaseView {
       const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
+      let dateNumColor = '#475569'; // 💡 날짜(숫자) 기본 색상
       const holidayName = window.getHolidayName(item.dateStr);
-      if (dayOfWeekNum === 0 || holidayName) dateColor = '#ef4444';
-      else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
+      
+      // 💡 스마트 빨간날 판독 엔진 연동
+      if (window.isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`])) {
+          dateColor = '#ef4444';
+          dateNumColor = '#ef4444'; // 휴일일 때 날짜 숫자도 빨갛게!
+      } else if (dayOfWeekNum === 6) {
+          dateColor = '#3b82f6';
+          dateNumColor = '#3b82f6';
+      }
 
       const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
 
       html += `<tr data-month-date="${item.dateStr}">` +
         `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${dayNum}</span>` +
+            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateNumColor}; line-height:1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${dayNum}</span>` +
             `<span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
             `${holidayHtml}` +
           `</div>` +
