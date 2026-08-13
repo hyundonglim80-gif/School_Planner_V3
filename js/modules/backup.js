@@ -185,6 +185,7 @@ window.BackupManager = {
         }
     },
 
+    // 💡 [수정됨] 백업할 때 [수업] 메모 [비고] 형태로 결합해서 저장
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -222,14 +223,21 @@ window.BackupManager = {
             const periods = scMap[dStr] ? (scMap[dStr].periods || {}) : {};
             for(let p=1; p<=pNames.length; p++) {
                 const pData = periods[p] || {};
-                let pText = pData.subject ? `[${pData.subject}] ` : "";
-                if(pData.memo) pText += pData.memo;
+                let pText = "";
                 
-                // 💡 [수정됨] 비고(supplies) 데이터가 있으면 줄바꿈 후 [비고] 태그와 함께 저장!
-                if(pData.supplies && pData.supplies.trim() !== '') {
-                    pText += `\n[비고] ${pData.supplies}`;
+                // 💡 [수업] 형태 조합
+                if(pData.subject && pData.subject.trim() !== '') {
+                    pText += `[${pData.subject.trim()}] `;
                 }
-                
+                // 메모 추가
+                if(pData.memo && pData.memo.trim() !== '') {
+                    pText += pData.memo.trim();
+                }
+                // 💡 [비고] 형태 조합 (맨 뒤에 배치)
+                if(pData.supplies && pData.supplies.trim() !== '') {
+                    pText += ` [${pData.supplies.trim()}]`;
+                }
+
                 row.push(pText.trim());
             }
 
@@ -265,6 +273,7 @@ window.BackupManager = {
         return rows;
     },
 
+    // 💡 [수정됨] 복원할 때 [수업] 메모 [비고] 구조를 완벽하게 역으로 파싱하여 분리 적용
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
@@ -339,7 +348,6 @@ window.BackupManager = {
         const scheduleDataMap = {};
         const journalDataMap = {};
 
-        // 1단계: CSV 텍스트 객체화
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const dStr = row[dateIdx];
@@ -360,25 +368,30 @@ window.BackupManager = {
             let pNum = 1;
             let endPIdx = (journalIdx !== -1) ? journalIdx : row.length;
             for(let p = eventIdx + 1; p < endPIdx; p++) {
-                let pText = row[p] || "";
+                let pText = (row[p] || "").trim();
                 let subj = "", memo = "", supplies = "";
 
-                // 💡 [수정됨] 비고 파싱: 제일 끝에 붙은 '[비고] 내용'을 먼저 떼어냅니다.
-                const supMatch = pText.match(/\n\[비고\]\s*([\s\S]*)$/);
-                if (supMatch) {
-                    supplies = supMatch[1].trim();
-                    pText = pText.replace(/\n\[비고\]\s*([\s\S]*)$/, '').trim();
+                if (pText !== "") {
+                    // 1. 맨 뒤에 있는 [비고] 추출 (예: "[수학] 단원평가 [계산기 지참]")
+                    const lastBracketMatch = pText.match(/\[([^\]]+)\]\s*$/);
+                    // 단, 맨 앞의 과목 대괄호와 겹치지 않도록 전체 텍스트 내에서 대괄호 쌍이 2개 이상일 때만 뒤쪽을 비고로 판정
+                    const allBrackets = pText.match(/\[.*?\]/g);
+                    
+                    if (allBrackets && allBrackets.length >= 2) {
+                        supplies = lastBracketMatch ? lastBracketMatch[1].trim() : "";
+                        pText = pText.replace(/\[([^\]]+)\]\s*$/, '').trim(); // 맨 뒤 제거
+                    }
+
+                    // 2. 맨 앞에 있는 [수업 과목] 추출
+                    const firstBracketMatch = pText.match(/^\[(.*?)\]/);
+                    if (firstBracketMatch) {
+                        subj = firstBracketMatch[1].trim();
+                        memo = pText.replace(/^\[(.*?)\]\s*/, '').trim(); // 앞 제거 후 나머지는 메모
+                    } else {
+                        memo = pText; // 대괄호 과목이 없으면 전부 메모
+                    }
                 }
 
-                // 남은 텍스트에서 [과목]과 메모를 파싱합니다.
-                const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-                if(match) { 
-                    subj = match[1].trim(); 
-                    memo = match[2].trim(); 
-                } else {
-                    memo = pText.trim(); // 대괄호 과목이 없으면 전부 메모로 간주
-                }
-                
                 if(isSkipDay) subj = ''; 
                 periodsData[pNum] = { subject: subj, memo: memo, supplies: supplies };
                 pNum++;
@@ -391,7 +404,7 @@ window.BackupManager = {
             }
         }
 
-        // 2단계: 스마트 그룹 역추적
+        // 스마트 그룹 역추적
         let activePeriods = {}; 
         let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
@@ -453,15 +466,11 @@ window.BackupManager = {
             });
         });
 
-        // 3단계: DB 일괄 저장 처리
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
 
         if (mode === 'overwrite') {
-            let startStr = document.getElementById('backup-start-date').value;
-            let endStr = document.getElementById('backup-end-date').value;
-            
             const cols = ['events', 'schedules', 'journals'];
             for (const col of cols) {
                 const snap = await window.getUserCol(col).where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
@@ -788,7 +797,7 @@ window.BackupManager = {
         const mode = document.querySelector('input[name="import-mode"]:checked').value;
         const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터에 병합';
 
-        if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
+        if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?`)) { input.value = ''; return; }
 
         const btn = input.nextElementSibling;
         const oldText = btn.textContent; btn.textContent = "⏳ 업로드 적용 중..."; btn.disabled = true;
@@ -809,7 +818,7 @@ window.BackupManager = {
         } finally {
             btn.textContent = oldText; 
             btn.disabled = false; 
-            input.value = '';
+            input.value = ``;
         } 
     }
 };
