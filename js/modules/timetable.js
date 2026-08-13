@@ -20,8 +20,7 @@ const TimetableModule = {
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span></span>
               <div style="display:flex; gap:4px;">
-//                <button onclick="TimetableModule.addRow()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="교시 추가">+</button>
-//                <button onclick="TimetableModule.removeRow()" style="background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="맨 아래 삭제">-</button>
+
               </div>
             </div>
           </th>
