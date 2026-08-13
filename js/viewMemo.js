@@ -187,6 +187,19 @@ class MemoView extends window.BaseView {
   }
 
   async renderViewer() {
+    // 💡 추가된 부분: 메모 페이지 진입 시 상단의 '할 일 및 메모' 문구와 그 아래 두 번째 줄(서브타이틀) 문구를 지워줍니다.
+    setTimeout(() => {
+        const headers = document.querySelectorAll('h1, h2, h3, .page-title, #page-title, .title');
+        headers.forEach(el => {
+            if (el.textContent && el.textContent.includes('할 일 및 메모')) {
+                el.textContent = ''; // 첫 번째 줄 문구 강제 삭제
+                if (el.nextElementSibling) {
+                    el.nextElementSibling.textContent = ''; // 두 번째 줄 문구 강제 삭제
+                }
+            }
+        });
+    }, 10);
+
     if (!this.memoItems || this.memoItems.length === 0) {
         this.showLoading('클라우드에서 메모와 링크를 불러오는 중입니다...');
         this.memoItems = await window.dbAPI.loadMemos();
