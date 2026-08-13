@@ -301,6 +301,7 @@ const TimetableModule = {
       const periodCount = this.editingNames.length;
       const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
+      // 💡 현재 팝업에 떠있는 교시명(이름)을 메인 설정에도 덮어씌워 줍니다. (표시 호환성용)
       window.periodNames = [...this.editingNames];
 
       while (cur <= endObj) {
@@ -308,9 +309,10 @@ const TimetableModule = {
         
         if (dayIndex >= 1 && dayIndex <= 5) {
           const dateStr = window.formatDate(cur);
-          if (dateStr <= eStr) { 
+          if (dateStr <= eStr) { // 오버플로우 방지
               const dayName = days[dayIndex - 1]; 
               
+              // 휴일 확인 로직 (utils.js의 isRedDay 활용)
               let isSkip = false;
               const eData = eventMap[dateStr];
               let listForCheck = [];
@@ -325,7 +327,8 @@ const TimetableModule = {
 
               for (let p = 1; p <= periodCount; p++) {
                 newPeriods[p] = {
-                  subject: isSkip ? '' : (this.editingData[dayName][p] || ''),
+                  // 💡 [버그 픽스] 특정 요일 데이터가 비어있어도 에러 방어: || {} 추가
+                  subject: isSkip ? '' : ((this.editingData[dayName] || {})[p] || ''),
                   memo: existingPeriods[p] ? existingPeriods[p].memo : '', 
                   supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
                 };
@@ -351,6 +354,7 @@ const TimetableModule = {
       if (opCount > 0) batchPromises.push(batch.commit());
       await Promise.all(batchPromises);
 
+      // 마지막으로 설정값(교시명 변경점 등) 확실히 동기화
       await this.syncToCloud();
 
       alert(`🎉 일괄 적용 성공!\n- 성공적으로 적용된 평일: ${appliedCount}일\n- 휴일로 보호되어 건너뛴 날: ${skippedCount}일`);
@@ -375,7 +379,7 @@ const TimetableModule = {
           await window.getUserCol('settings').doc('timetable_v5').set({
               semesterConfig: window.semesterConfig,
               templates: window.timetableTemplates,
-              currentNames: window.periodNames, 
+              currentNames: window.periodNames, // 현재 기준 이름 (달력 표시용)
               updatedAt: Date.now()
           }, { merge: true });
       } catch (e) {
@@ -385,4 +389,4 @@ const TimetableModule = {
 };
 
 window.openTimetableModal = () => TimetableModule.open();
-window.openSettingsModal = () => TimetableModule.open();
+window.openSettingsModal = () => TimetableModule.open(); // 기존 세팅 버튼 눌러도 이거 띄우게 호환성 유지
