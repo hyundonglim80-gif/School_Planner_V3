@@ -145,10 +145,13 @@ class WeekView extends window.BaseView {
 
       // 💡 [수정] 에디터 화면에서도 빨간날이 정상 표출되도록 스마트 검사 연동!
       let dateColor = '#1e40af';
+      let dateNumColor = '#475569'; // 💡 날짜(숫자)의 기본 색상 추가
       if (window.isRedDay(d.dateStr, window[`tempEvents_${d.dateStr}`])) {
           dateColor = '#ef4444';
+          dateNumColor = '#ef4444'; // 휴일일 때 날짜(숫자)도 빨간색으로 변경
       } else if (d.dayOfWeekNum === 6) {
           dateColor = '#3b82f6';
+          dateNumColor = '#3b82f6'; // 토요일일 때 날짜(숫자)도 파란색으로 변경
       }
 
       const holidayName = window.getHolidayName(d.dateStr);
@@ -159,7 +162,7 @@ class WeekView extends window.BaseView {
           <td rowspan="${window.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
-              <span style="font-size:0.95rem; font-weight:600; color:#475569; line-height:1;">${d.dateDisplay}</span>
+              <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
               ${holidayHtml}
             </div>
           </td>
