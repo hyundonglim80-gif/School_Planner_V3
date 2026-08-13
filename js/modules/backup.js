@@ -709,6 +709,8 @@ window.BackupManager = {
         } catch (e) {
             console.error(e);
             if(e.message !== "토큰 발급이 취소되었습니다.") alert("복원 중 오류 발생: " + e.message);
+        } finally {
+            // 💡 [버그 픽스] 작업이 끝나면(성공/실패 무관) 버튼 텍스트와 상태를 무조건 원상 복구!
             btn.textContent = oldText; 
             btn.disabled = false;
         } 
