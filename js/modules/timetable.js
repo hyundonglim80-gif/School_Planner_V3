@@ -12,7 +12,6 @@ const TimetableModule = {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
     const dayLabels = ['월', '화', '수', '목', '금'];
     
-    // 💡 중앙 에디터 표 (테이블) 동적 생성
     // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
