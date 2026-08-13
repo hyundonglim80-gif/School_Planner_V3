@@ -259,10 +259,17 @@ window.BackupManager = {
         return rows;
     },
 
-    // 💡 텍스트 파싱 및 스마트 추적(ID 자동발급/그룹핑)을 통해 데이터를 완벽하게 복원
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
+        // 💡 [버그 픽스] 사용자가 모달에서 설정한 시작일/종료일 가져오기
+        let startStr = document.getElementById('backup-start-date').value;
+        let endStr = document.getElementById('backup-end-date').value;
+        if (!startStr || !endStr) {
+            alert("기간이 올바르게 설정되지 않았습니다.");
+            return;
+        }
+
         const header = rows[0];
         let dateIdx = header.findIndex(h => typeof h === 'string' && h.includes("날짜"));
         let eventIdx = header.findIndex(h => typeof h === 'string' && h.includes("일정"));
@@ -327,10 +334,14 @@ window.BackupManager = {
         const scheduleDataMap = {};
         const journalDataMap = {};
 
+        // 1단계: CSV 텍스트 객체화
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const dStr = row[dateIdx];
             if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+
+            // 💡 [버그 픽스] 엑셀/시트의 무수한 데이터 중, 사용자가 선택한 기간의 날짜만 쏙 뽑아서 처리!
+            if (dStr < startStr || dStr > endStr) continue;
 
             const evText = row[eventIdx] || "";
             let parsedEvents = parseEventText(evText, 'event');
@@ -361,6 +372,7 @@ window.BackupManager = {
             }
         }
 
+        // 2단계: 스마트 그룹 역추적
         let activePeriods = {}; 
         let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
@@ -422,14 +434,12 @@ window.BackupManager = {
             });
         });
 
+        // 3단계: DB 일괄 저장 처리
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
 
         if (mode === 'overwrite') {
-            let startStr = document.getElementById('backup-start-date').value;
-            let endStr = document.getElementById('backup-end-date').value;
-            
             const cols = ['events', 'schedules', 'journals'];
             for (const col of cols) {
                 const snap = await window.getUserCol(col).where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
@@ -621,7 +631,6 @@ window.BackupManager = {
         return spreadsheetId;
     },
 
-    // 💡 [핵심] 기존 내용을 완전히 삭제(Clear)하고 선택된 기간의 최신 SP3 데이터로만 깔끔하게 덮어씁니다!
     exportToSheets: async function() {
         const btn = document.getElementById('btn-sheets-export');
         const oldText = btn.textContent;
@@ -638,12 +647,10 @@ window.BackupManager = {
             
             const finalRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
 
-            // 1. 기존 구글 시트의 모든 데이터를 완전히 삭제 (초기화)
             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            // 2. 깨끗해진 시트에 SP3 최신 데이터를 덮어쓰기
             const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -710,7 +717,6 @@ window.BackupManager = {
             console.error(e);
             if(e.message !== "토큰 발급이 취소되었습니다.") alert("복원 중 오류 발생: " + e.message);
         } finally {
-            // 💡 [버그 픽스] 작업이 끝나면(성공/실패 무관) 버튼 텍스트와 상태를 무조건 원상 복구!
             btn.textContent = oldText; 
             btn.disabled = false;
         } 
