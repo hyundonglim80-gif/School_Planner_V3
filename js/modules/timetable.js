@@ -13,10 +13,19 @@ const TimetableModule = {
     const dayLabels = ['월', '화', '수', '목', '금'];
     
     // 💡 중앙 에디터 표 (테이블) 동적 생성
+    // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
-          <th style="padding:10px; color:#475569; width:90px;">교시명</th>
+          <th style="padding:10px; color:#475569; width:110px; border-right:1px solid #e2e8f0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>교시명</span>
+              <div style="display:flex; gap:4px;">
+                <button onclick="TimetableModule.addRow()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="교시 추가">+</button>
+                <button onclick="TimetableModule.removeRow()" style="background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="맨 아래 삭제">-</button>
+              </div>
+            </div>
+          </th>
           ${dayLabels.map(d => `<th style="padding:10px; color:#475569;">${d}</th>`).join('')}
         </tr>
       </thead>
@@ -25,13 +34,13 @@ const TimetableModule = {
     this.editingNames.forEach((pName, index) => {
       const p = index + 1;
       tableHtml += `<tr style="border-bottom:1px solid #e2e8f0;">
-        <td style="padding:0; border:1px solid #cbd5e1; background:#f8fafc;">
-          <input type="text" value="${pName}" id="tt-name-${p}" onchange="TimetableModule.updatePeriodName(${index}, this.value)" style="width:100%; padding:10px 4px; border:none; text-align:center; font-weight:900; color:#475569; outline:none; background:transparent; font-size:1rem;">
+        <td style="padding:8px; border-right:1px solid #e2e8f0; background:#f8fafc;">
+          <input type="text" value="${pName}" id="tt-name-${p}" onchange="TimetableModule.updatePeriodName(${index}, this.value)" style="width:100%; padding:8px 4px; border:1px dashed #94a3b8; border-radius:6px; text-align:center; font-weight:900; color:#475569; outline:none; background:#ffffff; font-size:0.95rem; cursor:text; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);" onfocus="this.style.border='1px solid #2563eb'" onblur="this.style.border='1px dashed #94a3b8'">
         </td>`;
       for (let d = 0; d < 5; d++) {
         const val = this.editingData[days[d]] ? (this.editingData[days[d]][p] || '') : '';
-        tableHtml += `<td style="padding:0; border:1px solid #cbd5e1;">
-          <input type="text" id="tt-input-${days[d]}-${p}" value="${val}" onchange="TimetableModule.updateData('${days[d]}', ${p}, this.value)" style="width:100%; padding:10px 4px; border:none; text-align:center; font-weight:bold; color:#1e40af; outline:none; background:transparent; font-size:1.05rem; transition:0.2s;" onfocus="this.style.background='#ffffcc'" onblur="this.style.background='transparent'">
+        tableHtml += `<td style="padding:8px; border:1px solid #f1f5f9;">
+          <input type="text" id="tt-input-${days[d]}-${p}" value="${val}" placeholder="입력" onchange="TimetableModule.updateData('${days[d]}', ${p}, this.value)" style="width:100%; padding:10px 4px; border:1px solid #e2e8f0; border-radius:6px; text-align:center; font-weight:bold; color:#1e40af; outline:none; background:#f8fafc; font-size:1.05rem; transition:0.2s; cursor:text; box-shadow:inset 0 1px 2px rgba(0,0,0,0.02);" onfocus="this.style.background='#ffffcc'; this.style.borderColor='#fbbf24';" onblur="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0';">
         </td>`;
       }
       tableHtml += `</tr>`;
