@@ -12,21 +12,52 @@ class YearView extends window.BaseView {
 
     let allEvents = [];
     try {
-      const snapshot = await window.getUserCol('events').get();
-      snapshot.forEach(doc => {
+      // 💡 연간 화면에 수업을 표시하기 위해 schedule 데이터도 함께 가져옵니다.
+      const eventsSnap = await window.getUserCol('events').get();
+      const schedulesSnap = await window.getUserCol('schedules').get();
+      
+      const sMap = {};
+      schedulesSnap.forEach(doc => {
+          sMap[doc.id] = doc.data().periods || {};
+      });
+
+      eventsSnap.forEach(doc => {
         const data = doc.data();
         let hasContent = false;
         let htmlOutput = '';
 
+        // 일정 처리
         let processedEvents = [];
         if (data.eventList && data.eventList.length > 0) {
           processedEvents = data.eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-          htmlOutput = window.generateEventBadgesHTML(processedEvents, doc.id, 'compact');
+          htmlOutput += window.generateEventBadgesHTML(processedEvents, doc.id, 'compact');
           hasContent = true;
+        }
+
+        // 💡 [추가됨] 수업(시간표) 내용 처리
+        if (window.showClass && sMap[doc.id]) {
+            let classHtml = '';
+            for(let p=1; p<=6; p++) { // 기본 6교시 기준 (환경설정 연동 가능)
+                const pObj = sMap[doc.id][p];
+                if (pObj && (pObj.subject || pObj.memo || pObj.supplies)) {
+                    let text = '';
+                    if (pObj.subject && pObj.subject.toUpperCase() !== 'X') text += `<span style="color:#047857; font-weight:bold;">[${pObj.subject}]</span> `;
+                    if (pObj.memo) text += `<span style="color:#334155;">${pObj.memo}</span>`;
+                    if (pObj.supplies) text += ` <span style="color:#b91c1c; font-size:0.8rem;">[${pObj.supplies}]</span>`;
+                    
+                    if (text.trim() !== '') {
+                        classHtml += `<div style="font-size:0.85rem; padding-left:4px; margin-top:2px; border-left:2px solid #34d399; line-height:1.3;">${text}</div>`;
+                    }
+                }
+            }
+            if (classHtml) {
+                htmlOutput += `<div style="margin-top:6px;">${classHtml}</div>`;
+                hasContent = true;
+            }
         }
         
         if (hasContent) {
-          allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput, events: processedEvents }); // 💡 나중에 색상 판독을 위해 배열 추가
+          allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput, events: processedEvents }); 
         }
       });
     } catch (error) {}
@@ -65,8 +96,7 @@ class YearView extends window.BaseView {
               ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
               : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
-          // 💡 스마트 빨간날 연동 적용 (숫자와 요일 모두)
-          let dateColor = '#2563eb'; // 연간 뷰어의 기본 색상
+          let dateColor = '#2563eb'; 
           if (window.isRedDay(e.dateStr, e.events)) {
               dateColor = '#ef4444';
           } else if (dateObj.getDay() === 6) {
@@ -156,7 +186,7 @@ class YearView extends window.BaseView {
       this.renderedDateStrings.push(item.dateStr);
 
       let eventList = item.eventData.eventList || [];
-      const masterLabels = window.getEventLabels(); // 💡 마스터 라벨 참조 추가
+      const masterLabels = window.getEventLabels(); 
 
       window[`tempEvents_${item.dateStr}`] = eventList.map(e => {
           let labelIds = e.labelIds || [];
@@ -178,9 +208,8 @@ class YearView extends window.BaseView {
       const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
-      let dateNumColor = '#475569'; // 💡 날짜(숫자) 기본 색상
+      let dateNumColor = '#475569'; 
       
-      // 💡 스마트 빨간날 엔진 적용 (휴일일 때 숫자/텍스트 둘 다 변경)
       if (window.isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`])) {
           dateColor = '#ef4444';
           dateNumColor = '#ef4444';
@@ -206,8 +235,15 @@ class YearView extends window.BaseView {
         `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
 
         for (let p = 1; p <= this.maxPeriod; p++) {
-           const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
-           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;" oninput="window.yearViewInstance.syncScheduleInputs()">${subjText}</td>`;
+           const pObj = periods[p] || {};
+           
+           // 💡 [수정됨] 연간 에디터에서도 [과목] 메모 [비고] 포맷으로 출력
+           let cellText = "";
+           if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+           if (pObj.memo) cellText += pObj.memo + " ";
+           if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+           
+           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:top; white-space:pre-wrap; text-align:left;" oninput="window.yearViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
         }
 
       html += `</tr>`;
@@ -229,13 +265,31 @@ class YearView extends window.BaseView {
 
           classCells.forEach(cell => {
               const p = cell.getAttribute("data-p");
-              const subjRaw = (cell.innerText || cell.textContent || "").trim();
-              let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
+              let text = (cell.innerText || cell.textContent || "").trim();
+              
+              let subject = '', memo = '', supplies = '';
 
-              const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
-              const existingMemo = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].memo : '';
+              if (text !== '') {
+                  // 1. 뒤쪽 비고 파싱
+                  const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
+                  const allBrackets = text.match(/\[.*?\]/g);
+                  if (allBrackets && allBrackets.length >= 2) {
+                      supplies = lastMatch ? lastMatch[1].trim() : "";
+                      text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
+                  }
+                  
+                  // 2. 앞쪽 과목 파싱
+                  const firstMatch = text.match(/^\[(.*?)\]/);
+                  if (firstMatch) {
+                      subject = firstMatch[1].trim();
+                      memo = text.replace(/^\[(.*?)\]\s*/, '').trim();
+                  } else {
+                      memo = text;
+                  }
+              }
 
-              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, supplies: existingSupplies, memo: existingMemo };
+              let subjText = (subject.toUpperCase() === 'X') ? '' : subject;
+              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, memo: memo, supplies: supplies };
           });
       });
   }
