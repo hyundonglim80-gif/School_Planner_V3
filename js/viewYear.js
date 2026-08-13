@@ -178,13 +178,21 @@ class YearView extends window.BaseView {
       const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
-      if (dayOfWeekNum === 0) dateColor = '#ef4444';
-      else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
+      let dateNumColor = '#475569'; // 💡 날짜(숫자) 기본 색상
+      
+      // 💡 스마트 빨간날 엔진 적용 (휴일일 때 숫자/텍스트 둘 다 변경)
+      if (window.isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`])) {
+          dateColor = '#ef4444';
+          dateNumColor = '#ef4444';
+      } else if (dayOfWeekNum === 6) {
+          dateColor = '#3b82f6';
+          dateNumColor = '#3b82f6';
+      }
 
       html += `<tr data-year-date="${item.dateStr}">` +
         `<td rowspan="${window.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">` +
           `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;">` +
-            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>` +
+            `<span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>` +
             `<span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>` +
           `</div>` +
         `</td>` +
