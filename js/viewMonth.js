@@ -69,7 +69,7 @@ class MonthView extends window.BaseView {
       
       let eventHtml = '';
       let finalEvents = item.eventData.eventList || [];
-      let processedEvents = []; // 💡 스코프 오류 방지를 위해 밖으로 분리
+      let processedEvents = []; 
       
       if (finalEvents.length > 0) {
         processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
@@ -94,7 +94,7 @@ class MonthView extends window.BaseView {
           else if (text.length === 4) { fontSize = "0.55rem"; letterSpacing = "-1px"; } 
           else if (text.length >= 5) { fontSize = "0.45rem"; letterSpacing = "-1.5px"; }
 
-          boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;">${text}</div>`;
+          boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="메모: ${dayPeriods[p].memo || '없음'}, 비고: ${dayPeriods[p].supplies || '없음'}">${text}</div>`;
           hasClass = true;
         } else {
           boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
@@ -106,7 +106,6 @@ class MonthView extends window.BaseView {
       let dateColor = '#334155';
       const holidayName = window.getHolidayName(dateStr);
       
-      // 💡 스마트 빨간날 판독 엔진 적용 (숫자/텍스트 모두 통일)
       if (window.isRedDay(dateStr, processedEvents)) {
           dateColor = '#ef4444';
       } else if (dayOfWeekNum === 6) {
@@ -173,7 +172,7 @@ class MonthView extends window.BaseView {
       if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return;
 
       let eventList = item.eventData.eventList || [];
-      const masterLabels = window.getEventLabels(); // 💡 마스터 라벨 참조 추가
+      const masterLabels = window.getEventLabels(); 
 
       window[`tempEvents_${item.dateStr}`] = eventList.map(e => {
           let labelIds = e.labelIds || [];
@@ -195,13 +194,12 @@ class MonthView extends window.BaseView {
       const periods = window[`tempSchedules_${item.dateStr}`];
 
       let dateColor = '#1e40af';
-      let dateNumColor = '#475569'; // 💡 날짜(숫자) 기본 색상
+      let dateNumColor = '#475569'; 
       const holidayName = window.getHolidayName(item.dateStr);
       
-      // 💡 스마트 빨간날 판독 엔진 연동
       if (window.isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`])) {
           dateColor = '#ef4444';
-          dateNumColor = '#ef4444'; // 휴일일 때 날짜 숫자도 빨갛게!
+          dateNumColor = '#ef4444'; 
       } else if (dayOfWeekNum === 6) {
           dateColor = '#3b82f6';
           dateNumColor = '#3b82f6';
@@ -227,8 +225,15 @@ class MonthView extends window.BaseView {
         `<td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px;">수업</td>`;
         
         for(let p=1; p<=this.maxPeriod; p++) {
-           const subjText = periods[p] && periods[p].subject && periods[p].subject.toUpperCase() !== 'X' ? periods[p].subject.trim() : '';
-           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:middle;" oninput="window.monthViewInstance.syncScheduleInputs()">${subjText}</td>`;
+           const pObj = periods[p] || {};
+           
+           // 💡 [수정됨] 월간 에디터에서도 [과목] 메모 [비고] 포맷으로 출력
+           let cellText = "";
+           if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+           if (pObj.memo) cellText += pObj.memo + " ";
+           if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+           
+           html += `<td class="editable-cell edit-class-cell" data-p="${p}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:top; white-space:pre-wrap; text-align:left;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
         }
         
       html += `</tr>`;
@@ -250,13 +255,29 @@ class MonthView extends window.BaseView {
 
           classCells.forEach(cell => {
               const p = cell.getAttribute("data-p");
-              const subjRaw = (cell.innerText || cell.textContent || "").trim();
-              let subjText = (subjRaw.toUpperCase() === 'X' || subjRaw === '') ? '' : subjRaw;
+              let text = (cell.innerText || cell.textContent || "").trim();
               
-              const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
-              const existingMemo = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].memo : '';
+              let subject = '', memo = '', supplies = '';
 
-              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, supplies: existingSupplies, memo: existingMemo };
+              if (text !== '') {
+                  const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
+                  const allBrackets = text.match(/\[.*?\]/g);
+                  if (allBrackets && allBrackets.length >= 2) {
+                      supplies = lastMatch ? lastMatch[1].trim() : "";
+                      text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
+                  }
+                  
+                  const firstMatch = text.match(/^\[(.*?)\]/);
+                  if (firstMatch) {
+                      subject = firstMatch[1].trim();
+                      memo = text.replace(/^\[(.*?)\]\s*/, '').trim();
+                  } else {
+                      memo = text;
+                  }
+              }
+
+              let subjText = (subject.toUpperCase() === 'X') ? '' : subject;
+              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, memo: memo, supplies: supplies };
           });
       });
   }
