@@ -69,9 +69,10 @@ class MonthView extends window.BaseView {
       
       let eventHtml = '';
       let finalEvents = item.eventData.eventList || [];
+      let processedEvents = []; // 💡 스코프 오류 방지를 위해 밖으로 분리
       
       if (finalEvents.length > 0) {
-        let processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+        processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
         eventHtml = window.generateEventBadgesHTML(processedEvents, dateStr, 'compact');
       }
       
@@ -104,8 +105,13 @@ class MonthView extends window.BaseView {
 
       let dateColor = '#334155';
       const holidayName = window.getHolidayName(dateStr);
-      if (dayOfWeekNum === 0 || holidayName) dateColor = '#ef4444';
-      else if (dayOfWeekNum === 6) dateColor = '#3b82f6';
+      
+      // 💡 스마트 빨간날 판독 엔진 적용 (숫자/텍스트 모두 통일)
+      if (window.isRedDay(dateStr, processedEvents)) {
+          dateColor = '#ef4444';
+      } else if (dayOfWeekNum === 6) {
+          dateColor = '#3b82f6';
+      }
 
       const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
 
