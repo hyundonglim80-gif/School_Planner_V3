@@ -22,9 +22,12 @@ window.openGoogleSyncModal = async function() {
                 <h3 class="modal-item-text" style="margin-bottom: 10px;">1. 동기화 기간 선택</h3>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
                     <select id="sync-period-select" class="modal-input-text" style="width:100%; cursor:pointer; font-weight:bold; font-size:1.05rem;" onchange="window.handleSyncPeriodChange()">
+                        <option value="today">오늘</option>
+                        <option value="week">해당 주 (이번 주)</option>
+                        <option value="month">해당 월 (이번 달)</option>
                         <option value="sem1">1학기 전체</option>
                         <option value="sem2">2학기 전체</option>
-                        <option value="year">해당 학년도 전체</option>
+                        <option value="year" selected>해당 학년도 전체</option>
                         <option value="custom">기간 직접 설정</option>
                     </select>
                     <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
@@ -126,11 +129,31 @@ window.handleSyncPeriodChange = function() {
 
     const d = window.currentDate ? new Date(window.currentDate) : new Date();
     const y = d.getFullYear();
+    const m = d.getMonth();
 
-    let sDate = new Date();
-    let eDate = new Date();
+    let sDate = new Date(d);
+    let eDate = new Date(d);
 
-    if (val === 'sem1' || val === 'sem2' || val === 'year') {
+    if (val === 'custom') {
+        startInput.disabled = false;
+        endInput.disabled = false;
+        startInput.focus();
+        return;
+    } else {
+        startInput.disabled = true;
+        endInput.disabled = true;
+    }
+
+    if (val === 'today') {
+        // sDate, eDate는 위에서 이미 오늘(d)로 초기화 됨
+    } else if (val === 'week') {
+        const day = d.getDay();
+        sDate.setDate(d.getDate() - day);
+        eDate.setDate(sDate.getDate() + 6);
+    } else if (val === 'month') {
+        sDate = new Date(y, m, 1);
+        eDate = new Date(y, m + 1, 0);
+    } else if (val === 'sem1' || val === 'sem2' || val === 'year') {
         let datesInfo = {
             sem1Start: `${y}-03-01`, sem1End: `${y}-08-15`,
             sem2Start: `${y}-08-16`, sem2End: `${y+1}-02-28`
@@ -151,16 +174,8 @@ window.handleSyncPeriodChange = function() {
         }
     }
 
-    if (val === 'custom') {
-        startInput.disabled = false;
-        endInput.disabled = false;
-        startInput.focus();
-    } else {
-        startInput.value = window.formatDate(sDate);
-        endInput.value = window.formatDate(eDate);
-        startInput.disabled = true;
-        endInput.disabled = true;
-    }
+    startInput.value = window.formatDate(sDate);
+    endInput.value = window.formatDate(eDate);
 };
 
 async function googleFetch(url, method, token, body = null) {
@@ -244,11 +259,9 @@ window.executeGoogleExport = async function() {
         if (syncEvent || syncClass || syncJournal) {
             updateProgress("🔍 데이터 변경 사항 분석 중 (초고속)...", 20);
 
-            // 💡 [핵심] 과거 동기화 메타 데이터 불러오기
             const syncMetaDoc = await window.getUserCol('settings').doc('google_sync_meta').get();
             let syncMeta = syncMetaDoc.exists ? syncMetaDoc.data().dateSyncTimes || {} : {};
 
-            // 💡 [핵심] 하루씩 불러오지 않고 지정 기간의 모든 데이터를 단 3번의 요청으로 한 번에 가져옴
             const [eSnap, sSnap, jSnap] = await Promise.all([
                 window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get(),
                 window.getUserCol('schedules').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get(),
@@ -273,9 +286,9 @@ window.executeGoogleExport = async function() {
 
                 let needsSync = false;
                 if (maxTime > lastSync) {
-                    needsSync = true; // 1. 마지막 동기화 이후로 뭔가 수정됨
+                    needsSync = true;
                 } else if (maxTime === 0 && lastSync > 0) {
-                    needsSync = true; // 2. 과거에 동기화했는데 지금은 DB가 텅 비었음 (구글 캘린더도 지워줘야 함)
+                    needsSync = true;
                 }
 
                 if (needsSync) {
@@ -286,7 +299,7 @@ window.executeGoogleExport = async function() {
 
             const total = datesToSync.length;
             if (total === 0) {
-                finishProgress("🎉 변경된 데이터가 없어 동기화를 0.1초 만에 건너뛰었습니다! (초고속)");
+                finishProgress("🎉 변경된 데이터가 없어 동기화를 건너뜁니다!");
                 return;
             }
 
@@ -295,14 +308,13 @@ window.executeGoogleExport = async function() {
 
             for (let i = 0; i < total; i++) {
                 const item = datesToSync[i];
-                updateProgress(`📅 변경된 날짜만 구글에 올리는 중... (${item.dateStr}) [${i+1}/${total}]`, 20 + (80 * ((i+1)/total)));
+                updateProgress(`📅 변경된 날짜 구글 동기화 중... (${item.dateStr}) [${i+1}/${total}]`, 20 + (80 * ((i+1)/total)));
                 
                 await syncSingleDateDataToCalendar(token, calId, item.dateStr, item.eData, item.sData, item.jData, syncEvent, syncClass, syncJournal);
                 
                 syncMeta[item.dateStr] = Date.now();
                 batchUpdateMeta = true;
                 
-                // 중간중간 안전을 위해 메타데이터 저장
                 if (i > 0 && i % 20 === 0) {
                     await window.getUserCol('settings').doc('google_sync_meta').set({ dateSyncTimes: syncMeta }, { merge: true });
                 }
@@ -320,7 +332,7 @@ window.executeGoogleExport = async function() {
 };
 
 // ==========================================================================
-// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직 (기존과 동일)
+// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직
 // ==========================================================================
 window.executeGoogleImport = async function() {
     const token = await window.getValidGoogleToken();
@@ -637,7 +649,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 💡 [핵심] 데이터를 파라미터로 직접 받아와서 동기화 처리 (DB 조회 삭제로 속도 극대화)
+// 💡 [핵심] V4 ID기반 라벨 완벽 호환 + 일정 -> 시간표 -> 기록 순서 보장 + 빈칸 덮어쓰기
 async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData, jData, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
@@ -646,16 +658,27 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
     const endStr = window.formatDate(d);
 
     let seq = 1; 
-    // 구글 캘린더에서 완벽하게 "일정 -> 시간표 -> 기록" 순서를 보장해주는 마법의 정렬 태그
     const getInvisiblePrefix = (num) => {
         return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
     };
 
-    // 1. 일정
+    const masterEventLabels = window.getEventLabels ? window.getEventLabels() : [];
+    const masterJournalLabels = window.getJournalLabels ? window.getJournalLabels() : [];
+
+    // 1️⃣ [1순위] 일정 (Events)
     if (incEvent && eData && eData.eventList) {
         const list = eData.eventList.filter(e => e.content && e.content.trim() !== '' && e.source !== 'google' && e.source !== 'holiday');
         list.forEach(e => {
-            let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
+            let labelStr = '일정';
+            if (e.labelIds && e.labelIds.length > 0) {
+                const matched = masterEventLabels.find(l => l.id === e.labelIds[0]);
+                if (matched) labelStr = matched.name;
+            } else if (e.labels && e.labels.length > 0) {
+                labelStr = e.labels[0];
+            } else if (e.label) {
+                labelStr = e.label;
+            }
+
             let invisiblePrefix = getInvisiblePrefix(seq++);
             payloadsToCreate.push({
                 summary: `${invisiblePrefix}[${labelStr}] ${e.content}`,
@@ -667,7 +690,7 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
-    // 2. 시간표
+    // 2️⃣ [2순위] 시간표 (Class)
     if (incClass && sData && sData.periods) {
         const periods = sData.periods;
         let periodCount = window.periodNames ? window.periodNames.length : 6;
@@ -692,11 +715,20 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         }
     }
 
-    // 3. 기록
+    // 3️⃣ [3순위] 기록 (Journal)
     if (incJournal && jData && jData.entries) {
         const journals = jData.entries.filter(j => j.content && j.content.trim() !== '');
         journals.forEach(j => {
-            let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
+            let labelStr = '기록';
+            if (j.labelIds && j.labelIds.length > 0) {
+                const matched = masterJournalLabels.find(l => l.id === j.labelIds[0]);
+                if (matched) labelStr = matched.name;
+            } else if (j.labels && j.labels.length > 0) {
+                labelStr = j.labels[0];
+            } else if (j.label) {
+                labelStr = j.label;
+            }
+
             let invisiblePrefix = getInvisiblePrefix(seq++);
             let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
             
@@ -710,16 +742,16 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
-    // 구글 캘린더에 저장된 기존 SP3 데이터 지우기 (빈칸 동기화를 위해 필수)
+    // 💡 [핵심] 기존 구글 캘린더의 해당 날짜 데이터 검색 및 전체 삭제 (빈칸 덮어쓰기)
     const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=app%3DSchoolPlannerV3&privateExtendedProperty=dateStr%3D${dateStr}`;
     const searchResult = await googleFetch(searchUrl, 'GET', token);
     const existingEvents = searchResult.items || [];
 
-    // 만약 SP3 내용이 비어있다면 payloadsToCreate가 0개이므로 삭제만 하고 끝남 -> 완벽한 빈칸 동기화!
     for (const ev of existingEvents) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
 
+    // 💡 새 조립 데이터 추가
     for (const payload of payloadsToCreate) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, 'POST', token, payload);
         await new Promise(res => setTimeout(res, 50)); 
