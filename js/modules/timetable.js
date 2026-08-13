@@ -12,18 +12,19 @@ const TimetableModule = {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
     const dayLabels = ['월', '화', '수', '목', '금'];
     
-    // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)
-/*    
+    // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)  
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
           <th style="padding:10px; color:#475569; width:110px; border-right:1px solid #e2e8f0;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span></span>
+/*                
               <div style="display:flex; gap:4px;">
                 <button onclick="TimetableModule.addRow()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="교시 추가">+</button>
                 <button onclick="TimetableModule.removeRow()" style="background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1rem; padding:0;" title="맨 아래 삭제">-</button>
               </div>
+*/              
             </div>
           </th>
           ${dayLabels.map(d => `<th style="padding:10px; color:#475569;">${d}</th>`).join('')}
@@ -46,7 +47,6 @@ const TimetableModule = {
       tableHtml += `</tr>`;
     });
     tableHtml += `</tbody></table>`;
-*/
 
     // 💡 등록된 템플릿 목록 불러오기
     let templateOptions = '';
