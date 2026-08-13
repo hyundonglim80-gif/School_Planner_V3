@@ -40,13 +40,14 @@ class WeekView extends window.BaseView {
       const dayData = await window.dbAPI.loadDayData(d.dateStr);
       const eventDoc = await window.getUserCol('events').doc(d.dateStr).get();
       let eventHtml = '<span style="color:#94a3b8;">-</span>';
+      let processedEvents = [];
       
       if (eventDoc.exists) {
         const eData = eventDoc.data();
         const finalEvents = eData.eventList || [];
         
         if (finalEvents.length > 0) {
-            let processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+            processedEvents = finalEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
             eventHtml = window.generateEventBadgesHTML(processedEvents, d.dateStr); 
         }
       }
@@ -55,26 +56,15 @@ class WeekView extends window.BaseView {
       const isToday = (d.dateStr === realTodayStr);
       const todayClass = isToday ? 'week-today-cell' : '';
 
+      // 💡 [수정] utils.js의 스마트 빨간날 판독 엔진 적용!
       let dateColor = '#1e40af';
-      const holidayName = window.getHolidayName(d.dateStr);
-      
-      // 해당 날짜의 일정 목록에서 isSkip(수업삭제/휴일) 속성 가진 라벨이 있는지 확인
-      const dayEvents = window[`tempEvents_${d.dateStr}`] || [];
-      const masterLabels = window.getEventLabels();
-      const hasSkipLabel = dayEvents.some(ev => {
-          const ids = ev.labelIds || [];
-          return ids.some(id => {
-              const lObj = masterLabels.find(l => l.id === id);
-              return lObj && lObj.isSkip;
-          });
-      });
-
-      if (d.dayOfWeekNum === 0 || holidayName || hasSkipLabel) {
-          dateColor = '#ef4444'; // 일요일, 공식 공휴일, [휴일] 라벨 지정일은 모두 빨간색!
+      if (window.isRedDay(d.dateStr, processedEvents)) {
+          dateColor = '#ef4444'; // 휴일 라벨이나 일요일, 공휴일이면 무조건 빨간색
       } else if (d.dayOfWeekNum === 6) {
-          dateColor = '#3b82f6'; // 토요일 파란색
+          dateColor = '#3b82f6'; // 토요일
       }
 
+      const holidayName = window.getHolidayName(d.dateStr);
       const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
 
       html += `
@@ -116,7 +106,7 @@ class WeekView extends window.BaseView {
 
     let html = `<div class="table-container"><table><tbody>`;
     const realTodayStr = window.formatDate(new Date());
-    const masterLabels = window.getEventLabels(); // 💡 마스터 라벨 참조
+    const masterLabels = window.getEventLabels(); 
 
     for (const d of this.getWeekDates()) {
       const dayData = await window.dbAPI.loadDayData(d.dateStr);
@@ -128,7 +118,6 @@ class WeekView extends window.BaseView {
         eventList = eData.eventList || [];
       }
       
-      // 💡 [핵심] 옛날 일정들도 에디터에서 라벨이 정상적으로 켜져 보이게 복구
       window[`tempEvents_${d.dateStr}`] = eventList.map(e => {
           let labelIds = e.labelIds || [];
           if (labelIds.length === 0 && (e.labels || e.label)) {
@@ -151,26 +140,15 @@ class WeekView extends window.BaseView {
       const isToday = (d.dateStr === realTodayStr);
       const todayClass = isToday ? 'week-today-cell' : '';
 
+      // 💡 [수정] 에디터 화면에서도 빨간날이 정상 표출되도록 스마트 검사 연동!
       let dateColor = '#1e40af';
-      const holidayName = window.getHolidayName(d.dateStr);
-      
-      // 해당 날짜의 일정 목록에서 isSkip(수업삭제/휴일) 속성 가진 라벨이 있는지 확인
-      const dayEvents = window[`tempEvents_${d.dateStr}`] || [];
-      const masterLabels = window.getEventLabels();
-      const hasSkipLabel = dayEvents.some(ev => {
-          const ids = ev.labelIds || [];
-          return ids.some(id => {
-              const lObj = masterLabels.find(l => l.id === id);
-              return lObj && lObj.isSkip;
-          });
-      });
-
-      if (d.dayOfWeekNum === 0 || holidayName || hasSkipLabel) {
-          dateColor = '#ef4444'; // 일요일, 공식 공휴일, [휴일] 라벨 지정일은 모두 빨간색!
+      if (window.isRedDay(d.dateStr, window[`tempEvents_${d.dateStr}`])) {
+          dateColor = '#ef4444';
       } else if (d.dayOfWeekNum === 6) {
-          dateColor = '#3b82f6'; // 토요일 파란색
+          dateColor = '#3b82f6';
       }
 
+      const holidayName = window.getHolidayName(d.dateStr);
       const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
 
       html += `
@@ -266,6 +244,24 @@ class WeekView extends window.BaseView {
       return html;
   }
 
+  // 💡 [핵심 버그 수정] 화면을 새로 그리기 전에 사용자가 타이핑하던 텍스트를 메모리에 저장해두는 방어 함수!
+  syncCompactEventInputs(dateStr) {
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      if (!container) return;
+      const textareas = container.querySelectorAll('textarea');
+      textareas.forEach((ta, idx) => {
+          if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][idx]) {
+              window[`tempEvents_${dateStr}`][idx].content = ta.value;
+          }
+      });
+  }
+
+  // 전체 화면 강제 동기화 헬퍼
+  syncAllCompactEventInputs() {
+      const dates = this.getWeekDates();
+      dates.forEach(d => this.syncCompactEventInputs(d.dateStr));
+  }
+
   syncScheduleInputs() {
       const scheduleRows = document.querySelectorAll(`tr[data-week-schedule-date]`);
       scheduleRows.forEach(row => {
@@ -291,6 +287,7 @@ class WeekView extends window.BaseView {
   }
 
   toggleCompactEventLabel(dateStr, idx, labelId) {
+      this.syncCompactEventInputs(dateStr); // 먼저 입력값 저장!
       window.hasUnsavedChanges = true;
       const ev = window[`tempEvents_${dateStr}`][idx];
       if (!ev) return;
@@ -311,6 +308,7 @@ class WeekView extends window.BaseView {
   }
 
   addCompactEvent(dateStr) {
+      this.syncCompactEventInputs(dateStr); // 💡 새로 추가하기 전에 입력값 날아감 방지!
       window.hasUnsavedChanges = true;
       if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
       window[`tempEvents_${dateStr}`].push({ labelIds: [], content: '', completed: false });
@@ -318,6 +316,7 @@ class WeekView extends window.BaseView {
   }
 
   requestRemoveCompactEvent(dateStr, idx) {
+      this.syncCompactEventInputs(dateStr); // 💡 삭제 시에도 텍스트 날아감 방지!
       const ev = window[`tempEvents_${dateStr}`][idx];
       const isGrouped = !!ev.groupId; 
       
@@ -350,6 +349,8 @@ class WeekView extends window.BaseView {
 
   save() {
     this.syncScheduleInputs();
+    this.syncAllCompactEventInputs(); // 💡 저장 버튼 누를 때 최종적으로 모든 텍스트 완벽 동기화
+    
     const datesToSave = this.getWeekDates(); 
 
     const snapshot = datesToSave.map(d => {
@@ -398,6 +399,7 @@ window.renderWeekEditor = (container) => { window.weekViewInstance.container = c
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
 
 window.handleCompactLabelClick = async function(dateStr, idx, labelId) {
+    if (window.weekViewInstance) window.weekViewInstance.syncCompactEventInputs(dateStr);
     window.hasUnsavedChanges = true;
     const ev = window[`tempEvents_${dateStr}`][idx];
     if (!ev) return;
