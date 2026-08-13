@@ -187,14 +187,14 @@ class MemoView extends window.BaseView {
   }
 
   async renderViewer() {
-    // 💡 추가된 부분: 메모 페이지 진입 시 상단의 '할 일 및 메모' 문구와 그 아래 두 번째 줄(서브타이틀) 문구를 지워줍니다.
+    // 💡 메모 페이지 진입 시 타이틀과 서브타이틀 숨김 처리
     setTimeout(() => {
         const headers = document.querySelectorAll('h1, h2, h3, .page-title, #page-title, .title');
         headers.forEach(el => {
             if (el.textContent && el.textContent.includes('할 일 및 메모')) {
-                el.textContent = ''; // 첫 번째 줄 문구 강제 삭제
+                el.textContent = ''; 
                 if (el.nextElementSibling) {
-                    el.nextElementSibling.textContent = ''; // 두 번째 줄 문구 강제 삭제
+                    el.nextElementSibling.textContent = ''; 
                 }
             }
         });
@@ -223,7 +223,6 @@ class MemoView extends window.BaseView {
     let activeMemos = filteredMemos.filter(m => !m.completed).sort((a, b) => a.order - b.order);
     let completedMemos = filteredMemos.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
-    // 라벨별 메모 개수 계산
     const allCount = this.memoItems.length;
     const labelCounts = {};
     this.AVAILABLE_LABELS.forEach(l => {
@@ -242,7 +241,6 @@ class MemoView extends window.BaseView {
         `;
     }
 
-    // 💡 [수정] 좌측 라벨 필터의 가로 길이 축소 (flex-basis 및 max-width 감소)
     let html = `
       <div style="max-width:1050px; margin:0 auto; display:flex; flex-direction:column; gap:20px;">
         
@@ -482,7 +480,7 @@ class MemoView extends window.BaseView {
     try {
         await window.dbAPI.addMemo(newMemo); 
         this.pendingImageUrl = null;
-        window.hasUnsavedChanges = false; // 저장 완료 시 unsaved 상태 해제
+        window.hasUnsavedChanges = false; 
         this.renderViewer(); 
     } catch(e) {
         console.error("메모 추가 오류:", e);
@@ -525,7 +523,6 @@ class MemoView extends window.BaseView {
     }
   }
 
-  // 💡 [핵심] 페이지 전환 시 자동 저장 연동
   async save() {
     const input = document.getElementById("memo-input-text");
     if (input && (input.value.trim() !== '' || this.pendingImageUrl)) {
