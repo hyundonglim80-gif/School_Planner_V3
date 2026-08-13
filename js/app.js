@@ -87,25 +87,33 @@ window.goToToday = function() {
 // ⚙️ 환경 설정
 // ==========================================================================
 window.periodNames = ["1", "2", "3", "4", "5", "6"];
-window.tempPeriodNames = [];
+window.semesterConfig = {}; 
+window.timetableTemplates = {};
 
 window.loadSettings = async function() { 
     try { 
+        // 1. 일반 Preferences 로드
         const doc = await window.getUserCol('settings').doc('preferences').get(); 
         if (doc.exists) { 
             const data = doc.data();
-            if (data.periodNames && data.periodNames.length > 0) {
-                window.periodNames = data.periodNames; 
-            } else { 
-                window.periodNames = ["1", "2", "3", "4", "5", "6"];
-            } 
             window.dDayList = data.dDayList || [];
             window.selectedDDayId = data.selectedDDayId || null;
-            window.updateDdayUI();
+            if (window.updateDdayUI) window.updateDdayUI();
         } else {
-            window.periodNames = ["1", "2", "3", "4", "5", "6"];
             window.dDayList = [];
             window.selectedDDayId = null;
+        }
+
+        // 💡 2. 새로운 올인원 시간표/학사일정 데이터 로드
+        const ttDoc = await window.getUserCol('settings').doc('timetable_v5').get();
+        if (ttDoc.exists) {
+            const ttData = ttDoc.data();
+            window.semesterConfig = ttData.semesterConfig || {};
+            window.timetableTemplates = ttData.templates || {};
+            window.periodNames = ttData.currentNames || ["1", "2", "3", "4", "5", "6"];
+        } else {
+            // 과거 호환용
+            if (doc.exists && doc.data().periodNames) window.periodNames = doc.data().periodNames;
         }
 
         const labelDoc = await window.getUserCol('settings').doc('labels').get(); 
@@ -122,7 +130,6 @@ window.loadSettings = async function() {
             }
         }
         
-        // 💡 [수정 완료] 라벨 설정 로딩까지만 정상 수행하고 종료 (불필요한 공휴일 API 자동 호출 코드 삭제)
         window.getEventLabels();
         window.getJournalLabels();
         
@@ -242,6 +249,24 @@ function updateButtonUI() {
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
+  // 💡 [수정 1] 메모 뷰일 때 상단의 이전/오늘/다음 이동 화살표 숨기기
+  const dateNavContainer = document.getElementById('date-range-text')?.parentElement;
+  if (dateNavContainer) {
+      const prevBtn = dateNavContainer.querySelector('button[onclick*="moveDate(-1)"]');
+      const nextBtn = dateNavContainer.querySelector('button[onclick*="moveDate(1)"]');
+      const todayBtn = dateNavContainer.querySelector('button[onclick*="goToToday"]');
+      
+      if (currentScope === 'memo') {
+          if (prevBtn) prevBtn.style.display = 'none';
+          if (nextBtn) nextBtn.style.display = 'none';
+          if (todayBtn) todayBtn.style.display = 'none';
+      } else {
+          if (prevBtn) prevBtn.style.display = 'inline-block';
+          if (nextBtn) nextBtn.style.display = 'inline-block';
+          if (todayBtn) todayBtn.style.display = 'inline-block';
+      }
+  }
+
   if (viewerBtn && editorBtn) {
     viewerBtn.className = currentMode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
 
@@ -271,7 +296,6 @@ window.saveCurrentViewData = function(silent = false) {
   window.hasUnsavedChanges = false; 
   const scopeToSave = currentScope;
 
-  // 1. 메모리 캡처 전, 혹시 모를 입력창 텍스트 유실을 막기 위해 모든 입력값 강제 동기화
   try {
       if (scopeToSave === 'day' && window.dayViewInstance) {
           if(typeof window.dayViewInstance.syncEventInputs === 'function') window.dayViewInstance.syncEventInputs();
@@ -279,6 +303,7 @@ window.saveCurrentViewData = function(silent = false) {
           if(typeof window.dayViewInstance.syncScheduleInputs === 'function') window.dayViewInstance.syncScheduleInputs();
       } else if (scopeToSave === 'week' && window.weekViewInstance && typeof window.weekViewInstance.syncScheduleInputs === 'function') {
           window.weekViewInstance.syncScheduleInputs();
+          if(typeof window.weekViewInstance.syncAllCompactEventInputs === 'function') window.weekViewInstance.syncAllCompactEventInputs(); // 💡 새로 추가될 버그 픽스 함수
       } else if (scopeToSave === 'month' && window.monthViewInstance && typeof window.monthViewInstance.syncScheduleInputs === 'function') {
           window.monthViewInstance.syncScheduleInputs();
       } else if (scopeToSave === 'year' && window.yearViewInstance && typeof window.yearViewInstance.syncScheduleInputs === 'function') {
@@ -314,9 +339,6 @@ window.saveCurrentViewData = function(silent = false) {
           console.error("🚨 백그라운드 저장 에러:", e);
       }
   }, 0);
-  
-  // 💡 [핵심 버그 수정] 에디터 상태에서 저장 버튼을 눌렀을 때는 절대로 DB를 재호출(render)하지 않습니다!
-  // 기존의 if (!silent && currentMode === 'editor') window.render(); 코드를 삭제하여 덮어씌움 현상 방지
 };
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -368,7 +390,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     window.auth.onAuthStateChanged(async user => {
       if (user) {
-        // 💡 [핵심] 로그인 처리 직후 안전하게 UI를 표출합니다.
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-info').style.display = 'flex';
         if (user.photoURL && document.getElementById('user-photo')) {
@@ -378,17 +399,14 @@ window.addEventListener('DOMContentLoaded', () => {
         try {
             await window.loadSettings();
             
-            // 🔥 여기서 utils.js의 자동 마이그레이션이 실행됩니다!
             if (window.autoCheckAndRunMigration) {
                 await window.autoCheckAndRunMigration();
             }
-            
             if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
         } catch (e) {
             console.error("초기 로딩 에러:", e);
         }
         
-        // 💡 모든 준비가 끝난 후 렌더링
         window.render();
         
         setTimeout(() => {
@@ -417,35 +435,21 @@ window.addEventListener('DOMContentLoaded', () => {
 // 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
+    // 기존 기능 동일 유지
     const todayStr = window.formatDate(new Date()); 
-    
     try {
         const pastDate = new Date(window.parseLocalDate(todayStr));
         pastDate.setDate(pastDate.getDate() - 365); 
-
-        const eventsSnap = await window.getUserCol('events')
-            .where(firebase.firestore.FieldPath.documentId(), '>=', window.formatDate(pastDate))
-            .get();
-
-        let eventsMap = {};
-        let allDates = [];
-        eventsSnap.forEach(doc => { 
-            eventsMap[doc.id] = doc.data(); 
-            allDates.push(doc.id); 
-        });
+        const eventsSnap = await window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>=', window.formatDate(pastDate)).get();
+        let eventsMap = {}; let allDates = [];
+        eventsSnap.forEach(doc => { eventsMap[doc.id] = doc.data(); allDates.push(doc.id); });
         
         if (!allDates.includes(todayStr)) allDates.push(todayStr);
         allDates.sort();
 
-        let activeChains = new Set();
-        let chainEventData = {}; 
-        let changedDocs = new Set();
-
-        const minDateStr = allDates[0] || todayStr;
-        const maxDateStr = allDates[allDates.length - 1];
-
-        let curD = window.parseLocalDate(minDateStr);
-        let endD = window.parseLocalDate(maxDateStr);
+        let activeChains = new Set(); let chainEventData = {}; let changedDocs = new Set();
+        const minDateStr = allDates[0] || todayStr; const maxDateStr = allDates[allDates.length - 1];
+        let curD = window.parseLocalDate(minDateStr); let endD = window.parseLocalDate(maxDateStr);
 
         while (curD <= endD) {
             const curStr = window.formatDate(curD);
@@ -454,65 +458,40 @@ window.autoForwardIncompleteEvents = async function() {
 
             let curData = eventsMap[curStr] || { eventList: [] };
             let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
-            let newCurList = [];
-            let curChanged = false;
+            let newCurList = []; let curChanged = false;
 
             curList.forEach(ev => {
-                // ID 기반 지원
                 let canComplete = false;
-                if (ev.labelIds && ev.labelIds.length > 0) {
-                    canComplete = ev.labelIds.some(id => window.isForwardLabel(id));
-                } else if (ev.labels || ev.label) {
+                if (ev.labelIds && ev.labelIds.length > 0) { canComplete = ev.labelIds.some(id => window.isForwardLabel(id)); } 
+                else if (ev.labels || ev.label) {
                     const lName = (ev.labels && ev.labels.length > 0) ? ev.labels[0] : ev.label;
                     const lObj = window.getEventLabels().find(x => x.name === lName);
                     canComplete = lObj ? lObj.isForward : false;
                 }
                 
                 const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
-                if (ev.content !== cleanContent) {
-                    ev.content = cleanContent;
-                    curChanged = true;
-                }
+                if (ev.content !== cleanContent) { ev.content = cleanContent; curChanged = true; }
 
                 const isOrigin = !ev.originalDate || ev.originalDate === curStr;
 
                 if (isOrigin) {
                     if (canComplete) {
-                        if (!ev.forwardChainId) {
-                            ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                            curChanged = true;
-                        }
-                        if (!ev.originalDate) {
-                            ev.originalDate = curStr;
-                            curChanged = true;
-                        }
+                        if (!ev.forwardChainId) { ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); curChanged = true; }
+                        if (!ev.originalDate) { ev.originalDate = curStr; curChanged = true; }
                         
-                        if (ev.completed) {
-                            activeChains.delete(ev.forwardChainId);
-                        } else {
-                            activeChains.add(ev.forwardChainId);
-                            chainEventData[ev.forwardChainId] = { ...ev }; 
-                        }
+                        if (ev.completed) { activeChains.delete(ev.forwardChainId); } 
+                        else { activeChains.add(ev.forwardChainId); chainEventData[ev.forwardChainId] = { ...ev }; }
                         newCurList.push(ev);
                     } else {
-                        if (ev.forwardChainId) {
-                            delete ev.forwardChainId;
-                            delete ev.originalDate;
-                            curChanged = true;
-                        }
+                        if (ev.forwardChainId) { delete ev.forwardChainId; delete ev.originalDate; curChanged = true; }
                         newCurList.push(ev);
                     }
                 } else {
                     if (activeChains.has(ev.forwardChainId)) {
-                        if (ev.completed) {
-                            activeChains.delete(ev.forwardChainId);
-                        } else {
-                            chainEventData[ev.forwardChainId] = { ...ev }; 
-                        }
+                        if (ev.completed) { activeChains.delete(ev.forwardChainId); } 
+                        else { chainEventData[ev.forwardChainId] = { ...ev }; }
                         newCurList.push(ev);
-                    } else {
-                        curChanged = true;
-                    }
+                    } else { curChanged = true; }
                 }
             });
 
@@ -526,13 +505,8 @@ window.autoForwardIncompleteEvents = async function() {
                     if (!existsInNext) {
                         const sourceEv = chainEventData[chainId];
                         nextList.unshift({
-                            labelIds: [...(sourceEv.labelIds || [])],
-                            label: sourceEv.label || '',
-                            labels: [...(sourceEv.labels || [])],
-                            content: sourceEv.content,
-                            completed: false, 
-                            forwardChainId: chainId,
-                            originalDate: sourceEv.originalDate
+                            labelIds: [...(sourceEv.labelIds || [])], label: sourceEv.label || '', labels: [...(sourceEv.labels || [])],
+                            content: sourceEv.content, completed: false, forwardChainId: chainId, originalDate: sourceEv.originalDate
                         });
                         nextChanged = true;
                     }
@@ -541,27 +515,17 @@ window.autoForwardIncompleteEvents = async function() {
 
             if (curList.length !== newCurList.length) curChanged = true;
 
-            if (curChanged) {
-                eventsMap[curStr] = { ...curData, eventList: newCurList };
-                changedDocs.add(curStr);
-            }
-            if (nextChanged) {
-                eventsMap[nextStr] = { ...nextData, eventList: nextList };
-                changedDocs.add(nextStr);
-            }
+            if (curChanged) { eventsMap[curStr] = { ...curData, eventList: newCurList }; changedDocs.add(curStr); }
+            if (nextChanged) { eventsMap[nextStr] = { ...nextData, eventList: nextList }; changedDocs.add(nextStr); }
         }
 
-        let batch = window.db.batch();
-        let opCount = 0;
-        let batchPromises = [];
+        let batch = window.db.batch(); let opCount = 0; let batchPromises = [];
         
         changedDocs.forEach(dateStr => {
             const docRef = window.getUserCol('events').doc(dateStr);
             const evList = eventsMap[dateStr].eventList;
             const updateData = { eventList: evList, updatedAt: Date.now() };
-            if (window.formatEventListToText) {
-                updateData.eventText = window.formatEventListToText(evList); 
-            }
+            if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(evList); 
             batch.set(docRef, updateData, { merge: true });
             opCount++;
             if (opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
@@ -570,9 +534,7 @@ window.autoForwardIncompleteEvents = async function() {
         if (opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
 
-    } catch(e) {
-        console.error("자동 이월 처리 중 에러:", e);
-    }
+    } catch(e) { console.error("자동 이월 처리 에러:", e); }
 };
 
 window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, chainId, onConfirm) {
@@ -580,16 +542,10 @@ window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, ch
     <div id="forward-delete-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
         <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
             <h3 style="color:#ef4444; margin-top:0;">🗑️ 이월 일정 삭제</h3>
-            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
-                이 일정은 <b>'완료(이월)'</b> 속성으로 과거에서 넘어온 일정입니다.<br>어떻게 삭제하시겠습니까?
-            </p>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">이 일정은 <b>'완료(이월)'</b> 속성으로 과거에서 넘어온 일정입니다.<br>어떻게 삭제하시겠습니까?</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="btn-fwd-del-stop" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left; line-height:1.4;">
-                    오늘부터 삭제 및 이월 중단<br><span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(과거의 기록은 보존됩니다)</span>
-                </button>
-                <button id="btn-fwd-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left; line-height:1.4;">
-                    원본 포함 모든 기록 삭제<br><span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(최초 작성된 원본까지 모두 지웁니다)</span>
-                </button>
+                <button id="btn-fwd-del-stop" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left; line-height:1.4;">오늘부터 삭제 및 이월 중단<br><span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(과거의 기록은 보존됩니다)</span></button>
+                <button id="btn-fwd-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left; line-height:1.4;">원본 포함 모든 기록 삭제<br><span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(최초 작성된 원본까지 모두 지웁니다)</span></button>
                 <button onclick="document.getElementById('forward-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
             </div>
         </div>
@@ -600,7 +556,6 @@ window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, ch
         if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('stop', baseDateStr, chainId, onConfirm);
     };
-    
     document.getElementById('btn-fwd-del-all').onclick = async () => {
         if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
         window.executeForwardDelete('all', baseDateStr, chainId, onConfirm);
@@ -608,22 +563,17 @@ window.showForwardDeleteModal = function(baseDateStr, labelName, textContent, ch
 };
 
 window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfirm) {
-    document.getElementById('forward-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 일정 삭제 및 동기화 중...</div>`;
-    
+    document.getElementById('forward-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 삭제 및 동기화 중...</div>`;
     const matchEvent = (e) => e.forwardChainId === chainId;
 
     try {
         const snap = await window.getUserCol('events').get();
-        
         let maxPastDateStr = '';
         if (mode === 'stop') {
             snap.forEach(doc => {
                 if (doc.id < baseDateStr) {
-                    const data = doc.data();
-                    const list = data.eventList || (data.eventText ? window.parseRawEventTextToEventList(data.eventText) : []);
-                    if (list.some(matchEvent)) {
-                        if (doc.id > maxPastDateStr) maxPastDateStr = doc.id;
-                    }
+                    const list = doc.data().eventList || (doc.data().eventText ? window.parseRawEventTextToEventList(doc.data().eventText) : []);
+                    if (list.some(matchEvent)) { if (doc.id > maxPastDateStr) maxPastDateStr = doc.id; }
                 }
             });
         }
@@ -638,23 +588,16 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
         Object.keys(window).forEach(key => {
             if (key.startsWith('tempEvents_')) {
                 const dStr = key.replace('tempEvents_', '');
-                if (mode === 'all' || dStr >= baseDateStr) {
-                    window[key] = window[key].filter(e => !matchEvent(e));
-                } else if (mode === 'stop' && dStr === maxPastDateStr) {
-                    window[key].forEach(e => { if (matchEvent(e)) e.completed = true; });
-                }
+                if (mode === 'all' || dStr >= baseDateStr) { window[key] = window[key].filter(e => !matchEvent(e)); } 
+                else if (mode === 'stop' && dStr === maxPastDateStr) { window[key].forEach(e => { if (matchEvent(e)) e.completed = true; }); }
             }
         });
 
-        let batch = window.db.batch();
-        let count = 0;
-        let batchPromises = []; 
+        let batch = window.db.batch(); let count = 0; let batchPromises = []; 
         
         snap.forEach(doc => {
-            const data = doc.data();
-            let list = data.eventList || [];
-            const origLen = list.length;
-            let changed = false;
+            let list = doc.data().eventList || [];
+            const origLen = list.length; let changed = false;
             
             if (mode === 'all') {
                 list = list.filter(e => !matchEvent(e));
@@ -664,58 +607,35 @@ window.executeForwardDelete = async function(mode, baseDateStr, chainId, onConfi
                     list = list.filter(e => !matchEvent(e));
                     if (list.length !== origLen) changed = true;
                 } else if (doc.id === maxPastDateStr) {
-                    list.forEach(e => {
-                        if (matchEvent(e) && !e.completed) {
-                            e.completed = true;
-                            changed = true;
-                        }
-                    });
+                    list.forEach(e => { if (matchEvent(e) && !e.completed) { e.completed = true; changed = true; } });
                 }
             }
             
             if (changed) {
                 let updateData = { eventList: list, updatedAt: Date.now() };
-                if (window.formatEventListToText) {
-                    updateData.eventText = window.formatEventListToText(list);
-                }
+                if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(list);
                 batch.update(doc.ref, updateData);
                 count++;
-            }
-
-            if (count >= 400) {
-                batchPromises.push(batch.commit());
-                batch = window.db.batch();
-                count = 0;
+                if (count >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); count = 0; }
             }
         });
         if (count > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
-
-        if (window.autoForwardIncompleteEvents) {
-            await window.autoForwardIncompleteEvents();
-        }
-
-    } catch(e) {
-        console.error("이월 일정 삭제 오류:", e);
-    }
+        if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+    } catch(e) { console.error("이월 삭제 오류:", e); }
     
-    const modal = document.getElementById('forward-delete-modal');
-    if (modal) modal.remove();
+    if (document.getElementById('forward-delete-modal')) document.getElementById('forward-delete-modal').remove();
     if (onConfirm) onConfirm();
 };
 
 // ==========================================================================
-// 🚀 D-Day 기능 (표시, 계산, 드롭다운, 모달 관리)
+// 🚀 D-Day 기능 유지
 // ==========================================================================
-window.dDayList = [];
-window.selectedDDayId = null;
-
 window.toggleDdayMenu = function() {
     if (!window.dDayList || window.dDayList.length === 0) {
         window.openDdaySettingsModal();
         return;
     }
-
     const dropdown = document.getElementById('dday-dropdown');
     const listContainer = document.getElementById('dday-list-container');
     
@@ -750,45 +670,29 @@ window.selectDday = async function(id) {
     window.selectedDDayId = id;
     document.getElementById('dday-dropdown').classList.add('hidden');
     window.updateDdayUI();
-    
     if (window.auth && window.auth.currentUser) {
-        await window.getUserCol('settings').doc('preferences').set({
-            selectedDDayId: id
-        }, { merge: true });
+        await window.getUserCol('settings').doc('preferences').set({ selectedDDayId: id }, { merge: true });
     }
 };
 
 window.updateDdayUI = function() {
     const btn = document.getElementById('btn-dday-display');
     if (!btn) return;
-
     if (!window.selectedDDayId || window.dDayList.length === 0) {
-        btn.textContent = "D-Day 설정";
-        btn.style.color = "#64748b";
-        btn.style.backgroundColor = "#f1f5f9";
-        btn.style.borderColor = "#cbd5e1";
-        return;
+        btn.textContent = "D-Day 설정"; btn.style.color = "#64748b"; btn.style.backgroundColor = "#f1f5f9"; btn.style.borderColor = "#cbd5e1"; return;
     }
-
     const selected = window.dDayList.find(d => d.id === window.selectedDDayId);
     if (selected) {
         const dDayText = window.calculateDday(selected.date);
-        btn.textContent = `${selected.title} ${dDayText}`;
-        btn.style.color = "#ef4444";
-        btn.style.backgroundColor = "#fef2f2";
-        btn.style.borderColor = "#fca5a5";
+        btn.textContent = `${selected.title} ${dDayText}`; btn.style.color = "#ef4444"; btn.style.backgroundColor = "#fef2f2"; btn.style.borderColor = "#fca5a5";
     }
 };
 
 window.calculateDday = function(targetDateStr) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); 
-    const targetDate = new Date(targetDateStr);
-    targetDate.setHours(0, 0, 0, 0);
-    
+    const today = new Date(); today.setHours(0, 0, 0, 0); 
+    const targetDate = new Date(targetDateStr); targetDate.setHours(0, 0, 0, 0);
     const diffTime = targetDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    
     if (diffDays === 0) return 'D-Day';
     if (diffDays > 0) return `D-${diffDays}`;
     return `D+${Math.abs(diffDays)}`;
@@ -814,11 +718,8 @@ window.openDdaySettingsModal = function() {
                     <input type="date" id="new-dday-date" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
                     <button onclick="window.addDday()" style="padding:8px 12px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">추가</button>
                 </div>
-                
                 <hr style="border:0; border-top:1px dashed #e2e8f0; margin-bottom:15px;">
-                
-                <div id="dday-settings-list" style="display:flex; flex-direction:column; gap:10px; max-height:250px; overflow-y:auto;">
-                </div>
+                <div id="dday-settings-list" style="display:flex; flex-direction:column; gap:10px; max-height:250px; overflow-y:auto;"></div>
             </div>
         </div>
     </div>`;
@@ -840,10 +741,7 @@ window.renderDdaySettingsList = function() {
     window.dDayList.forEach(dday => {
         listEl.innerHTML += `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;">
-            <div>
-                <span style="font-weight:bold; color:#1e293b; margin-right:8px;">${dday.title}</span>
-                <span style="font-size:0.85rem; color:#64748b;">${dday.date}</span>
-            </div>
+            <div><span style="font-weight:bold; color:#1e293b; margin-right:8px;">${dday.title}</span><span style="font-size:0.85rem; color:#64748b;">${dday.date}</span></div>
             <button onclick="window.deleteDday('${dday.id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:4px 8px;">삭제</button>
         </div>`;
     });
@@ -852,53 +750,29 @@ window.renderDdaySettingsList = function() {
 window.addDday = async function() {
     const titleInput = document.getElementById('new-dday-title');
     const dateInput = document.getElementById('new-dday-date');
-    const title = titleInput.value.trim();
-    const date = dateInput.value;
+    if (!titleInput.value.trim() || !dateInput.value) return alert("명칭과 날짜를 모두 입력해주세요.");
 
-    if (!title || !date) return alert("명칭과 날짜를 모두 입력해주세요.");
-
-    const newDday = {
-        id: 'dday_' + Date.now().toString(36),
-        title: title,
-        date: date
-    };
-
+    const newDday = { id: 'dday_' + Date.now().toString(36), title: titleInput.value.trim(), date: dateInput.value };
     window.dDayList.push(newDday);
-    
-    if (window.dDayList.length === 1) {
-        window.selectedDDayId = newDday.id;
-    }
+    if (window.dDayList.length === 1) window.selectedDDayId = newDday.id;
 
     await window.saveDdayDataToFirebase();
-    
-    titleInput.value = '';
-    dateInput.value = '';
-    window.renderDdaySettingsList();
-    window.updateDdayUI();
+    titleInput.value = ''; dateInput.value = '';
+    window.renderDdaySettingsList(); window.updateDdayUI();
 };
 
 window.deleteDday = async function(id) {
     if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
-    
     window.dDayList = window.dDayList.filter(d => d.id !== id);
     if (window.selectedDDayId === id) window.selectedDDayId = null;
-
     await window.saveDdayDataToFirebase();
-    window.renderDdaySettingsList();
-    window.updateDdayUI();
+    window.renderDdaySettingsList(); window.updateDdayUI();
 };
 
 window.saveDdayDataToFirebase = async function() {
     if (!window.auth || !window.auth.currentUser) return;
-    try {
-        await window.getUserCol('settings').doc('preferences').set({
-            dDayList: window.dDayList,
-            selectedDDayId: window.selectedDDayId
-        }, { merge: true });
-    } catch (e) {
-        console.error("D-Day 저장 실패", e);
-        alert("저장에 실패했습니다.");
-    }
+    try { await window.getUserCol('settings').doc('preferences').set({ dDayList: window.dDayList, selectedDDayId: window.selectedDDayId }, { merge: true }); } 
+    catch (e) { console.error("D-Day 저장 실패", e); alert("저장에 실패했습니다."); }
 };
 
 window.openPeriodModal = function(startDateStr, labelName, textContent, callback, labelId) {
@@ -911,20 +785,11 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
                 <input type="text" id="period-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="예: 여름방학">
             </div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
-                    <input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label>
-                    <input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;">
-                </div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label><input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;"></div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label><input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;"></div>
             </div>
             <div style="margin-bottom:25px; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
-                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;">
-                    <input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;">
-                    주말(토/일) 제외하고 계산하기
-                </label>
+                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;"> 주말(토/일) 제외하고 계산하기</label>
                 <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 등록됩니다.</p>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:10px;">
@@ -940,8 +805,7 @@ window.openPeriodModal = function(startDateStr, labelName, textContent, callback
 
 window.openRecurringModal = function(startDateStr, labelName, textContent, callback, labelId) {
     const startD = new Date(startDateStr);
-    const days = ['일', '월', '화', '수', '목', '금', '토'];
-    const dayName = days[startD.getDay()];
+    const dayName = ['일', '월', '화', '수', '목', '금', '토'][startD.getDay()];
 
     const modalHtml = `
     <div id="recur-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
@@ -953,14 +817,8 @@ window.openRecurringModal = function(startDateStr, labelName, textContent, callb
                 <input type="text" id="recur-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="예: 1학년 부장 회의">
             </div>
             <div style="display:flex; gap:10px; margin-bottom:25px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label>
-                    <input type="date" id="recur-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly>
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">반복 종료일</label>
-                    <input type="date" id="recur-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;">
-                </div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label><input type="date" id="recur-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly></div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">반복 종료일</label><input type="date" id="recur-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;"></div>
             </div>
             <div style="display:flex; justify-content:flex-end; gap:10px;">
                 <button id="btn-recur-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
@@ -976,22 +834,18 @@ window.openRecurringModal = function(startDateStr, labelName, textContent, callb
 window.executeGroupSave = async function(labelName, callback, mode, labelId) {
     const isPeriod = (mode === 'period');
     const prefix = isPeriod ? 'period' : 'recur';
-    
     const content = document.getElementById(`${prefix}-content`).value.trim();
     const startStr = document.getElementById(`${prefix}-start`).value;
     const endStr = document.getElementById(`${prefix}-end`).value;
     const excludeWeekend = isPeriod ? document.getElementById('period-exclude-weekend').checked : false;
 
     if(!content) return alert("일정 내용을 입력해주세요.");
-    const startD = new Date(startStr);
-    const endD = new Date(endStr);
+    const startD = new Date(startStr); const endD = new Date(endStr);
     if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
 
     document.getElementById(`${prefix}-modal`).innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
 
-    let datesToSave = [];
-    let curD = new Date(startD);
-    const targetDayOfWeek = startD.getDay();
+    let datesToSave = []; let curD = new Date(startD); const targetDayOfWeek = startD.getDay();
 
     while (curD <= endD) {
         if (isPeriod) {
@@ -1014,12 +868,10 @@ window.executeGroupSave = async function(labelName, callback, mode, labelId) {
         let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
         
         list.push({ 
-            labelIds: labelId ? [labelId] : [], // 💡 ID 저장 추가
-            label: labelName, 
-            labels: [labelName], 
+            labelIds: labelId ? [labelId] : [], 
+            label: labelName, labels: [labelName], 
             content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
-            completed: false,
-            groupId: groupId 
+            completed: false, groupId: groupId 
         });
         batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
     }
@@ -1035,19 +887,11 @@ window.showGroupDeleteModal = function(baseDateStr, labelIdOrName, textContent, 
     <div id="group-delete-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
         <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
             <h3 style="color:#ef4444; margin-top:0;">🗑️ 연결된 그룹 일정 삭제</h3>
-            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">
-                선택하신 일정은 <b>'반복 또는 기간'</b>으로 연결된 일정입니다.<br>어떻게 처리할까요?
-            </p>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">선택하신 일정은 <b>'반복 또는 기간'</b>으로 연결된 일정입니다.<br>어떻게 처리할까요?</p>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">
-                    1. 이 일정만 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span>
-                </button>
-                <button id="btn-del-after-this" style="padding:12px; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; cursor:pointer; font-weight:bold; color:#e11d48; text-align:left;">
-                    2. 이 날부터 이후 모든 연결된 일정 삭제
-                </button>
-                <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left;">
-                    3. 전체 그룹 일정 모두 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(과거 포함)</span>
-                </button>
+                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">1. 이 일정만 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span></button>
+                <button id="btn-del-after-this" style="padding:12px; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; cursor:pointer; font-weight:bold; color:#e11d48; text-align:left;">2. 이 날부터 이후 모든 연결된 일정 삭제</button>
+                <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left;">3. 전체 그룹 일정 모두 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(과거 포함)</span></button>
                 <button onclick="document.getElementById('group-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
             </div>
         </div>
@@ -1056,20 +900,9 @@ window.showGroupDeleteModal = function(baseDateStr, labelIdOrName, textContent, 
 
     const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
     
-    document.getElementById('btn-del-only-this').onclick = () => {
-        document.getElementById('group-delete-modal').remove();
-        if (onOnlyThisDay) onOnlyThisDay(); 
-    };
-
-    document.getElementById('btn-del-after-this').onclick = async () => {
-        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
-        await window.executeGroupDelete('after', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm);
-    };
-    
-    document.getElementById('btn-del-all').onclick = async () => {
-        if(window.hasUnsavedChanges) window.saveCurrentViewData(true);
-        await window.executeGroupDelete('all', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm);
-    };
+    document.getElementById('btn-del-only-this').onclick = () => { document.getElementById('group-delete-modal').remove(); if (onOnlyThisDay) onOnlyThisDay(); };
+    document.getElementById('btn-del-after-this').onclick = async () => { if(window.hasUnsavedChanges) window.saveCurrentViewData(true); await window.executeGroupDelete('after', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm); };
+    document.getElementById('btn-del-all').onclick = async () => { if(window.hasUnsavedChanges) window.saveCurrentViewData(true); await window.executeGroupDelete('all', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm); };
 };
 
 window.executeGroupDelete = async function(mode, baseDateStr, groupId, labelIdOrName, baseContent, onConfirm) {
@@ -1077,8 +910,7 @@ window.executeGroupDelete = async function(mode, baseDateStr, groupId, labelIdOr
     
     const matchEvent = (e) => {
         if (groupId && e.groupId) return e.groupId === groupId; 
-        const eLabelIds = e.labelIds || [];
-        const eLabels = e.labels || (e.label ? [e.label] : []);
+        const eLabelIds = e.labelIds || []; const eLabels = e.labels || (e.label ? [e.label] : []);
         const hasLabel = eLabelIds.includes(labelIdOrName) || eLabels.includes(labelIdOrName);
         const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
         return hasLabel && c === baseContent;
@@ -1101,9 +933,7 @@ window.executeGroupDelete = async function(mode, baseDateStr, groupId, labelIdOr
         if (mode === 'after') query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
         
         const snap = await query.get();
-        let batch = window.db.batch();
-        let count = 0;
-        let batchPromises = []; 
+        let batch = window.db.batch(); let count = 0; let batchPromises = []; 
         
         snap.forEach(doc => {
             const data = doc.data();
@@ -1118,18 +948,12 @@ window.executeGroupDelete = async function(mode, baseDateStr, groupId, labelIdOr
                 batch.update(doc.ref, updateData);
                 
                 count++;
-                if (count >= 400) {
-                    batchPromises.push(batch.commit());
-                    batch = window.db.batch();
-                    count = 0;
-                }
+                if (count >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); count = 0; }
             }
         });
         if (count > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
-    } catch(e) {
-        console.error("일괄 삭제 오류:", e);
-    }
+    } catch(e) { console.error("일괄 삭제 오류:", e); }
     
     document.getElementById('group-delete-modal').remove();
     if (onConfirm) onConfirm();
