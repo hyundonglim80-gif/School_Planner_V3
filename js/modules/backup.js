@@ -199,8 +199,8 @@ window.BackupManager = {
         const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
 
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
-        // 💡 아이디어 A 적용: 마지막 열에 '시스템데이터' 숨김 열 추가
-        const rows = [["날짜", "일정", ...pNames, "기록", "시스템데이터(수정금지)"]]; 
+        // 💡 오직 순수 텍스트만 저장 (깔끔한 엑셀/CSV 데이터 보장)
+        const rows = [["날짜", "일정", ...pNames, "기록"]]; 
 
         let curr = new Date(startStr);
         const end = new Date(endStr);
@@ -233,13 +233,6 @@ window.BackupManager = {
             }
             row.push(joText);
 
-            // 💡 시스템 데이터 통째로 JSON 저장
-            const sysData = {
-                events: evMap[dStr] ? (evMap[dStr].eventList || []) : [],
-                journals: joMap[dStr] ? (joMap[dStr].entries || []) : []
-            };
-            row.push(JSON.stringify(sysData));
-
             rows.push(row);
             curr.setDate(curr.getDate() + 1);
         }
@@ -263,6 +256,7 @@ window.BackupManager = {
         return rows;
     },
 
+    // 💡 [핵심] 텍스트 파싱 및 스마트 추적(ID 자동발급/그룹핑)을 통해 데이터를 완벽하게 복원하는 로직
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
@@ -270,11 +264,121 @@ window.BackupManager = {
         let dateIdx = header.findIndex(h => typeof h === 'string' && h.includes("날짜"));
         let eventIdx = header.findIndex(h => typeof h === 'string' && h.includes("일정"));
         let journalIdx = header.findIndex(h => typeof h === 'string' && h.includes("기록"));
-        let sysIdx = header.findIndex(h => typeof h === 'string' && h.includes("시스템데이터"));
         
         if (dateIdx === -1) dateIdx = 0;
         if (eventIdx === -1) eventIdx = 1;
+        if (journalIdx === -1) journalIdx = header.length > 2 ? header.length - 1 : -1;
 
+        const masterLabels = window.getEventLabels(); // 라벨 ID 검색용
+        const parsedDaysMap = {}; // 날짜별 이벤트 파싱 데이터 임시 저장
+        const scheduleDataMap = {};
+        const journalDataMap = {};
+
+        // 1단계: CSV(시트)의 모든 텍스트를 날짜별로 파싱하여 객체화 (자동 라벨 ID 발급)
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const dStr = row[dateIdx];
+            if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+
+            const evText = row[eventIdx] || "";
+            // parseRawEventTextToEventList 함수가 '[라벨] 내용' 을 분석하여 라벨 ID를 자동 할당합니다.
+            let parsedEvents = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
+            parsedDaysMap[dStr] = { eventList: parsedEvents, eventText: evText };
+
+            let isSkipDay = parsedEvents.some(ev => ev.labelIds && ev.labelIds.some(id => {
+                const m = masterLabels.find(l => l.id === id);
+                return m && m.isSkip;
+            }));
+
+            // 시간표 파싱
+            let periodsData = {};
+            let pNum = 1;
+            let endPIdx = (journalIdx !== -1) ? journalIdx : row.length;
+            for(let p = eventIdx + 1; p < endPIdx; p++) {
+                const pText = row[p] || "";
+                let subj = "", memo = pText;
+                const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
+                if(match) { subj = match[1]; memo = match[2]; }
+                if(isSkipDay) subj = '';
+                periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
+                pNum++;
+            }
+            scheduleDataMap[dStr] = periodsData;
+
+            // 기록 파싱
+            if (journalIdx !== -1) {
+                const joText = row[journalIdx] || ""; 
+                journalDataMap[dStr] = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
+            }
+        }
+
+        // 2단계: 스마트 추적 묶기 (기간/반복/이월 일정을 찾아내어 그룹 ID 발급)
+        let activePeriods = {}; 
+        let activeForwards = {}; 
+
+        const sortedDates = Object.keys(parsedDaysMap).sort();
+        
+        sortedDates.forEach(dStr => {
+            let evList = parsedDaysMap[dStr].eventList;
+            let curDateObj = new Date(dStr);
+
+            evList.forEach(ev => {
+                let labelObj = null;
+                if (ev.labelIds && ev.labelIds.length > 0) {
+                    labelObj = masterLabels.find(l => l.id === ev.labelIds[0]);
+                }
+                if (!labelObj) return;
+
+                // 순수 텍스트 서명 생성 (예: "lbl_ev_123|||여름방학") - (1/20) 같은 날짜 꼬리표는 제거하고 순수 텍스트만 비교
+                const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+                const signature = labelObj.id + "|||" + pureContent;
+                
+                // [기간] 또는 [반복] 일정을 앞뒤 날짜와 비교하여 같은 ID 묶기
+                if (labelObj.isPeriod || labelObj.isRecur) {
+                    if (activePeriods[signature]) {
+                        let lastD = new Date(activePeriods[signature].lastDate);
+                        let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
+                        if (diff <= 14) { // 마지막으로 똑같은 텍스트를 본 지 14일 이내면 같은 그룹으로 인정!
+                            ev.groupId = activePeriods[signature].groupId;
+                            activePeriods[signature].lastDate = dStr;
+                        } else {
+                            let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                            ev.groupId = newGroupId;
+                            activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
+                        }
+                    } else {
+                        let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                        ev.groupId = newGroupId;
+                        activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
+                    }
+                }
+                
+                // [완료] 등 이월(Forward) 일정을 앞뒤 날짜와 비교하여 같은 이월 체인으로 묶기
+                if (labelObj.isForward) {
+                     if (activeForwards[signature]) {
+                        let lastD = new Date(activeForwards[signature].lastDate);
+                        let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
+                        if (diff <= 14) { 
+                            ev.forwardChainId = activeForwards[signature].chainId;
+                            ev.originalDate = activeForwards[signature].originalDate;
+                            activeForwards[signature].lastDate = dStr;
+                        } else {
+                            let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                            ev.forwardChainId = newChainId;
+                            ev.originalDate = dStr; // 새로운 이월 그룹의 첫 시작일을 원본 날짜로 지정
+                            activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
+                        }
+                     } else {
+                        let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                        ev.forwardChainId = newChainId;
+                        ev.originalDate = dStr;
+                        activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
+                     }
+                }
+            });
+        });
+
+        // 3단계: Firebase에 일괄 저장 (Merge or Overwrite)
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
@@ -297,31 +401,9 @@ window.BackupManager = {
             batchPromises.length = 0; 
         }
 
-        for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const dStr = row[dateIdx];
-            if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
-
-            // 💡 시스템 데이터 파싱
-            let sysData = null;
-            if (sysIdx !== -1 && row[sysIdx]) {
-                try { sysData = JSON.parse(row[sysIdx]); } catch(e) {}
-            }
-
-            // 1. 일정(events) 처리
-            const evText = row[eventIdx] || "";
-            let newEventList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
-            
-            // 💡 스마트 복원: 엑셀 텍스트와 원본 JSON을 비교하여 ID 복구
-            if (sysData && sysData.events) {
-                newEventList = newEventList.map(parsedEv => {
-                    const matched = sysData.events.find(sEv => sEv.content === parsedEv.content);
-                    if (matched) {
-                        return { ...matched, completed: parsedEv.completed }; 
-                    }
-                    return parsedEv; // 엑셀에서 새로 입력했거나 수정한 경우 (ID 자동 부여됨)
-                });
-            }
+        for (const dStr of sortedDates) {
+            let newEventList = parsedDaysMap[dStr].eventList;
+            let evText = parsedDaysMap[dStr].eventText;
             
             if (mode === 'merge') {
                 const existDoc = await window.getUserCol('events').doc(dStr).get();
@@ -338,42 +420,11 @@ window.BackupManager = {
             batch.set(window.getUserCol('events').doc(dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            // 2. 수업/시간표(schedules) 처리
-            const periodsData = {};
-            let isSkipDay = newEventList.some(ev => ev.labelIds && ev.labelIds.some(id => {
-                const master = window.getEventLabels();
-                const m = master.find(l => l.id === id);
-                return m && m.isSkip;
-            }));
-
-            let pNum = 1;
-            let endPIdx = (journalIdx !== -1) ? journalIdx : ((sysIdx !== -1) ? sysIdx : row.length);
-            for(let p = eventIdx + 1; p < endPIdx; p++) {
-                const pText = row[p] || "";
-                let subj = "", memo = pText;
-                const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-                if(match) { subj = match[1]; memo = match[2]; }
-                if(isSkipDay) subj = '';
-                periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
-                pNum++;
-            }
-            batch.set(window.getUserCol('schedules').doc(dStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true });
+            batch.set(window.getUserCol('schedules').doc(dStr), { periods: scheduleDataMap[dStr], updatedAt: Date.now() }, { merge: true });
             opCount++;
 
-            // 3. 기록(journals) 처리
-            if (journalIdx !== -1) {
-                const joText = row[journalIdx] || ""; 
-                let newJournalList = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
-                
-                // 💡 스마트 복원: 기록 데이터 복구
-                if (sysData && sysData.journals) {
-                    newJournalList = newJournalList.map(parsedJo => {
-                        const matched = sysData.journals.find(sJo => sJo.content === parsedJo.content);
-                        if (matched) return { ...matched };
-                        return parsedJo;
-                    });
-                }
-                
+            if (journalDataMap[dStr]) {
+                let newJournalList = journalDataMap[dStr];
                 if (mode === 'merge') {
                     const existDoc = await window.getUserCol('journals').doc(dStr).get();
                     if (existDoc.exists) {
@@ -407,7 +458,6 @@ window.BackupManager = {
         let opCount = 0;
         let newLinks = [];
 
-        // 덮어쓰기(overwrite) 모드일 경우 기존 메모 싹 지우기
         if (mode === 'overwrite') {
             const snap = await window.getUserCol('tasks').get();
             snap.forEach(doc => {
@@ -415,7 +465,7 @@ window.BackupManager = {
                 opCount++;
                 if(opCount >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
             });
-            await window.getUserCol('settings').doc('user_links').delete(); // 링크도 지우기
+            await window.getUserCol('settings').doc('user_links').delete();
             if(opCount > 0) { batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
             await Promise.all(batchPromises);
             batchPromises.length = 0; 
@@ -544,18 +594,16 @@ window.BackupManager = {
             } catch (e) {}
 
             const mergedMap = {};
-            let oldDateIdx = 0, oldEventIdx = 1, oldJournalIdx = -1, oldSysIdx = -1;
+            let oldDateIdx = 0, oldEventIdx = 1, oldJournalIdx = -1;
             
             if (existingRows.length > 0) {
                 const oldHeader = existingRows[0];
                 oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
                 oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
-                oldSysIdx = oldHeader.indexOf("시스템데이터(수정금지)");
                 
                 let tempJournalIdx = oldHeader.indexOf("기록");
                 if (tempJournalIdx === -1 && oldHeader.length > 2) {
-                    // 이전 버전 호환성 (마지막 열이 기록이었음)
-                    tempJournalIdx = oldSysIdx === -1 ? oldHeader.length - 1 : oldSysIdx - 1;
+                    tempJournalIdx = oldHeader.length - 1;
                 }
                 
                 if (tempJournalIdx > oldEventIdx) {
@@ -574,9 +622,9 @@ window.BackupManager = {
                     realignedRow[0] = row[oldDateIdx] || ""; 
                     realignedRow[1] = row[oldEventIdx] || ""; 
                     
-                    let currentPCount = newHeader.length - 4; // 날짜, 일정, 기록, 시스템 열 제외
+                    let currentPCount = newHeader.length - 3; // 날짜, 일정, 기록 제외
                     let pNum = 1;
-                    let endPIdx = oldJournalIdx !== -1 ? oldJournalIdx : ((oldSysIdx !== -1) ? oldSysIdx : row.length);
+                    let endPIdx = oldJournalIdx !== -1 ? oldJournalIdx : row.length;
                     
                     for (let p = oldEventIdx + 1; p < endPIdx && pNum <= currentPCount; p++) {
                         realignedRow[1 + pNum] = row[p] || "";
@@ -584,10 +632,7 @@ window.BackupManager = {
                     }
                     
                     if (oldJournalIdx !== -1) {
-                        realignedRow[newHeader.length - 2] = row[oldJournalIdx] || "";
-                    }
-                    if (oldSysIdx !== -1) {
-                        realignedRow[newHeader.length - 1] = row[oldSysIdx] || "";
+                        realignedRow[newHeader.length - 1] = row[oldJournalIdx] || "";
                     }
                     mergedMap[realignedRow[0]] = realignedRow;
                 } else {
