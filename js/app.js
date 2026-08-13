@@ -78,26 +78,39 @@ window.goToToday = function() {
     window.render(true);
 };
 
-// 💡 [수정된 기능] 스마트 스크롤 이동 함수 (비동기 로딩 완벽 대응)
+// 💡 [수정된 기능] 스마트 스크롤 이동 함수 (작성 페이지 완벽 대응)
 window.scrollToTodayIfExist = function() {
-    let attempts = 0; // 시도 횟수
-    
+    let attempts = 0; 
+    const todayStr = window.formatDate(new Date()); // 오늘 날짜 문자열 생성 (예: 2024-03-15)
+
     const tryScroll = () => {
         attempts++;
-        // 화면에 '오늘'을 나타내는 클래스가 있는지 찾습니다.
-        const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+        // 💡 뷰어 모드의 클래스뿐만 아니라, 작성(에디터) 모드의 행(tr) 데이터 속성까지 모두 찾습니다!
+        const selector = `
+            .week-today-cell, .month-today-cell, .year-today-card, 
+            tr[data-week-date="${todayStr}"], 
+            tr[data-month-date="${todayStr}"], 
+            tr[data-year-date="${todayStr}"]
+        `;
+        const todayEl = document.querySelector(selector);
         
         if (todayEl) {
             // 요소를 찾으면 부드럽게 스크롤을 이동시킵니다.
             todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            // 시각적 강조 효과 (연한 노란색으로 반짝!)
-            const originalBg = todayEl.style.backgroundColor;
-            todayEl.style.transition = 'background-color 0.5s';
-            todayEl.style.backgroundColor = '#fef08a'; 
-            setTimeout(() => {
-                todayEl.style.backgroundColor = originalBg; 
-            }, 800);
+            // 시각적 강조 효과 (작성 페이지의 tr 태그인 경우 내부 td들의 색상을 바꿈)
+            const highlightTargets = todayEl.tagName === 'TR' ? todayEl.querySelectorAll('td') : [todayEl];
+            
+            highlightTargets.forEach(el => {
+                const originalBg = el.style.backgroundColor;
+                el.style.transition = 'background-color 0.5s';
+                el.style.backgroundColor = '#fef08a'; // 연한 노란색으로 반짝!
+                setTimeout(() => {
+                    el.style.backgroundColor = originalBg; 
+                    // 원래 색 복귀 후 transition 제거 (찌꺼기 방지)
+                    setTimeout(() => { el.style.transition = ''; }, 500);
+                }, 800);
+            });
         } else if (attempts < 15) {
             // 아직 로딩 중이라 요소를 못 찾았고, 15번(약 3초) 이내라면 0.2초 뒤에 다시 찾습니다!
             setTimeout(tryScroll, 200);
