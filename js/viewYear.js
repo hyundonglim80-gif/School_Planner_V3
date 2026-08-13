@@ -18,14 +18,15 @@ class YearView extends window.BaseView {
         let hasContent = false;
         let htmlOutput = '';
 
+        let processedEvents = [];
         if (data.eventList && data.eventList.length > 0) {
-          let processed = data.eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-          htmlOutput = window.generateEventBadgesHTML(processed, doc.id, 'compact');
+          processedEvents = data.eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+          htmlOutput = window.generateEventBadgesHTML(processedEvents, doc.id, 'compact');
           hasContent = true;
         }
         
         if (hasContent) {
-          allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput });
+          allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput, events: processedEvents }); // 💡 나중에 색상 판독을 위해 배열 추가
         }
       });
     } catch (error) {}
