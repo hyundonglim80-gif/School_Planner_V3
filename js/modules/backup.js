@@ -185,7 +185,6 @@ window.BackupManager = {
         }
     },
 
-    // 💡 [수정됨] 백업할 때 [수업] 메모 [비고] 형태로 결합해서 저장
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -198,6 +197,9 @@ window.BackupManager = {
         const evMap = {}; eventsSnap.forEach(d => evMap[d.id] = d.data());
         const scMap = {}; schedSnap.forEach(d => scMap[d.id] = d.data());
         const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
+
+        const masterEventLabels = window.getEventLabels ? window.getEventLabels() : [];
+        const masterJournalLabels = window.getJournalLabels ? window.getJournalLabels() : [];
 
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
         const rows = [["날짜", "일정", ...pNames, "기록"]]; 
@@ -213,7 +215,18 @@ window.BackupManager = {
             if (evMap[dStr]) {
                 const list = evMap[dStr].eventList;
                 if (Array.isArray(list)) {
-                    evText = window.formatEventListToText ? window.formatEventListToText(list) : list.map(e => e.content).join('\n');
+                    // 💡 [수정] 일정 데이터에 [라벨명] 달아서 내보내기
+                    evText = list.map(e => {
+                        let lName = '일정';
+                        if (e.labelIds && e.labelIds.length > 0) {
+                            const match = masterEventLabels.find(l => l.id === e.labelIds[0]);
+                            if (match) lName = match.name;
+                        } else if (e.labels && e.labels.length > 0) {
+                            lName = e.labels[0];
+                        }
+                        const pre = e.completed ? '[v] ' : '';
+                        return `${pre}[${lName}] ${e.content}`;
+                    }).join('\n');
                 } else if (evMap[dStr].eventText) {
                     evText = evMap[dStr].eventText;
                 }
@@ -245,7 +258,18 @@ window.BackupManager = {
             if (joMap[dStr]) {
                 const entries = joMap[dStr].entries;
                 if (Array.isArray(entries)) {
-                    joText = window.formatEventListToText ? window.formatEventListToText(entries) : entries.map(j => j.content).join('\n');
+                    // 💡 [수정] 기록 데이터에도 [기록라벨명] 달아서 내보내기
+                    joText = entries.map(j => {
+                        let lName = '기록';
+                        if (j.labelIds && j.labelIds.length > 0) {
+                            const match = masterJournalLabels.find(l => l.id === j.labelIds[0]);
+                            if (match) lName = match.name;
+                        } else if (j.labels && j.labels.length > 0) {
+                            lName = j.labels[0];
+                        }
+                        const pre = j.completed ? '[v] ' : '';
+                        return `${pre}[${lName}] ${j.content}`;
+                    }).join('\n');
                 }
             }
             row.push(joText);
@@ -273,7 +297,6 @@ window.BackupManager = {
         return rows;
     },
 
-    // 💡 [수정됨] 복원할 때 [수업] 메모 [비고] 구조를 완벽하게 역으로 파싱하여 분리 적용
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
@@ -372,23 +395,20 @@ window.BackupManager = {
                 let subj = "", memo = "", supplies = "";
 
                 if (pText !== "") {
-                    // 1. 맨 뒤에 있는 [비고] 추출 (예: "[수학] 단원평가 [계산기 지참]")
                     const lastBracketMatch = pText.match(/\[([^\]]+)\]\s*$/);
-                    // 단, 맨 앞의 과목 대괄호와 겹치지 않도록 전체 텍스트 내에서 대괄호 쌍이 2개 이상일 때만 뒤쪽을 비고로 판정
                     const allBrackets = pText.match(/\[.*?\]/g);
                     
                     if (allBrackets && allBrackets.length >= 2) {
                         supplies = lastBracketMatch ? lastBracketMatch[1].trim() : "";
-                        pText = pText.replace(/\[([^\]]+)\]\s*$/, '').trim(); // 맨 뒤 제거
+                        pText = pText.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
                     }
 
-                    // 2. 맨 앞에 있는 [수업 과목] 추출
                     const firstBracketMatch = pText.match(/^\[(.*?)\]/);
                     if (firstBracketMatch) {
                         subj = firstBracketMatch[1].trim();
-                        memo = pText.replace(/^\[(.*?)\]\s*/, '').trim(); // 앞 제거 후 나머지는 메모
+                        memo = pText.replace(/^\[(.*?)\]\s*/, '').trim(); 
                     } else {
-                        memo = pText; // 대괄호 과목이 없으면 전부 메모
+                        memo = pText; 
                     }
                 }
 
@@ -404,7 +424,6 @@ window.BackupManager = {
             }
         }
 
-        // 스마트 그룹 역추적
         let activePeriods = {}; 
         let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
@@ -797,7 +816,7 @@ window.BackupManager = {
         const mode = document.querySelector('input[name="import-mode"]:checked').value;
         const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터에 병합';
 
-        if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?`)) { input.value = ''; return; }
+        if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
 
         const btn = input.nextElementSibling;
         const oldText = btn.textContent; btn.textContent = "⏳ 업로드 적용 중..."; btn.disabled = true;
