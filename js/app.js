@@ -28,7 +28,8 @@ window.setScope = function(scope) {
     if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
     currentScope = scope;
     localStorage.setItem('workCalendar_scope', scope);
-    window.render();
+    // 💡 탭을 변경할 때는 무조건 오늘 위치로 스크롤되도록 지시어(true)를 넘깁니다.
+    window.render(true);
 };
 
 window.setMode = function(mode) {
@@ -38,7 +39,9 @@ window.setMode = function(mode) {
     currentMode = mode;
     localStorage.setItem('workCalendar_mode', mode);
     if (mode === 'viewer') window.hasUnsavedChanges = false;
-    window.render();
+    
+    // 💡 뷰어/작성 모드를 바꿀 때는 현재 스크롤 위치를 유지하기 위해 자동 스크롤을 하지 않습니다.
+    window.render(false);
 };
 
 window.handleEditSaveClick = function() {
@@ -71,15 +74,32 @@ window.moveDate = function(dir) {
 window.goToToday = function() {
     if (currentMode === 'editor' && window.hasUnsavedChanges) window.saveCurrentViewData(true);
     window.currentDate = new Date();
-    window.render();
-    
+    // 💡 [오늘] 버튼을 눌렀으므로 자동 스크롤을 발동시킵니다.
+    window.render(true);
+};
+
+// 💡 [추가된 기능] 스마트 스크롤 이동 함수
+// 화면에 '오늘'을 나타내는 클래스가 있으면 그곳으로 부드럽게 화면을 내려줍니다.
+window.scrollToTodayIfExist = function() {
     requestAnimationFrame(() => {
         setTimeout(() => {
+            // 오늘 날짜를 가리키는 특별한 클래스들을 찾습니다.
             const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+            
+            // 만약 오늘 날짜 칸이 현재 화면 어딘가에 존재한다면
             if (todayEl) {
+                // 부드럽게(smooth) 화면의 중앙(center)에 오도록 스크롤을 이동시킵니다.
                 todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // 시각적 강조 효과 (선택사항: 스크롤 된 후 살짝 반짝이게 하는 효과)
+                const originalBg = todayEl.style.backgroundColor;
+                todayEl.style.transition = 'background-color 0.5s';
+                todayEl.style.backgroundColor = '#fef08a'; // 연한 노란색으로 반짝!
+                setTimeout(() => {
+                    todayEl.style.backgroundColor = originalBg; // 원래 색으로 복귀
+                }, 800);
             }
-        }, 50); 
+        }, 150); // 렌더링이 완전히 끝나고 표가 그려질 때까지 0.15초 대기
     });
 };
 
@@ -104,7 +124,7 @@ window.loadSettings = async function() {
             window.selectedDDayId = null;
         }
 
-        // 💡 2. 새로운 올인원 시간표/학사일정 데이터 로드
+        // 2. 시간표/학사일정 데이터 로드
         const ttDoc = await window.getUserCol('settings').doc('timetable_v5').get();
         if (ttDoc.exists) {
             const ttData = ttDoc.data();
@@ -112,7 +132,6 @@ window.loadSettings = async function() {
             window.timetableTemplates = ttData.templates || {};
             window.periodNames = ttData.currentNames || ["1", "2", "3", "4", "5", "6"];
         } else {
-            // 과거 호환용
             if (doc.exists && doc.data().periodNames) window.periodNames = doc.data().periodNames;
         }
 
@@ -141,7 +160,8 @@ window.loadSettings = async function() {
 // ==========================================================================
 // 🖥️ 메인 렌더링 엔진
 // ==========================================================================
-window.render = function() {
+// 💡 파라미터 추가: autoScrollToToday 가 true면 렌더링 끝난 후 오늘로 스크롤!
+window.render = function(autoScrollToToday = false) {
   const container = document.getElementById("main-view");
   if (!container) return; 
 
@@ -155,6 +175,12 @@ window.render = function() {
       else if (currentScope === 'year') { currentMode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
       else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
       else if (currentScope === 'memo') { window.renderMemoView(container); }
+
+      // 💡 렌더링이 성공적으로 실행되었고, 스크롤 이동 지시가 있다면 함수 호출!
+      if (autoScrollToToday) {
+          window.scrollToTodayIfExist();
+      }
+      
   } catch (error) {
       console.error("화면 렌더링 중 오류 발생:", error);
       container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
@@ -201,7 +227,6 @@ function updateTitle() {
   } else if (currentScope === 'year') { 
     titleEl.textContent = `${y}학년도`;
   } else if (currentScope === 'memo') { 
-    // 💡 수정됨: '할 일 및 메모' 탭일 때는 제목을 완전히 숨깁니다 (빈칸 처리).
     titleEl.textContent = "";
   }
 }
@@ -407,7 +432,8 @@ window.addEventListener('DOMContentLoaded', () => {
             console.error("초기 로딩 에러:", e);
         }
         
-        window.render();
+        // 💡 앱을 켰을 때(최초 로딩) '오늘' 위치로 부드럽게 스크롤 되도록 지시!
+        window.render(true);
         
         setTimeout(() => {
           try {
