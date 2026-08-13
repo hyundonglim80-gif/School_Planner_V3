@@ -65,8 +65,16 @@ class YearView extends window.BaseView {
               ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
               : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
 
+          // 💡 스마트 빨간날 연동 적용 (숫자와 요일 모두)
+          let dateColor = '#2563eb'; // 연간 뷰어의 기본 색상
+          if (window.isRedDay(e.dateStr, e.events)) {
+              dateColor = '#ef4444';
+          } else if (dateObj.getDay() === 6) {
+              dateColor = '#3b82f6';
+          }
+
           return `<div style="${eventStyle}">
-                    <div style="color:#2563eb; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
+                    <div style="color:${dateColor}; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                     <div style="margin-top:2px;">${e.htmlOutput}</div>
                   </div>`;
         }).join('');
