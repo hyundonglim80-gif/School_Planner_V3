@@ -59,8 +59,8 @@ class DayView extends window.BaseView {
                     selectedLabelIdsArray.push(labelId);
                 }
                 
+                // 💡 [버그 픽스] 이 함수 안에 하드코딩 되어있던 renderEventEntries()를 제거하고 콜백으로 위임했습니다.
                 if (onChangeCallback) onChangeCallback(selectedLabelIdsArray);
-                window.dayViewInstance.renderEventEntries();
             });
             containerElement.appendChild(chip);
         });
@@ -286,6 +286,8 @@ class DayView extends window.BaseView {
             this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
                 this.currentEvents[idx].labelIds = newIds;
                 window.hasUnsavedChanges = true;
+                // 💡 [버그 픽스] 일정 라벨을 클릭했을 때는 일정 영역만 다시 그립니다.
+                this.renderEventEntries();
             }, (labelName, mode, labelId) => {
                 if (mode === 'period') {
                     window.openPeriodModal(this.dateStr, labelName, this.currentEvents[idx].content || '', (success) => {
@@ -361,6 +363,8 @@ class DayView extends window.BaseView {
             this.renderLabelChips(chipContainer, allLabelsObj, j.labelIds || [], (newIds) => {
                 this.currentJournals[idx].labelIds = newIds;
                 window.hasUnsavedChanges = true;
+                // 💡 [버그 픽스] 기록 라벨을 클릭했을 때는 기록 영역만 다시 그립니다.
+                this.renderJournalEntries();
             }, null);
             row.appendChild(chipContainer);
 
@@ -405,7 +409,6 @@ class DayView extends window.BaseView {
         const tbody = this.container.querySelector('tbody');
         if (!tbody) return;
         
-        // 💡 [안전장치 추가] 혹시 에디터 화면이 아닌 보기 모드에서 이 함수가 실행되더라도 시간표를 날리지 않도록 보호합니다.
         const rows = tbody.querySelectorAll('tr[data-period]');
         if (rows.length === 0) return;
         
@@ -474,7 +477,6 @@ class DayView extends window.BaseView {
         this.renderEditor();
     }
 
-    // 💡 [핵심 버그 수정] 방해물 조건문(if currentMode === 'editor')을 삭제하여 무조건 저장되도록 수정!
     async save() {
         const dateStr = this.dateStr;
         
