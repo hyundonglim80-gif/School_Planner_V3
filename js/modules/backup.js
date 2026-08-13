@@ -224,6 +224,12 @@ window.BackupManager = {
                 const pData = periods[p] || {};
                 let pText = pData.subject ? `[${pData.subject}] ` : "";
                 if(pData.memo) pText += pData.memo;
+                
+                // 💡 [수정됨] 비고(supplies) 데이터가 있으면 줄바꿈 후 [비고] 태그와 함께 저장!
+                if(pData.supplies && pData.supplies.trim() !== '') {
+                    pText += `\n[비고] ${pData.supplies}`;
+                }
+                
                 row.push(pText.trim());
             }
 
@@ -262,7 +268,6 @@ window.BackupManager = {
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
-        // 💡 [버그 픽스] 사용자가 모달에서 설정한 시작일/종료일 가져오기
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
         if (!startStr || !endStr) {
@@ -340,7 +345,6 @@ window.BackupManager = {
             const dStr = row[dateIdx];
             if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
 
-            // 💡 [버그 픽스] 엑셀/시트의 무수한 데이터 중, 사용자가 선택한 기간의 날짜만 쏙 뽑아서 처리!
             if (dStr < startStr || dStr > endStr) continue;
 
             const evText = row[eventIdx] || "";
@@ -356,12 +360,27 @@ window.BackupManager = {
             let pNum = 1;
             let endPIdx = (journalIdx !== -1) ? journalIdx : row.length;
             for(let p = eventIdx + 1; p < endPIdx; p++) {
-                const pText = row[p] || "";
-                let subj = "", memo = pText;
+                let pText = row[p] || "";
+                let subj = "", memo = "", supplies = "";
+
+                // 💡 [수정됨] 비고 파싱: 제일 끝에 붙은 '[비고] 내용'을 먼저 떼어냅니다.
+                const supMatch = pText.match(/\n\[비고\]\s*([\s\S]*)$/);
+                if (supMatch) {
+                    supplies = supMatch[1].trim();
+                    pText = pText.replace(/\n\[비고\]\s*([\s\S]*)$/, '').trim();
+                }
+
+                // 남은 텍스트에서 [과목]과 메모를 파싱합니다.
                 const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-                if(match) { subj = match[1]; memo = match[2]; }
+                if(match) { 
+                    subj = match[1].trim(); 
+                    memo = match[2].trim(); 
+                } else {
+                    memo = pText.trim(); // 대괄호 과목이 없으면 전부 메모로 간주
+                }
+                
                 if(isSkipDay) subj = ''; 
-                periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
+                periodsData[pNum] = { subject: subj, memo: memo, supplies: supplies };
                 pNum++;
             }
             scheduleDataMap[dStr] = periodsData;
@@ -440,6 +459,9 @@ window.BackupManager = {
         let opCount = 0;
 
         if (mode === 'overwrite') {
+            let startStr = document.getElementById('backup-start-date').value;
+            let endStr = document.getElementById('backup-end-date').value;
+            
             const cols = ['events', 'schedules', 'journals'];
             for (const col of cols) {
                 const snap = await window.getUserCol(col).where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get();
