@@ -12,7 +12,7 @@ const TimetableModule = {
     const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
     const dayLabels = ['월', '화', '수', '목', '금'];
     
-    // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)  
+    // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 개선 및 +/- 버튼 통합)
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
@@ -97,16 +97,6 @@ const TimetableModule = {
         <div style="overflow-x:auto; border-radius:8px; background:#fff; margin-bottom:10px;">
           ${tableHtml}
         </div>
-        </div>
-
-        <div style="overflow-x:auto; border-radius:8px; background:#fff; margin-bottom:10px;">
-          ${tableHtml}
-        </div>
-        
-        <div style="display:flex; justify-content:center; gap:10px;">
-            <button onclick="TimetableModule.addRow()" style="background:#f8fafc; border:1px dashed #94a3b8; color:#334155; padding:6px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem;">➕ 교시 추가</button>
-            <button onclick="TimetableModule.removeRow()" style="background:#fff1f2; border:1px dashed #fca5a5; color:#e11d48; padding:6px 16px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem;">➖ 맨 아래 삭제</button>
-        </div>
       </div>
 
       <div class="modal-info-box" style="border-left-color:#10b981; background:#ecfdf5; margin-top:0;">
@@ -134,7 +124,7 @@ const TimetableModule = {
         id: 'timetable-modal-v5',
         title: '🗓️ 시간표 마스터 모듈',
         width: '750px',
-        content: '<div id="timetable-master-content"></div>' // 껍데기만 먼저 만듦
+        content: '<div id="timetable-master-content"></div>' 
       });
     }
     
@@ -145,7 +135,6 @@ const TimetableModule = {
     
     // 데이터 로드 및 초기화
     if (Object.keys(window.timetableTemplates).length === 0) {
-        // 처음 접속한 유저를 위한 기초 템플릿 생성
         window.timetableTemplates["1학기 시간표"] = { names: [...window.periodNames], data: {} };
         window.timetableTemplates["2학기 시간표"] = { names: [...window.periodNames], data: {} };
         this.currentTemplateName = "1학기 시간표";
@@ -232,8 +221,8 @@ const TimetableModule = {
           delete window.timetableTemplates[this.currentTemplateName];
           this.currentTemplateName = Object.keys(window.timetableTemplates)[0];
           this.loadTemplateToEditor(this.currentTemplateName);
-          await this.syncToCloud();
           this.refreshModalContent();
+          await this.syncToCloud();
       }
   },
 
@@ -312,7 +301,6 @@ const TimetableModule = {
       const periodCount = this.editingNames.length;
       const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
-      // 💡 현재 팝업에 떠있는 교시명(이름)을 메인 설정에도 덮어씌워 줍니다. (표시 호환성용)
       window.periodNames = [...this.editingNames];
 
       while (cur <= endObj) {
@@ -320,10 +308,9 @@ const TimetableModule = {
         
         if (dayIndex >= 1 && dayIndex <= 5) {
           const dateStr = window.formatDate(cur);
-          if (dateStr <= eStr) { // 오버플로우 방지
+          if (dateStr <= eStr) { 
               const dayName = days[dayIndex - 1]; 
               
-              // 휴일 확인 로직 (utils.js의 isRedDay 활용)
               let isSkip = false;
               const eData = eventMap[dateStr];
               let listForCheck = [];
@@ -364,7 +351,6 @@ const TimetableModule = {
       if (opCount > 0) batchPromises.push(batch.commit());
       await Promise.all(batchPromises);
 
-      // 마지막으로 설정값(교시명 변경점 등) 확실히 동기화
       await this.syncToCloud();
 
       alert(`🎉 일괄 적용 성공!\n- 성공적으로 적용된 평일: ${appliedCount}일\n- 휴일로 보호되어 건너뛴 날: ${skippedCount}일`);
@@ -389,7 +375,7 @@ const TimetableModule = {
           await window.getUserCol('settings').doc('timetable_v5').set({
               semesterConfig: window.semesterConfig,
               templates: window.timetableTemplates,
-              currentNames: window.periodNames, // 현재 기준 이름 (달력 표시용)
+              currentNames: window.periodNames, 
               updatedAt: Date.now()
           }, { merge: true });
       } catch (e) {
@@ -399,4 +385,4 @@ const TimetableModule = {
 };
 
 window.openTimetableModal = () => TimetableModule.open();
-window.openSettingsModal = () => TimetableModule.open(); // 기존 세팅 버튼 눌러도 이거 띄우게 호환성 유지
+window.openSettingsModal = () => TimetableModule.open();
