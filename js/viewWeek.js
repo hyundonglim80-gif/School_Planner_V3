@@ -56,15 +56,14 @@ class WeekView extends window.BaseView {
       const isToday = (d.dateStr === realTodayStr);
       const todayClass = isToday ? 'week-today-cell' : '';
 
-      // 💡 [수정] utils.js의 스마트 빨간날 판독 엔진 적용!
       let dateColor = '#1e40af';
-      let dateNumColor = '#475569'; // 💡 날짜(숫자)의 기본 색상 추가
+      let dateNumColor = '#475569'; 
       if (window.isRedDay(d.dateStr, processedEvents)) {
           dateColor = '#ef4444'; 
-          dateNumColor = '#ef4444'; // 휴일일 때 날짜(숫자)도 빨간색으로 변경
+          dateNumColor = '#ef4444'; 
       } else if (d.dayOfWeekNum === 6) {
           dateColor = '#3b82f6'; 
-          dateNumColor = '#3b82f6'; // 토요일일 때 날짜(숫자)도 파란색으로 변경
+          dateNumColor = '#3b82f6'; 
       }
 
       const holidayName = window.getHolidayName(d.dateStr);
@@ -93,9 +92,19 @@ class WeekView extends window.BaseView {
             const p = i + 1;
             const pObj = periods[p] || {};
             let content = '';
-            if (pObj.subject) content += `<div style="margin-bottom: 4px;"><span class="badge-tag">${pObj.subject}</span></div>`;
-            if (pObj.memo) content += `<div class="clean-cell-memo">${pObj.memo}</div>`;
-            return `<td style="vertical-align: top; text-align: left; padding: 6px 8px; height: var(--week-cell-height);">${content}</td>`;
+            
+            // 💡 [수정됨] 뷰어 화면에서도 보기 좋게 과목, 메모, 비고를 스타일링하여 표시
+            if (pObj.subject && pObj.subject.toUpperCase() !== 'X') {
+                content += `<div style="margin-bottom: 6px;"><span class="badge-tag">${pObj.subject}</span></div>`;
+            }
+            if (pObj.memo) {
+                content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155;">${pObj.memo}</div>`;
+            }
+            if (pObj.supplies) {
+                content += `<div style="margin-top:6px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:4px; border-radius:4px;">📌 비고: ${pObj.supplies}</div>`;
+            }
+            
+            return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height);">${content}</td>`;
           }).join('')}
         </tr>
       `;
@@ -143,15 +152,14 @@ class WeekView extends window.BaseView {
       const isToday = (d.dateStr === realTodayStr);
       const todayClass = isToday ? 'week-today-cell' : '';
 
-      // 💡 [수정] 에디터 화면에서도 빨간날이 정상 표출되도록 스마트 검사 연동!
       let dateColor = '#1e40af';
-      let dateNumColor = '#475569'; // 💡 날짜(숫자)의 기본 색상 추가
+      let dateNumColor = '#475569'; 
       if (window.isRedDay(d.dateStr, window[`tempEvents_${d.dateStr}`])) {
           dateColor = '#ef4444';
-          dateNumColor = '#ef4444'; // 휴일일 때 날짜(숫자)도 빨간색으로 변경
+          dateNumColor = '#ef4444'; 
       } else if (d.dayOfWeekNum === 6) {
           dateColor = '#3b82f6';
-          dateNumColor = '#3b82f6'; // 토요일일 때 날짜(숫자)도 파란색으로 변경
+          dateNumColor = '#3b82f6'; 
       }
 
       const holidayName = window.getHolidayName(d.dateStr);
@@ -182,8 +190,14 @@ class WeekView extends window.BaseView {
           ${Array.from({ length: this.maxPeriod }).map((_, i) => {
             const p = i + 1;
             const pObj = periods[p] || {};
-            const cellText = (pObj.subject ? `[${pObj.subject}] ` : '') + (pObj.memo || '');
-            return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText}</td>`;
+            
+            // 💡 [수정됨] 주간 에디터에서도 [과목] 메모 [비고] 포맷으로 출력
+            let cellText = "";
+            if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+            if (pObj.memo) cellText += pObj.memo + " ";
+            if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+            
+            return `<td class="editable-cell week-period-cell" data-p="${p}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
           }).join('')}
         </tr>
       `;
@@ -250,7 +264,6 @@ class WeekView extends window.BaseView {
       return html;
   }
 
-  // 💡 [핵심 버그 수정] 화면을 새로 그리기 전에 사용자가 타이핑하던 텍스트를 메모리에 저장해두는 방어 함수!
   syncCompactEventInputs(dateStr) {
       const container = document.getElementById(`compact-events-${dateStr}`);
       if (!container) return;
@@ -262,7 +275,6 @@ class WeekView extends window.BaseView {
       });
   }
 
-  // 전체 화면 강제 동기화 헬퍼
   syncAllCompactEventInputs() {
       const dates = this.getWeekDates();
       dates.forEach(d => this.syncCompactEventInputs(d.dateStr));
@@ -280,20 +292,37 @@ class WeekView extends window.BaseView {
 
           periodCells.forEach(cell => {
               const p = cell.getAttribute('data-p');
-              const text = (cell.innerText || cell.textContent || '').trim();
+              let text = (cell.innerText || cell.textContent || '').trim();
               
-              let subject = ''; let memo = text;
-              const match = text.match(/^\[(.*?)\]\s*([\s\S]*)$/);
-              if (match) { subject = match[1]; memo = match[2]; }
+              let subject = '', memo = '', supplies = '';
+
+              if (text !== '') {
+                  // 1. 뒤쪽 비고 파싱
+                  const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
+                  const allBrackets = text.match(/\[.*?\]/g);
+                  if (allBrackets && allBrackets.length >= 2) {
+                      supplies = lastMatch ? lastMatch[1].trim() : "";
+                      text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
+                  }
+                  
+                  // 2. 앞쪽 과목 파싱
+                  const firstMatch = text.match(/^\[(.*?)\]/);
+                  if (firstMatch) {
+                      subject = firstMatch[1].trim();
+                      memo = text.replace(/^\[(.*?)\]\s*/, '').trim();
+                  } else {
+                      memo = text;
+                  }
+              }
               
-              const existingSupplies = window[`tempSchedules_${dateStr}`][p] ? window[`tempSchedules_${dateStr}`][p].supplies : '';
-              window[`tempSchedules_${dateStr}`][p] = { subject, memo, supplies: existingSupplies };
+              let subjText = (subject.toUpperCase() === 'X') ? '' : subject;
+              window[`tempSchedules_${dateStr}`][p] = { subject: subjText, memo: memo, supplies: supplies };
           });
       });
   }
 
   toggleCompactEventLabel(dateStr, idx, labelId) {
-      this.syncCompactEventInputs(dateStr); // 먼저 입력값 저장!
+      this.syncCompactEventInputs(dateStr);
       window.hasUnsavedChanges = true;
       const ev = window[`tempEvents_${dateStr}`][idx];
       if (!ev) return;
@@ -314,7 +343,7 @@ class WeekView extends window.BaseView {
   }
 
   addCompactEvent(dateStr) {
-      this.syncCompactEventInputs(dateStr); // 💡 새로 추가하기 전에 입력값 날아감 방지!
+      this.syncCompactEventInputs(dateStr); 
       window.hasUnsavedChanges = true;
       if(!window[`tempEvents_${dateStr}`]) window[`tempEvents_${dateStr}`] = [];
       window[`tempEvents_${dateStr}`].push({ labelIds: [], content: '', completed: false });
@@ -322,7 +351,7 @@ class WeekView extends window.BaseView {
   }
 
   requestRemoveCompactEvent(dateStr, idx) {
-      this.syncCompactEventInputs(dateStr); // 💡 삭제 시에도 텍스트 날아감 방지!
+      this.syncCompactEventInputs(dateStr); 
       const ev = window[`tempEvents_${dateStr}`][idx];
       const isGrouped = !!ev.groupId; 
       
@@ -355,7 +384,7 @@ class WeekView extends window.BaseView {
 
   save() {
     this.syncScheduleInputs();
-    this.syncAllCompactEventInputs(); // 💡 저장 버튼 누를 때 최종적으로 모든 텍스트 완벽 동기화
+    this.syncAllCompactEventInputs(); 
     
     const datesToSave = this.getWeekDates(); 
 
