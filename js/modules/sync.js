@@ -52,7 +52,7 @@ window.openGoogleSyncModal = async function() {
                             <input type="checkbox" id="sync-chk-tasks" class="modal-checkbox" checked> [Tasks] 웹 메모 ➔ 구글 할 일
                         </label>
                     </div>
-                    <button class="modal-btn-primary" style="width:100%; background:#2563eb;" onclick="window.executeGoogleExport()">🚀 구글로 내보내기</button>
+                    <button class="modal-btn-primary" style="width:100%; background:#2563eb;" onclick="window.executeGoogleExport()">🚀 스마트 구글 동기화 시작</button>
                 </div>
 
                 <div style="border: 2px solid #bbf7d0; border-radius: 8px; padding: 15px; background: #f0fdf4;">
@@ -214,7 +214,7 @@ window.fetchHolidaysFromGovApi = async function(year, apiKey) {
 };
 
 // ==========================================================================
-// 🚀 [1] 내보내기 (SP3 ➔ 구글) 로직
+// 🚀 [1] 내보내기 (스마트 델타 동기화 적용)
 // ==========================================================================
 window.executeGoogleExport = async function() {
     const token = await window.getValidGoogleToken();
@@ -233,7 +233,7 @@ window.executeGoogleExport = async function() {
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
-    startProgress("내보내기 준비 중...", "#2563eb");
+    startProgress("스마트 동기화 분석 중...", "#2563eb");
 
     try {
         if (syncTasks) {
@@ -242,32 +242,85 @@ window.executeGoogleExport = async function() {
         }
 
         if (syncEvent || syncClass || syncJournal) {
-            updateProgress("📅 구글 캘린더 준비 중...", 20);
-            const calId = await getOrCreateDedicatedCalendar(token);
-            
+            updateProgress("🔍 데이터 변경 사항 분석 중 (초고속)...", 20);
+
+            // 💡 [핵심] 과거 동기화 메타 데이터 불러오기
+            const syncMetaDoc = await window.getUserCol('settings').doc('google_sync_meta').get();
+            let syncMeta = syncMetaDoc.exists ? syncMetaDoc.data().dateSyncTimes || {} : {};
+
+            // 💡 [핵심] 하루씩 불러오지 않고 지정 기간의 모든 데이터를 단 3번의 요청으로 한 번에 가져옴
+            const [eSnap, sSnap, jSnap] = await Promise.all([
+                window.getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get(),
+                window.getUserCol('schedules').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get(),
+                window.getUserCol('journals').where(firebase.firestore.FieldPath.documentId(), '>=', startStr).where(firebase.firestore.FieldPath.documentId(), '<=', endStr).get()
+            ]);
+
+            const eMap = {}; eSnap.forEach(d => eMap[d.id] = d.data());
+            const sMap = {}; sSnap.forEach(d => sMap[d.id] = d.data());
+            const jMap = {}; jSnap.forEach(d => jMap[d.id] = d.data());
+
             let datesToSync = [];
             let curD = new Date(startD);
+
             while (curD <= endD) {
-                datesToSync.push(window.formatDate(curD));
+                const dateStr = window.formatDate(curD);
+                const eTime = eMap[dateStr]?.updatedAt || 0;
+                const sTime = sMap[dateStr]?.updatedAt || 0;
+                const jTime = jMap[dateStr]?.updatedAt || 0;
+                
+                const maxTime = Math.max(eTime, sTime, jTime);
+                const lastSync = syncMeta[dateStr] || 0;
+
+                let needsSync = false;
+                if (maxTime > lastSync) {
+                    needsSync = true; // 1. 마지막 동기화 이후로 뭔가 수정됨
+                } else if (maxTime === 0 && lastSync > 0) {
+                    needsSync = true; // 2. 과거에 동기화했는데 지금은 DB가 텅 비었음 (구글 캘린더도 지워줘야 함)
+                }
+
+                if (needsSync) {
+                    datesToSync.push({ dateStr, eData: eMap[dateStr], sData: sMap[dateStr], jData: jMap[dateStr] });
+                }
                 curD.setDate(curD.getDate() + 1);
             }
 
             const total = datesToSync.length;
+            if (total === 0) {
+                finishProgress("🎉 변경된 데이터가 없어 동기화를 0.1초 만에 건너뛰었습니다! (초고속)");
+                return;
+            }
+
+            const calId = await getOrCreateDedicatedCalendar(token);
+            let batchUpdateMeta = false;
+
             for (let i = 0; i < total; i++) {
-                const dateStr = datesToSync[i];
-                updateProgress(`📅 내보내는 중... (${dateStr}) [${i+1}/${total}]`, 20 + (80 * ((i+1)/total)));
-                await syncSingleDateToCalendar(token, calId, dateStr, syncEvent, syncClass, syncJournal);
+                const item = datesToSync[i];
+                updateProgress(`📅 변경된 날짜만 구글에 올리는 중... (${item.dateStr}) [${i+1}/${total}]`, 20 + (80 * ((i+1)/total)));
+                
+                await syncSingleDateDataToCalendar(token, calId, item.dateStr, item.eData, item.sData, item.jData, syncEvent, syncClass, syncJournal);
+                
+                syncMeta[item.dateStr] = Date.now();
+                batchUpdateMeta = true;
+                
+                // 중간중간 안전을 위해 메타데이터 저장
+                if (i > 0 && i % 20 === 0) {
+                    await window.getUserCol('settings').doc('google_sync_meta').set({ dateSyncTimes: syncMeta }, { merge: true });
+                }
+            }
+
+            if (batchUpdateMeta) {
+                await window.getUserCol('settings').doc('google_sync_meta').set({ dateSyncTimes: syncMeta }, { merge: true });
             }
         }
 
-        finishProgress("🎉 구글로 내보내기가 완료되었습니다!");
+        finishProgress("🎉 초고속 스마트 내보내기가 완료되었습니다!");
     } catch (error) {
         handleSyncError(error);
     }
 };
 
 // ==========================================================================
-// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직
+// 🚀 [2] 가져오기 (구글 ➔ SP3) 로직 (기존과 동일)
 // ==========================================================================
 window.executeGoogleImport = async function() {
     const token = await window.getValidGoogleToken();
@@ -332,7 +385,6 @@ window.executeGoogleImport = async function() {
                     }
                 }
 
-                // 💡 [안전장치] API 실패 시 "내장 오프라인 공휴일" 코드가 자동으로 작동하여 사용자 모르게 빈틈을 메워줍니다.
                 if (!apiSuccess) {
                     console.log("공공데이터 API 호출 실패로 내장 오프라인 DB로 자동 전환합니다.");
                     updateProgress("⚠️ 시스템 내장 대체공휴일 데이터 적용 중...", 25);
@@ -585,7 +637,8 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClass, incJournal) {
+// 💡 [핵심] 데이터를 파라미터로 직접 받아와서 동기화 처리 (DB 조회 삭제로 속도 극대화)
+async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData, jData, incEvent, incClass, incJournal) {
     let payloadsToCreate = [];
     
     let d = new Date(dateStr);
@@ -593,79 +646,76 @@ async function syncSingleDateToCalendar(token, calId, dateStr, incEvent, incClas
     const endStr = window.formatDate(d);
 
     let seq = 1; 
+    // 구글 캘린더에서 완벽하게 "일정 -> 시간표 -> 기록" 순서를 보장해주는 마법의 정렬 태그
     const getInvisiblePrefix = (num) => {
         return num.toString(2).padStart(5, '0').replace(/0/g, '\u200C').replace(/1/g, '\u200D');
     };
 
-    if (incEvent) {
-        const eDoc = await window.getUserCol('events').doc(dateStr).get();
-        if (eDoc.exists && eDoc.data().eventList) {
-            const list = eDoc.data().eventList.filter(e => e.content && e.content.trim() !== '' && e.source !== 'google' && e.source !== 'holiday');
-            list.forEach(e => {
-                let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
+    // 1. 일정
+    if (incEvent && eData && eData.eventList) {
+        const list = eData.eventList.filter(e => e.content && e.content.trim() !== '' && e.source !== 'google' && e.source !== 'holiday');
+        list.forEach(e => {
+            let labelStr = (e.labels && e.labels.length > 0) ? e.labels[0] : (e.label || '일정');
+            let invisiblePrefix = getInvisiblePrefix(seq++);
+            payloadsToCreate.push({
+                summary: `${invisiblePrefix}[${labelStr}] ${e.content}`,
+                description: `📌 (웹사이트에서 동기화된 일정/행사입니다)`,
+                start: { date: dateStr },
+                end: { date: endStr },
+                extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
+            });
+        });
+    }
+
+    // 2. 시간표
+    if (incClass && sData && sData.periods) {
+        const periods = sData.periods;
+        let periodCount = window.periodNames ? window.periodNames.length : 6;
+        for (let i = 1; i <= periodCount; i++) {
+            let p = periods[i];
+            if (p && p.subject && p.subject.trim() !== '' && p.subject.toUpperCase() !== 'X') {
+                let desc = `🎒 [수업 정보]\n`;
+                if (p.memo) desc += `- 수업 메모: ${p.memo}\n`;
+                if (p.supplies) desc += `- 비고: ${p.supplies}\n`;
+                if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
+
                 let invisiblePrefix = getInvisiblePrefix(seq++);
+                let pName = (window.periodNames && window.periodNames[i - 1]) ? window.periodNames[i - 1] : `${i}교시`;
                 payloadsToCreate.push({
-                    summary: `${invisiblePrefix}[${labelStr}] ${e.content}`,
-                    description: `📌 (웹사이트에서 동기화된 일정/행사입니다)`,
+                    summary: `${invisiblePrefix}[${pName}] ${p.subject}`,
+                    description: desc.trim(),
                     start: { date: dateStr },
                     end: { date: endStr },
                     extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
                 });
-            });
-        }
-    }
-
-    if (incClass) {
-        const sDoc = await window.getUserCol('schedules').doc(dateStr).get();
-        if (sDoc.exists && sDoc.data().periods) {
-            const periods = sDoc.data().periods;
-            let periodCount = window.periodNames ? window.periodNames.length : 6;
-            for (let i = 1; i <= periodCount; i++) {
-                let p = periods[i];
-                if (p && p.subject && p.subject.trim() !== '' && p.subject.toUpperCase() !== 'X') {
-                    let desc = `🎒 [수업 정보]\n`;
-                    if (p.memo) desc += `- 수업 메모: ${p.memo}\n`;
-                    if (p.supplies) desc += `- 비고: ${p.supplies}\n`;
-                    if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
-
-                    let invisiblePrefix = getInvisiblePrefix(seq++);
-                    let pName = (window.periodNames && window.periodNames[i - 1]) ? window.periodNames[i - 1] : `${i}교시`;
-                    payloadsToCreate.push({
-                        summary: `${invisiblePrefix}[${pName}] ${p.subject}`,
-                        description: desc.trim(),
-                        start: { date: dateStr },
-                        end: { date: endStr },
-                        extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
-                    });
-                }
             }
         }
     }
 
-    if (incJournal) {
-        const jDoc = await window.getUserCol('journals').doc(dateStr).get();
-        if (jDoc.exists && jDoc.data().entries) {
-            const journals = jDoc.data().entries.filter(j => j.content && j.content.trim() !== '');
-            journals.forEach(j => {
-                let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
-                let invisiblePrefix = getInvisiblePrefix(seq++);
-                let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
-                
-                payloadsToCreate.push({
-                    summary: `${invisiblePrefix}[${labelStr}] ${displayContent}`,
-                    description: `📝 [전체 기록 내용]\n${j.content}`,
-                    start: { date: dateStr },
-                    end: { date: endStr },
-                    extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
-                });
+    // 3. 기록
+    if (incJournal && jData && jData.entries) {
+        const journals = jData.entries.filter(j => j.content && j.content.trim() !== '');
+        journals.forEach(j => {
+            let labelStr = (j.labels && j.labels.length > 0) ? j.labels[0] : (j.label || '기록');
+            let invisiblePrefix = getInvisiblePrefix(seq++);
+            let displayContent = j.content.length > 25 ? j.content.substring(0, 25) + '...' : j.content;
+            
+            payloadsToCreate.push({
+                summary: `${invisiblePrefix}[${labelStr}] ${displayContent}`,
+                description: `📝 [전체 기록 내용]\n${j.content}`,
+                start: { date: dateStr },
+                end: { date: endStr },
+                extendedProperties: { private: { app: 'SchoolPlannerV3', dateStr: dateStr } }
             });
-        }
+        });
     }
 
+    // 구글 캘린더에 저장된 기존 SP3 데이터 지우기 (빈칸 동기화를 위해 필수)
     const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=app%3DSchoolPlannerV3&privateExtendedProperty=dateStr%3D${dateStr}`;
     const searchResult = await googleFetch(searchUrl, 'GET', token);
     const existingEvents = searchResult.items || [];
 
+    // 만약 SP3 내용이 비어있다면 payloadsToCreate가 0개이므로 삭제만 하고 끝남 -> 완벽한 빈칸 동기화!
     for (const ev of existingEvents) {
         await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, 'DELETE', token);
     }
