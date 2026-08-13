@@ -164,15 +164,21 @@ const RecurringEventModule = {
     const startInput = document.getElementById('rec-start-date');
     const endInput = document.getElementById('rec-end-date');
 
+    // 시간표 모듈에 저장된 날짜가 없는 경우 안내 메시지 출력
+    if (!window.semesterConfig || !window.semesterConfig.sem1Start) {
+        alert("💡 팁: '더보기 > 기준 시간표 관리'에서 학사일정(학기 날짜)을 먼저 저장하시면, 이 버튼을 통해 날짜를 자동으로 불러올 수 있습니다!");
+    }
+
+    // utils.js에서 받아온 날짜를 팝업창 입력란에 채워넣음
     if (type === 'sem1') {
-      startInput.value = window.formatDate(dates.sem1Start);
-      endInput.value = window.formatDate(dates.sem1End);
+      startInput.value = dates.sem1Start || '';
+      endInput.value = dates.sem1End || '';
     } else if (type === 'sem2') {
-      startInput.value = window.formatDate(dates.sem2Start);
-      endInput.value = window.formatDate(dates.sem2End);
+      startInput.value = dates.sem2Start || '';
+      endInput.value = dates.sem2End || '';
     } else if (type === 'year') {
-      startInput.value = window.formatDate(dates.yearStart);
-      endInput.value = window.formatDate(dates.yearEnd);
+      startInput.value = dates.yearStart || '';
+      endInput.value = dates.yearEnd || '';
     }
   },
 
