@@ -199,7 +199,7 @@ window.BackupManager = {
         const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
 
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
-        // 💡 오직 순수 텍스트만 저장 (깔끔한 엑셀/CSV 데이터 보장)
+        // 💡 오직 순수 텍스트만 저장 (숨겨진 시스템 열 없음)
         const rows = [["날짜", "일정", ...pNames, "기록"]]; 
 
         let curr = new Date(startStr);
@@ -212,9 +212,12 @@ window.BackupManager = {
             let evText = "";
             if (evMap[dStr]) {
                 const list = evMap[dStr].eventList;
-                if (list && list.length > 0) {
+                // 💡 만약 빈 리스트면 eventText를 가져오는 유령 버그 완벽 차단!
+                if (Array.isArray(list)) {
                     evText = window.formatEventListToText ? window.formatEventListToText(list) : list.map(e => e.content).join('\n');
-                } else if (evMap[dStr].eventText) evText = evMap[dStr].eventText;
+                } else if (evMap[dStr].eventText) {
+                    evText = evMap[dStr].eventText;
+                }
             }
             row.push(evText);
 
@@ -228,8 +231,10 @@ window.BackupManager = {
 
             let joText = "";
             if (joMap[dStr]) {
-                const entries = joMap[dStr].entries || [];
-                joText = window.formatEventListToText ? window.formatEventListToText(entries) : entries.map(j => j.content).join('\n');
+                const entries = joMap[dStr].entries;
+                if (Array.isArray(entries)) {
+                    joText = window.formatEventListToText ? window.formatEventListToText(entries) : entries.map(j => j.content).join('\n');
+                }
             }
             row.push(joText);
 
@@ -256,7 +261,7 @@ window.BackupManager = {
         return rows;
     },
 
-    // 💡 [핵심] 텍스트 파싱 및 스마트 추적(ID 자동발급/그룹핑)을 통해 데이터를 완벽하게 복원하는 로직
+    // 💡 [핵심] 순수 텍스트를 분석하여 없는 라벨은 생성하고, 연속된 일정은 묶어주는 마법의 복원 함수!
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
@@ -269,20 +274,71 @@ window.BackupManager = {
         if (eventIdx === -1) eventIdx = 1;
         if (journalIdx === -1) journalIdx = header.length > 2 ? header.length - 1 : -1;
 
-        const masterLabels = window.getEventLabels(); // 라벨 ID 검색용
-        const parsedDaysMap = {}; // 날짜별 이벤트 파싱 데이터 임시 저장
+        const masterLabels = window.getEventLabels ? window.getEventLabels() : [];
+        const masterJournalLabels = window.getJournalLabels ? window.getJournalLabels() : [];
+        let labelsChanged = false;
+
+        // 텍스트 분석 및 라벨 자동 발급기
+        const parseEventText = (rawText, type) => {
+            if (!rawText || !rawText.trim()) return [];
+            const lines = rawText.split('\n');
+            const eventList = [];
+            const targetLabels = type === 'journal' ? masterJournalLabels : masterLabels;
+
+            lines.forEach(line => {
+                let t = line.trim();
+                if(!t) return;
+                
+                let completed = false;
+                if (t.startsWith('[v]') || t.startsWith('[V]')) {
+                    completed = true;
+                    t = t.substring(3).trim();
+                }
+
+                const match = t.match(/^\[(.*?)\]\s*(.*)$/);
+                if (match) {
+                    let labelName = match[1].trim();
+                    let content = match[2].trim();
+                    
+                    let lObj = targetLabels.find(l => l.name === labelName);
+                    // 💡 라벨이 없으면 당황하지 않고 새로운 고유 ID를 부여해서 만들어냅니다!
+                    if (!lObj) {
+                        lObj = {
+                            id: (type === 'journal' ? 'lbl_jr_' : 'lbl_ev_') + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
+                            name: labelName,
+                            color: 'blue'
+                        };
+                        if (type === 'event') {
+                            lObj.isSkip = false; lObj.isForward = false; lObj.isPeriod = false; lObj.isRecur = false; lObj.isSystem = false;
+                        }
+                        targetLabels.push(lObj);
+                        labelsChanged = true;
+                    }
+                    eventList.push({ labelIds: [lObj.id], label: labelName, labels: [labelName], content: content, completed: completed });
+                } else {
+                    let defaultLabelIds = [];
+                    if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
+                        const skipLabel = targetLabels.find(l => l.isSkip);
+                        if (skipLabel) defaultLabelIds = [skipLabel.id];
+                    }
+                    eventList.push({ labelIds: defaultLabelIds, content: t, completed: completed });
+                }
+            });
+            return eventList;
+        };
+
+        const parsedDaysMap = {}; 
         const scheduleDataMap = {};
         const journalDataMap = {};
 
-        // 1단계: CSV(시트)의 모든 텍스트를 날짜별로 파싱하여 객체화 (자동 라벨 ID 발급)
+        // 1단계: CSV 텍스트 객체화 (자동 라벨 발급 포함)
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const dStr = row[dateIdx];
             if(!dStr || typeof dStr !== 'string' || !dStr.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
 
             const evText = row[eventIdx] || "";
-            // parseRawEventTextToEventList 함수가 '[라벨] 내용' 을 분석하여 라벨 ID를 자동 할당합니다.
-            let parsedEvents = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(evText) : [];
+            let parsedEvents = parseEventText(evText, 'event');
             parsedDaysMap[dStr] = { eventList: parsedEvents, eventText: evText };
 
             let isSkipDay = parsedEvents.some(ev => ev.labelIds && ev.labelIds.some(id => {
@@ -290,7 +346,6 @@ window.BackupManager = {
                 return m && m.isSkip;
             }));
 
-            // 시간표 파싱
             let periodsData = {};
             let pNum = 1;
             let endPIdx = (journalIdx !== -1) ? journalIdx : row.length;
@@ -299,23 +354,21 @@ window.BackupManager = {
                 let subj = "", memo = pText;
                 const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
                 if(match) { subj = match[1]; memo = match[2]; }
-                if(isSkipDay) subj = '';
+                if(isSkipDay) subj = ''; // 빨간날엔 과목 비우기
                 periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
                 pNum++;
             }
             scheduleDataMap[dStr] = periodsData;
 
-            // 기록 파싱
             if (journalIdx !== -1) {
                 const joText = row[journalIdx] || ""; 
-                journalDataMap[dStr] = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(joText) : [];
+                journalDataMap[dStr] = parseEventText(joText, 'journal');
             }
         }
 
-        // 2단계: 스마트 추적 묶기 (기간/반복/이월 일정을 찾아내어 그룹 ID 발급)
+        // 2단계: 스마트 그룹 역추적 (기간/반복/이월 일정 그룹 묶기)
         let activePeriods = {}; 
         let activeForwards = {}; 
-
         const sortedDates = Object.keys(parsedDaysMap).sort();
         
         sortedDates.forEach(dStr => {
@@ -329,16 +382,15 @@ window.BackupManager = {
                 }
                 if (!labelObj) return;
 
-                // 순수 텍스트 서명 생성 (예: "lbl_ev_123|||여름방학") - (1/20) 같은 날짜 꼬리표는 제거하고 순수 텍스트만 비교
+                // 순수 텍스트 서명 생성 (예: "여름방학") - 며칠 차(1/20) 꼬리표는 제거하고 본질만 비교
                 const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
                 const signature = labelObj.id + "|||" + pureContent;
                 
-                // [기간] 또는 [반복] 일정을 앞뒤 날짜와 비교하여 같은 ID 묶기
                 if (labelObj.isPeriod || labelObj.isRecur) {
                     if (activePeriods[signature]) {
                         let lastD = new Date(activePeriods[signature].lastDate);
                         let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
-                        if (diff <= 14) { // 마지막으로 똑같은 텍스트를 본 지 14일 이내면 같은 그룹으로 인정!
+                        if (diff <= 14) { 
                             ev.groupId = activePeriods[signature].groupId;
                             activePeriods[signature].lastDate = dStr;
                         } else {
@@ -353,7 +405,6 @@ window.BackupManager = {
                     }
                 }
                 
-                // [완료] 등 이월(Forward) 일정을 앞뒤 날짜와 비교하여 같은 이월 체인으로 묶기
                 if (labelObj.isForward) {
                      if (activeForwards[signature]) {
                         let lastD = new Date(activeForwards[signature].lastDate);
@@ -365,7 +416,7 @@ window.BackupManager = {
                         } else {
                             let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
                             ev.forwardChainId = newChainId;
-                            ev.originalDate = dStr; // 새로운 이월 그룹의 첫 시작일을 원본 날짜로 지정
+                            ev.originalDate = dStr; 
                             activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
                         }
                      } else {
@@ -378,7 +429,7 @@ window.BackupManager = {
             });
         });
 
-        // 3단계: Firebase에 일괄 저장 (Merge or Overwrite)
+        // 3단계: DB 일괄 저장 처리
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
@@ -449,6 +500,18 @@ window.BackupManager = {
         }
         if(opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
+
+        // 💡 새롭게 생성된 라벨이 있다면 클라우드와 브라우저에 확실하게 등록합니다!
+        if (labelsChanged) {
+            localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(masterLabels));
+            localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(masterJournalLabels));
+            if (window.auth && window.auth.currentUser) {
+                await window.getUserCol('settings').doc('labels').set({
+                    eventLabels: masterLabels,
+                    journalLabels: masterJournalLabels
+                }, { merge: true });
+            }
+        }
     },
 
     processMemoRows: async function(rows, mode) {
@@ -458,6 +521,7 @@ window.BackupManager = {
         let opCount = 0;
         let newLinks = [];
 
+        // 덮어쓰기 모드 시존재 메모 삭제
         if (mode === 'overwrite') {
             const snap = await window.getUserCol('tasks').get();
             snap.forEach(doc => {
@@ -603,7 +667,7 @@ window.BackupManager = {
                 
                 let tempJournalIdx = oldHeader.indexOf("기록");
                 if (tempJournalIdx === -1 && oldHeader.length > 2) {
-                    tempJournalIdx = oldHeader.length - 1;
+                    tempJournalIdx = oldHeader.length - 1; // 숨겨진 열 삭제 대응
                 }
                 
                 if (tempJournalIdx > oldEventIdx) {
