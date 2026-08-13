@@ -201,7 +201,8 @@ function updateTitle() {
   } else if (currentScope === 'year') { 
     titleEl.textContent = `${y}학년도`;
   } else if (currentScope === 'memo') { 
-    titleEl.textContent = "할 일 및 메모";
+    // 💡 수정됨: '할 일 및 메모' 탭일 때는 제목을 완전히 숨깁니다 (빈칸 처리).
+    titleEl.textContent = "";
   }
 }
 
@@ -249,7 +250,6 @@ function updateButtonUI() {
     classBtn.style.display = (currentScope === 'memo') ? 'none' : 'inline-block';
   }
 
-  // 💡 [수정 1] 메모 뷰일 때 상단의 이전/오늘/다음 이동 화살표 숨기기
   const dateNavContainer = document.getElementById('date-range-text')?.parentElement;
   if (dateNavContainer) {
       const prevBtn = dateNavContainer.querySelector('button[onclick*="moveDate(-1)"]');
@@ -303,7 +303,7 @@ window.saveCurrentViewData = function(silent = false) {
           if(typeof window.dayViewInstance.syncScheduleInputs === 'function') window.dayViewInstance.syncScheduleInputs();
       } else if (scopeToSave === 'week' && window.weekViewInstance && typeof window.weekViewInstance.syncScheduleInputs === 'function') {
           window.weekViewInstance.syncScheduleInputs();
-          if(typeof window.weekViewInstance.syncAllCompactEventInputs === 'function') window.weekViewInstance.syncAllCompactEventInputs(); // 💡 새로 추가될 버그 픽스 함수
+          if(typeof window.weekViewInstance.syncAllCompactEventInputs === 'function') window.weekViewInstance.syncAllCompactEventInputs(); 
       } else if (scopeToSave === 'month' && window.monthViewInstance && typeof window.monthViewInstance.syncScheduleInputs === 'function') {
           window.monthViewInstance.syncScheduleInputs();
       } else if (scopeToSave === 'year' && window.yearViewInstance && typeof window.yearViewInstance.syncScheduleInputs === 'function') {
@@ -435,7 +435,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
 // ==========================================================================
 window.autoForwardIncompleteEvents = async function() {
-    // 기존 기능 동일 유지
     const todayStr = window.formatDate(new Date()); 
     try {
         const pastDate = new Date(window.parseLocalDate(todayStr));
@@ -519,7 +518,7 @@ window.autoForwardIncompleteEvents = async function() {
             if (nextChanged) { eventsMap[nextStr] = { ...nextData, eventList: nextList }; changedDocs.add(nextStr); }
         }
 
-        let batch = window.db.batch(); let opCount = 0; let batchPromises = [];
+        let batch = window.db.batch(); let opCount = 0; let batchPromises = []; 
         
         changedDocs.forEach(dateStr => {
             const docRef = window.getUserCol('events').doc(dateStr);
