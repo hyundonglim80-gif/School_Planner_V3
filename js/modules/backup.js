@@ -199,7 +199,6 @@ window.BackupManager = {
         const joMap = {}; jourSnap.forEach(d => joMap[d.id] = d.data());
 
         const pNames = window.periodNames || ["1","2","3","4","5","6"];
-        // 💡 오직 순수 텍스트만 저장 (숨겨진 시스템 열 없음)
         const rows = [["날짜", "일정", ...pNames, "기록"]]; 
 
         let curr = new Date(startStr);
@@ -212,7 +211,6 @@ window.BackupManager = {
             let evText = "";
             if (evMap[dStr]) {
                 const list = evMap[dStr].eventList;
-                // 💡 만약 빈 리스트면 eventText를 가져오는 유령 버그 완벽 차단!
                 if (Array.isArray(list)) {
                     evText = window.formatEventListToText ? window.formatEventListToText(list) : list.map(e => e.content).join('\n');
                 } else if (evMap[dStr].eventText) {
@@ -261,7 +259,7 @@ window.BackupManager = {
         return rows;
     },
 
-    // 💡 [핵심] 순수 텍스트를 분석하여 없는 라벨은 생성하고, 연속된 일정은 묶어주는 마법의 복원 함수!
+    // 💡 텍스트 파싱 및 스마트 추적(ID 자동발급/그룹핑)을 통해 데이터를 완벽하게 복원
     processScheduleRows: async function(rows, mode) {
         if (rows.length < 2) return;
         
@@ -278,7 +276,6 @@ window.BackupManager = {
         const masterJournalLabels = window.getJournalLabels ? window.getJournalLabels() : [];
         let labelsChanged = false;
 
-        // 텍스트 분석 및 라벨 자동 발급기
         const parseEventText = (rawText, type) => {
             if (!rawText || !rawText.trim()) return [];
             const lines = rawText.split('\n');
@@ -301,7 +298,6 @@ window.BackupManager = {
                     let content = match[2].trim();
                     
                     let lObj = targetLabels.find(l => l.name === labelName);
-                    // 💡 라벨이 없으면 당황하지 않고 새로운 고유 ID를 부여해서 만들어냅니다!
                     if (!lObj) {
                         lObj = {
                             id: (type === 'journal' ? 'lbl_jr_' : 'lbl_ev_') + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
@@ -331,7 +327,6 @@ window.BackupManager = {
         const scheduleDataMap = {};
         const journalDataMap = {};
 
-        // 1단계: CSV 텍스트 객체화 (자동 라벨 발급 포함)
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const dStr = row[dateIdx];
@@ -354,7 +349,7 @@ window.BackupManager = {
                 let subj = "", memo = pText;
                 const match = pText.match(/^\[(.*?)\]\s*([\s\S]*)$/);
                 if(match) { subj = match[1]; memo = match[2]; }
-                if(isSkipDay) subj = ''; // 빨간날엔 과목 비우기
+                if(isSkipDay) subj = ''; 
                 periodsData[pNum] = { subject: subj, memo: memo, supplies: "" };
                 pNum++;
             }
@@ -366,7 +361,6 @@ window.BackupManager = {
             }
         }
 
-        // 2단계: 스마트 그룹 역추적 (기간/반복/이월 일정 그룹 묶기)
         let activePeriods = {}; 
         let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
@@ -382,7 +376,6 @@ window.BackupManager = {
                 }
                 if (!labelObj) return;
 
-                // 순수 텍스트 서명 생성 (예: "여름방학") - 며칠 차(1/20) 꼬리표는 제거하고 본질만 비교
                 const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
                 const signature = labelObj.id + "|||" + pureContent;
                 
@@ -429,7 +422,6 @@ window.BackupManager = {
             });
         });
 
-        // 3단계: DB 일괄 저장 처리
         const batchPromises = [];
         let batch = window.db.batch();
         let opCount = 0;
@@ -501,7 +493,6 @@ window.BackupManager = {
         if(opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
 
-        // 💡 새롭게 생성된 라벨이 있다면 클라우드와 브라우저에 확실하게 등록합니다!
         if (labelsChanged) {
             localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(masterLabels));
             localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(masterJournalLabels));
@@ -521,7 +512,6 @@ window.BackupManager = {
         let opCount = 0;
         let newLinks = [];
 
-        // 덮어쓰기 모드 시존재 메모 삭제
         if (mode === 'overwrite') {
             const snap = await window.getUserCol('tasks').get();
             snap.forEach(doc => {
@@ -631,6 +621,7 @@ window.BackupManager = {
         return spreadsheetId;
     },
 
+    // 💡 [핵심] 기존 내용을 완전히 삭제(Clear)하고 선택된 기간의 최신 SP3 데이터로만 깔끔하게 덮어씁니다!
     exportToSheets: async function() {
         const btn = document.getElementById('btn-sheets-export');
         const oldText = btn.textContent;
@@ -645,96 +636,14 @@ window.BackupManager = {
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
             const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             
-            const newRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
-            const newHeader = newRows[0];
-            const keyIdx = this.currentTab === 'schedule' ? 0 : 1; 
+            const finalRows = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : await this.getMemoDataArray();
 
-            let existingRows = [];
-            try {
-                const readRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
-                    method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (readRes.ok) existingRows = (await readRes.json()).values || [];
-            } catch (e) {}
-
-            const mergedMap = {};
-            let oldDateIdx = 0, oldEventIdx = 1, oldJournalIdx = -1;
-            
-            if (existingRows.length > 0) {
-                const oldHeader = existingRows[0];
-                oldDateIdx = oldHeader.indexOf("날짜") !== -1 ? oldHeader.indexOf("날짜") : 0;
-                oldEventIdx = oldHeader.indexOf("일정") !== -1 ? oldHeader.indexOf("일정") : 1;
-                
-                let tempJournalIdx = oldHeader.indexOf("기록");
-                if (tempJournalIdx === -1 && oldHeader.length > 2) {
-                    tempJournalIdx = oldHeader.length - 1; // 숨겨진 열 삭제 대응
-                }
-                
-                if (tempJournalIdx > oldEventIdx) {
-                    oldJournalIdx = tempJournalIdx;
-                } else {
-                    oldJournalIdx = -1;
-                }
-            }
-
-            for (let i = 1; i < existingRows.length; i++) {
-                const row = existingRows[i];
-                if (!row[keyIdx]) continue;
-                
-                if (this.currentTab === 'schedule') {
-                    const realignedRow = new Array(newHeader.length).fill("");
-                    realignedRow[0] = row[oldDateIdx] || ""; 
-                    realignedRow[1] = row[oldEventIdx] || ""; 
-                    
-                    let currentPCount = newHeader.length - 3; // 날짜, 일정, 기록 제외
-                    let pNum = 1;
-                    let endPIdx = oldJournalIdx !== -1 ? oldJournalIdx : row.length;
-                    
-                    for (let p = oldEventIdx + 1; p < endPIdx && pNum <= currentPCount; p++) {
-                        realignedRow[1 + pNum] = row[p] || "";
-                        pNum++;
-                    }
-                    
-                    if (oldJournalIdx !== -1) {
-                        realignedRow[newHeader.length - 1] = row[oldJournalIdx] || "";
-                    }
-                    mergedMap[realignedRow[0]] = realignedRow;
-                } else {
-                    mergedMap[row[keyIdx]] = row;
-                }
-            }
-
-            for (let i = 1; i < newRows.length; i++) {
-                const row = newRows[i];
-                if (row[keyIdx]) {
-                    const paddedRow = new Array(newHeader.length).fill("");
-                    for (let j = 0; j < row.length; j++) {
-                        paddedRow[j] = row[j] || ""; 
-                    }
-                    mergedMap[row[keyIdx]] = paddedRow;
-                }
-            }
-
-            const finalRows = [newHeader];
-            let sortedKeys;
-            if (this.currentTab === 'schedule') {
-                sortedKeys = Object.keys(mergedMap).sort(); 
-            } else {
-                sortedKeys = Object.keys(mergedMap).sort((a, b) => {
-                    const tA = parseInt(mergedMap[a][6]) || 0;
-                    const tB = parseInt(mergedMap[b][6]) || 0;
-                    return tB - tA; 
-                });
-            }
-            
-            for (const k of sortedKeys) {
-                finalRows.push(mergedMap[k]);
-            }
-
+            // 1. 기존 구글 시트의 모든 데이터를 완전히 삭제 (초기화)
             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
             });
 
+            // 2. 깨끗해진 시트에 SP3 최신 데이터를 덮어쓰기
             const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
