@@ -16,11 +16,12 @@ const TimetableModule = {
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
-          <th style="padding:10px; color:#475569; width:110px; border-right:1px solid #e2e8f0;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span></span>
-              <div style="display:flex; gap:4px;">
-
+          <th style="padding:4px; color:#475569; width:65px; border-right:1px solid #e2e8f0; vertical-align:middle;">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;">
+              <span style="font-size:0.85rem; font-weight:bold;">교시</span>
+              <div style="display:flex; gap:2px;">
+                <button onclick="TimetableModule.addRow()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1.1rem; padding:0; line-height:1;" title="교시 추가">+</button>
+                <button onclick="TimetableModule.removeRow()" style="background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:4px; width:22px; height:22px; display:flex; justify-content:center; align-items:center; cursor:pointer; font-weight:bold; font-size:1.1rem; padding:0; line-height:1;" title="맨 아래 삭제">-</button>
               </div>
             </div>
           </th>
@@ -91,6 +92,11 @@ const TimetableModule = {
             <button onclick="TimetableModule.saveAsNewTemplate()" style="background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.1);">💾 현재 표를 새로 저장 (이름 지정)</button>
             <button onclick="TimetableModule.deleteSelectedTemplate()" style="background:transparent; color:#ef4444; border:none; padding:4px 8px; font-weight:bold; cursor:pointer; font-size:0.8rem; text-decoration:underline;">현재 선택된 템플릿 삭제</button>
           </div>
+        </div>
+
+        <div style="overflow-x:auto; border-radius:8px; background:#fff; margin-bottom:10px;">
+          ${tableHtml}
+        </div>
         </div>
 
         <div style="overflow-x:auto; border-radius:8px; background:#fff; margin-bottom:10px;">
