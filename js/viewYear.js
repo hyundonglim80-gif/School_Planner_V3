@@ -12,52 +12,58 @@ class YearView extends window.BaseView {
 
     let allEvents = [];
     try {
-      // 💡 연간 화면에 수업을 표시하기 위해 schedule 데이터도 함께 가져옵니다.
       const eventsSnap = await window.getUserCol('events').get();
       const schedulesSnap = await window.getUserCol('schedules').get();
       
+      const eMap = {};
+      eventsSnap.forEach(doc => { eMap[doc.id] = doc.data(); });
       const sMap = {};
-      schedulesSnap.forEach(doc => {
-          sMap[doc.id] = doc.data().periods || {};
-      });
+      schedulesSnap.forEach(doc => { sMap[doc.id] = doc.data().periods || {}; });
 
-      eventsSnap.forEach(doc => {
-        const data = doc.data();
+      // 이벤트나 스케줄이 하나라도 있는 모든 날짜를 합칩니다.
+      const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
+
+      allDates.forEach(dateStr => {
         let hasContent = false;
         let htmlOutput = '';
-
-        // 일정 처리
         let processedEvents = [];
-        if (data.eventList && data.eventList.length > 0) {
-          processedEvents = data.eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-          htmlOutput += window.generateEventBadgesHTML(processedEvents, doc.id, 'compact');
-          hasContent = true;
+
+        // 💡 [수정] 월간 보기 형식의 촘촘한 수업 박스 스타일 적용
+        const dayPeriods = sMap[dateStr] || {};
+        let boxesHtml = '';
+        let hasClass = false;
+
+        for (let p = 1; p <= this.maxPeriod; p++) {
+          const subject = dayPeriods[p] ? dayPeriods[p].subject : null;
+          if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
+            const text = subject.trim();
+            let fontSize = "0.75rem"; let letterSpacing = "normal";
+            if (text.length === 3) { fontSize = "0.65rem"; letterSpacing = "-0.5px"; } 
+            else if (text.length === 4) { fontSize = "0.55rem"; letterSpacing = "-1px"; } 
+            else if (text.length >= 5) { fontSize = "0.45rem"; letterSpacing = "-1.5px"; }
+
+            boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="메모: ${dayPeriods[p].memo || '없음'}, 비고: ${dayPeriods[p].supplies || '없음'}">${text}</div>`;
+            hasClass = true;
+          } else {
+            boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
+          }
         }
 
-        // 💡 [추가됨] 수업(시간표) 내용 처리
-        if (window.showClass && sMap[doc.id]) {
-            let classHtml = '';
-            for(let p=1; p<=6; p++) { // 기본 6교시 기준 (환경설정 연동 가능)
-                const pObj = sMap[doc.id][p];
-                if (pObj && (pObj.subject || pObj.memo || pObj.supplies)) {
-                    let text = '';
-                    if (pObj.subject && pObj.subject.toUpperCase() !== 'X') text += `<span style="color:#047857; font-weight:bold;">[${pObj.subject}]</span> `;
-                    if (pObj.memo) text += `<span style="color:#334155;">${pObj.memo}</span>`;
-                    if (pObj.supplies) text += ` <span style="color:#b91c1c; font-size:0.8rem;">[${pObj.supplies}]</span>`;
-                    
-                    if (text.trim() !== '') {
-                        classHtml += `<div style="font-size:0.85rem; padding-left:4px; margin-top:2px; border-left:2px solid #34d399; line-height:1.3;">${text}</div>`;
-                    }
-                }
-            }
-            if (classHtml) {
-                htmlOutput += `<div style="margin-top:6px;">${classHtml}</div>`;
-                hasContent = true;
-            }
+        let scheduleHtml = (hasClass && window.showClass) ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
+        if (scheduleHtml) {
+            htmlOutput += scheduleHtml;
+            hasContent = true;
+        }
+
+        // 일정 렌더링
+        if (eMap[dateStr] && eMap[dateStr].eventList && eMap[dateStr].eventList.length > 0) {
+          processedEvents = eMap[dateStr].eventList.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+          htmlOutput += window.generateEventBadgesHTML(processedEvents, dateStr, 'compact');
+          hasContent = true;
         }
         
         if (hasContent) {
-          allEvents.push({ dateStr: doc.id, htmlOutput: htmlOutput, events: processedEvents }); 
+          allEvents.push({ dateStr: dateStr, htmlOutput: htmlOutput, events: processedEvents }); 
         }
       });
     } catch (error) {}
@@ -237,7 +243,6 @@ class YearView extends window.BaseView {
         for (let p = 1; p <= this.maxPeriod; p++) {
            const pObj = periods[p] || {};
            
-           // 💡 [수정됨] 연간 에디터에서도 [과목] 메모 [비고] 포맷으로 출력
            let cellText = "";
            if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
            if (pObj.memo) cellText += pObj.memo + " ";
