@@ -559,3 +559,31 @@ window.isRedDay = function(dateStr, eventList = []) {
 
     return false;
 };
+
+// ==========================================================================
+// 📅 학사일정 글로벌 연동 엔진
+// ==========================================================================
+window.getSemesterDates = function() {
+    // 1. 시간표 모듈에서 저장한 클라우드 데이터(학사일정)가 있으면 최우선으로 사용합니다.
+    if (window.semesterConfig && window.semesterConfig.sem1Start) {
+        return {
+            sem1Start: window.semesterConfig.sem1Start,
+            sem1End: window.semesterConfig.sem1End,
+            sem2Start: window.semesterConfig.sem2Start,
+            sem2End: window.semesterConfig.sem2End,
+            yearStart: window.semesterConfig.sem1Start,
+            yearEnd: window.semesterConfig.sem2End
+        };
+    }
+    
+    // 2. 아직 설정된 데이터가 없을 경우의 기본 임시값 (에러 방지용)
+    const y = new Date().getFullYear();
+    return {
+        sem1Start: `${y}-03-02`,
+        sem1End: `${y}-07-20`,
+        sem2Start: `${y}-08-16`,
+        sem2End: `${y+1}-01-10`,
+        yearStart: `${y}-03-02`,
+        yearEnd: `${y+1}-02-28`
+    };
+};
