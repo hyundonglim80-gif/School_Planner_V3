@@ -93,7 +93,6 @@ class WeekView extends window.BaseView {
             const pObj = periods[p] || {};
             let content = '';
             
-            // 💡 [수정됨] 뷰어 화면에서도 보기 좋게 과목, 메모, 비고를 스타일링하여 표시
             if (pObj.subject && pObj.subject.toUpperCase() !== 'X') {
                 content += `<div style="margin-bottom: 6px;"><span class="badge-tag">${pObj.subject}</span></div>`;
             }
@@ -101,7 +100,8 @@ class WeekView extends window.BaseView {
                 content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155;">${pObj.memo}</div>`;
             }
             if (pObj.supplies) {
-                content += `<div style="margin-top:6px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:4px; border-radius:4px;">📌 비고: ${pObj.supplies}</div>`;
+                // 💡 [수정] 핀 아이콘 및 '비고:' 글자 제거, 디자인 유지
+                content += `<div style="margin-top:6px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:4px; border-radius:4px;">${pObj.supplies}</div>`;
             }
             
             return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height);">${content}</td>`;
@@ -191,7 +191,6 @@ class WeekView extends window.BaseView {
             const p = i + 1;
             const pObj = periods[p] || {};
             
-            // 💡 [수정됨] 주간 에디터에서도 [과목] 메모 [비고] 포맷으로 출력
             let cellText = "";
             if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
             if (pObj.memo) cellText += pObj.memo + " ";
@@ -297,7 +296,6 @@ class WeekView extends window.BaseView {
               let subject = '', memo = '', supplies = '';
 
               if (text !== '') {
-                  // 1. 뒤쪽 비고 파싱
                   const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
                   const allBrackets = text.match(/\[.*?\]/g);
                   if (allBrackets && allBrackets.length >= 2) {
@@ -305,7 +303,6 @@ class WeekView extends window.BaseView {
                       text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
                   }
                   
-                  // 2. 앞쪽 과목 파싱
                   const firstMatch = text.match(/^\[(.*?)\]/);
                   if (firstMatch) {
                       subject = firstMatch[1].trim();
