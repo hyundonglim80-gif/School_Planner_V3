@@ -31,7 +31,7 @@ window.LABEL_PALETTE = {
 
 window.getLabelStyle = function(labelId, type = 'event') {
     const labels = type === 'event' ? window.getEventLabels() : window.getJournalLabels();
-    const target = labels.find(l => l.id === labelId || l.name === labelId); // 과거 데이터 호환
+    const target = labels.find(l => l.id === labelId || l.name === labelId); 
     if (target && target.color && window.LABEL_PALETTE[target.color]) return window.LABEL_PALETTE[target.color];
     if (type === 'event' && target && target.isSkip) return window.LABEL_PALETTE['red'];
     if (type === 'event') return window.LABEL_PALETTE['blue'];
@@ -42,15 +42,10 @@ window.generateTempId = function(prefix = 'id') {
     return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
 };
 
-// 💡 [초기 일정 라벨 지정] ID 자동 생성 및 부여
-// js/core/utils.js
-
-// 💡 [초기 일정 라벨 지정] ID 자동 생성 및 5대 필수 라벨 강제 보호
 window.getEventLabels = function() {
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     let changed = false;
 
-    // 1. 초기 셋팅이 아예 없는 경우 (기본 5종 필수 세팅)
     if (!labels || labels.length === 0) {
         labels = [
             { id: window.generateTempId('lbl_ev'), name: '일정', isSkip: false, isForward: false, isPeriod: false, isRecur: false, color: 'blue', isSystem: true },
@@ -61,14 +56,12 @@ window.getEventLabels = function() {
         ];
         changed = true;
     } else {
-        // 2. 과거 데이터 호환 (전일행사 -> 휴일, 확인 -> 완료 로 이름 자동 업데이트)
         labels.forEach(l => { 
             if (!l.id) { l.id = window.generateTempId('lbl_ev'); changed = true; } 
             if (l.isSkip && l.name === '전일행사') { l.name = '휴일'; changed = true; }
             if (l.isForward && l.name === '확인') { l.name = '완료'; changed = true; }
         });
 
-        // 3. 5대 필수 라벨이 혹시 지워졌다면 부활시키고, 삭제 방지 락(isSystem)을 걸어줌
         const requiredSpecs = [
             { defaultName: '일정', prop: 'isNormal', color: 'blue' },
             { defaultName: '완료', prop: 'isForward', color: 'green' },
@@ -81,13 +74,12 @@ window.getEventLabels = function() {
             let target;
             if (spec.prop === 'isNormal') {
                 target = labels.find(l => !l.isSkip && !l.isForward && !l.isPeriod && !l.isRecur);
-                if (!target) target = labels.find(l => l.name === '일정'); // 이름으로라도 찾음
+                if (!target) target = labels.find(l => l.name === '일정');
             } else {
                 target = labels.find(l => l[spec.prop] === true);
             }
 
             if (!target) {
-                // 삭제된 필수 라벨 강제 부활
                 labels.push({ 
                     id: window.generateTempId('lbl_ev'), 
                     name: spec.defaultName, 
@@ -100,7 +92,6 @@ window.getEventLabels = function() {
                 });
                 changed = true;
             } else {
-                // 기존 필수 라벨에 삭제 방지(isSystem) 속성 확실히 부여
                 if (!target.isSystem) {
                     target.isSystem = true;
                     changed = true;
@@ -179,17 +170,15 @@ window.checkSkipConditionFromText = function(rawText) {
 };
 
 // ==========================================================================
-// 🚀 [핵심 추가] 누락되었던 자동 마이그레이션 엔진 탑재 (계정별 독립 팝업 처리)
+// 🚀 자동 마이그레이션 엔진 탑재 (계정별 독립 팝업 처리)
 // ==========================================================================
 window.autoCheckAndRunMigration = async function() {
     const user = window.auth && window.auth.currentUser;
     if (!user) return;
     
-    // 1. 현재 계정의 로컬 스토리지 도장 확인
     const stampKey = 'v4_migration_done_' + user.uid;
     if (localStorage.getItem(stampKey) === 'true') return;
     
-    // 2. 다른 기기에서 완료했었는지 클라우드 DB 확인
     try {
         const prefDoc = await window.getUserCol('settings').doc('preferences').get();
         if (prefDoc.exists && prefDoc.data().v4LabelMigrationDone === true) {
@@ -198,7 +187,6 @@ window.autoCheckAndRunMigration = async function() {
         }
     } catch(e) { return; }
 
-    // 3. 도장이 없다면 화면 중앙에 강제 팝업창 띄우기
     const popupHtml = `
     <div id="migration-prompt-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:100000; display:flex; justify-content:center; align-items:center;">
         <div style="background:#fff; padding:35px 30px; border-radius:12px; width:400px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
@@ -217,7 +205,6 @@ window.autoCheckAndRunMigration = async function() {
     document.body.insertAdjacentHTML('beforeend', popupHtml);
 };
 
-// 실제 변환 로직
 window.startV4MigrationProcess = async function() {
     const btn = document.querySelector('#migration-prompt-modal button');
     if(btn) {
@@ -321,7 +308,6 @@ window.generateEventBadgesHTML = function(eventList, dateStr = null, viewType = 
     const masterLabels = window.getEventLabels();
     
     eventList.forEach((e, index) => {
-        // 💡 [중요] 아직 마이그레이션이 덜 끝난 데이터라도 화면에 정상 출력되게 복구
         let labelIdsToRender = e.labelIds || [];
         if (labelIdsToRender.length === 0 && (e.labels || e.label)) {
             let legacyNames = e.labels || [e.label];
@@ -525,109 +511,51 @@ window.formatEventListToText = function(eventList) {
 };
 
 // ==========================================================================
-// 🚀 설정 및 공휴일 (유지)
-// ==========================================================================
-window.sem2StartMMDD = '08-16'; 
-window.isPreferencesLoaded = false;
-
-window.loadGlobalPreferences = async function() {
-    if (window.isPreferencesLoaded || !window.db) return;
-    try {
-        const doc = await window.getUserCol('settings').doc('preferences').get();
-        if (doc.exists && doc.data().sem2StartDate) {
-            window.sem2StartMMDD = doc.data().sem2StartDate;
-        }
-        window.isPreferencesLoaded = true;
-    } catch (e) { console.warn("설정 로드 실패", e); }
-};
-
-window.getSemesterDates = function(baseDate = window.currentDate) {
-    const y = baseDate.getFullYear();
-    const m = baseDate.getMonth();
-    const acYear = m <= 1 ? y - 1 : y; 
-
-    const sem2Parts = window.sem2StartMMDD.split('-');
-    const sem2Month = parseInt(sem2Parts[0], 10) - 1;
-    const sem2Day = parseInt(sem2Parts[1], 10);
-
-    const yearStart = new Date(acYear, 2, 1); 
-    const yearEnd = new Date(acYear + 1, 2, 0); 
-    
-    const sem2Start = new Date(acYear, sem2Month, sem2Day);
-    
-    const sem1End = new Date(sem2Start);
-    sem1End.setDate(sem1End.getDate() - 1); 
-
-    return {
-        acYear: acYear, yearStart: yearStart, yearEnd: yearEnd,
-        sem1Start: yearStart, sem1End: sem1End, sem2Start: sem2Start, sem2End: yearEnd
-    };
-};
-
-// ==========================================================================
-// 🚀 [V4 완벽판] 대한민국 공공데이터포털(특일정보) API 기반 공휴일 엔진
+// 🚀 설정 및 공휴일(빨간날 엔진 통합)
 // ==========================================================================
 
-// 🚨 [필수] 발급받은 '일반 인증키 (Decoding)' 값을 아래에 입력하세요!
-window.HOLIDAY_API_KEY = "61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D"; 
-
-window.cachedHolidays = {}; // API 호출을 줄이기 위한 메모리 캐시
-
-window.fetchHolidaysFromGov = async function(year) {
-    if (window.cachedHolidays[year]) return window.cachedHolidays[year];
-    
-    // DB(Firestore)에 캐싱된 해당 연도 데이터가 있는지 확인
-    if (window.db && window.auth && window.auth.currentUser) {
-        try {
-            const doc = await window.getUserCol('settings').doc(`holidays_${year}`).get();
-            if (doc.exists && doc.data().holidays) {
-                window.cachedHolidays[year] = doc.data().holidays;
-                return window.cachedHolidays[year];
-            }
-        } catch(e) {}
-    }
-
-    if (!window.HOLIDAY_API_KEY || window.HOLIDAY_API_KEY === "61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D") {
-        console.warn("공공데이터포털 API 키가 설정되지 않았습니다.");
-        return {};
-    }
-
-    try {
-        const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?solYear=${year}&ServiceKey=${encodeURIComponent(window.HOLIDAY_API_KEY)}&_type=json&numOfRows=100`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        let holidays = {};
-        if (data.response && data.response.body && data.response.body.items && data.response.body.items.item) {
-            let items = data.response.body.items.item;
-            if (!Array.isArray(items)) items = [items]; // 휴일이 1개일 경우 배열로 변환
-            
-            items.forEach(item => {
-                if (item.isHoliday === 'Y') {
-                    // locdate 포맷: 20240815 -> 2024-08-15
-                    const dateStr = item.locdate.toString().replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
-                    holidays[dateStr] = item.dateName; // 예: "광복절", "대체공휴일"
-                }
-            });
-        }
-
-        window.cachedHolidays[year] = holidays;
-        
-        // 내년에도 API를 호출하지 않도록 Firestore에 캐싱 저장
-        if (window.db && window.auth && window.auth.currentUser) {
-            window.getUserCol('settings').doc(`holidays_${year}`).set({ holidays: holidays, updatedAt: Date.now() });
-        }
-        return holidays;
-    } catch (error) {
-        console.error(`${year}년 공휴일 정보 로드 실패:`, error);
-        return {};
-    }
+window.KOR_HOLIDAYS = {
+    "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
+    "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절",
+    "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
+    "2024-04-10": "국회의원선거", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
+    "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
+    "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
+    "2025-03-03": "대체공휴일", "2025-05-05": "부처님오신날", "2025-05-06": "대체공휴일",
+    "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
+    "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
+    "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
+    "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-27": "대체공휴일"
 };
 
 window.getHolidayName = function(dateStr) {
-    const year = dateStr.substring(0, 4);
-    if (window.cachedHolidays[year] && window.cachedHolidays[year][dateStr]) {
-        return window.cachedHolidays[year][dateStr];
-    }
-    return null; // 캐시나 API에 없으면 일반 날짜
+    const mmdd = dateStr.substring(5);
+    if (window.KOR_HOLIDAYS[dateStr]) return window.KOR_HOLIDAYS[dateStr]; 
+    if (window.KOR_HOLIDAYS[mmdd]) return window.KOR_HOLIDAYS[mmdd];     
+    return null;
+};
+
+// 💡 [핵심 추가] 이 날짜가 달력에서 '빨간 날'로 표시되어야 하는지 판별하는 통합 엔진
+window.isRedDay = function(dateStr, eventList = []) {
+    const dObj = window.parseLocalDate(dateStr);
+    
+    // 1. 일요일인지 확인
+    if (dObj.getDay() === 0) return true;
+    
+    // 2. 공식 공휴일인지 확인
+    if (window.getHolidayName(dateStr)) return true;
+    
+    // 3. 사용자가 [휴일/수업삭제] 라벨을 지정한 일정인지 확인
+    const masterLabels = window.getEventLabels();
+    const hasSkipLabel = eventList.some(ev => {
+        const ids = ev.labelIds || [];
+        return ids.some(id => {
+            const lObj = masterLabels.find(l => l.id === id);
+            return lObj && lObj.isSkip; // isSkip 속성이 있으면 빨간날!
+        });
+    });
+    
+    if (hasSkipLabel) return true;
+
+    return false;
 };
