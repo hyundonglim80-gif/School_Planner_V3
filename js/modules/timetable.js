@@ -13,6 +13,7 @@ const TimetableModule = {
     const dayLabels = ['월', '화', '수', '목', '금'];
     
     // 💡 중앙 에디터 표 (테이블) 동적 생성 (UI 대폭 개선됨)
+/*    
     let tableHtml = `<table class="timetable-input-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;">
       <thead>
         <tr style="background:#f8fafc; border-bottom:2px solid #cbd5e1;">
@@ -45,6 +46,7 @@ const TimetableModule = {
       tableHtml += `</tr>`;
     });
     tableHtml += `</tbody></table>`;
+*/
 
     // 💡 등록된 템플릿 목록 불러오기
     let templateOptions = '';
