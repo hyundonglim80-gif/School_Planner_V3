@@ -43,13 +43,13 @@ window.openGoogleSyncModal = async function() {
                     </h3>
                     <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:15px;">
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
-                            <input type="checkbox" id="sync-chk-event" class="modal-checkbox" checked> [캘린더] 일정 & 행사 기록
+                            <input type="checkbox" id="sync-chk-event" class="modal-checkbox" checked> [캘린더] 오늘 할 일
                         </label>
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
-                            <input type="checkbox" id="sync-chk-class" class="modal-checkbox" checked> [캘린더] 시간표 및 수업 메모
+                            <input type="checkbox" id="sync-chk-class" class="modal-checkbox" checked> [캘린더] 시간표 및 수업 메모와 비고
                         </label>
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#1e293b;">
-                            <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked> [캘린더] 업무 일지 및 교단 기록
+                            <input type="checkbox" id="sync-chk-journal" class="modal-checkbox" checked> [캘린더] 오늘 기록
                         </label>
                         <label class="modal-checkbox-label" style="font-size:0.95rem; color:#0f766e;">
                             <input type="checkbox" id="sync-chk-tasks" class="modal-checkbox" checked> [Tasks] 웹 메모 ➔ 구글 할 일
