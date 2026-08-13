@@ -78,29 +78,34 @@ window.goToToday = function() {
     window.render(true);
 };
 
-// 💡 [추가된 기능] 스마트 스크롤 이동 함수
-// 화면에 '오늘'을 나타내는 클래스가 있으면 그곳으로 부드럽게 화면을 내려줍니다.
+// 💡 [수정된 기능] 스마트 스크롤 이동 함수 (비동기 로딩 완벽 대응)
 window.scrollToTodayIfExist = function() {
-    requestAnimationFrame(() => {
-        setTimeout(() => {
-            // 오늘 날짜를 가리키는 특별한 클래스들을 찾습니다.
-            const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+    let attempts = 0; // 시도 횟수
+    
+    const tryScroll = () => {
+        attempts++;
+        // 화면에 '오늘'을 나타내는 클래스가 있는지 찾습니다.
+        const todayEl = document.querySelector('.week-today-cell, .month-today-cell, .year-today-card');
+        
+        if (todayEl) {
+            // 요소를 찾으면 부드럽게 스크롤을 이동시킵니다.
+            todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            // 만약 오늘 날짜 칸이 현재 화면 어딘가에 존재한다면
-            if (todayEl) {
-                // 부드럽게(smooth) 화면의 중앙(center)에 오도록 스크롤을 이동시킵니다.
-                todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                
-                // 시각적 강조 효과 (선택사항: 스크롤 된 후 살짝 반짝이게 하는 효과)
-                const originalBg = todayEl.style.backgroundColor;
-                todayEl.style.transition = 'background-color 0.5s';
-                todayEl.style.backgroundColor = '#fef08a'; // 연한 노란색으로 반짝!
-                setTimeout(() => {
-                    todayEl.style.backgroundColor = originalBg; // 원래 색으로 복귀
-                }, 800);
-            }
-        }, 150); // 렌더링이 완전히 끝나고 표가 그려질 때까지 0.15초 대기
-    });
+            // 시각적 강조 효과 (연한 노란색으로 반짝!)
+            const originalBg = todayEl.style.backgroundColor;
+            todayEl.style.transition = 'background-color 0.5s';
+            todayEl.style.backgroundColor = '#fef08a'; 
+            setTimeout(() => {
+                todayEl.style.backgroundColor = originalBg; 
+            }, 800);
+        } else if (attempts < 15) {
+            // 아직 로딩 중이라 요소를 못 찾았고, 15번(약 3초) 이내라면 0.2초 뒤에 다시 찾습니다!
+            setTimeout(tryScroll, 200);
+        }
+    };
+
+    // 첫 번째 스크롤 시도 시작
+    tryScroll();
 };
 
 // ==========================================================================
@@ -112,7 +117,6 @@ window.timetableTemplates = {};
 
 window.loadSettings = async function() { 
     try { 
-        // 1. 일반 Preferences 로드
         const doc = await window.getUserCol('settings').doc('preferences').get(); 
         if (doc.exists) { 
             const data = doc.data();
@@ -124,7 +128,6 @@ window.loadSettings = async function() {
             window.selectedDDayId = null;
         }
 
-        // 2. 시간표/학사일정 데이터 로드
         const ttDoc = await window.getUserCol('settings').doc('timetable_v5').get();
         if (ttDoc.exists) {
             const ttData = ttDoc.data();
@@ -160,7 +163,6 @@ window.loadSettings = async function() {
 // ==========================================================================
 // 🖥️ 메인 렌더링 엔진
 // ==========================================================================
-// 💡 파라미터 추가: autoScrollToToday 가 true면 렌더링 끝난 후 오늘로 스크롤!
 window.render = function(autoScrollToToday = false) {
   const container = document.getElementById("main-view");
   if (!container) return; 
@@ -176,7 +178,7 @@ window.render = function(autoScrollToToday = false) {
       else if (currentScope === 'day') { currentMode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
       else if (currentScope === 'memo') { window.renderMemoView(container); }
 
-      // 💡 렌더링이 성공적으로 실행되었고, 스크롤 이동 지시가 있다면 함수 호출!
+      // 💡 렌더링 시작과 동시에 지시가 있다면 스크롤 대기 함수 실행!
       if (autoScrollToToday) {
           window.scrollToTodayIfExist();
       }
@@ -432,7 +434,7 @@ window.addEventListener('DOMContentLoaded', () => {
             console.error("초기 로딩 에러:", e);
         }
         
-        // 💡 앱을 켰을 때(최초 로딩) '오늘' 위치로 부드럽게 스크롤 되도록 지시!
+        // 💡 앱을 처음 켰을 때 '오늘' 위치로 똑똑하게 찾아갑니다!
         window.render(true);
         
         setTimeout(() => {
