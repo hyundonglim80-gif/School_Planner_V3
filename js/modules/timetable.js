@@ -82,15 +82,14 @@ const TimetableModule = {
           <div style="flex:1;">
             <span style="font-weight:bold; color:#1e293b; font-size:0.9rem; display:block; margin-bottom:4px;">저장된 시간표 목록</span>
             <div style="display:flex; gap:6px;">
-                <select id="tt-template-select" style="flex:1; padding:8px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.95rem; font-weight:bold; color:#1e40af; outline:none;">
+                <select id="tt-template-select" onchange="TimetableModule.loadSelectedTemplate()" style="flex:1; padding:8px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.95rem; font-weight:bold; color:#1e40af; outline:none;">
                     ${templateOptions}
                 </select>
-                <button onclick="TimetableModule.loadSelectedTemplate()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:0 12px; border-radius:6px; font-weight:bold; cursor:pointer;">불러오기</button>
             </div>
           </div>
           <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
             <button onclick="TimetableModule.saveAsNewTemplate()" style="background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.1);">💾 현재 표를 새로 저장 (이름 지정)</button>
-            <button onclick="TimetableModule.deleteSelectedTemplate()" style="background:transparent; color:#ef4444; border:none; padding:4px 8px; font-weight:bold; cursor:pointer; font-size:0.8rem; text-decoration:underline;">현재 선택된 템플릿 삭제</button>
+            <button onclick="TimetableModule.deleteSelectedTemplate()" style="background:transparent; color:#ef4444; border:none; padding:4px 8px; font-weight:bold; cursor:pointer; font-size:0.8rem; text-decoration:underline;">현재 콤보박스에 표시된 템플릿 삭제</button>
           </div>
         </div>
 
@@ -215,10 +214,15 @@ const TimetableModule = {
       alert(`✅ [${cleanName}] 시간표가 저장되었습니다.`);
   },
 
+  // 💡 [버그 픽스] 셀렉트 박스에서 직접 선택된 이름을 가져와서 삭제하도록 수정
   deleteSelectedTemplate: async function() {
+      const select = document.getElementById('tt-template-select');
+      const targetName = select ? select.value : this.currentTemplateName;
+      
       if (Object.keys(window.timetableTemplates).length <= 1) return alert("최소 1개의 템플릿은 남아있어야 합니다.");
-      if (confirm(`현재 선택된 [${this.currentTemplateName}] 시간표를 삭제하시겠습니까?`)) {
-          delete window.timetableTemplates[this.currentTemplateName];
+      
+      if (confirm(`현재 표시된 [${targetName}] 시간표를 삭제하시겠습니까?`)) {
+          delete window.timetableTemplates[targetName];
           this.currentTemplateName = Object.keys(window.timetableTemplates)[0];
           this.loadTemplateToEditor(this.currentTemplateName);
           this.refreshModalContent();
@@ -327,7 +331,6 @@ const TimetableModule = {
 
               for (let p = 1; p <= periodCount; p++) {
                 newPeriods[p] = {
-                  // 💡 [버그 픽스] 특정 요일 데이터가 비어있어도 에러 방어: || {} 추가
                   subject: isSkip ? '' : ((this.editingData[dayName] || {})[p] || ''),
                   memo: existingPeriods[p] ? existingPeriods[p].memo : '', 
                   supplies: existingPeriods[p] ? existingPeriods[p].supplies : ''
