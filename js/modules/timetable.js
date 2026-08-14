@@ -1,7 +1,8 @@
 // js/modules/timetable.js
 
 import { store } from '../core/store.js';
-import { formatDate, parseLocalDate, getSemesterDates, isRedDay, parseRawEventTextToEventList } from '../core/utils.js';
+import { formatDate, parseLocalDate, getSemesterDates, isRedDay } from '../core/utils.js';
+import { parseRawEventTextToEventList } from '../core/eventUtils.js'; // 새로 분리된 eventUtils에서 가져옴
 import { getUserCol } from '../firebase.js';
 
 export const TimetableModule = {
