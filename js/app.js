@@ -875,14 +875,16 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수 (필수 복구)
+// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수 (타이밍 최적화)
 // ==========================================================================
 window.goToDay = function(dateStr) {
     if (!dateStr) return;
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-        // 날짜를 세팅하면 Proxy 스토어가 반응하여 자동으로 하루(day) 뷰로 전환됩니다!
-        store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        store.scope = 'day';
+        // 주간 뷰 등에서 클릭 이벤트 충돌을 방지하기 위해 아주 미세한 딜레이(0초)를 부여합니다.
+        setTimeout(() => {
+            store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            store.scope = 'day';
+        }, 0);
     }
 };
