@@ -882,6 +882,7 @@ window.openRecurringModal = window.openRecurringModal || function(dateStr, label
         console.warn("RecurringEventModule이 아직 로드되지 않았습니다.");
         if (callback) callback(false);
     }
+}; // 💡 [수정됨] 이전에 누락되었던 닫는 괄호 추가됨!
 
 // ==========================================================================
 // 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수
