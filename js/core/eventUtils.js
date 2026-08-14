@@ -1,4 +1,4 @@
-// js/core/events.js
+// js/core/eventUtils.js
 
 import { formatDate, getEventLabels, getLabelStyle } from './utils.js';
 import { getUserCol } from '../firebase.js';
