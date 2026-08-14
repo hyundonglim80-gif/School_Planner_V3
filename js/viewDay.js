@@ -266,9 +266,14 @@ export class DayView extends BaseView {
                 let badgeTxt = ev.groupId ? '🔗 반복/기간 그룹 일정' : '↪️ 과거에서 이월된 일정';
                 let badgeColor = ev.groupId ? '#2563eb' : '#059669';
                 let badgeBg = ev.groupId ? '#dbeafe' : '#dcfce3';
+                
+                // 💡 JSON.stringify를 사용하여 백틱 중첩 에러를 원천 차단합니다.
+                let contentJson = JSON.stringify(ev.content || '');
+                let labelIdStr = (ev.labelIds && ev.labelIds.length > 0) ? ev.labelIds[0] : '';
+
                 let delHandler = ev.groupId 
-                    ? `window.showGroupDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.groupId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`
-                    : `window.showForwardDeleteModal('${this.dateStr}', '${ev.labelIds[0]}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`;
+                    ? `window.showGroupDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.groupId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`
+                    : `window.showForwardDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.forwardChainId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`;
                 
                 row.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -289,33 +294,22 @@ export class DayView extends BaseView {
             chipContainer.style.margin = '0';
             chipContainer.style.paddingRight = '24px';
             
-            // 수정 전의 this.renderLabelChips 부분을 찾아 아래 코드로 교체하세요.
-this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
-    this.currentEvents[idx].labelIds = newIds;
-    store.hasUnsavedChanges = true;
-    this.renderEventEntries();
-}, (labelName, mode, labelId) => {
-    // 💡 기간, 반복 등의 특수 속성 라벨을 클릭했을 때 모달을 띄우는 핵심 로직 추가
-    const evContent = this.currentEvents[idx].content || '';
-    const backupEvent = { ...this.currentEvents[idx] };
+            this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
+                this.currentEvents[idx].labelIds = newIds;
+                store.hasUnsavedChanges = true;
+                this.renderEventEntries();
+            }, (labelName, mode, labelId) => {
+                const evContent = this.currentEvents[idx].content || '';
+                const backupEvent = { ...this.currentEvents[idx] };
 
-    const callback = (isSaved) => {
-        if (isSaved) {
-            window.render();
-        } else {
-            if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
-            this.renderEventEntries();
-        }
-    };
-
-    if (mode === 'period' && typeof window.openPeriodModal === 'function') {
-        this.currentEvents.splice(idx, 1);
-        window.openPeriodModal(this.dateStr, labelName, evContent, callback, labelId);
-    } else if (mode === 'recur' && typeof window.openRecurringModal === 'function') {
-        this.currentEvents.splice(idx, 1);
-        window.openRecurringModal(this.dateStr, labelName, evContent, callback, labelId);
-    }
-});
+                const callback = (isSaved) => {
+                    if (isSaved) {
+                        window.render();
+                    } else {
+                        if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
+                        this.renderEventEntries();
+                    }
+                };
 
                 if (mode === 'period' && typeof window.openPeriodModal === 'function') {
                     this.currentEvents.splice(idx, 1);
@@ -324,7 +318,6 @@ this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) =
                     this.currentEvents.splice(idx, 1);
                     window.openRecurringModal(this.dateStr, labelName, evContent, callback, labelId);
                 } else if (mode === 'forward' && typeof window.openForwardModal === 'function') {
-                    // 이월 속성 라벨 처리
                     window.openForwardModal(this.dateStr, labelName, evContent, callback, labelId);
                 }
             });
