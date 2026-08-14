@@ -914,3 +914,22 @@ if (document.readyState === 'loading') {
 } else {
     initApp();
 }
+
+// ==========================================================================
+// 🌉 전역 함수 브릿지 추가 (라벨 클릭 시 모달이 안 뜨던 버그 완벽 해결)
+// ==========================================================================
+window.saveCurrentViewData = saveCurrentViewData;
+window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof window.PeriodModule !== 'undefined' && window.PeriodModule.open) {
+        window.PeriodModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        if (callback) callback(false);
+    }
+};
+window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof window.RecurringEventModule !== 'undefined' && window.RecurringEventModule.open) {
+        window.RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        if (callback) callback(false);
+    }
+};
