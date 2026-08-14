@@ -1,7 +1,6 @@
 // js/modules/recurring.js
 
-import { formatDate, parseLocalDate, getSemesterDates, isSkipLabel } from '../core/utils.js';
-import { formatEventListToText, parseRawEventTextToEventList } from '../core/eventUtils.js'; 
+import { formatDate, parseLocalDate, getSemesterDates, isSkipLabel, parseRawEventTextToEventList, formatEventListToText } from '../core/utils.js';
 import { getUserCol } from '../firebase.js';
 
 export const RecurringEventModule = {
@@ -258,7 +257,10 @@ export const RecurringEventModule = {
 
       for (const dateStr of targetDates) {
         const docData = existingEventsMap[dateStr] || {};
-        let list = docData.eventList || (docData.eventText ? parseRawEventTextToEventList(docData.eventText) : []);
+        let list = docData.eventList || [];
+        if (list.length === 0 && docData.eventText) {
+          list = parseRawEventTextToEventList(docData.eventText);
+        }
 
         if (skipHolidays) {
           const hasSkipLabel = list.some(ev => isSkipLabel(ev.label) || (ev.labels && ev.labels.some(l => isSkipLabel(l))));
