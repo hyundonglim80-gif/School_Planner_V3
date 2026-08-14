@@ -293,14 +293,28 @@ export class DayView extends BaseView {
                 store.hasUnsavedChanges = true;
                 this.renderEventEntries();
             }, (labelName, mode, labelId) => {
-                if (mode === 'period') {
-                    window.openPeriodModal(this.dateStr, labelName, this.currentEvents[idx].content || '', (success) => {
-                        if (success) { this.currentEvents.splice(idx, 1); this.renderEventEntries(); }
-                    }, labelId);
-                } else if (mode === 'recur') {
-                    window.openRecurringModal(this.dateStr, labelName, this.currentEvents[idx].content || '', (success) => {
-                        if (success) { this.currentEvents.splice(idx, 1); this.renderEventEntries(); }
-                    }, labelId);
+                // 💡 특수 속성 라벨(기간, 반복, 이월) 클릭 시 안전하게 해당 모달을 호출합니다.
+                const evContent = this.currentEvents[idx].content || '';
+                const backupEvent = { ...this.currentEvents[idx] };
+
+                const callback = (isSaved) => {
+                    if (isSaved) {
+                        window.render();
+                    } else {
+                        if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
+                        this.renderEventEntries();
+                    }
+                };
+
+                if (mode === 'period' && typeof window.openPeriodModal === 'function') {
+                    this.currentEvents.splice(idx, 1);
+                    window.openPeriodModal(this.dateStr, labelName, evContent, callback, labelId);
+                } else if (mode === 'recur' && typeof window.openRecurringModal === 'function') {
+                    this.currentEvents.splice(idx, 1);
+                    window.openRecurringModal(this.dateStr, labelName, evContent, callback, labelId);
+                } else if (mode === 'forward' && typeof window.openForwardModal === 'function') {
+                    // 이월 속성 라벨 처리
+                    window.openForwardModal(this.dateStr, labelName, evContent, callback, labelId);
                 }
             });
             row.appendChild(chipContainer);
