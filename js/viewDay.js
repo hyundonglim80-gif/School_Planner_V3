@@ -267,13 +267,12 @@ export class DayView extends BaseView {
                 let badgeColor = ev.groupId ? '#2563eb' : '#059669';
                 let badgeBg = ev.groupId ? '#dbeafe' : '#dcfce3';
                 
-                // 💡 JSON.stringify를 사용하여 백틱 중첩 에러를 원천 차단합니다.
                 let contentJson = JSON.stringify(ev.content || '');
                 let labelIdStr = (ev.labelIds && ev.labelIds.length > 0) ? ev.labelIds[0] : '';
 
                 let delHandler = ev.groupId 
-                    ? `window.showGroupDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.groupId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`
-                    : `window.showForwardDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.forwardChainId}', () => { window.dayViewInstance.currentEvents.splice(${idx}, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`;
+                    ? `window.showGroupDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.groupId}', () => { const i = window.dayViewInstance.currentEvents.indexOf(window.dayViewInstance.currentEvents[${idx}]); if(i>-1) window.dayViewInstance.currentEvents.splice(i, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; }, () => { const i = window.dayViewInstance.currentEvents.indexOf(window.dayViewInstance.currentEvents[${idx}]); if(i>-1) window.dayViewInstance.currentEvents.splice(i, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`
+                    : `window.showForwardDeleteModal('${this.dateStr}', '${labelIdStr}', ${contentJson}, '${ev.forwardChainId}', () => { const i = window.dayViewInstance.currentEvents.indexOf(window.dayViewInstance.currentEvents[${idx}]); if(i>-1) window.dayViewInstance.currentEvents.splice(i, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true; })`;
                 
                 row.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -284,7 +283,7 @@ export class DayView extends BaseView {
             } else {
                 row.innerHTML = `
                     <div style="position:absolute; top:8px; right:8px;">
-                        <button class="modal-delete-btn" onclick="window.dayViewInstance.removeEventEntry(${idx})" title="일정 삭제" style="margin:0;">✖</button>
+                        <button class="modal-delete-btn" onclick="const i = window.dayViewInstance.currentEvents.indexOf(window.dayViewInstance.currentEvents[${idx}]); if(i>-1) window.dayViewInstance.currentEvents.splice(i, 1); window.dayViewInstance.renderEventEntries(); store.hasUnsavedChanges = true;" title="일정 삭제" style="margin:0;">✖</button>
                     </div>
                 `;
             }
@@ -294,28 +293,31 @@ export class DayView extends BaseView {
             chipContainer.style.margin = '0';
             chipContainer.style.paddingRight = '24px';
             
+            // 💡 고정된 인덱스 대신 객체(ev)를 직접 참조하여 클로저 에러를 원천 차단합니다.
             this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
-                this.currentEvents[idx].labelIds = newIds;
+                ev.labelIds = newIds;
                 store.hasUnsavedChanges = true;
                 this.renderEventEntries();
             }, (labelName, mode, labelId) => {
-                const evContent = this.currentEvents[idx].content || '';
-                const backupEvent = { ...this.currentEvents[idx] };
+                this.syncEventInputs(); // 텍스트area 내용 먼저 동기화
+                const evContent = ev.content || '';
+                const backupEvent = { ...ev };
 
                 const callback = (isSaved) => {
                     if (isSaved) {
                         window.render();
                     } else {
-                        if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
                         this.renderEventEntries();
                     }
                 };
 
                 if (mode === 'period' && typeof window.openPeriodModal === 'function') {
-                    this.currentEvents.splice(idx, 1);
+                    const currentIdx = this.currentEvents.indexOf(ev);
+                    if (currentIdx !== -1) this.currentEvents.splice(currentIdx, 1);
                     window.openPeriodModal(this.dateStr, labelName, evContent, callback, labelId);
                 } else if (mode === 'recur' && typeof window.openRecurringModal === 'function') {
-                    this.currentEvents.splice(idx, 1);
+                    const currentIdx = this.currentEvents.indexOf(ev);
+                    if (currentIdx !== -1) this.currentEvents.splice(currentIdx, 1);
                     window.openRecurringModal(this.dateStr, labelName, evContent, callback, labelId);
                 } else if (mode === 'forward' && typeof window.openForwardModal === 'function') {
                     window.openForwardModal(this.dateStr, labelName, evContent, callback, labelId);
@@ -328,7 +330,10 @@ export class DayView extends BaseView {
             input.style.cssText = "width:100%; min-height:40px; resize:vertical; font-size:0.95rem; padding:8px; box-sizing:border-box;";
             input.placeholder = "일정 내용 입력...";
             input.value = ev.content || '';
-            input.oninput = () => { store.hasUnsavedChanges = true; };
+            input.oninput = () => { 
+                ev.content = input.value; 
+                store.hasUnsavedChanges = true; 
+            };
             row.appendChild(input);
 
             container.appendChild(row);
