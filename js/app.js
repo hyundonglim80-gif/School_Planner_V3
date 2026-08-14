@@ -875,7 +875,7 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 🌉 주간 뷰 입력창 충돌을 완벽히 무시하고 일(Day)로 직행하는 최종 최적화 함수
+// 🌉 튕김 현상(Double Render)을 완벽히 해결한 최종 goToDay 함수
 // ==========================================================================
 window.goToDay = function(dateStr, event) {
     if (!dateStr) return;
@@ -890,16 +890,13 @@ window.goToDay = function(dateStr, event) {
     if (parts.length === 3) {
         store.hasUnsavedChanges = false;
 
-        // 💡 핵심: 현재 포커스되어 있는 입력창(textarea 등)이 있다면 
-        // 강제로 포커스를 빼앗아(blur) 입력 충돌 이벤트를 원천 차단합니다!
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
             document.activeElement.blur();
         }
 
-        // 브라우저가 입력 포커스 해제를 처리할 틈도 주지 않고 곧바로 뷰를 전환합니다.
-        setTimeout(() => {
-            store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-            store.scope = 'day';
-        }, 10);
+        // 💡 핵심 해결: 스코프를 먼저 'day'로 확정지은 뒤 날짜를 변경해야 
+        // 중간에 주간 뷰가 억지로 다시 그려지는 튕김 현상이 사라집니다!
+        store.scope = 'day';
+        store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 };
