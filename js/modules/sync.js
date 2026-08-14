@@ -3,7 +3,7 @@
 import { formatDate, getSemesterDates, getEventLabels, getJournalLabels, getHolidayName, parseLocalDate } from '../core/utils.js';
 import { getUserCol, dbAPI } from '../firebase.js';
 
-export const openGoogleSyncModal = async function() {
+window.openGoogleSyncModal = async function() {
     const token = await window.getValidGoogleToken();
     if (!token) return;
 
@@ -805,10 +805,8 @@ async function syncMemosToGoogleTasks(token) {
 // ==========================================================================
 // 🌉 과도기 호환성 레이어 
 // ==========================================================================
-/*
 window.openGoogleSyncModal = openGoogleSyncModal;
 window.executeGoogleExport = executeGoogleExport;
 window.executeGoogleImport = executeGoogleImport;
 window.handleSyncPeriodChange = handleSyncPeriodChange;
 window.fetchHolidaysFromGovApi = fetchHolidaysFromGovApi;
-*/
