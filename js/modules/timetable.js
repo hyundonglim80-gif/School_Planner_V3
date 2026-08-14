@@ -214,7 +214,6 @@ const TimetableModule = {
       alert(`✅ [${cleanName}] 시간표가 저장되었습니다.`);
   },
 
-  // 💡 [버그 픽스] 셀렉트 박스에서 직접 선택된 이름을 가져와서 삭제하도록 수정
   deleteSelectedTemplate: async function() {
       const select = document.getElementById('tt-template-select');
       const targetName = select ? select.value : this.currentTemplateName;
@@ -379,12 +378,13 @@ const TimetableModule = {
   syncToCloud: async function() {
       if (!window.auth || !window.auth.currentUser) return;
       try {
+          // 💡 [버그 픽스] { merge: true }를 삭제하여 완벽한 덮어쓰기 구현 (삭제 찌꺼기 방지)
           await window.getUserCol('settings').doc('timetable_v5').set({
-              semesterConfig: window.semesterConfig,
-              templates: window.timetableTemplates,
-              currentNames: window.periodNames, // 현재 기준 이름 (달력 표시용)
+              semesterConfig: window.semesterConfig || {},
+              templates: window.timetableTemplates || {},
+              currentNames: window.periodNames || ["1", "2", "3", "4", "5", "6"],
               updatedAt: Date.now()
-          }, { merge: true });
+          });
       } catch (e) {
           console.error("Timetable Sync Error:", e);
       }
