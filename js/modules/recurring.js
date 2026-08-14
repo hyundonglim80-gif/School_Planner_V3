@@ -1,6 +1,7 @@
 // js/modules/recurring.js
 
-import { formatDate, parseLocalDate, getSemesterDates, isSkipLabel, parseRawEventTextToEventList, formatEventListToText } from '../core/utils.js';
+import { formatDate, parseLocalDate, getSemesterDates, isSkipLabel } from '../core/utils.js';
+import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventUtils.js'; // 새로 분리된 eventUtils에서 가져옴
 import { getUserCol } from '../firebase.js';
 
 export const RecurringEventModule = {
