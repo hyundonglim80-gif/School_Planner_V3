@@ -1,7 +1,7 @@
 // js/modules/timetable.js
 
 import { store } from '../core/store.js';
-import { formatDate, parseLocalDate, getSemesterDates, isRedDay } from '../core/utils.js';
+import { formatDate, parseLocalDate, getSemesterDates, isRedDay, parseRawEventTextToEventList } from '../core/utils.js';
 import { getUserCol } from '../firebase.js';
 
 export const TimetableModule = {
@@ -306,7 +306,7 @@ export const TimetableModule = {
               let listForCheck = [];
               if (eData) {
                   listForCheck = eData.eventList || [];
-                  if (listForCheck.length === 0 && eData.eventText) listForCheck = window.parseRawEventTextToEventList(eData.eventText);
+                  if (listForCheck.length === 0 && eData.eventText) listForCheck = parseRawEventTextToEventList(eData.eventText);
               }
               if (isRedDay(dateStr, listForCheck)) isSkip = true;
 
