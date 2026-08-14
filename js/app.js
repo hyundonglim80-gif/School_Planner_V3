@@ -875,23 +875,28 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 🌉 주간/월간/년간 공통: 어떤 뷰에서든 단 한 번에 '일(Day)' 보기로 이동하는 최종 수정 함수
+// 🌉 주간 뷰 입력창 충돌을 완벽히 무시하고 일(Day)로 직행하는 최종 최적화 함수
 // ==========================================================================
 window.goToDay = function(dateStr, event) {
     if (!dateStr) return;
     
-    // 클릭 이벤트가 상위로 퍼져서 주간 뷰의 입력/포커스 시스템과 충돌하는 것을 막습니다.
     if (event) {
         event.stopPropagation();
         event.preventDefault();
+        event.stopImmediatePropagation();
     }
 
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-        // 주간 편집 모드 등의 잔류 입력 상태를 완전히 비운 뒤 스코프를 전환합니다.
         store.hasUnsavedChanges = false;
 
-        // 브라우저가 현재 클릭 이벤트를 완전히 끝마친 직후(마이크로 태스크 이후)에 상태를 변경하도록 합니다.
+        // 💡 핵심: 현재 포커스되어 있는 입력창(textarea 등)이 있다면 
+        // 강제로 포커스를 빼앗아(blur) 입력 충돌 이벤트를 원천 차단합니다!
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+
+        // 브라우저가 입력 포커스 해제를 처리할 틈도 주지 않고 곧바로 뷰를 전환합니다.
         setTimeout(() => {
             store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             store.scope = 'day';
