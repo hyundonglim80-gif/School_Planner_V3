@@ -6,7 +6,6 @@ import { getUserCol, signInWithGoogle, signOut } from './firebase.js';
 import './components/Modal.js';
 import './core/events.js'; 
 
-
 // 👉 기능 모듈 임포트
 import { SearchModule } from './modules/search.js';
 import { LabelManager } from './modules/labels.js';
