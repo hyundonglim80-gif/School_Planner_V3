@@ -1,4 +1,4 @@
-// js/core/events..js
+// js/core/events.js
 
 import { store } from './store.js';
 
