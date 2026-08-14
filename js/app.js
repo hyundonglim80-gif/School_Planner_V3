@@ -1,5 +1,5 @@
 // js/app.js
-import { store, subscribe } from './core/store.js'; // 👈 subscribe 추가됨
+import { store, subscribe } from './core/store.js';
 import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
 import { getUserCol, signInWithGoogle, signOut } from './firebase.js';
 
@@ -28,12 +28,12 @@ window.yearViewInstance = yearViewInstance;
 window.memoViewInstance = memoViewInstance;
 
 // ==========================================================================
-// 🚀 앱 상태 관리 및 초기화 설정 (반응형 적용됨 🪄)
+// 🚀 앱 상태 관리 및 초기화 설정
 // ==========================================================================
 
 export const toggleWeekend = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
-    store.showWeekend = !store.showWeekend; // 알아서 저장되고 화면이 바뀝니다!
+    store.showWeekend = !store.showWeekend;
 };
 
 export const toggleClass = () => {
@@ -44,7 +44,7 @@ export const toggleClass = () => {
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.scope = scope;
-    setTimeout(scrollToTodayIfExist, 0); // 화면 갱신 직후 포커스 이동
+    setTimeout(scrollToTodayIfExist, 0);
 };
 
 export const setMode = (mode) => {
@@ -66,7 +66,7 @@ export const handleEditSaveClick = () => {
 export const moveDate = (dir) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
 
-    const nextDate = new Date(store.currentDate); // 💡 Proxy 감지를 위해 새로운 Date 객체 생성!
+    const nextDate = new Date(store.currentDate);
     if (store.scope === 'day') {
         nextDate.setDate(nextDate.getDate() + dir);
     } else if (store.scope === 'week') {
@@ -80,7 +80,7 @@ export const moveDate = (dir) => {
     } else if (store.scope === 'year') {
         nextDate.setFullYear(nextDate.getFullYear() + dir);
     }
-    store.currentDate = nextDate; // 값 덮어쓰기 -> 화면 자동 갱신!
+    store.currentDate = nextDate;
 };
 
 export const goToToday = () => {
@@ -395,17 +395,15 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// 🚀 앱 중앙 이벤트 리스너 바인딩 (HTML <-> JS 분리)
+// 🚀 앱 중앙 이벤트 리스너 바인딩
 // ==========================================================================
 const bindEvents = () => {
-    // Auth
     document.getElementById('btn-login')?.addEventListener('click', signInWithGoogle);
     document.getElementById('btn-logout')?.addEventListener('click', () => {
         if (store.mode === 'editor' && store.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return;
         signOut();
     });
 
-    // Nav / View
     document.getElementById('btn-search')?.addEventListener('click', () => SearchModule.open());
     document.querySelectorAll('.btn-scope').forEach(btn => {
         btn.addEventListener('click', (e) => setScope(e.target.dataset.scope));
@@ -415,12 +413,10 @@ const bindEvents = () => {
     document.getElementById('btn-date-next')?.addEventListener('click', () => moveDate(1));
     document.getElementById('date-range-text')?.addEventListener('click', goToToday);
 
-    // Menu Toggles
     document.getElementById('btn-toggle-weekend')?.addEventListener('click', toggleWeekend);
     document.getElementById('btn-toggle-class')?.addEventListener('click', toggleClass);
     document.getElementById('btn-more-menu')?.addEventListener('click', toggleMoreMenu);
 
-    // Dropdown Actions
     const closeDropdown = () => document.getElementById('more-dropdown')?.classList.add('hidden');
     document.getElementById('btn-menu-memo-label')?.addEventListener('click', () => { closeDropdown(); LabelManager.openMemoModal(); });
     document.getElementById('btn-menu-event-label')?.addEventListener('click', () => { closeDropdown(); LabelManager.openEventModal(); });
@@ -430,23 +426,19 @@ const bindEvents = () => {
     document.getElementById('btn-menu-backup')?.addEventListener('click', () => { closeDropdown(); BackupManager.openModal(); });
     document.getElementById('btn-menu-help')?.addEventListener('click', () => { closeDropdown(); openHelpModal(); });
 
-    // D-Day Events
     document.getElementById('btn-dday-display')?.addEventListener('click', toggleDdayMenu);
     document.getElementById('btn-dday-settings')?.addEventListener('click', openDdaySettingsModal);
 
-    // Image Viewer
     document.getElementById('image-viewer-modal')?.addEventListener('click', function() { this.classList.add('hidden'); });
 };
-
 
 // ==========================================================================
 // 🚀 앱 초기화
 // ==========================================================================
 const initApp = () => {
-  // 💡 마법 1: Proxy 스토어 구독! 데이터가 변하면 무조건 화면을 다시 그려라!
   subscribe(() => render());
 
-  bindEvents(); // DOM 이벤트 연결
+  bindEvents();
 
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
@@ -509,7 +501,7 @@ const initApp = () => {
             console.error("초기 로딩 에러:", e);
         }
 
-        render(true);
+        render();
 
         setTimeout(() => {
           try {
@@ -828,7 +820,7 @@ export const renderDdaySettingsList = () => {
 // 🚨 추가 전역 찌꺼기 연결 (모달 내 onclick 버튼용)
 // ==========================================================================
 window.selectDday = async (id) => {
-    store.selectedDDayId = id; // Proxy 발동 (저장, 화면 갱신은 안되도록 설정되어 있음)
+    store.selectedDDayId = id;
     document.getElementById('dday-dropdown').classList.add('hidden');
     updateDdayUI();
     if (window.auth && window.auth.currentUser) {
@@ -867,15 +859,32 @@ window.showForwardDeleteModal = showForwardDeleteModal;
 window.render = render;
 window.goToToday = goToToday;
 
-// 👇 방금 잘라낸 코드를 파일의 가장 마지막 위치에 붙여넣습니다!
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    initApp();
-}
+// ==========================================================================
+// 🌉 모든 페이지(연/월/주/일) 공통: 특수 속성 라벨(기간, 반복) 모달 호출 안전 브릿지
+// ==========================================================================
+window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof window.PeriodModule !== 'undefined' && window.PeriodModule.open) {
+        window.PeriodModule.open(dateStr, labelName, content, callback, labelId);
+    } else if (typeof PeriodModule !== 'undefined' && PeriodModule.open) {
+        PeriodModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        console.warn("PeriodModule이 아직 로드되지 않았습니다.");
+        if (callback) callback(false);
+    }
+};
+
+window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof window.RecurringEventModule !== 'undefined' && window.RecurringEventModule.open) {
+        window.RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
+    } else if (typeof RecurringEventModule !== 'undefined' && RecurringEventModule.open) {
+        RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        console.warn("RecurringEventModule이 아직 로드되지 않았습니다.");
+        if (callback) callback(false);
+    }
 
 // ==========================================================================
-// 🌉 튕김 현상(Double Render)을 완벽히 해결한 최종 goToDay 함수
+// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수
 // ==========================================================================
 window.goToDay = function(dateStr, event) {
     if (!dateStr) return;
@@ -894,30 +903,13 @@ window.goToDay = function(dateStr, event) {
             document.activeElement.blur();
         }
 
-        // 💡 핵심 해결: 스코프를 먼저 'day'로 확정지은 뒤 날짜를 변경해야 
-        // 중간에 주간 뷰가 억지로 다시 그려지는 튕김 현상이 사라집니다!
         store.scope = 'day';
         store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 };
 
-// ==========================================================================
-// 🌉 모든 페이지(연/월/주/일) 공통: 특수 속성 라벨(기간, 반복) 모달 호출 안전 브릿지
-// ==========================================================================
-window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof PeriodModule !== 'undefined' && PeriodModule.open) {
-        PeriodModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        console.warn("PeriodModule이 아직 로드되지 않았습니다.");
-        if (callback) callback(false);
-    }
-};
-
-window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof RecurringEventModule !== 'undefined' && RecurringEventModule.open) {
-        RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        console.warn("RecurringEventModule이 아직 로드되지 않았습니다.");
-        if (callback) callback(false);
-    }
-};
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
