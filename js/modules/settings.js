@@ -1,6 +1,9 @@
 // js/modules/settings.js
 
-const SettingsModule = {
+import { store } from '../core/store.js';
+import { getUserCol } from '../firebase.js';
+
+export const SettingsModule = {
   modalInstance: null,
   
   getContentHTML: function() {
@@ -30,8 +33,8 @@ const SettingsModule = {
         content: this.getContentHTML()
       });
     }
-    window.tempPeriodNames = window.periodNames && window.periodNames.length > 0 
-      ? [...window.periodNames] 
+    window.tempPeriodNames = store.periodNames && store.periodNames.length > 0 
+      ? [...store.periodNames] 
       : ["1", "2", "3", "4", "5", "6"];
       
     this.modalInstance.open();
@@ -76,14 +79,14 @@ const SettingsModule = {
     btn.disabled = true;
 
     try {
-      await window.getUserCol('settings').doc('preferences').set({
+      await getUserCol('settings').doc('preferences').set({
           periodNames: finalNames,
           updatedAt: Date.now()
       }, { merge: true });
 
-      window.periodNames = [...finalNames];
+      store.periodNames = [...finalNames];
       this.modalInstance.close(); 
-      window.render(); 
+      if (typeof window.render === 'function') window.render(); 
     } catch (e) {
       alert("설정 저장에 실패했습니다.");
     } finally {
@@ -93,8 +96,6 @@ const SettingsModule = {
   }
 };
 
-window.openSettingsModal = () => SettingsModule.open();
-
 // ==========================================================================
 // 💡 [UX 개선] 외부 영역 클릭 및 ESC 키 입력 시 '더보기' 메뉴 닫기 로직
 // ==========================================================================
@@ -103,9 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. 바탕화면 아무 곳이나 클릭 시 닫기
     document.addEventListener('click', function(event) {
         const dropdown = document.getElementById('more-dropdown');
-        const container = document.getElementById('more-menu-container'); // index.html에 추가한 래퍼 ID
+        const container = document.getElementById('more-menu-container'); 
         
-        // 클릭한 곳이 메뉴 내부나 '⋮' 버튼이 아니면서 메뉴가 열려있다면 닫기
         if (dropdown && !dropdown.classList.contains('hidden')) {
             if (container && !container.contains(event.target)) {
                 dropdown.classList.add('hidden');
@@ -123,3 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// ==========================================================================
+// 🌉 과도기 호환성 레이어 
+// ==========================================================================
+window.SettingsModule = SettingsModule;
+window.openSettingsModal = () => SettingsModule.open();
