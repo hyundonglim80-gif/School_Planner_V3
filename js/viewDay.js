@@ -288,23 +288,33 @@ export class DayView extends BaseView {
             chipContainer.style.margin = '0';
             chipContainer.style.paddingRight = '24px';
             
-            this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
-                this.currentEvents[idx].labelIds = newIds;
-                store.hasUnsavedChanges = true;
-                this.renderEventEntries();
-            }, (labelName, mode, labelId) => {
-                // 💡 특수 속성 라벨(기간, 반복, 이월) 클릭 시 안전하게 해당 모달을 호출합니다.
-                const evContent = this.currentEvents[idx].content || '';
-                const backupEvent = { ...this.currentEvents[idx] };
+            // 수정 전의 this.renderLabelChips 부분을 찾아 아래 코드로 교체하세요.
+this.renderLabelChips(chipContainer, allLabelsObj, ev.labelIds || [], (newIds) => {
+    this.currentEvents[idx].labelIds = newIds;
+    store.hasUnsavedChanges = true;
+    this.renderEventEntries();
+}, (labelName, mode, labelId) => {
+    // 💡 기간, 반복 등의 특수 속성 라벨을 클릭했을 때 모달을 띄우는 핵심 로직 추가
+    const evContent = this.currentEvents[idx].content || '';
+    const backupEvent = { ...this.currentEvents[idx] };
 
-                const callback = (isSaved) => {
-                    if (isSaved) {
-                        window.render();
-                    } else {
-                        if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
-                        this.renderEventEntries();
-                    }
-                };
+    const callback = (isSaved) => {
+        if (isSaved) {
+            window.render();
+        } else {
+            if (!this.currentEvents[idx]) this.currentEvents.push(backupEvent);
+            this.renderEventEntries();
+        }
+    };
+
+    if (mode === 'period' && typeof window.openPeriodModal === 'function') {
+        this.currentEvents.splice(idx, 1);
+        window.openPeriodModal(this.dateStr, labelName, evContent, callback, labelId);
+    } else if (mode === 'recur' && typeof window.openRecurringModal === 'function') {
+        this.currentEvents.splice(idx, 1);
+        window.openRecurringModal(this.dateStr, labelName, evContent, callback, labelId);
+    }
+});
 
                 if (mode === 'period' && typeof window.openPeriodModal === 'function') {
                     this.currentEvents.splice(idx, 1);
