@@ -347,11 +347,7 @@ export class YearView extends BaseView {
 // ==========================================================================
 // 🌉 과도기 호환성 레이어 
 // ==========================================================================
-
-/*window.yearViewInstance = new YearView(document.getElementById("main-view"));
+window.yearViewInstance = new YearView(document.getElementById("main-view"));
 window.renderYearViewer = (container) => { window.yearViewInstance.container = container; window.yearViewInstance.renderViewer(); };
 window.renderYearEditor = (container) => { window.yearViewInstance.container = container; window.yearViewInstance.renderEditor(); };
 window.saveYearDataFromEditor = () => window.yearViewInstance.save();
-*/
-
-export const yearViewInstance = new YearView(document.getElementById("main-view"));
