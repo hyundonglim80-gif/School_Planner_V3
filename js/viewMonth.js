@@ -385,11 +385,7 @@ MonthView.setupGoToDay();
 // ==========================================================================
 // 🌉 과도기 호환성 레이어 
 // ==========================================================================
-/*
 window.monthViewInstance = new MonthView(document.getElementById("main-view"));
 window.renderMonthViewer = (container) => { window.monthViewInstance.container = container; window.monthViewInstance.renderViewer(); };
 window.renderMonthEditor = (container) => { window.monthViewInstance.container = container; window.monthViewInstance.renderEditor(); };
 window.saveMonthDataFromEditor = () => window.monthViewInstance.save();
-*/
-
-export const monthViewInstance = new MonthView(document.getElementById("main-view"));
