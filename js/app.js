@@ -875,23 +875,28 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 완벽한 브릿지 함수
+// 🌉 날짜 클릭 시 충돌 없이 안전하게 '일(Day)' 보기로 이동하는 최종 수정 함수
 // ==========================================================================
 window.goToDay = function(dateStr, event) {
     if (!dateStr) return;
     
-    // 💡 이벤트가 상위로 전파되는 것(버블링)을 원천 차단하여 주간 뷰의 입력 충돌을 막습니다.
+    // 1. 이벤트 버블링 원천 차단
     if (event) {
         event.stopPropagation();
         event.preventDefault();
     }
 
+    // 2. 만약 에디터 모드에서 저장 안 된 상태로 이동할 때 트랜잭션 에러가 나지 않도록 강제 초기화
+    if (store.mode === 'editor') {
+        store.hasUnsavedChanges = false;
+    }
+
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-        // 아주 미세한 딜레이를 주어 기존 뷰의 입력 포커스 해제 작업을 안전하게 마무리합니다.
+        // 3. 브라우저 렌더링 큐에 안전하게 태워 완벽하게 하루 뷰로 전환
         setTimeout(() => {
             store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             store.scope = 'day';
-        }, 10);
+        }, 50);
     }
 };
