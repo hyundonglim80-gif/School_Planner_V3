@@ -80,7 +80,7 @@ export class WeekView extends BaseView {
         <tr>
           <td rowspan="${store.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}', event)" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
+              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
               ${holidayHtml}
             </div>
@@ -175,7 +175,7 @@ export class WeekView extends BaseView {
         <tr data-week-date="${d.dateStr}">
           <td rowspan="${store.showClass ? 3 : 1}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}', event)" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
+              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
               ${holidayHtml}
             </div>
@@ -434,12 +434,10 @@ export class WeekView extends BaseView {
 // ==========================================================================
 // 🌉 과도기 호환성 레이어 
 // ==========================================================================
-/*
 window.weekViewInstance = new WeekView(document.getElementById("main-view"));
 window.renderWeekViewer = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderViewer(); };
 window.renderWeekEditor = (container) => { window.weekViewInstance.container = container; window.weekViewInstance.renderEditor(); };
 window.saveWeekDataFromEditor = () => window.weekViewInstance.save();
-*/
 
 window.handleCompactLabelClick = async function(dateStr, idx, labelId) {
     if (window.weekViewInstance) window.weekViewInstance.syncCompactEventInputs(dateStr);
@@ -501,5 +499,3 @@ window.handleCompactLabelClick = async function(dateStr, idx, labelId) {
         container.innerHTML = window.weekViewInstance ? window.weekViewInstance.generateCompactEventEditor(dateStr) : (window.monthViewInstance ? window.monthViewInstance.generateCompactEventEditor(dateStr) : window.yearViewInstance.generateCompactEventEditor(dateStr));
     }
 };
-
-export const weekViewInstance = new WeekView(document.getElementById("main-view"));
