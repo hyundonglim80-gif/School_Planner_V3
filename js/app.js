@@ -875,16 +875,23 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수 (타이밍 최적화)
+// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 완벽한 브릿지 함수
 // ==========================================================================
-window.goToDay = function(dateStr) {
+window.goToDay = function(dateStr, event) {
     if (!dateStr) return;
+    
+    // 💡 이벤트가 상위로 전파되는 것(버블링)을 원천 차단하여 주간 뷰의 입력 충돌을 막습니다.
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-        // 주간 뷰 등에서 클릭 이벤트 충돌을 방지하기 위해 아주 미세한 딜레이(0초)를 부여합니다.
+        // 아주 미세한 딜레이를 주어 기존 뷰의 입력 포커스 해제 작업을 안전하게 마무리합니다.
         setTimeout(() => {
             store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             store.scope = 'day';
-        }, 0);
+        }, 10);
     }
 };
