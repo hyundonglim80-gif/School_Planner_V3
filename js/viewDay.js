@@ -13,6 +13,7 @@ export class DayView extends BaseView {
         this.currentSchedules = {};
     }
 
+    
     parseEvents(docData) {
         if (!docData) return [];
         if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
