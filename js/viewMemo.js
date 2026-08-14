@@ -577,12 +577,9 @@ window.openImageViewer = function(url) {
     }
 };
 
-// 인스턴스를 하나만 생성하고 export 합니다.
-export const memoViewInstance = new MemoView(document.getElementById("main-view"));
+window.memoViewInstance = new MemoView(document.getElementById("main-view"));
 
-// 과도기 레이어 (이후 2단계에서 지워질 부분)
-window.memoViewInstance = memoViewInstance;
 window.renderMemoView = (container) => {
-  memoViewInstance.container = container;
-  memoViewInstance.renderViewer();
+  window.memoViewInstance.container = container;
+  window.memoViewInstance.renderViewer();
 };
