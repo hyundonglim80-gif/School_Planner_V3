@@ -1,31 +1,7 @@
 // js/app.js
-import { store, subscribe } from './core/store.js';
+import { store } from './core/store.js';
 import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
-import { getUserCol, signInWithGoogle, signOut } from './firebase.js';
-
-import './components/Modal.js';
-import './core/events.js'; 
-
-// 👉 기능 모듈 임포트
-import { SearchModule } from './modules/search.js';
-import { LabelManager } from './modules/labels.js';
-import { TimetableModule } from './modules/timetable.js';
-import { BackupManager } from './modules/backup.js';
-import { openHelpModal } from './modules/help.js';
-import { openGoogleSyncModal } from './modules/sync.js';
-
-// 👉 뷰 컴포넌트 인스턴스 직접 임포트
-import { weekViewInstance } from './viewWeek.js';
-import { dayViewInstance } from './viewDay.js';
-import { monthViewInstance } from './viewMonth.js';
-import { yearViewInstance } from './viewYear.js';
-import { memoViewInstance } from './viewMemo.js';
-
-window.weekViewInstance = weekViewInstance;
-window.dayViewInstance = dayViewInstance;
-window.monthViewInstance = monthViewInstance;
-window.yearViewInstance = yearViewInstance;
-window.memoViewInstance = memoViewInstance;
+import { getUserCol } from './firebase.js';
 
 // ==========================================================================
 // 🚀 앱 상태 관리 및 초기화 설정
@@ -34,25 +10,32 @@ window.memoViewInstance = memoViewInstance;
 export const toggleWeekend = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.showWeekend = !store.showWeekend;
+    localStorage.setItem('workCalendar_showWeekend', store.showWeekend);
+    render();
 };
 
 export const toggleClass = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.showClass = !store.showClass;
+    localStorage.setItem('workCalendar_showClass', store.showClass);
+    render();
 };
 
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.scope = scope;
-    setTimeout(scrollToTodayIfExist, 0);
+    localStorage.setItem('workCalendar_scope', scope);
+    render(true);
 };
 
 export const setMode = (mode) => {
     if (store.mode === 'editor' && mode === 'viewer' && store.hasUnsavedChanges) {
         saveCurrentViewData(true);
     }
-    if (mode === 'viewer') store.hasUnsavedChanges = false;
     store.mode = mode;
+    localStorage.setItem('workCalendar_mode', mode);
+    if (mode === 'viewer') store.hasUnsavedChanges = false;
+    render(false);
 };
 
 export const handleEditSaveClick = () => {
@@ -66,27 +49,26 @@ export const handleEditSaveClick = () => {
 export const moveDate = (dir) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
 
-    const nextDate = new Date(store.currentDate);
     if (store.scope === 'day') {
-        nextDate.setDate(nextDate.getDate() + dir);
+        store.currentDate.setDate(store.currentDate.getDate() + dir);
     } else if (store.scope === 'week') {
-        nextDate.setDate(nextDate.getDate() + (dir * 7));
+        store.currentDate.setDate(store.currentDate.getDate() + (dir * 7));
     } else if (store.scope === 'month') {
-        const currentDay = nextDate.getDate();
-        nextDate.setMonth(nextDate.getMonth() + dir);
-        if (nextDate.getDate() < currentDay) {
-            nextDate.setDate(0); 
+        const currentDay = store.currentDate.getDate();
+        store.currentDate.setMonth(store.currentDate.getMonth() + dir);
+        if (store.currentDate.getDate() < currentDay) {
+            store.currentDate.setDate(0); 
         }
     } else if (store.scope === 'year') {
-        nextDate.setFullYear(nextDate.getFullYear() + dir);
+        store.currentDate.setFullYear(store.currentDate.getFullYear() + dir);
     }
-    store.currentDate = nextDate;
+    render();
 };
 
 export const goToToday = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.currentDate = new Date();
-    setTimeout(scrollToTodayIfExist, 0);
+    render(true);
 };
 
 export const scrollToTodayIfExist = () => {
@@ -134,7 +116,7 @@ export const loadSettings = async () => {
             const data = doc.data();
             store.dDayList = data.dDayList || [];
             store.selectedDDayId = data.selectedDDayId || null;
-            updateDdayUI();
+            if (window.updateDdayUI) window.updateDdayUI();
         } else {
             store.dDayList = [];
             store.selectedDDayId = null;
@@ -175,7 +157,7 @@ export const loadSettings = async () => {
 // ==========================================================================
 // 🖥️ 메인 렌더링 엔진
 // ==========================================================================
-export const render = () => {
+export const render = (autoScrollToToday = false) => {
   const container = document.getElementById("main-view");
   if (!container) return; 
 
@@ -184,26 +166,16 @@ export const render = () => {
   updateButtonUI();
 
   try {
-      if (store.scope === 'week') { 
-          weekViewInstance.container = container;
-          store.mode === 'editor' ? weekViewInstance.renderEditor() : weekViewInstance.renderViewer(); 
+      if (store.scope === 'week') { store.mode === 'editor' ? window.renderWeekEditor(container) : window.renderWeekViewer(container); }
+      else if (store.scope === 'month') { store.mode === 'editor' ? window.renderMonthEditor(container) : window.renderMonthViewer(container); }
+      else if (store.scope === 'year') { store.mode === 'editor' ? window.renderYearEditor(container) : window.renderYearViewer(container); }
+      else if (store.scope === 'day') { store.mode === 'editor' ? window.renderDayEditor(container) : window.renderDayViewer(container); }
+      else if (store.scope === 'memo') { window.renderMemoView(container); }
+
+      if (autoScrollToToday) {
+          scrollToTodayIfExist();
       }
-      else if (store.scope === 'month') { 
-          monthViewInstance.container = container;
-          store.mode === 'editor' ? monthViewInstance.renderEditor() : monthViewInstance.renderViewer(); 
-      }
-      else if (store.scope === 'year') { 
-          yearViewInstance.container = container;
-          store.mode === 'editor' ? yearViewInstance.renderEditor() : yearViewInstance.renderViewer(); 
-      }
-      else if (store.scope === 'day') { 
-          dayViewInstance.container = container;
-          store.mode === 'editor' ? dayViewInstance.renderEditor() : dayViewInstance.renderViewer(); 
-      }
-      else if (store.scope === 'memo') { 
-          memoViewInstance.container = container;
-          memoViewInstance.renderViewer(); 
-      }
+
   } catch (error) {
       console.error("화면 렌더링 중 오류 발생:", error);
       container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
@@ -263,7 +235,7 @@ export const updateButtonUI = () => {
   const scopeBtns = document.querySelectorAll('.btn-scope');
   scopeBtns.forEach(btn => {
     btn.classList.remove('active');
-    if (btn.dataset.scope === store.scope) {
+    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${store.scope}'`)) {
       btn.classList.add('active');
     }
   });
@@ -300,9 +272,9 @@ export const updateButtonUI = () => {
 
   const dateNavContainer = document.getElementById('date-range-text')?.parentElement;
   if (dateNavContainer) {
-      const prevBtn = document.getElementById('btn-date-prev');
-      const nextBtn = document.getElementById('btn-date-next');
-      const todayBtn = document.getElementById('date-range-text');
+      const prevBtn = dateNavContainer.querySelector('button[onclick*="moveDate(-1)"]');
+      const nextBtn = dateNavContainer.querySelector('button[onclick*="moveDate(1)"]');
+      const todayBtn = dateNavContainer.querySelector('button[onclick*="goToToday"]');
 
       if (store.scope === 'memo') {
           if (prevBtn) prevBtn.style.display = 'none';
@@ -333,9 +305,6 @@ export const updateButtonUI = () => {
   if (dropdown) dropdown.classList.add('hidden');
 };
 
-// ==========================================================================
-// 💾 저장 엔진
-// ==========================================================================
 export const saveCurrentViewData = (silent = false) => {
   const editorBtn = document.getElementById('btn-mode-editor');
 
@@ -348,37 +317,35 @@ export const saveCurrentViewData = (silent = false) => {
   const scopeToSave = store.scope;
 
   try {
-      if (scopeToSave === 'day') {
-          if(typeof dayViewInstance.syncEventInputs === 'function') dayViewInstance.syncEventInputs();
-          if(typeof dayViewInstance.syncJournalInputs === 'function') dayViewInstance.syncJournalInputs();
-          if(typeof dayViewInstance.syncScheduleInputs === 'function') dayViewInstance.syncScheduleInputs();
-      } else if (scopeToSave === 'week' && typeof weekViewInstance.syncScheduleInputs === 'function') {
-          weekViewInstance.syncScheduleInputs();
-          if(typeof weekViewInstance.syncAllCompactEventInputs === 'function') weekViewInstance.syncAllCompactEventInputs(); 
-      } else if (scopeToSave === 'month' && typeof monthViewInstance.syncScheduleInputs === 'function') {
-          monthViewInstance.syncScheduleInputs();
-      } else if (scopeToSave === 'year' && typeof yearViewInstance.syncScheduleInputs === 'function') {
-          yearViewInstance.syncScheduleInputs();
+      if (scopeToSave === 'day' && window.dayViewInstance) {
+          if(typeof window.dayViewInstance.syncEventInputs === 'function') window.dayViewInstance.syncEventInputs();
+          if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
+          if(typeof window.dayViewInstance.syncScheduleInputs === 'function') window.dayViewInstance.syncScheduleInputs();
+      } else if (scopeToSave === 'week' && window.weekViewInstance && typeof window.weekViewInstance.syncScheduleInputs === 'function') {
+          window.weekViewInstance.syncScheduleInputs();
+          if(typeof window.weekViewInstance.syncAllCompactEventInputs === 'function') window.weekViewInstance.syncAllCompactEventInputs(); 
+      } else if (scopeToSave === 'month' && window.monthViewInstance && typeof window.monthViewInstance.syncScheduleInputs === 'function') {
+          window.monthViewInstance.syncScheduleInputs();
+      } else if (scopeToSave === 'year' && window.yearViewInstance && typeof window.yearViewInstance.syncScheduleInputs === 'function') {
+          window.yearViewInstance.syncScheduleInputs();
       }
-  } catch(e) {
-      console.warn("Input Sync Warning:", e);
-  }
+  } catch(e) {}
 
   let savePromise = null;
   try {
-      if (scopeToSave === 'day') savePromise = dayViewInstance.save();
-      else if (scopeToSave === 'week') savePromise = weekViewInstance.save();
-      else if (scopeToSave === 'month') savePromise = monthViewInstance.save();
-      else if (scopeToSave === 'year') savePromise = yearViewInstance.save();
+      if (scopeToSave === 'day' && window.saveDayDataFromEditor) savePromise = window.saveDayDataFromEditor();
+      else if (scopeToSave === 'week' && window.saveWeekDataFromEditor) savePromise = window.saveWeekDataFromEditor();
+      else if (scopeToSave === 'month' && window.saveMonthDataFromEditor) savePromise = window.saveMonthDataFromEditor();
+      else if (scopeToSave === 'year' && window.saveYearDataFromEditor) savePromise = window.saveYearDataFromEditor();
   } catch (e) {
-      console.error("데이터 저장 중 오류:", e);
+      console.error("데이터 캡처 중 오류:", e);
   }
 
   setTimeout(async () => {
       try {
           if (savePromise) await savePromise;
-          if (autoForwardIncompleteEvents) {
-              await autoForwardIncompleteEvents();
+          if (window.autoForwardIncompleteEvents) {
+              await window.autoForwardIncompleteEvents();
           }
 
           if (editorBtn && !silent) {
@@ -395,51 +362,9 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// 🚀 앱 중앙 이벤트 리스너 바인딩
-// ==========================================================================
-const bindEvents = () => {
-    document.getElementById('btn-login')?.addEventListener('click', signInWithGoogle);
-    document.getElementById('btn-logout')?.addEventListener('click', () => {
-        if (store.mode === 'editor' && store.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return;
-        signOut();
-    });
-
-    document.getElementById('btn-search')?.addEventListener('click', () => SearchModule.open());
-    document.querySelectorAll('.btn-scope').forEach(btn => {
-        btn.addEventListener('click', (e) => setScope(e.target.dataset.scope));
-    });
-
-    document.getElementById('btn-date-prev')?.addEventListener('click', () => moveDate(-1));
-    document.getElementById('btn-date-next')?.addEventListener('click', () => moveDate(1));
-    document.getElementById('date-range-text')?.addEventListener('click', goToToday);
-
-    document.getElementById('btn-toggle-weekend')?.addEventListener('click', toggleWeekend);
-    document.getElementById('btn-toggle-class')?.addEventListener('click', toggleClass);
-    document.getElementById('btn-more-menu')?.addEventListener('click', toggleMoreMenu);
-
-    const closeDropdown = () => document.getElementById('more-dropdown')?.classList.add('hidden');
-    document.getElementById('btn-menu-memo-label')?.addEventListener('click', () => { closeDropdown(); LabelManager.openMemoModal(); });
-    document.getElementById('btn-menu-event-label')?.addEventListener('click', () => { closeDropdown(); LabelManager.openEventModal(); });
-    document.getElementById('btn-menu-journal-label')?.addEventListener('click', () => { closeDropdown(); LabelManager.openJournalModal(); });
-    document.getElementById('btn-menu-timetable')?.addEventListener('click', () => { closeDropdown(); TimetableModule.open(); });
-    document.getElementById('btn-menu-sync')?.addEventListener('click', () => { closeDropdown(); openGoogleSyncModal(); });
-    document.getElementById('btn-menu-backup')?.addEventListener('click', () => { closeDropdown(); BackupManager.openModal(); });
-    document.getElementById('btn-menu-help')?.addEventListener('click', () => { closeDropdown(); openHelpModal(); });
-
-    document.getElementById('btn-dday-display')?.addEventListener('click', toggleDdayMenu);
-    document.getElementById('btn-dday-settings')?.addEventListener('click', openDdaySettingsModal);
-
-    document.getElementById('image-viewer-modal')?.addEventListener('click', function() { this.classList.add('hidden'); });
-};
-
-// ==========================================================================
-// 🚀 앱 초기화
+// 🚀 앱 초기화 및 이벤트 리스너 바인딩 (수정된 부분)
 // ==========================================================================
 const initApp = () => {
-  subscribe(() => render());
-
-  bindEvents();
-
   const viewerBtn = document.getElementById('btn-mode-viewer');
   const editorBtn = document.getElementById('btn-mode-editor');
 
@@ -457,9 +382,9 @@ const initApp = () => {
 
   window.addEventListener('beforeunload', (e) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) {
-      if (store.scope === 'day' && typeof dayViewInstance.syncEventInputs === 'function') {
-          dayViewInstance.syncEventInputs();
-          if(typeof dayViewInstance.syncJournalInputs === 'function') dayViewInstance.syncJournalInputs();
+      if (store.scope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
+          window.dayViewInstance.syncEventInputs();
+          if(typeof window.dayViewInstance.syncJournalInputs === 'function') window.dayViewInstance.syncJournalInputs();
       }
       saveCurrentViewData(true);
       e.preventDefault(); 
@@ -469,8 +394,8 @@ const initApp = () => {
 
   document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === 'hidden' && store.mode === 'editor' && store.hasUnsavedChanges) {
-          if (store.scope === 'day' && typeof dayViewInstance.syncEventInputs === 'function') {
-              dayViewInstance.syncEventInputs();
+          if (store.scope === 'day' && window.dayViewInstance && typeof window.dayViewInstance.syncEventInputs === 'function') {
+              window.dayViewInstance.syncEventInputs();
           }
           saveCurrentViewData(true);
       }
@@ -496,17 +421,20 @@ const initApp = () => {
 
         try {
             await loadSettings();
-            if (autoForwardIncompleteEvents) await autoForwardIncompleteEvents();
+            if (window.autoCheckAndRunMigration) {
+                await window.autoCheckAndRunMigration();
+            }
+            if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
         } catch (e) {
             console.error("초기 로딩 에러:", e);
         }
 
-        render();
+        render(true);
 
         setTimeout(() => {
           try {
-            if (localStorage.getItem('workCalendar_hideHelp_v4') !== 'true' && typeof openHelpModal === 'function') {
-              openHelpModal();
+            if (localStorage.getItem('workCalendar_hideHelp_v4') !== 'true' && typeof window.openHelpModal === 'function') {
+              window.openHelpModal();
             }
           } catch(e) {}
         }, 500); 
@@ -525,6 +453,12 @@ const initApp = () => {
   }
 };
 
+// 💡 핵심 해결: 모듈 환경에서는 DOM 로딩이 이미 끝났을 수 있으므로 분기 처리
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
 // ==========================================================================
 // 🚀 완료 일정 Top-Down 추적 복사 & 사본 연쇄 자동 삭제 엔진
 // ==========================================================================
@@ -533,7 +467,7 @@ export const autoForwardIncompleteEvents = async () => {
     try {
         const pastDate = new Date(parseLocalDate(todayStr));
         pastDate.setDate(pastDate.getDate() - 365); 
-        const eventsSnap = await getUserCol('events').where('__name__', '>=', formatDate(pastDate)).get();
+        const eventsSnap = await getUserCol('events').where(firebase.firestore.FieldPath.documentId(), '>=', formatDate(pastDate)).get();
         let eventsMap = {}; let allDates = [];
         eventsSnap.forEach(doc => { eventsMap[doc.id] = doc.data(); allDates.push(doc.id); });
 
@@ -550,19 +484,15 @@ export const autoForwardIncompleteEvents = async () => {
             const nextStr = formatDate(curD);
 
             let curData = eventsMap[curStr] || { eventList: [] };
-            let curList = curData.eventList || [];
+            let curList = curData.eventList || (curData.eventText ? window.parseRawEventTextToEventList(curData.eventText) : []);
             let newCurList = []; let curChanged = false;
 
             curList.forEach(ev => {
                 let canComplete = false;
-                const masterLabels = getEventLabels();
-                if (ev.labelIds && ev.labelIds.length > 0) { 
-                    canComplete = ev.labelIds.some(id => {
-                        const m = masterLabels.find(l => l.id === id); return m && m.isForward;
-                    });
-                } else if (ev.labels || ev.label) {
+                if (ev.labelIds && ev.labelIds.length > 0) { canComplete = ev.labelIds.some(id => window.isForwardLabel(id)); } 
+                else if (ev.labels || ev.label) {
                     const lName = (ev.labels && ev.labels.length > 0) ? ev.labels[0] : ev.label;
-                    const lObj = masterLabels.find(x => x.name === lName);
+                    const lObj = getEventLabels().find(x => x.name === lName);
                     canComplete = lObj ? lObj.isForward : false;
                 }
 
@@ -593,7 +523,7 @@ export const autoForwardIncompleteEvents = async () => {
             });
 
             let nextData = eventsMap[nextStr] || { eventList: [] };
-            let nextList = nextData.eventList || [];
+            let nextList = nextData.eventList || (nextData.eventText ? window.parseRawEventTextToEventList(nextData.eventText) : []);
             let nextChanged = false;
 
             if (curStr < todayStr) {
@@ -621,7 +551,9 @@ export const autoForwardIncompleteEvents = async () => {
         changedDocs.forEach(dateStr => {
             const docRef = getUserCol('events').doc(dateStr);
             const evList = eventsMap[dateStr].eventList;
-            batch.set(docRef, { eventList: evList, updatedAt: Date.now() }, { merge: true });
+            const updateData = { eventList: evList, updatedAt: Date.now() };
+            if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(evList); 
+            batch.set(docRef, updateData, { merge: true });
             opCount++;
             if (opCount >= 400){ batchPromises.push(batch.commit()); batch = window.db.batch(); opCount = 0; }
         });
@@ -667,20 +599,27 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
         if (mode === 'stop') {
             snap.forEach(doc => {
                 if (doc.id < baseDateStr) {
-                    const list = doc.data().eventList || [];
+                    const list = doc.data().eventList || (doc.data().eventText ? window.parseRawEventTextToEventList(doc.data().eventText) : []);
                     if (list.some(matchEvent)) { if (doc.id > maxPastDateStr) maxPastDateStr = doc.id; }
                 }
             });
         }
 
-        if (dayViewInstance && dayViewInstance.currentEvents) {
-            if (mode === 'all' || dayViewInstance.dateStr >= baseDateStr) {
-               dayViewInstance.currentEvents = dayViewInstance.currentEvents.filter(e => !matchEvent(e));
-            } else if (mode === 'stop' && dayViewInstance.dateStr === maxPastDateStr) {
-               dayViewInstance.currentEvents.forEach(e => { if (matchEvent(e)) e.completed = true; });
+        if (window.dayViewInstance && window.dayViewInstance.currentEvents) {
+            if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
+               window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+            } else if (mode === 'stop' && window.dayViewInstance.dateStr === maxPastDateStr) {
+               window.dayViewInstance.currentEvents.forEach(e => { if (matchEvent(e)) e.completed = true; });
             }
         }
-        
+        Object.keys(window).forEach(key => {
+            if (key.startsWith('tempEvents_')) {
+                const dStr = key.replace('tempEvents_', '');
+                if (mode === 'all' || dStr >= baseDateStr) { window[key] = window[key].filter(e => !matchEvent(e)); } 
+                else if (mode === 'stop' && dStr === maxPastDateStr) { window[key].forEach(e => { if (matchEvent(e)) e.completed = true; }); }
+            }
+        });
+
         let batch = window.db.batch(); let count = 0; let batchPromises = []; 
 
         snap.forEach(doc => {
@@ -700,14 +639,16 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
             }
 
             if (changed) {
-                batch.update(doc.ref, { eventList: list, updatedAt: Date.now() });
+                let updateData = { eventList: list, updatedAt: Date.now() };
+                if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(list);
+                batch.update(doc.ref, updateData);
                 count++;
                 if (count >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); count = 0; }
             }
         });
         if (count > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
-        if (autoForwardIncompleteEvents) await autoForwardIncompleteEvents();
+        if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
     } catch(e) { console.error("이월 삭제 오류:", e); }
 
     if (document.getElementById('forward-delete-modal')) document.getElementById('forward-delete-modal').remove();
@@ -715,7 +656,7 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
 };
 
 // ==========================================================================
-// 🚀 D-Day 기능
+// 🚀 D-Day 기능 유지
 // ==========================================================================
 export const toggleDdayMenu = () => {
     if (!store.dDayList || store.dDayList.length === 0) {
@@ -742,6 +683,23 @@ export const toggleDdayMenu = () => {
         }
     }
     dropdown.classList.toggle('hidden');
+};
+
+window.addEventListener('click', function(e) {
+    const btn = document.getElementById('btn-dday-display');
+    const dropdown = document.getElementById('dday-dropdown');
+    if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+export const selectDday = async (id) => {
+    store.selectedDDayId = id;
+    document.getElementById('dday-dropdown').classList.add('hidden');
+    updateDdayUI();
+    if (window.auth && window.auth.currentUser) {
+        await getUserCol('settings').doc('preferences').set({ selectedDDayId: id }, { merge: true });
+    }
 };
 
 export const updateDdayUI = () => {
@@ -816,19 +774,7 @@ export const renderDdaySettingsList = () => {
     });
 };
 
-// ==========================================================================
-// 🚨 추가 전역 찌꺼기 연결 (모달 내 onclick 버튼용)
-// ==========================================================================
-window.selectDday = async (id) => {
-    store.selectedDDayId = id;
-    document.getElementById('dday-dropdown').classList.add('hidden');
-    updateDdayUI();
-    if (window.auth && window.auth.currentUser) {
-        await getUserCol('settings').doc('preferences').set({ selectedDDayId: id }, { merge: true });
-    }
-};
-
-window.addDday = async () => {
+export const addDday = async () => {
     const titleInput = document.getElementById('new-dday-title');
     const dateInput = document.getElementById('new-dday-date');
     if (!titleInput.value.trim() || !dateInput.value) return alert("명칭과 날짜를 모두 입력해주세요.");
@@ -837,99 +783,240 @@ window.addDday = async () => {
     store.dDayList.push(newDday);
     if (store.dDayList.length === 1) store.selectedDDayId = newDday.id;
 
-    if (window.auth && window.auth.currentUser) {
-        try { await getUserCol('settings').doc('preferences').set({ dDayList: store.dDayList, selectedDDayId: store.selectedDDayId }, { merge: true }); } catch (e) { }
-    }
+    await saveDdayDataToFirebase();
     titleInput.value = ''; dateInput.value = '';
     renderDdaySettingsList(); updateDdayUI();
 };
 
-window.deleteDday = async (id) => {
+export const deleteDday = async (id) => {
     if (!confirm("해당 D-Day를 삭제하시겠습니까?")) return;
     store.dDayList = store.dDayList.filter(d => d.id !== id);
     if (store.selectedDDayId === id) store.selectedDDayId = null;
-    
-    if (window.auth && window.auth.currentUser) {
-        try { await getUserCol('settings').doc('preferences').set({ dDayList: store.dDayList, selectedDDayId: store.selectedDDayId }, { merge: true }); } catch (e) { }
-    }
+    await saveDdayDataToFirebase();
     renderDdaySettingsList(); updateDdayUI();
 };
 
-window.showForwardDeleteModal = showForwardDeleteModal;
-window.render = render;
-window.goToToday = goToToday;
-
-// ==========================================================================
-// 🌉 모든 페이지(연/월/주/일) 공통: 특수 속성 라벨(기간, 반복) 모달 호출 안전 브릿지
-// ==========================================================================
-window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof window.PeriodModule !== 'undefined' && window.PeriodModule.open) {
-        window.PeriodModule.open(dateStr, labelName, content, callback, labelId);
-    } else if (typeof PeriodModule !== 'undefined' && PeriodModule.open) {
-        PeriodModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        console.warn("PeriodModule이 아직 로드되지 않았습니다.");
-        if (callback) callback(false);
-    }
+export const saveDdayDataToFirebase = async () => {
+    if (!window.auth || !window.auth.currentUser) return;
+    try { await getUserCol('settings').doc('preferences').set({ dDayList: store.dDayList, selectedDDayId: store.selectedDDayId }, { merge: true }); } 
+    catch (e) { console.error("D-Day 저장 실패", e); alert("저장에 실패했습니다."); }
 };
 
-window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof window.RecurringEventModule !== 'undefined' && window.RecurringEventModule.open) {
-        window.RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
-    } else if (typeof RecurringEventModule !== 'undefined' && RecurringEventModule.open) {
-        RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        console.warn("RecurringEventModule이 아직 로드되지 않았습니다.");
-        if (callback) callback(false);
-    }
-}; // 💡 [수정됨] 이전에 누락되었던 닫는 괄호 추가됨!
+export const openPeriodModal = (startDateStr, labelName, textContent, callback, labelId) => {
+    const modalHtml = `
+    <div id="period-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
+        <div style="background:#fff; padding:25px; border-radius:12px; width:360px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:10px;">📅 [${labelName}] 연속 기간 등록</h3>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px;">일정 내용</label>
+                <input type="text" id="period-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="예: 여름방학">
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label><input type="date" id="period-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;"></div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">종료일 선택</label><input type="date" id="period-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;"></div>
+            </div>
+            <div style="margin-bottom:25px; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="display:flex; align-items:center; gap:6px; font-weight:bold; cursor:pointer;"><input type="checkbox" id="period-exclude-weekend" checked style="width:16px; height:16px; accent-color:#2563eb;"> 주말(토/일) 제외하고 계산하기</label>
+                <p style="margin:5px 0 0 22px; font-size:0.8rem; color:#64748b;">체크 시 평일에만 등록됩니다.</p>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btn-period-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button id="btn-period-register" style="padding:10px 16px; border:none; background:#2563eb; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">등록</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.getElementById('btn-period-cancel').onclick = () => { document.getElementById('period-modal').remove(); if(callback) callback(false); };
+    document.getElementById('btn-period-register').onclick = () => executeGroupSave(labelName, callback, 'period', labelId);
+};
 
-// ==========================================================================
-// 🌉 날짜 클릭 시 해당 '일(Day)' 보기로 이동하는 브릿지 함수
-// ==========================================================================
-window.goToDay = function(dateStr, event) {
-    if (!dateStr) return;
-    
-    if (event) {
-        event.stopPropagation();
-        event.preventDefault();
-        event.stopImmediatePropagation();
-    }
+export const openRecurringModal = (startDateStr, labelName, textContent, callback, labelId) => {
+    const startD = new Date(startDateStr);
+    const dayName = ['일', '월', '화', '수', '목', '금', '토'][startD.getDay()];
 
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-        store.hasUnsavedChanges = false;
+    const modalHtml = `
+    <div id="recur-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
+        <div class="modal-content" style="width:360px; padding:25px; background:#fff; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#16a34a; border-bottom:2px solid #bbf7d0; padding-bottom:10px;">🔁 [${labelName}] 매주 반복 등록</h3>
+            <p style="font-size:0.9rem; color:#475569; margin-bottom:15px;">매주 <b>${dayName}요일</b>마다 반복되는 일정을 등록합니다.</p>
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-weight:bold; margin-bottom:5px;">일정 내용</label>
+                <input type="text" id="recur-content" value="${textContent}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px;" placeholder="예: 1학년 부장 회의">
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:25px;">
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem;">시작일</label><input type="date" id="recur-start" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:#f1f5f9;" readonly></div>
+                <div style="flex:1;"><label style="display:block; font-weight:bold; margin-bottom:5px; font-size:0.9rem; color:#ef4444;">반복 종료일</label><input type="date" id="recur-end" value="${startDateStr}" style="width:100%; padding:8px; border:1px solid #ef4444; border-radius:6px; outline:none;"></div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btn-recur-cancel" style="padding:10px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
+                <button id="btn-recur-register" style="padding:10px 16px; border:none; background:#16a34a; color:#fff; font-weight:bold; border-radius:6px; cursor:pointer;">반복 등록</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.getElementById('btn-recur-cancel').onclick = () => { document.getElementById('recur-modal').remove(); if(callback) callback(false); };
+    document.getElementById('btn-recur-register').onclick = () => executeGroupSave(labelName, callback, 'weekly', labelId);
+};
 
-        if (document.activeElement && typeof document.activeElement.blur === 'function') {
-            document.activeElement.blur();
+export const executeGroupSave = async (labelName, callback, mode, labelId) => {
+    const isPeriod = (mode === 'period');
+    const prefix = isPeriod ? 'period' : 'recur';
+    const content = document.getElementById(`${prefix}-content`).value.trim();
+    const startStr = document.getElementById(`${prefix}-start`).value;
+    const endStr = document.getElementById(`${prefix}-end`).value;
+    const excludeWeekend = isPeriod ? document.getElementById('period-exclude-weekend').checked : false;
+
+    if(!content) return alert("일정 내용을 입력해주세요.");
+    const startD = new Date(startStr); const endD = new Date(endStr);
+    if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
+
+    document.getElementById(`${prefix}-modal`).innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에 일괄 등록 중...</div>`;
+
+    let datesToSave = []; let curD = new Date(startD); const targetDayOfWeek = startD.getDay();
+
+    while (curD <= endD) {
+        if (isPeriod) {
+            const day = curD.getDay();
+            if (!(excludeWeekend && (day === 0 || day === 6))) datesToSave.push(formatDate(curD));
+        } else {
+            if (curD.getDay() === targetDayOfWeek) datesToSave.push(formatDate(curD));
         }
-
-        store.scope = 'day';
-        store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        curD.setDate(curD.getDate() + 1);
     }
+
+    const totalDays = datesToSave.length;
+    let batch = window.db.batch();
+    const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`; 
+
+    for(let i=0; i<totalDays; i++) {
+        const dStr = datesToSave[i];
+        const docRef = getUserCol('events').doc(dStr);
+        const docSnap = await docRef.get();
+        let list = docSnap.exists ? (docSnap.data().eventList || []) : [];
+
+        list.push({ 
+            labelIds: labelId ? [labelId] : [], 
+            label: labelName, labels: [labelName], 
+            content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
+            completed: false, groupId: groupId 
+        });
+        batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+    }
+
+    await batch.commit();
+    document.getElementById(`${prefix}-modal`).remove();
+    alert(`✅ 총 ${totalDays}개의 그룹 일정이 성공적으로 등록되었습니다.`);
+    if (callback) callback(true);
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    initApp();
-}
+export const showGroupDeleteModal = (baseDateStr, labelIdOrName, textContent, groupId, onConfirm, onOnlyThisDay) => {
+    const modalHtml = `
+    <div id="group-delete-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
+        <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
+            <h3 style="color:#ef4444; margin-top:0;">🗑️ 연결된 그룹 일정 삭제</h3>
+            <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">선택하신 일정은 <b>'반복 또는 기간'</b>으로 연결된 일정입니다.<br>어떻게 처리할까요?</p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button id="btn-del-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">1. 이 일정만 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span></button>
+                <button id="btn-del-after-this" style="padding:12px; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; cursor:pointer; font-weight:bold; color:#e11d48; text-align:left;">2. 이 날부터 이후 모든 연결된 일정 삭제</button>
+                <button id="btn-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left;">3. 전체 그룹 일정 모두 삭제 <span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(과거 포함)</span></button>
+                <button onclick="document.getElementById('group-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const baseContent = textContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+
+    document.getElementById('btn-del-only-this').onclick = () => { document.getElementById('group-delete-modal').remove(); if (onOnlyThisDay) onOnlyThisDay(); };
+    document.getElementById('btn-del-after-this').onclick = async () => { if(store.hasUnsavedChanges) saveCurrentViewData(true); await executeGroupDelete('after', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm); };
+    document.getElementById('btn-del-all').onclick = async () => { if(store.hasUnsavedChanges) saveCurrentViewData(true); await executeGroupDelete('all', baseDateStr, groupId, labelIdOrName, baseContent, onConfirm); };
+};
+
+export const executeGroupDelete = async (mode, baseDateStr, groupId, labelIdOrName, baseContent, onConfirm) => {
+    document.getElementById('group-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 클라우드에서 연결된 다중 일정 삭제 중...</div>`;
+
+    const matchEvent = (e) => {
+        if (groupId && e.groupId) return e.groupId === groupId; 
+        const eLabelIds = e.labelIds || []; const eLabels = e.labels || (e.label ? [e.label] : []);
+        const hasLabel = eLabelIds.includes(labelIdOrName) || eLabels.includes(labelIdOrName);
+        const c = (e.content || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
+        return hasLabel && c === baseContent;
+    };
+
+    if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+        window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
+    }
+    Object.keys(window).forEach(key => {
+        if (key.startsWith('tempEvents_')) {
+            const dStr = key.replace('tempEvents_', '');
+            if (mode === 'only' && dStr !== baseDateStr) return;
+            if (mode === 'after' && dStr < baseDateStr) return;
+            window[key] = window[key].filter(e => !matchEvent(e));
+        }
+    });
+
+    try {
+        let query = getUserCol('events');
+        if (mode === 'after') query = query.where(firebase.firestore.FieldPath.documentId(), '>=', baseDateStr);
+
+        const snap = await query.get();
+        let batch = window.db.batch(); let count = 0; let batchPromises = []; 
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            let list = data.eventList || [];
+            const origLen = list.length;
+
+            list = list.filter(e => !matchEvent(e));
+
+            if (origLen !== list.length) {
+                let updateData = { eventList: list, updatedAt: Date.now() };
+                if (window.formatEventListToText) updateData.eventText = window.formatEventListToText(list);
+                batch.update(doc.ref, updateData);
+
+                count++;
+                if (count >= 400) { batchPromises.push(batch.commit()); batch = window.db.batch(); count = 0; }
+            }
+        });
+        if (count > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+    } catch(e) { console.error("일괄 삭제 오류:", e); }
+
+    document.getElementById('group-delete-modal').remove();
+    if (onConfirm) onConfirm();
+};
 
 // ==========================================================================
-// 🌉 전역 함수 브릿지 추가 (라벨 클릭 시 모달이 안 뜨던 버그 완벽 해결)
+// 🌉 과도기 호환성 레이어 
 // ==========================================================================
+window.toggleWeekend = toggleWeekend;
+window.toggleClass = toggleClass;
+window.setScope = setScope;
+window.setMode = setMode;
+window.handleEditSaveClick = handleEditSaveClick;
+window.moveDate = moveDate;
+window.goToToday = goToToday;
+window.scrollToTodayIfExist = scrollToTodayIfExist;
+window.loadSettings = loadSettings;
+window.render = render;
+window.updateTitle = updateTitle;
+window.toggleMoreMenu = toggleMoreMenu;
+window.updateButtonUI = updateButtonUI;
 window.saveCurrentViewData = saveCurrentViewData;
-window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof window.PeriodModule !== 'undefined' && window.PeriodModule.open) {
-        window.PeriodModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        if (callback) callback(false);
-    }
-};
-window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
-    if (typeof window.RecurringEventModule !== 'undefined' && window.RecurringEventModule.open) {
-        window.RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
-    } else {
-        if (callback) callback(false);
-    }
-};
+window.autoForwardIncompleteEvents = autoForwardIncompleteEvents;
+window.showForwardDeleteModal = showForwardDeleteModal;
+window.executeForwardDelete = executeForwardDelete;
+window.toggleDdayMenu = toggleDdayMenu;
+window.selectDday = selectDday;
+window.updateDdayUI = updateDdayUI;
+window.calculateDday = calculateDday;
+window.openDdaySettingsModal = openDdaySettingsModal;
+window.renderDdaySettingsList = renderDdaySettingsList;
+window.addDday = addDday;
+window.deleteDday = deleteDday;
+window.saveDdayDataToFirebase = saveDdayDataToFirebase;
+window.openPeriodModal = openPeriodModal;
+window.openRecurringModal = openRecurringModal;
+window.executeGroupSave = executeGroupSave;
+window.showGroupDeleteModal = showGroupDeleteModal;
+window.executeGroupDelete = executeGroupDelete;
