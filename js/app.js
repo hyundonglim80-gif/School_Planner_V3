@@ -900,3 +900,24 @@ window.goToDay = function(dateStr, event) {
         store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 };
+
+// ==========================================================================
+// 🌉 모든 페이지(연/월/주/일) 공통: 특수 속성 라벨(기간, 반복) 모달 호출 안전 브릿지
+// ==========================================================================
+window.openPeriodModal = window.openPeriodModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof PeriodModule !== 'undefined' && PeriodModule.open) {
+        PeriodModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        console.warn("PeriodModule이 아직 로드되지 않았습니다.");
+        if (callback) callback(false);
+    }
+};
+
+window.openRecurringModal = window.openRecurringModal || function(dateStr, labelName, content, callback, labelId) {
+    if (typeof RecurringEventModule !== 'undefined' && RecurringEventModule.open) {
+        RecurringEventModule.open(dateStr, labelName, content, callback, labelId);
+    } else {
+        console.warn("RecurringEventModule이 아직 로드되지 않았습니다.");
+        if (callback) callback(false);
+    }
+};
