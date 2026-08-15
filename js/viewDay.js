@@ -305,13 +305,60 @@ export class DayView extends BaseView {
             });
             row.appendChild(chipContainer);
 
+            // ==========================================
+            // [수정된 부분] 체크박스와 텍스트 입력창 나란히 배치
+            // ==========================================
+            const canComplete = (ev.labelIds || []).some(id => {
+                const match = allLabelsObj.find(l => l.id === id);
+                return match && match.isForward;
+            });
+            const isCompleted = !!ev.completed;
+
+            const inputWrapper = document.createElement('div');
+            inputWrapper.style.cssText = "display:flex; align-items:flex-start; gap:8px; width:100%;";
+
+            // 완료(isForward) 가능한 라벨일 때만 체크박스 추가
+            if (canComplete) {
+                const cbWrapper = document.createElement('div');
+                cbWrapper.style.paddingTop = "8px";
+                
+                const cb = document.createElement('input');
+                cb.type = "checkbox";
+                cb.checked = isCompleted;
+                cb.style.cssText = "width:18px; height:18px; cursor:pointer; accent-color:#059669;";
+                cb.title = "완료 체크";
+                cb.onchange = (e) => {
+                    this.currentEvents[idx].completed = e.target.checked;
+                    store.hasUnsavedChanges = true;
+                    this.renderEventEntries(); // 재렌더링하여 취소선 반영
+                };
+                
+                cbWrapper.appendChild(cb);
+                inputWrapper.appendChild(cbWrapper);
+            }
+
             const input = document.createElement('textarea');
             input.className = 'modal-input-text';
-            input.style.cssText = "width:100%; min-height:40px; resize:vertical; font-size:0.95rem; padding:8px; box-sizing:border-box;";
+            
+            // 완료 여부에 따른 취소선 스타일 적용
+            const textStyle = (isCompleted && canComplete) 
+                ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' 
+                : 'background:#fff; color:#1e293b;';
+                
+            input.style.cssText = `flex:1; min-height:40px; resize:vertical; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}`;
             input.placeholder = "일정 내용 입력...";
-            input.value = ev.content || '';
-            input.oninput = () => { store.hasUnsavedChanges = true; };
-            row.appendChild(input);
+            
+            const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+            input.value = pureContent;
+            
+            input.oninput = (e) => { 
+                this.currentEvents[idx].content = e.target.value;
+                store.hasUnsavedChanges = true; 
+            };
+            
+            inputWrapper.appendChild(input);
+            row.appendChild(inputWrapper);
+            // ==========================================
 
             container.appendChild(row);
         });
