@@ -1,0 +1,15 @@
+{
+  "name": "School Planner V3.3",
+  "short_name": "SP3.3",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
