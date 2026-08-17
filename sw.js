@@ -1,7 +1,6 @@
 // sw.js (Service Worker)
-const CACHE_NAME = 'sp3-offline-cache-v1';
+const CACHE_NAME = 'sp3-offline-cache-v2';
 
-// 설치 시 즉시 활성화
 self.addEventListener('install', event => {
     self.skipWaiting();
 });
@@ -10,29 +9,37 @@ self.addEventListener('activate', event => {
     event.waitUntil(clients.claim());
 });
 
-// 화면이나 코드(JS, CSS)를 요청할 때 중간에서 가로채기
 self.addEventListener('fetch', event => {
     const url = event.request.url;
 
-    // 파이어베이스 DB 통신이나 구글 API는 가로채지 않고 패스! (순수 데이터이므로)
+    // 🌟 [수정 1] http나 https로 시작하는 정상적인 웹 요청만 처리 (크롬 익스텐션 에러 원천 차단)
+    if (!url.startsWith('http')) {
+        return;
+    }
+
+    // 파이어베이스 DB 통신이나 구글 API는 가로채지 않고 패스!
     if (url.includes('firestore') || url.includes('googleapis') || url.includes('googleusercontent')) {
         return;
     }
 
-    // 인터넷이 연결되어 있으면 새 파일을 받아와서 캐시에 저장하고, 인터넷이 끊겼으면 저장된 캐시를 꺼내줍니다.
     event.respondWith(
-        fetch(event.request)
-            .then(response => {
-                // 성공적으로 받아오면 복사본을 캐시에 저장
+        caches.match(event.request).then(cachedResponse => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(event.request).then(response => {
+                // 🌟 [수정 2] 정상적인 응답(200 OK)이 올 때만 캐시에 저장
+                if (!response || response.status !== 200 || response.type !== 'basic') {
+                    return response;
+                }
                 const clonedResponse = response.clone();
                 caches.open(CACHE_NAME).then(cache => {
                     cache.put(event.request, clonedResponse);
                 });
                 return response;
-            })
-            .catch(() => {
-                // 인터넷이 끊겼을 때 (오프라인)
-                return caches.match(event.request);
-            })
+            }).catch(() => {
+                // 인터넷이 끊겼을 때 캐시된 응답이 없다면 무시
+            });
+        })
     );
 });
