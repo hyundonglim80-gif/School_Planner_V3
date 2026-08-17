@@ -3,7 +3,7 @@
   "short_name": "SP3.3",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#FFFFFF",
   "theme_color": "#2563eb",
   "icons": [
     {
