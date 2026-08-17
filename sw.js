@@ -1,5 +1,5 @@
 // sw.js (Service Worker)
-const CACHE_NAME = 'sp3-offline-cache-v2';
+const CACHE_NAME = 'sp3-offline-cache-v3';
 
 self.addEventListener('install', event => {
     self.skipWaiting();
