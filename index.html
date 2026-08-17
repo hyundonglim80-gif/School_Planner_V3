@@ -23,7 +23,20 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW 등록 실패:', err));
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          // 🌟 코드가 변경되었을 때 즉시 새 버전으로 업데이트 강제
+          reg.onupdatefound = () => {
+            const installingWorker = reg.installing;
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed') {
+                if (navigator.serviceWorker.controller) {
+                  console.log('새로운 앱 버전이 있어 업데이트를 진행합니다.');
+                  window.location.reload();
+                }
+              }
+            };
+          };
+        }).catch(err => console.log('SW 등록 실패:', err));
       });
     }
   </script>
