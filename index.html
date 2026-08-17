@@ -5,9 +5,21 @@
   <meta name="viewport" content="width=800, initial-scale=1.0">
   <title>SP3.3</title>
   <link rel="stylesheet" href="css/style.css?v=13">
-  
-  <!-- 🌟 새롭게 추가된 부분 -->
   <link rel="manifest" href="manifest.json">
+  
+  <!-- 🌟 [핵심 해결책] 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"
+      }
+    }
+  </script>
+
+  <!-- 서비스 워커 등록 스크립트 -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -16,7 +28,6 @@
     }
   </script>
 </head>
-<body>
 
   <div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-body); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
       <div style="background:#fff; padding:50px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,0.1); text-align:center;">
