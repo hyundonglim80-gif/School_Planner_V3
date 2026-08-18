@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/style.css?v=14">
   <link rel="manifest" href="manifest.json">
   
+  <!-- 🌟 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
   <script type="importmap">
     {
       "imports": {
@@ -18,6 +19,7 @@
     }
   </script>
 
+  <!-- 서비스 워커 등록 스크립트 -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -51,7 +53,11 @@
   </div>
 
   <header class="app-header">
-    <div class="header-row">
+    
+    <!-- 🌟 [첫째 줄] 왼쪽/오른쪽 정렬 분리 -->
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        
+        <!-- 1-1. 왼쪽 정렬 (로고, 네트워크 상태, D-Day, 시계) -->
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <div class="title-group" style="display: flex; align-items: center; gap: 10px;">
                 <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;" id="app-title">SP3.4</h1>
@@ -74,7 +80,8 @@
             </div>
         </div>
 
-        <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <!-- 1-2. 오른쪽 정렬 (검색, 뷰 전환, 더보기 메뉴) -->
+        <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
             <button class="nav-btn" id="btn-search" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
 
             <div class="btn-group" title="보기 이동 단축키: Shift + ← / →" style="flex-wrap: wrap;">
@@ -89,7 +96,6 @@
                 <div style="position: relative;" id="more-menu-container">
                     <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
                     <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
-                        <!-- 🌟 통합 라벨 관리 버튼 -->
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.LabelManager.openUnifiedLabelModal('event');">🏷️ 통합 라벨 관리 (일정/기록/메모)</button>
                         
                         <button class="dropdown-item" onclick="openTimetableModal()" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px;">시간표 적용</button>
@@ -97,7 +103,6 @@
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
                         <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
                         
-                        <!-- 🌟 스와이프 모드 토글 버튼 추가 -->
                         <button class="dropdown-item" id="menu-swipe-mode" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.toggleSwipeMode();" style="border-top: 1px dashed #e2e8f0; font-weight:bold; color:#f59e0b; padding-top: 8px; margin-top: 4px;">↔️ 스와이프: 날짜 이동</button>
 
                         <button class="dropdown-item" id="btn-install-pwa" onclick="window.installPWA()" style="display: none; border-top: 1px dashed #e2e8f0; font-weight:bold; color:#10b981; padding-top: 8px; margin-top: 4px;">📱 앱 설치하기</button>
@@ -112,22 +117,28 @@
         </div>
     </div>
 
-    <div class="header-row" style="border-top: 1px dashed #cbd5e1; padding-top: 8px;">
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+    <!-- 🌟 [둘째 줄] 완벽한 좌/중/우 3단 분할 정렬 -->
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; flex-wrap: wrap; gap: 10px;">
+        
+        <!-- 2-1. 왼쪽 정렬 (주말/수업 버튼) -->
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 200px; justify-content: flex-start;">
             <button class="nav-btn" id="btn-toggle-weekend" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">주말 숨기기</button>
             <button class="nav-btn" id="btn-toggle-class" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">수업 숨기기</button>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;" id="date-nav-group">
+        <!-- 2-2. 중앙 정렬 (이전/날짜/다음 버튼) -->
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1 1 auto;" id="date-nav-group">
             <button class="nav-btn" id="btn-prev-date" title="단축키: Ctrl + ←">&lt; 이전</button>
             <span class="current-range" id="date-range-text" style="cursor:pointer; transition: color 0.2s; min-width: 150px; text-align: center; font-size: 1.15rem;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
             <button class="nav-btn" id="btn-next-date" title="단축키: Ctrl + →">다음 &gt;</button>
         </div>
 
-        <div class="mode-group" style="display: flex; flex-wrap: wrap; margin-left: 5px;">
+        <!-- 2-3. 오른쪽 정렬 (보기/작성 버튼) -->
+        <div class="mode-group" style="display: flex; flex-wrap: wrap; gap: 5px; flex: 1 1 200px; justify-content: flex-end;">
             <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
             <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="min-width: 65px; justify-content: center; white-space: nowrap;">작성</button>
         </div>
+
     </div>
 
   </header>
