@@ -51,7 +51,6 @@ export class MemoView extends BaseView {
   }
 
   async saveLinks(linksArray) {
-    // 🌟 [핵심 변경] 비동기 처리
     setDoc(doc(getUserCol('settings'), 'user_links'), { links: linksArray }).catch(e => console.warn(e)); 
   }
 
@@ -118,7 +117,7 @@ export class MemoView extends BaseView {
       links.push({ name, url });
     }
     
-    this.saveLinks(links); // 🌟 낙관적 UI
+    this.saveLinks(links); 
     document.getElementById('link-modal').remove();
     this.renderLinks();
   }
@@ -128,7 +127,7 @@ export class MemoView extends BaseView {
     const targetName = links[index]?.name;
     if (confirm(`[${targetName}] 링크를 삭제하시겠습니까?`)) {
       links.splice(index, 1);
-      this.saveLinks(links); // 🌟 낙관적 UI
+      this.saveLinks(links); 
       this.renderLinks();
     }
   }
@@ -247,10 +246,13 @@ export class MemoView extends BaseView {
     this._drawHTML();
   }
 
+  // 🌟 [핵심 수정 2] 내용이 한 줄을 넘어갈 때만 자동으로 높이가 늘어나도록 수정
   autoResizeTextarea(textarea) {
       store.hasUnsavedChanges = (textarea.value.trim() !== '' || this.pendingImageUrl !== null);
-      textarea.style.height = 'auto';
-      textarea.style.height = (textarea.scrollHeight + 4) + 'px';
+      textarea.style.height = '50px'; // 1줄 기준 기본 높이
+      if (textarea.scrollHeight > 50) {
+          textarea.style.height = textarea.scrollHeight + 'px'; // 스크롤이 생기면 그만큼 늘려주기
+      }
   }
 
   _drawHTML() {
@@ -300,14 +302,14 @@ export class MemoView extends BaseView {
 
           <div style="display:flex; gap:8px; margin-bottom:5px; align-items:flex-start;">
             <textarea id="memo-input-text" placeholder="새 할 일 추가 (사진만 올릴 때는 글씨를 안 써도 됩니다!)" 
-                   style="flex:1; padding:10px 12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.3rem; outline:none; resize:none; overflow:hidden; min-height:48px; height:48px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
+                   style="flex:1; padding:12px; border:2px solid #e2e8f0; border-radius:8px; font-size:1.1rem; outline:none; resize:none; overflow:hidden; min-height:50px; height:50px; font-family:inherit; line-height:1.4; box-sizing:border-box;"
                    onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
-            <button onclick="document.getElementById('memo-image-upload').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:0 12px; border-radius:8px; cursor:pointer; font-size:1.2rem; height:48px; display:flex; align-items:center; justify-content:center;" title="사진 첨부">🖼️</button>
+            <button onclick="document.getElementById('memo-image-upload').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:0 12px; border-radius:8px; cursor:pointer; font-size:1.2rem; height:50px; display:flex; align-items:center; justify-content:center;" title="사진 첨부">🖼️</button>
             <input type="file" id="memo-image-upload" accept="image/*" style="display:none;" onchange="window.memoViewInstance.handleImageUpload(this)">
             
-            <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:48px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
+            <button onclick="window.memoViewInstance.addMemoItem()" style="background:var(--primary-color); color:#fff; border:none; padding:0 20px; border-radius:8px; font-weight:700; cursor:pointer; font-size:1.2rem; height:50px; white-space:nowrap; box-sizing:border-box; display:flex; align-items:center;">추가</button>
           </div>
           
           ${imageAttachmentHtml}
@@ -453,7 +455,7 @@ export class MemoView extends BaseView {
       item.labels = labels;
       this._drawHTML();
 
-      dbAPI.updateMemo(firestoreId, { labels: labels }).catch(e => console.warn(e)); // 🌟 대기 안함
+      dbAPI.updateMemo(firestoreId, { labels: labels }).catch(e => console.warn(e)); 
   }
 
   updateMemoText(firestoreId, newText) {
@@ -468,7 +470,7 @@ export class MemoView extends BaseView {
 
     if (target && target.text !== text) {
         target.text = text;
-        dbAPI.updateMemo(firestoreId, { text: text }).catch(e => console.warn(e)); // 🌟 대기 안함
+        dbAPI.updateMemo(firestoreId, { text: text }).catch(e => console.warn(e)); 
     }
   }
 
@@ -498,7 +500,6 @@ export class MemoView extends BaseView {
 
     this._drawHTML();
     
-    // 🌟 [핵심 변경] 대기 없이 순서 저장
     activeMemos.forEach(memo => {
         dbAPI.updateMemo(memo.firestoreId, { order: memo.order }).catch(e => console.warn(e));
     });
@@ -522,11 +523,10 @@ export class MemoView extends BaseView {
     };
     
     input.value = "";
-    input.style.height = '48px'; 
+    input.style.height = '50px'; 
     this.pendingImageUrl = null;
     store.hasUnsavedChanges = false; 
 
-    // 🌟 [핵심 변경] 낙관적 처리를 위해 백그라운드 던진 후 캐시 데이터 100ms 뒤 재호출하여 새 ID 반영
     dbAPI.addMemo(newMemo).catch(e => console.warn(e));
     setTimeout(() => this.renderViewer(), 100);
   }
@@ -548,7 +548,7 @@ export class MemoView extends BaseView {
     if(confirm("이 메모를 완전히 삭제하시겠습니까? (첨부된 이미지도 함께 삭제됩니다)")) {
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
-      dbAPI.deleteMemo(firestoreId).catch(e=>console.warn(e)); // 🌟 대기 안함
+      dbAPI.deleteMemo(firestoreId).catch(e=>console.warn(e)); 
     }
   }
 
@@ -571,12 +571,9 @@ export class MemoView extends BaseView {
   }
 }
 
-// ==========================================================================
-// 🌉 과도기 호환성 레이어 
-// ==========================================================================
 window.manageMemoLabels = function() {
-    if (typeof window.LabelManager !== 'undefined' && window.LabelManager.openMemoModal) {
-        window.LabelManager.openMemoModal();
+    if (typeof window.LabelManager !== 'undefined' && window.LabelManager.openUnifiedLabelModal) {
+        window.LabelManager.openUnifiedLabelModal('memo');
     } else if (window.openMemoLabelModal) {
         window.openMemoLabelModal();
     }
