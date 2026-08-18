@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="css/style.css?v=14">
   <link rel="manifest" href="manifest.json">
   
-  <!-- 🌟 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
   <script type="importmap">
     {
       "imports": {
@@ -19,7 +18,6 @@
     }
   </script>
 
-  <!-- 서비스 워커 등록 스크립트 -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -91,15 +89,17 @@
                 <div style="position: relative;" id="more-menu-container">
                     <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
                     <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
-                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openMemoLabelModal();">메모 라벨 관리</button>
-                        <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
-                        <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
+                        <!-- 🌟 통합 라벨 관리 버튼 -->
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.LabelManager.openUnifiedLabelModal('event');">🏷️ 통합 라벨 관리 (일정/기록/메모)</button>
                         
                         <button class="dropdown-item" onclick="openTimetableModal()" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px;">시간표 적용</button>
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
                         <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
-                        <!-- 🌟 [추가] 앱 설치하기 버튼 (지원될 때만 block으로 변경됨) -->
+                        
+                        <!-- 🌟 스와이프 모드 토글 버튼 추가 -->
+                        <button class="dropdown-item" id="menu-swipe-mode" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.toggleSwipeMode();" style="border-top: 1px dashed #e2e8f0; font-weight:bold; color:#f59e0b; padding-top: 8px; margin-top: 4px;">↔️ 스와이프: 날짜 이동</button>
+
                         <button class="dropdown-item" id="btn-install-pwa" onclick="window.installPWA()" style="display: none; border-top: 1px dashed #e2e8f0; font-weight:bold; color:#10b981; padding-top: 8px; margin-top: 4px;">📱 앱 설치하기</button>
                     </div>
                 </div>
