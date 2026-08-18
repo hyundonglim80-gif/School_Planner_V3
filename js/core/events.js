@@ -1,17 +1,15 @@
 // js/core/events.js
-
 import { store } from './store.js';
 
 // ==========================================================================
-// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능
+// 📱 모바일 스와이프(좌우 밀기) 화면 전환 제스처 기능 (통합 엔진)
 // ==========================================================================
 (function() {
     let touchStartX = 0;
     let touchStartY = 0;
-    let touchEndX = 0;
-    let touchEndY = 0;
     let touchStartTime = 0;
     let isMultiTouch = false;
+    let lastSwipeTime = 0;
 
     const SWIPE_THRESHOLD = 50;  // 스와이프 인식 최소 거리
     const SWIPE_MAX_TIME = 800;  // 스와이프 허용 최대 시간
@@ -38,6 +36,7 @@ import { store } from './store.js';
     }
 
     document.addEventListener('touchstart', e => {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
         if (e.touches.length > 1) {
             isMultiTouch = true;
             return;
@@ -49,10 +48,11 @@ import { store } from './store.js';
     }, { passive: true });
 
     document.addEventListener('touchend', e => {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
         if (isMultiTouch || e.changedTouches.length === 0) return;
 
-        touchEndX = e.changedTouches[0].screenX;
-        touchEndY = e.changedTouches[0].screenY;
+        const touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
         const touchDuration = Date.now() - touchStartTime;
 
         if (touchDuration > SWIPE_MAX_TIME) return;
@@ -62,14 +62,34 @@ import { store } from './store.js';
 
         if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
             
-            if (store.mode === 'editor' || store.scope === 'memo') return;
+            const now = Date.now();
+            if (now - lastSwipeTime < 600) return; // 🌟 0.6초 이내 중복 실행 완벽 방지
+            
+            const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
 
-            const edgeState = getHorizontalEdgeState();
+            if (swipeMode === 'date') {
+                if (store.mode === 'editor' || store.scope === 'memo') return;
 
-            if (deltaX > 0 && edgeState.isAtLeftEdge) {
-                if (window.moveDate) window.moveDate(-1);
-            } else if (deltaX < 0 && edgeState.isAtRightEdge) {
-                if (window.moveDate) window.moveDate(1);
+                const edgeState = getHorizontalEdgeState();
+                if (deltaX > 0 && edgeState.isAtLeftEdge) {
+                    lastSwipeTime = now;
+                    if (window.moveDate) window.moveDate(-1);
+                } else if (deltaX < 0 && edgeState.isAtRightEdge) {
+                    lastSwipeTime = now;
+                    if (window.moveDate) window.moveDate(1);
+                }
+            } else if (swipeMode === 'scope') {
+                lastSwipeTime = now;
+                if (window.updateDateFromScroll) window.updateDateFromScroll(); // 스크롤 위치 기반 날짜 갱신
+                
+                const scopes = ['memo', 'year', 'month', 'week', 'day']; 
+                const curIdx = scopes.indexOf(store.scope);
+                
+                if (deltaX < 0 && curIdx < scopes.length - 1) {
+                    if (window.setScope) window.setScope(scopes[curIdx + 1]);
+                } else if (deltaX > 0 && curIdx > 0) {
+                    if (window.setScope) window.setScope(scopes[curIdx - 1]);
+                }
             }
         }
     }, { passive: true });
@@ -94,14 +114,12 @@ document.addEventListener('keydown', function(event) {
   if (isTyping) return;
 
   if (event.ctrlKey) {
-    // 🌟 Ctrl + 스페이스바: 현재 뷰(Scope)를 유지한 채 '오늘' 날짜로 이동 (중앙 날짜 클릭과 완전히 동일)
     if (event.code === 'Space' || event.key === ' ') {
         event.preventDefault();
         
         if (typeof window.goToToday === 'function') {
             window.goToToday();
         } else {
-            // 혹시라도 goToToday가 연결 안 되어 있을 때를 대비한 안전 장치
             window.currentDate = new Date();
             if (typeof window.render === 'function') window.render();
             if (typeof window.scrollToTodayIfExist === 'function') {
