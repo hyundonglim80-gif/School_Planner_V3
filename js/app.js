@@ -209,6 +209,13 @@ export const updateButtonUI = () => {
     const moreBtn = document.getElementById('btn-more-menu');
     if (moreBtn) moreBtn.style.display = 'inline-flex';
 
+    // 🌟 스와이프 모드 메뉴 텍스트 업데이트
+    const swipeBtn = document.getElementById('menu-swipe-mode');
+    if (swipeBtn) {
+        const mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
+        swipeBtn.innerHTML = mode === 'date' ? '↔️ 스와이프: 날짜 이동' : '↔️ 스와이프: 화면/탭 이동';
+    }
+
     toggleMoreMenu(true); 
 };
 
@@ -255,7 +262,7 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// ⚙️ 3. 앱 초기화 및 이벤트 리스너 (🌟 PWA 설치 로직 추가)
+// ⚙️ 3. 앱 초기화 및 전역 이벤트(스와이프 등)
 // ==========================================================================
 const initApp = () => {
     document.getElementById('btn-mode-viewer')?.addEventListener('click', () => setMode('viewer'));
@@ -278,16 +285,52 @@ const initApp = () => {
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
 
-    // 🌟 PWA 설치 프롬프트 가로채기
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault(); // 브라우저 기본 설치 팝업 방지
-        window.deferredPrompt = e; // 이벤트 정보 보관
+    // 🌟 전역 스와이프 감지 이벤트 추가
+    let touchstartX = 0;
+    let touchendX = 0;
+    let touchstartY = 0;
+    let touchendY = 0;
+
+    document.addEventListener('touchstart', e => {
+        // 입력창이나 팝업창 안에서는 스와이프 무시
+        if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
+        touchstartX = e.changedTouches[0].screenX;
+        touchstartY = e.changedTouches[0].screenY;
+    }, {passive: true});
+
+    document.addEventListener('touchend', e => {
+        if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
+        touchendX = e.changedTouches[0].screenX;
+        touchendY = e.changedTouches[0].screenY;
         
-        // 더보기 메뉴 안에 있는 설치 버튼을 보이도록 활성화
-        const installBtn = document.getElementById('btn-install-pwa');
-        if (installBtn) {
-            installBtn.style.display = 'block';
+        const xDiff = touchendX - touchstartX;
+        const yDiff = touchendY - touchstartY;
+        
+        // 가로 스와이프가 지배적이고 길이가 충분할 때 (80px 이상)
+        if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 80) {
+            const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
+            
+            if (swipeMode === 'date') {
+                if (xDiff < 0) moveDate(1); // 왼쪽으로 밀면 다음 날짜
+                else moveDate(-1); // 오른쪽으로 밀면 이전 날짜
+            } else if (swipeMode === 'scope') {
+                const scopes = ['memo', 'year', 'month', 'week', 'day']; // 화면 순서 (오른쪽으로 갈수록 상세)
+                const curIdx = scopes.indexOf(store.scope);
+                
+                if (xDiff < 0 && curIdx < scopes.length - 1) {
+                    setScope(scopes[curIdx + 1]);
+                } else if (xDiff > 0 && curIdx > 0) {
+                    setScope(scopes[curIdx - 1]);
+                }
+            }
         }
+    }, {passive: true});
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault(); 
+        window.deferredPrompt = e; 
+        const installBtn = document.getElementById('btn-install-pwa');
+        if (installBtn) installBtn.style.display = 'block';
     });
 
     window.addEventListener('beforeunload', (e) => {
@@ -379,7 +422,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else initApp();
 
 // ==========================================================================
-// 📡 4. SP3.4 네트워크 제어 및 타이머/수동 동기화/PWA 설치 엔진
+// 📡 4. 기능 및 UI 토글러 모음
 // ==========================================================================
 export const toggleNetworkMode = async (forceMode = null) => {
     const toggleBtn = document.getElementById('network-toggle-btn');
@@ -451,25 +494,29 @@ export const openNativeClock = () => {
     window.open('https://www.google.com/search?q=10%EB%B6%84+%ED%83%80%EC%9D%B4%EB%A8%B8', '_blank');
 };
 
-// 🌟 [추가] PWA 앱 설치 함수
 export const installPWA = async () => {
     const dropdown = document.getElementById('more-dropdown');
     if (dropdown) dropdown.classList.add('hidden');
 
     if (window.deferredPrompt) {
-        // 브라우저의 기본 설치 프롬프트 띄우기
         window.deferredPrompt.prompt();
-        
         const { outcome } = await window.deferredPrompt.userChoice;
         if (outcome === 'accepted') {
-            console.log('앱 설치가 수락되었습니다.');
             const installBtn = document.getElementById('btn-install-pwa');
-            if (installBtn) installBtn.style.display = 'none'; // 수락 후 버튼 숨기기
+            if (installBtn) installBtn.style.display = 'none'; 
         }
         window.deferredPrompt = null;
     } else {
         alert("이미 기기에 설치되어 있거나, 현재 브라우저에서 자동 설치 버튼을 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치해주세요.");
     }
+};
+
+export const toggleSwipeMode = () => {
+    let mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
+    mode = mode === 'date' ? 'scope' : 'date';
+    localStorage.setItem('workCalendar_swipeMode', mode);
+    updateButtonUI();
+    alert(`스와이프 동작이 '${mode === 'date' ? '이전/다음 날짜 이동' : '메모/년간/월간/주간/하루 화면 이동'}'(으)로 변경되었습니다.`);
 };
 
 // ==========================================================================
@@ -954,5 +1001,6 @@ Object.assign(window, {
     toggleDdayMenu, selectDday, updateDdayUI, calculateDday, 
     openDdaySettingsModal, renderDdaySettingsList, addDday, deleteDday, 
     saveDdayDataToFirebase,
-    toggleNetworkMode, executeManualSync, openNativeClock, installPWA
+    toggleNetworkMode, executeManualSync, openNativeClock, installPWA,
+    toggleSwipeMode // 🌟 스와이프 기능 토글 바인딩
 });
