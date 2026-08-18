@@ -17,7 +17,7 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
-// 🌟 [핵심 수정 4] 탭을 이동하기 전, 현재 화면에 보이는 날짜를 추적하여 기준 날짜로 자동 갱신
+// 🌟 [수정] 탭을 이동하기 전, 현재 화면에 보이는 날짜를 추적하여 기준 날짜로 자동 갱신
 const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
@@ -37,9 +37,8 @@ const updateDateFromScroll = () => {
 
         for (let el of dateElements) {
             const rect = el.getBoundingClientRect();
-            if (rect.width === 0 && rect.height === 0) continue; // 화면에 안 보이는 요소 무시
+            if (rect.width === 0 && rect.height === 0) continue; 
             
-            // 화면 상단(헤더 바로 아래)에 가장 근접한 날짜 요소 찾기
             const distance = Math.abs(rect.top - headerOffset);
             if (distance < minDistance && rect.bottom > headerOffset - 50) {
                 minDistance = distance;
@@ -68,10 +67,11 @@ const updateDateFromScroll = () => {
     }
 };
 
-export const setScope = (scope) => {
+// 🌟 [핵심 수정 2] skipScrollUpdate 파라미터를 추가하여 수동으로 날짜를 클릭했을 때는 덮어쓰기 방지
+export const setScope = (scope, skipScrollUpdate = false) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     
-    updateDateFromScroll(); // 🌟 화면 전환 직전에 기준 날짜 갱신 호출
+    if (!skipScrollUpdate) updateDateFromScroll();
     
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
@@ -109,6 +109,17 @@ export const goToToday = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.currentDate = new Date();
     render(true);
+};
+
+// 🌟 [핵심 수정 2] 날짜를 직접 클릭했을 때는 'true'를 전달하여 스크롤 추적을 강제 무시함
+export const goToDay = (dateStr) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        setScope('day', true); // 스크롤 무시하고 강제 이동
+    }
 };
 
 export const scrollToTodayIfExist = () => {
@@ -195,9 +206,8 @@ export const updateTitle = () => {
     };
 
     if (store.scope === 'week') {
-        // 🌟 [핵심 수정 1] 주간 타이틀 형식을 '2026년 8월 2주' 로 변경
         const target = new Date(d);
-        target.setDate(target.getDate() - target.getDay() + 4); // 목요일을 기준으로 해당 주차의 월(Month) 판단
+        target.setDate(target.getDate() - target.getDay() + 4); 
         const y_week = target.getFullYear();
         const m_week = target.getMonth();
         const firstDayOfMonth = new Date(y_week, m_week, 1);
@@ -319,7 +329,12 @@ export const saveCurrentViewData = (silent = false) => {
 // ==========================================================================
 // ⚙️ 3. 앱 초기화 및 전역 이벤트(스와이프 등)
 // ==========================================================================
+let hasAttachedAppEvents = false; // 🌟 [핵심 수정 1] 이중 등록 완벽 차단
+
 const initApp = () => {
+    if (hasAttachedAppEvents) return;
+    hasAttachedAppEvents = true;
+
     document.getElementById('btn-mode-viewer')?.addEventListener('click', () => setMode('viewer'));
     document.getElementById('btn-mode-editor')?.addEventListener('click', () => store.mode === 'viewer' ? setMode('editor') : saveCurrentViewData(false));
     document.getElementById('btn-toggle-weekend')?.addEventListener('click', toggleWeekend);
@@ -340,11 +355,9 @@ const initApp = () => {
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
 
-    // 🌟 [핵심 수정 3] 중복 스와이프를 방지하기 위한 시간차(Debounce) 로직 적용
+    // 🌟 [핵심 수정 1] 스와이프 시간차 및 중복 등록 방지 로직 적용
     let touchstartX = 0;
-    let touchendX = 0;
     let touchstartY = 0;
-    let touchendY = 0;
     let lastSwipeTime = 0; 
 
     document.addEventListener('touchstart', e => {
@@ -355,8 +368,8 @@ const initApp = () => {
 
     document.addEventListener('touchend', e => {
         if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
-        touchendX = e.changedTouches[0].screenX;
-        touchendY = e.changedTouches[0].screenY;
+        const touchendX = e.changedTouches[0].screenX;
+        const touchendY = e.changedTouches[0].screenY;
         
         const xDiff = touchendX - touchstartX;
         const yDiff = touchendY - touchstartY;
@@ -364,7 +377,7 @@ const initApp = () => {
         // 가로 스와이프가 지배적이고 길이가 충분할 때 (80px 이상)
         if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 80) {
             const now = Date.now();
-            if (now - lastSwipeTime < 500) return; // 0.5초 이내의 중복 스와이프 무시
+            if (now - lastSwipeTime < 800) return; // 🌟 0.8초 이내의 중복 스와이프는 완벽하게 무시
             lastSwipeTime = now;
 
             const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
@@ -377,9 +390,9 @@ const initApp = () => {
                 const curIdx = scopes.indexOf(store.scope);
                 
                 if (xDiff < 0 && curIdx < scopes.length - 1) {
-                    setScope(scopes[curIdx + 1]);
+                    setScope(scopes[curIdx + 1], true);
                 } else if (xDiff > 0 && curIdx > 0) {
-                    setScope(scopes[curIdx - 1]);
+                    setScope(scopes[curIdx - 1], true);
                 }
             }
         }
@@ -1052,7 +1065,7 @@ export const saveDdayDataToFirebase = () => {
 
 Object.assign(window, {
     toggleWeekend, toggleClass, setScope, setMode, handleEditSaveClick, 
-    moveDate, goToToday, scrollToTodayIfExist, loadSettings, render, 
+    moveDate, goToToday, goToDay, scrollToTodayIfExist, loadSettings, render, // 🌟 goToDay 바인딩 복구
     updateTitle, toggleMoreMenu, updateButtonUI, saveCurrentViewData, 
     autoForwardIncompleteEvents, showForwardDeleteModal, executeForwardDelete, 
     openPeriodModal, openRecurringModal, executeGroupSave, 
@@ -1061,5 +1074,5 @@ Object.assign(window, {
     openDdaySettingsModal, renderDdaySettingsList, addDday, deleteDday, 
     saveDdayDataToFirebase,
     toggleNetworkMode, executeManualSync, openNativeClock, installPWA,
-    toggleSwipeMode // 🌟 스와이프 기능 토글 바인딩
+    toggleSwipeMode 
 });
