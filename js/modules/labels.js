@@ -1,13 +1,11 @@
 // js/modules/labels.js
-
 import { getEventLabels, getJournalLabels } from '../core/utils.js';
 import { getUserCol } from '../firebase.js';
-import { doc, getDocs, setDoc, writeBatch } from "firebase/firestore"; // 🌟 Modular SDK 신규 임포트
+import { doc, getDocs, setDoc, writeBatch } from "firebase/firestore"; 
 
 export const LabelManager = {
-  eventModal: null,
-  journalModal: null,
-  memoModal: null, 
+  unifiedModal: null,
+  currentTab: 'event',
   
   draggedIdx: null,
   draggedType: null,
@@ -17,7 +15,6 @@ export const LabelManager = {
       blue: '파랑', indigo: '남색', purple: '보라', gray: '회색'
   },
 
-  // 고유 ID 생성기 (라벨용)
   generateId: function(prefix) {
       return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
   },
@@ -95,8 +92,73 @@ export const LabelManager = {
       else this.renderMemoLabels();
   },
 
+  // 🌟 [통합] 하나의 팝업에서 관리
+  openUnifiedLabelModal: function(initialTab = 'event') {
+      if (!this.unifiedModal) {
+          const html = `
+              <div style="display:flex; border-bottom:2px solid #cbd5e1; margin-bottom:15px; gap:5px;">
+                  <button id="tab-btn-event" onclick="window.LabelManager.switchTab('event')" style="flex:1; padding:10px; background:#eff6ff; color:#1e40af; border:2px solid #3b82f6; border-bottom:none; border-radius:8px 8px 0 0; font-weight:bold; cursor:pointer;">📅 일정</button>
+                  <button id="tab-btn-journal" onclick="window.LabelManager.switchTab('journal')" style="flex:1; padding:10px; background:#f8fafc; color:#64748b; border:1px solid #cbd5e1; border-bottom:none; border-radius:8px 8px 0 0; font-weight:bold; cursor:pointer;">📔 기록</button>
+                  <button id="tab-btn-memo" onclick="window.LabelManager.switchTab('memo')" style="flex:1; padding:10px; background:#f8fafc; color:#64748b; border:1px solid #cbd5e1; border-bottom:none; border-radius:8px 8px 0 0; font-weight:bold; cursor:pointer;">📝 메모</button>
+              </div>
+              <div id="unified-label-content"></div>
+          `;
+          this.unifiedModal = new window.Modal({
+              id: 'unified-label-modal-v5',
+              title: '🏷️ 통합 라벨 관리',
+              width: '550px',
+              content: html
+          });
+      }
+      this.unifiedModal.open();
+      this.switchTab(initialTab);
+  },
+
+  switchTab: function(tab) {
+      this.currentTab = tab;
+      const btnEvent = document.getElementById('tab-btn-event');
+      const btnJournal = document.getElementById('tab-btn-journal');
+      const btnMemo = document.getElementById('tab-btn-memo');
+      const content = document.getElementById('unified-label-content');
+      
+      if(!btnEvent) return; 
+
+      [btnEvent, btnJournal, btnMemo].forEach(b => {
+          b.style.background = '#f8fafc';
+          b.style.color = '#64748b';
+          b.style.border = '1px solid #cbd5e1';
+          b.style.borderBottom = 'none';
+      });
+
+      if (tab === 'event') {
+          btnEvent.style.background = '#eff6ff';
+          btnEvent.style.color = '#1e40af';
+          btnEvent.style.border = '2px solid #3b82f6';
+          btnEvent.style.borderBottom = 'none';
+          content.innerHTML = this.getEventContentHTML();
+          window.tempEditingLabels = getEventLabels().map(l => ({...l}));
+          this.renderEventLabels();
+      } else if (tab === 'journal') {
+          btnJournal.style.background = '#fdf2f8';
+          btnJournal.style.color = '#9d174d';
+          btnJournal.style.border = '2px solid #ec4899';
+          btnJournal.style.borderBottom = 'none';
+          content.innerHTML = this.getJournalContentHTML();
+          window.tempEditingJournalLabels = getJournalLabels().map(l => ({...l}));
+          this.renderJournalLabels();
+      } else if (tab === 'memo') {
+          btnMemo.style.background = '#f0fdf4';
+          btnMemo.style.color = '#166534';
+          btnMemo.style.border = '2px solid #22c55e';
+          btnMemo.style.borderBottom = 'none';
+          content.innerHTML = this.getMemoContentHTML();
+          window.tempEditingMemoLabels = this.getMemoLabels().map(l => ({...l}));
+          this.renderMemoLabels();
+      }
+  },
+
   // ====================================================
-  // 🏷️ 1. 일정 라벨 관리 (ID 기반)
+  // 🏷️ 1. 일정 라벨 관리
   // ====================================================
   getEventContentHTML: function() {
         return `
@@ -111,7 +173,7 @@ export const LabelManager = {
         
         <div style="background:#f1f5f9; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
             <div style="display:flex; gap:8px; margin-bottom:8px;">
-                <input type="text" id="new-label-name" placeholder="라벨 이름" style="flex:1; padding:6px 10px; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="text" id="new-label-name" placeholder="라벨 이름" style="flex:1; padding:6px 10px; border:1px solid #cbd5e1; border-radius:4px;" onkeydown="if(event.key==='Enter') window.LabelManager.addNewEventLabel()">
                 <select id="event-selected-color" style="padding:6px; border:1px solid #cbd5e1; border-radius:4px;">
                     <option value="blue">파랑</option>
                     <option value="red">빨강</option>
@@ -136,20 +198,6 @@ export const LabelManager = {
             <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="width: 100%; background: #2563eb; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">💾 저장 및 클라우드 반영</button>
         </div>`;
     },
-
-  openEventModal: function() {
-    if (!this.eventModal) {
-      this.eventModal = new window.Modal({
-        id: 'event-label-modal-v4',
-        title: '🏷️ 일정 라벨 설정',
-        width: '550px',
-        content: this.getEventContentHTML()
-      });
-    }
-    window.tempEditingLabels = getEventLabels().map(l => ({...l}));
-    this.eventModal.open();
-    this.renderEventLabels();
-  },
 
   renderEventLabels: function() {
     const container = document.getElementById('event-label-list-container');
@@ -223,12 +271,10 @@ export const LabelManager = {
 
   removeEventLabel: function(index) {
       const targetLabel = window.tempEditingLabels[index];
-      
       if (targetLabel && targetLabel.isSystem) {
-          alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.\n\n단, 라벨의 '이름', '색상', '위아래 순서'는 선생님의 취향대로 자유롭게 변경하실 수 있습니다.");
+          alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.");
           return;
       }
-  
       window.tempEditingLabels.splice(index, 1);
       this.renderEventLabels(); 
   },
@@ -247,24 +293,17 @@ export const LabelManager = {
       localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
       
       if (window.auth && window.auth.currentUser) {
-          try {
-              // 🌟 setDoc 적용
-              await setDoc(doc(getUserCol('settings'), 'labels'), { eventLabels: dataToSave }, { merge: true });
-          } catch (err) { console.error(err); }
+          try { await setDoc(doc(getUserCol('settings'), 'labels'), { eventLabels: dataToSave }, { merge: true }); } 
+          catch (err) { console.error(err); }
       }
 
       if (deletedIds.length > 0 && window.db) {
-          if (e && e.target) {
-              e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
-              e.target.disabled = true;
-          }
+          if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
 
           try {
-              // 🌟 getDocs 및 writeBatch 적용
               const eventsSnap = await getDocs(getUserCol('events'));
               let batch = writeBatch(window.db);
-              let count = 0;
-              let batchPromises = [];
+              let count = 0; let batchPromises = [];
 
               eventsSnap.forEach(docSnap => {
                   const data = docSnap.data();
@@ -282,28 +321,21 @@ export const LabelManager = {
                   if (docChanged) {
                       batch.update(docSnap.ref, { eventList: list, updatedAt: Date.now() });
                       count++;
-                      if (count >= 400) {
-                          batchPromises.push(batch.commit());
-                          batch = writeBatch(window.db);
-                          count = 0;
-                      }
+                      if (count >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); count = 0; }
                   }
               });
-
               if (count > 0) batchPromises.push(batch.commit());
               await Promise.all(batchPromises);
-          } catch (err) {
-              console.error("일정 라벨 정리 오류:", err);
-          }
+          } catch (err) { console.error("일정 라벨 정리 오류:", err); }
       }
 
-      if (this.eventModal) this.eventModal.close();
+      if (this.unifiedModal) this.unifiedModal.close();
       alert("일정 라벨 설정이 저장되었습니다.");
       if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
-  // 📔 2. 기록 라벨 관리 (ID 기반)
+  // 📔 2. 기록 라벨 관리
   // ====================================================
   getJournalContentHTML: function() {
     return `
@@ -317,7 +349,7 @@ export const LabelManager = {
       
       <div class="modal-input-row alt" style="flex-direction:column; align-items:stretch; gap:10px; margin-bottom:20px; border-top:2px solid #cbd5e1;">
           <div style="display:flex; gap:10px; align-items:center; width:100%;">
-              <input type="text" id="new-journal-label-name" placeholder="새 기록 라벨 이름 추가..." class="modal-input-text">
+              <input type="text" id="new-journal-label-name" placeholder="새 기록 라벨 이름 추가..." class="modal-input-text" onkeydown="if(event.key==='Enter') window.LabelManager.addNewJournalLabel()">
               <button onclick="window.LabelManager.addNewJournalLabel()" class="modal-btn-secondary journal" style="flex-shrink:0;">추가</button>
           </div>
           <div style="padding-left:4px;">
@@ -327,23 +359,9 @@ export const LabelManager = {
       </div>
       
       <div class="modal-footer-actions">
-          <button onclick="window.LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal">저장 및 클라우드 반영</button>
+          <button onclick="window.LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal" style="width:100%; border-radius:6px; font-weight:bold; padding:10px;">💾 저장 및 클라우드 반영</button>
       </div>
     `;
-  },
-
-  openJournalModal: function() {
-    if (!this.journalModal) {
-      this.journalModal = new window.Modal({
-        id: 'journal-label-modal-v4',
-        title: '📔 기록 라벨 설정',
-        width: '500px',
-        content: this.getJournalContentHTML()
-      });
-    }
-    window.tempEditingJournalLabels = getJournalLabels().map(l => ({...l}));
-    this.journalModal.open();
-    this.renderJournalLabels();
   },
 
   renderJournalLabels: function() {
@@ -401,22 +419,16 @@ export const LabelManager = {
       localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
       
       if (window.auth && window.auth.currentUser) {
-          // 🌟 setDoc 적용
           try { await setDoc(doc(getUserCol('settings'), 'labels'), { journalLabels: dataToSave }, { merge: true }); } catch (err) {}
       }
 
       if (deletedIds.length > 0 && window.db) {
-          if (e && e.target) {
-              e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
-              e.target.disabled = true;
-          }
+          if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
 
           try {
-              // 🌟 getDocs 및 writeBatch 적용
               const snap = await getDocs(getUserCol('journals'));
               let batch = writeBatch(window.db);
-              let count = 0;
-              let batchPromises = [];
+              let count = 0; let batchPromises = [];
 
               snap.forEach(docSnap => {
                   const data = docSnap.data();
@@ -437,19 +449,18 @@ export const LabelManager = {
                       if (count >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); count = 0; }
                   }
               });
-
               if (count > 0) batchPromises.push(batch.commit());
               await Promise.all(batchPromises);
           } catch (err) { console.error(err); }
       }
 
-      if (this.journalModal) this.journalModal.close();
+      if (this.unifiedModal) this.unifiedModal.close();
       alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
       if (typeof window.render === 'function') window.render(); 
   },
 
   // ====================================================
-  // 📝 3. 메모 라벨 관리 (ID 기반)
+  // 📝 3. 메모 라벨 관리
   // ====================================================
   getMemoLabels: function() {
       const saved = JSON.parse(localStorage.getItem('workCalendar_memoLabels'));
@@ -479,23 +490,9 @@ export const LabelManager = {
       </div>
       
       <div class="modal-footer-actions">
-          <button onclick="window.LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="background:#059669;">저장 및 클라우드 반영</button>
+          <button onclick="window.LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="width:100%; border-radius:6px; font-weight:bold; padding:10px; background:#059669;">💾 저장 및 클라우드 반영</button>
       </div>
     `;
-  },
-
-  openMemoModal: function() {
-    if (!this.memoModal) {
-      this.memoModal = new window.Modal({
-        id: 'memo-label-modal-v4',
-        title: '📝 메모 라벨 설정',
-        width: '500px',
-        content: this.getMemoContentHTML()
-      });
-    }
-    window.tempEditingMemoLabels = this.getMemoLabels().map(l => ({...l}));
-    this.memoModal.open();
-    this.renderMemoLabels();
   },
 
   renderMemoLabels: function() {
@@ -552,22 +549,16 @@ export const LabelManager = {
 
     localStorage.setItem('workCalendar_memoLabels', JSON.stringify(dataToSave));
     if (window.db && window.auth && window.auth.currentUser) {
-        // 🌟 setDoc 적용
         try { await setDoc(doc(getUserCol('settings'), 'labels'), { memoLabels: dataToSave }, { merge: true }); } catch (err) {}
     }
     
     if (deletedIds.length > 0 && window.db) {
-        if (e && e.target) {
-            e.target.textContent = "클라우드 찌꺼기 데이터 정리 중...";
-            e.target.disabled = true;
-        }
+        if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
 
         try {
-            // 🌟 getDocs 및 writeBatch 적용
             const snap = await getDocs(getUserCol('tasks'));
             let batch = writeBatch(window.db);
-            let opCount = 0;
-            let batchPromises = [];
+            let opCount = 0; let batchPromises = [];
 
             snap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -586,7 +577,7 @@ export const LabelManager = {
         } catch(err) { console.error(err); }
     }
 
-    this.memoModal.close();
+    if (this.unifiedModal) this.unifiedModal.close();
     alert("메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     
     if (typeof window.render === 'function') {
@@ -602,7 +593,8 @@ export const LabelManager = {
 // ==========================================================================
 window.LabelManager = LabelManager; 
 
-window.openEventLabelModal = () => LabelManager.openEventModal();
-window.openJournalLabelModal = () => LabelManager.openJournalModal();
-window.openMemoLabelModal = () => LabelManager.openMemoModal(); 
-window.manageMemoLabels = () => LabelManager.openMemoModal();
+// 기존 버튼 클릭 이벤트가 망가지지 않도록 통합 모달 호출 방식으로 안전하게 연결
+window.openEventLabelModal = () => LabelManager.openUnifiedLabelModal('event');
+window.openJournalLabelModal = () => LabelManager.openUnifiedLabelModal('journal');
+window.openMemoLabelModal = () => LabelManager.openUnifiedLabelModal('memo'); 
+window.manageMemoLabels = () => LabelManager.openUnifiedLabelModal('memo');
