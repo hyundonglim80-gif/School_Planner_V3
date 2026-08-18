@@ -17,8 +17,62 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
+// 🌟 [핵심 수정 4] 탭을 이동하기 전, 현재 화면에 보이는 날짜를 추적하여 기준 날짜로 자동 갱신
+const updateDateFromScroll = () => {
+    if (store.scope === 'memo' || store.scope === 'day') return;
+    
+    let dateElements = [];
+    if (store.scope === 'year') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-year-date], .year-grid > div > div > div[onclick^="window.goToDay"]'));
+    } else if (store.scope === 'month') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-month-date], .cal-day > div[onclick^="window.goToDay"]'));
+    } else if (store.scope === 'week') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-week-date], .clean-viewer-board tr > td:first-child span[onclick^="window.goToDay"]'));
+    }
+    
+    if (dateElements.length > 0) {
+        const headerOffset = document.querySelector('.app-header')?.offsetHeight || 150;
+        let closestEl = null;
+        let minDistance = Infinity;
+
+        for (let el of dateElements) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) continue; // 화면에 안 보이는 요소 무시
+            
+            // 화면 상단(헤더 바로 아래)에 가장 근접한 날짜 요소 찾기
+            const distance = Math.abs(rect.top - headerOffset);
+            if (distance < minDistance && rect.bottom > headerOffset - 50) {
+                minDistance = distance;
+                closestEl = el;
+            }
+        }
+
+        if (closestEl) {
+            let targetDateStr = closestEl.getAttribute('data-year-date') || 
+                                closestEl.getAttribute('data-month-date') || 
+                                closestEl.getAttribute('data-week-date');
+            
+            if (!targetDateStr) {
+                const onclickAttr = closestEl.getAttribute('onclick');
+                if (onclickAttr) {
+                    const match = onclickAttr.match(/goToDay\('([^']+)'\)/);
+                    if (match) targetDateStr = match[1];
+                }
+            }
+            
+            if (targetDateStr) {
+                const parts = targetDateStr.split('-');
+                store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            }
+        }
+    }
+};
+
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    
+    updateDateFromScroll(); // 🌟 화면 전환 직전에 기준 날짜 갱신 호출
+    
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     render(true);
@@ -141,14 +195,16 @@ export const updateTitle = () => {
     };
 
     if (store.scope === 'week') {
-        const start = new Date(d);
-        start.setDate(d.getDate() - d.getDay() + (store.showWeekend ? 0 : 1));
-        const end = new Date(start);
-        end.setDate(start.getDate() + (store.showWeekend ? 6 : 4));
+        // 🌟 [핵심 수정 1] 주간 타이틀 형식을 '2026년 8월 2주' 로 변경
+        const target = new Date(d);
+        target.setDate(target.getDate() - target.getDay() + 4); // 목요일을 기준으로 해당 주차의 월(Month) 판단
+        const y_week = target.getFullYear();
+        const m_week = target.getMonth();
+        const firstDayOfMonth = new Date(y_week, m_week, 1);
+        const firstDayOfWeek = firstDayOfMonth.getDay(); 
+        const weekNumber = Math.ceil((target.getDate() + firstDayOfWeek) / 7);
         
-        const m1 = String(start.getMonth() + 1).padStart(2, '0'), d1 = String(start.getDate()).padStart(2, '0');
-        const m2 = String(end.getMonth() + 1).padStart(2, '0'), d2 = String(end.getDate()).padStart(2, '0');
-        titles.week = `${y}년 ${m}월 (${m1}.${d1} ~ ${m2}.${d2})`;
+        titles.week = `${y_week}년 ${m_week + 1}월 ${weekNumber}주`;
     }
 
     titleEl.textContent = titles[store.scope];
@@ -209,7 +265,6 @@ export const updateButtonUI = () => {
     const moreBtn = document.getElementById('btn-more-menu');
     if (moreBtn) moreBtn.style.display = 'inline-flex';
 
-    // 🌟 스와이프 모드 메뉴 텍스트 업데이트
     const swipeBtn = document.getElementById('menu-swipe-mode');
     if (swipeBtn) {
         const mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
@@ -285,14 +340,14 @@ const initApp = () => {
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
 
-    // 🌟 전역 스와이프 감지 이벤트 추가
+    // 🌟 [핵심 수정 3] 중복 스와이프를 방지하기 위한 시간차(Debounce) 로직 적용
     let touchstartX = 0;
     let touchendX = 0;
     let touchstartY = 0;
     let touchendY = 0;
+    let lastSwipeTime = 0; 
 
     document.addEventListener('touchstart', e => {
-        // 입력창이나 팝업창 안에서는 스와이프 무시
         if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
         touchstartX = e.changedTouches[0].screenX;
         touchstartY = e.changedTouches[0].screenY;
@@ -308,13 +363,17 @@ const initApp = () => {
         
         // 가로 스와이프가 지배적이고 길이가 충분할 때 (80px 이상)
         if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 80) {
+            const now = Date.now();
+            if (now - lastSwipeTime < 500) return; // 0.5초 이내의 중복 스와이프 무시
+            lastSwipeTime = now;
+
             const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
             
             if (swipeMode === 'date') {
-                if (xDiff < 0) moveDate(1); // 왼쪽으로 밀면 다음 날짜
-                else moveDate(-1); // 오른쪽으로 밀면 이전 날짜
+                if (xDiff < 0) moveDate(1); 
+                else moveDate(-1); 
             } else if (swipeMode === 'scope') {
-                const scopes = ['memo', 'year', 'month', 'week', 'day']; // 화면 순서 (오른쪽으로 갈수록 상세)
+                const scopes = ['memo', 'year', 'month', 'week', 'day']; 
                 const curIdx = scopes.indexOf(store.scope);
                 
                 if (xDiff < 0 && curIdx < scopes.length - 1) {
