@@ -17,7 +17,7 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
-// 🌟 [수정] 탭을 이동하기 전, 현재 화면에 보이는 날짜를 추적하여 기준 날짜로 자동 갱신
+// 🌟 [수정 2] 화면 최상단의 날짜를 추적하는 함수 (이제 수동으로 탭을 바꿀 때만 실행됨)
 const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
@@ -67,12 +67,9 @@ const updateDateFromScroll = () => {
     }
 };
 
-// 🌟 [핵심 수정 2] skipScrollUpdate 파라미터를 추가하여 수동으로 날짜를 클릭했을 때는 덮어쓰기 방지
-export const setScope = (scope, skipScrollUpdate = false) => {
+export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
-    
-    if (!skipScrollUpdate) updateDateFromScroll();
-    
+    // 🌟 [수정 2] 추적 기능을 여기서 제거하여, 특정 날짜 클릭 시 강제 덮어쓰기 오작동을 차단함
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     render(true);
@@ -111,14 +108,13 @@ export const goToToday = () => {
     render(true);
 };
 
-// 🌟 [핵심 수정 2] 날짜를 직접 클릭했을 때는 'true'를 전달하여 스크롤 추적을 강제 무시함
 export const goToDay = (dateStr) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     if (!dateStr) return;
     const parts = dateStr.split('-');
     if (parts.length === 3) {
         store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        setScope('day', true); // 스크롤 무시하고 강제 이동
+        setScope('day'); 
     }
 };
 
@@ -329,7 +325,7 @@ export const saveCurrentViewData = (silent = false) => {
 // ==========================================================================
 // ⚙️ 3. 앱 초기화 및 전역 이벤트(스와이프 등)
 // ==========================================================================
-let hasAttachedAppEvents = false; // 🌟 [핵심 수정 1] 이중 등록 완벽 차단
+let hasAttachedAppEvents = false;
 
 const initApp = () => {
     if (hasAttachedAppEvents) return;
@@ -348,25 +344,29 @@ const initApp = () => {
     document.getElementById('manual-sync-btn')?.addEventListener('click', () => executeManualSync());
 
     document.querySelectorAll('.btn-scope').forEach(btn => {
-        btn.addEventListener('click', (e) => setScope(e.target.getAttribute('data-scope')));
+        btn.addEventListener('click', (e) => {
+            updateDateFromScroll(); // 🌟 [수동 탭 전환 시에만 스크롤 날짜 적용]
+            setScope(e.target.getAttribute('data-scope'));
+        });
     });
 
     const markUnsaved = () => { if (store.mode === 'editor') store.hasUnsavedChanges = true; };
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
 
-    // 🌟 [핵심 수정 1] 스와이프 시간차 및 중복 등록 방지 로직 적용
+    // 🌟 [핵심 수정 1] 기존 events.js의 스와이프 이벤트가 겹쳐 2번 넘어가는 것을 방지 (가로채기 적용)
     let touchstartX = 0;
     let touchstartY = 0;
     let lastSwipeTime = 0; 
 
-    document.addEventListener('touchstart', e => {
+    // capture: true 옵션을 주어 하위 요소(events.js)보다 먼저 이벤트를 가로챔
+    window.addEventListener('touchstart', e => {
         if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
         touchstartX = e.changedTouches[0].screenX;
         touchstartY = e.changedTouches[0].screenY;
-    }, {passive: true});
+    }, { capture: true, passive: true });
 
-    document.addEventListener('touchend', e => {
+    window.addEventListener('touchend', e => {
         if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
         const touchendX = e.changedTouches[0].screenX;
         const touchendY = e.changedTouches[0].screenY;
@@ -374,10 +374,15 @@ const initApp = () => {
         const xDiff = touchendX - touchstartX;
         const yDiff = touchendY - touchstartY;
         
-        // 가로 스와이프가 지배적이고 길이가 충분할 때 (80px 이상)
-        if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 80) {
+        // 민감도를 40px로 낮추어 events.js보다 먼저 스와이프를 확실히 감지
+        if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 40) {
+            
+            // 🌟 하위 파일(events.js)로 이벤트가 흘러가는 것을 완벽 차단! (이중 스와이프 방지)
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
             const now = Date.now();
-            if (now - lastSwipeTime < 800) return; // 🌟 0.8초 이내의 중복 스와이프는 완벽하게 무시
+            if (now - lastSwipeTime < 600) return; // 0.6초 이내의 중복 스와이프 무시
             lastSwipeTime = now;
 
             const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
@@ -386,17 +391,18 @@ const initApp = () => {
                 if (xDiff < 0) moveDate(1); 
                 else moveDate(-1); 
             } else if (swipeMode === 'scope') {
+                updateDateFromScroll(); // 화면 전환 직전 현재 날짜 추적
                 const scopes = ['memo', 'year', 'month', 'week', 'day']; 
                 const curIdx = scopes.indexOf(store.scope);
                 
                 if (xDiff < 0 && curIdx < scopes.length - 1) {
-                    setScope(scopes[curIdx + 1], true);
+                    setScope(scopes[curIdx + 1]);
                 } else if (xDiff > 0 && curIdx > 0) {
-                    setScope(scopes[curIdx - 1], true);
+                    setScope(scopes[curIdx - 1]);
                 }
             }
         }
-    }, {passive: true});
+    }, { capture: true, passive: false }); // passive: false로 설정하여 stopPropagation 보장
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault(); 
@@ -1065,7 +1071,7 @@ export const saveDdayDataToFirebase = () => {
 
 Object.assign(window, {
     toggleWeekend, toggleClass, setScope, setMode, handleEditSaveClick, 
-    moveDate, goToToday, goToDay, scrollToTodayIfExist, loadSettings, render, // 🌟 goToDay 바인딩 복구
+    moveDate, goToToday, goToDay, scrollToTodayIfExist, loadSettings, render, 
     updateTitle, toggleMoreMenu, updateButtonUI, saveCurrentViewData, 
     autoForwardIncompleteEvents, showForwardDeleteModal, executeForwardDelete, 
     openPeriodModal, openRecurringModal, executeGroupSave, 
