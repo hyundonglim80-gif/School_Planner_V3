@@ -307,16 +307,16 @@ const initApp = () => {
 
     const appTitle = document.getElementById('app-title');
     window.addEventListener('offline', () => {
-        if (appTitle) appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 연결 끊김</span>';
+        if (appTitle) appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 끊김</span>';
     });
     window.addEventListener('online', () => {
         if (appTitle) {
-            appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#10b981; background:#dcfce7; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">🌐 연결 복구됨</span>';
+            appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#10b981; background:#dcfce7; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">🌐 복구됨</span>';
             setTimeout(() => { appTitle.innerHTML = 'SP3.4'; }, 3000);
         }
     });
     if (!navigator.onLine && appTitle) {
-        appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 연결 끊김</span>';
+        appTitle.innerHTML = 'SP3.4 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 끊김</span>';
     }
 
     if (window.auth) {
@@ -386,7 +386,7 @@ export const toggleNetworkMode = async (forceMode = null) => {
 
     if (isOfflineMode) {
         if (toggleBtn) {
-            toggleBtn.innerHTML = '⚡';
+            toggleBtn.innerHTML = '✈️';
             toggleBtn.style.background = '#ef4444'; 
             toggleBtn.title = '현재 오프라인 모드 (클릭 시 온라인 전환)';
         }
@@ -435,34 +435,9 @@ export const executeManualSync = async () => {
     }
 };
 
-// 🌟 [추가] 모바일 제조사별 맞춤형 시계/타이머 앱 호출
+// 🌟 [통일된 기능] 기기 상관없이 구글 웹 타이머 실행
 export const openNativeClock = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    
-    if (userAgent.includes('win')) {
-        // Windows 10/11 기본 알람 및 시계 앱 호출
-        window.location.href = 'ms-clock:'; 
-    } else if (userAgent.includes('android')) {
-        // 안드로이드 기기는 제조사마다 패키지가 다르므로 선택 팝업 제공
-        const modalHtml = `
-        <div id="android-clock-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; justify-content:center; align-items:center;" onclick="this.remove()">
-            <div class="modal-content" style="width:320px; padding:25px; background:#fff; border-radius:12px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
-                <h3 style="color:#2563eb; margin-top:0;">⏱️ 타이머 앱 선택</h3>
-                <p style="font-size:0.95rem; color:#475569; margin-bottom:20px; line-height:1.4;">스마트폰 기종에 맞는<br>시계 앱을 선택해주세요.</p>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <button onclick="window.location.href='intent://#Intent;package=com.sec.android.app.clockpackage;end;'" style="padding:12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📱 삼성 갤럭시 시계 열기</button>
-                    <button onclick="window.location.href='intent://#Intent;package=com.google.android.deskclock;end;'" style="padding:12px; background:#f8fafc; color:#334155; border:1px solid #cbd5e1; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📱 구글(LG/기타) 시계 열기</button>
-                    <button onclick="window.open('https://www.google.com/search?q=10%EB%B6%84+%ED%83%80%EC%9D%B4%EB%A8%B8', '_blank')" style="padding:12px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">🌐 구글 웹 타이머 열기</button>
-                </div>
-                <button onclick="document.getElementById('android-clock-modal').remove()" style="margin-top:20px; padding:10px 20px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer; color:#475569; width:100%;">취소</button>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    } else if (userAgent.includes('mac') || userAgent.includes('iphone') || userAgent.includes('ipad')) {
-        alert("애플 기기(iOS/Mac)는 보안 정책상 웹 브라우저에서 기본 시계 앱을 직접 실행하는 것을 엄격하게 차단하고 있습니다.\n\n화면을 위에서 아래로 쓸어내려 '제어센터'의 타이머를 이용해 주세요.");
-    } else {
-        alert("해당 기기에서는 기본 시계 앱 호출을 지원하지 않습니다.");
-    }
+    window.open('https://www.google.com/search?q=10%EB%B6%84+%ED%83%80%EC%9D%B4%EB%A8%B8', '_blank');
 };
 
 // ==========================================================================
