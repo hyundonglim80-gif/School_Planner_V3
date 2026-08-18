@@ -2,13 +2,12 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- 🌟 [핵심 수정] initial-scale=1.0을 제거하여 스마트폰 화면 너비에 맞게 자동 축소/확대되도록 변경 -->
   <meta name="viewport" content="width=800">
   <title>SP3.4</title>
   <link rel="stylesheet" href="css/style.css?v=14">
   <link rel="manifest" href="manifest.json">
   
-  <!-- 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
+  <!-- 🌟 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
   <script type="importmap">
     {
       "imports": {
@@ -96,10 +95,12 @@
                         <button class="dropdown-item" onclick="window.openEventLabelModal()">일정 라벨 관리</button>
                         <button class="dropdown-item" onclick="window.openJournalLabelModal()">기록 라벨 관리</button>
                         
-                        <button class="dropdown-item" onclick="openTimetableModal()">시간표 적용</button>
+                        <button class="dropdown-item" onclick="openTimetableModal()" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px;">시간표 적용</button>
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
                         <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
                         <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+                        <!-- 🌟 [추가] 앱 설치하기 버튼 (지원될 때만 block으로 변경됨) -->
+                        <button class="dropdown-item" id="btn-install-pwa" onclick="window.installPWA()" style="display: none; border-top: 1px dashed #e2e8f0; font-weight:bold; color:#10b981; padding-top: 8px; margin-top: 4px;">📱 앱 설치하기</button>
                     </div>
                 </div>
 
