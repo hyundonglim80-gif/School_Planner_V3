@@ -53,8 +53,6 @@
   </div>
 
   <header class="app-header">
-    
-    <!-- 🌟 [첫째 줄] 왼쪽/오른쪽 정렬 분리 -->
     <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         
         <!-- 1-1. 왼쪽 정렬 (로고, 네트워크 상태, D-Day, 시계) -->
@@ -133,10 +131,12 @@
             <button class="nav-btn" id="btn-next-date" title="단축키: Ctrl + →">다음 &gt;</button>
         </div>
 
-        <!-- 2-3. 오른쪽 정렬 (보기/작성 버튼) -->
-        <div class="mode-group" style="display: flex; flex-wrap: wrap; gap: 5px; flex: 1 1 200px; justify-content: flex-end;">
-            <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
-            <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="min-width: 65px; justify-content: center; white-space: nowrap;">작성</button>
+        <!-- 🌟 2-3. 오른쪽 정렬 (보기/작성 버튼: 배경 늘어짐 방지) -->
+        <div style="display: flex; flex: 1 1 200px; justify-content: flex-end;">
+            <div class="mode-group" style="display: flex; flex-wrap: wrap;">
+                <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑">보기</button>
+                <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="min-width: 65px; justify-content: center; white-space: nowrap;">작성</button>
+            </div>
         </div>
 
     </div>
