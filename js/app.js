@@ -255,7 +255,7 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// ⚙️ 3. 앱 초기화 및 이벤트 리스너
+// ⚙️ 3. 앱 초기화 및 이벤트 리스너 (🌟 PWA 설치 로직 추가)
 // ==========================================================================
 const initApp = () => {
     document.getElementById('btn-mode-viewer')?.addEventListener('click', () => setMode('viewer'));
@@ -277,6 +277,18 @@ const initApp = () => {
     const markUnsaved = () => { if (store.mode === 'editor') store.hasUnsavedChanges = true; };
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
+
+    // 🌟 PWA 설치 프롬프트 가로채기
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault(); // 브라우저 기본 설치 팝업 방지
+        window.deferredPrompt = e; // 이벤트 정보 보관
+        
+        // 더보기 메뉴 안에 있는 설치 버튼을 보이도록 활성화
+        const installBtn = document.getElementById('btn-install-pwa');
+        if (installBtn) {
+            installBtn.style.display = 'block';
+        }
+    });
 
     window.addEventListener('beforeunload', (e) => {
         if (store.mode === 'editor' && store.hasUnsavedChanges) {
@@ -367,7 +379,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else initApp();
 
 // ==========================================================================
-// 📡 4. SP3.4 네트워크 제어 및 타이머/수동 동기화 엔진
+// 📡 4. SP3.4 네트워크 제어 및 타이머/수동 동기화/PWA 설치 엔진
 // ==========================================================================
 export const toggleNetworkMode = async (forceMode = null) => {
     const toggleBtn = document.getElementById('network-toggle-btn');
@@ -435,9 +447,29 @@ export const executeManualSync = async () => {
     }
 };
 
-// 🌟 [통일된 기능] 기기 상관없이 구글 웹 타이머 실행
 export const openNativeClock = () => {
     window.open('https://www.google.com/search?q=10%EB%B6%84+%ED%83%80%EC%9D%B4%EB%A8%B8', '_blank');
+};
+
+// 🌟 [추가] PWA 앱 설치 함수
+export const installPWA = async () => {
+    const dropdown = document.getElementById('more-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+
+    if (window.deferredPrompt) {
+        // 브라우저의 기본 설치 프롬프트 띄우기
+        window.deferredPrompt.prompt();
+        
+        const { outcome } = await window.deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('앱 설치가 수락되었습니다.');
+            const installBtn = document.getElementById('btn-install-pwa');
+            if (installBtn) installBtn.style.display = 'none'; // 수락 후 버튼 숨기기
+        }
+        window.deferredPrompt = null;
+    } else {
+        alert("이미 기기에 설치되어 있거나, 현재 브라우저에서 자동 설치 버튼을 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치해주세요.");
+    }
 };
 
 // ==========================================================================
@@ -922,5 +954,5 @@ Object.assign(window, {
     toggleDdayMenu, selectDday, updateDdayUI, calculateDday, 
     openDdaySettingsModal, renderDdaySettingsList, addDday, deleteDday, 
     saveDdayDataToFirebase,
-    toggleNetworkMode, executeManualSync, openNativeClock // 🌟 시계 앱 호출 함수 바인딩
+    toggleNetworkMode, executeManualSync, openNativeClock, installPWA
 });
