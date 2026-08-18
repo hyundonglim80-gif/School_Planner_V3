@@ -17,13 +17,13 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
-// 🌟 [수정 2] 화면 최상단의 날짜를 추적하는 함수 (이제 수동으로 탭을 바꿀 때만 실행됨)
-const updateDateFromScroll = () => {
+// 🌟 [핵심 수정 2] 탭 버튼 클릭 및 화면 스와이프 시에만 호출되도록 분리
+export const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
     let dateElements = [];
     if (store.scope === 'year') {
-        dateElements = Array.from(document.querySelectorAll('tr[data-year-date], .year-grid > div > div > div[onclick^="window.goToDay"]'));
+        dateElements = Array.from(document.querySelectorAll('tr[data-year-date], .year-grid div[onclick^="window.goToDay"]'));
     } else if (store.scope === 'month') {
         dateElements = Array.from(document.querySelectorAll('tr[data-month-date], .cal-day > div[onclick^="window.goToDay"]'));
     } else if (store.scope === 'week') {
@@ -40,7 +40,7 @@ const updateDateFromScroll = () => {
             if (rect.width === 0 && rect.height === 0) continue; 
             
             const distance = Math.abs(rect.top - headerOffset);
-            if (distance < minDistance && rect.bottom > headerOffset - 50) {
+            if (distance < minDistance && rect.bottom > 0) {
                 minDistance = distance;
                 closestEl = el;
             }
@@ -69,7 +69,7 @@ const updateDateFromScroll = () => {
 
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
-    // 🌟 [수정 2] 추적 기능을 여기서 제거하여, 특정 날짜 클릭 시 강제 덮어쓰기 오작동을 차단함
+    // 🌟 [핵심] 여기서 updateDateFromScroll() 호출을 제거하여 날짜 클릭 덮어쓰기 방지
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     render(true);
@@ -323,7 +323,7 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// ⚙️ 3. 앱 초기화 및 전역 이벤트(스와이프 등)
+// ⚙️ 3. 앱 초기화 및 전역 이벤트
 // ==========================================================================
 let hasAttachedAppEvents = false;
 
@@ -345,7 +345,7 @@ const initApp = () => {
 
     document.querySelectorAll('.btn-scope').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            updateDateFromScroll(); // 🌟 [수동 탭 전환 시에만 스크롤 날짜 적용]
+            updateDateFromScroll(); // 🌟 상단 탭을 수동으로 누를 때만 스크롤 기반 업데이트 실행
             setScope(e.target.getAttribute('data-scope'));
         });
     });
@@ -353,56 +353,6 @@ const initApp = () => {
     const markUnsaved = () => { if (store.mode === 'editor') store.hasUnsavedChanges = true; };
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
-
-    // 🌟 [핵심 수정 1] 기존 events.js의 스와이프 이벤트가 겹쳐 2번 넘어가는 것을 방지 (가로채기 적용)
-    let touchstartX = 0;
-    let touchstartY = 0;
-    let lastSwipeTime = 0; 
-
-    // capture: true 옵션을 주어 하위 요소(events.js)보다 먼저 이벤트를 가로챔
-    window.addEventListener('touchstart', e => {
-        if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
-        touchstartX = e.changedTouches[0].screenX;
-        touchstartY = e.changedTouches[0].screenY;
-    }, { capture: true, passive: true });
-
-    window.addEventListener('touchend', e => {
-        if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.closest('.modal-overlay') || e.target.closest('.table-container')) return;
-        const touchendX = e.changedTouches[0].screenX;
-        const touchendY = e.changedTouches[0].screenY;
-        
-        const xDiff = touchendX - touchstartX;
-        const yDiff = touchendY - touchstartY;
-        
-        // 민감도를 40px로 낮추어 events.js보다 먼저 스와이프를 확실히 감지
-        if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 40) {
-            
-            // 🌟 하위 파일(events.js)로 이벤트가 흘러가는 것을 완벽 차단! (이중 스와이프 방지)
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            
-            const now = Date.now();
-            if (now - lastSwipeTime < 600) return; // 0.6초 이내의 중복 스와이프 무시
-            lastSwipeTime = now;
-
-            const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
-            
-            if (swipeMode === 'date') {
-                if (xDiff < 0) moveDate(1); 
-                else moveDate(-1); 
-            } else if (swipeMode === 'scope') {
-                updateDateFromScroll(); // 화면 전환 직전 현재 날짜 추적
-                const scopes = ['memo', 'year', 'month', 'week', 'day']; 
-                const curIdx = scopes.indexOf(store.scope);
-                
-                if (xDiff < 0 && curIdx < scopes.length - 1) {
-                    setScope(scopes[curIdx + 1]);
-                } else if (xDiff > 0 && curIdx > 0) {
-                    setScope(scopes[curIdx - 1]);
-                }
-            }
-        }
-    }, { capture: true, passive: false }); // passive: false로 설정하여 stopPropagation 보장
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault(); 
@@ -1071,7 +1021,7 @@ export const saveDdayDataToFirebase = () => {
 
 Object.assign(window, {
     toggleWeekend, toggleClass, setScope, setMode, handleEditSaveClick, 
-    moveDate, goToToday, goToDay, scrollToTodayIfExist, loadSettings, render, 
+    moveDate, goToToday, goToDay, scrollToTodayIfExist, updateDateFromScroll, loadSettings, render, 
     updateTitle, toggleMoreMenu, updateButtonUI, saveCurrentViewData, 
     autoForwardIncompleteEvents, showForwardDeleteModal, executeForwardDelete, 
     openPeriodModal, openRecurringModal, executeGroupSave, 
