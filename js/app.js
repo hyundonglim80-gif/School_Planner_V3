@@ -17,7 +17,6 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
-// 🌟 [핵심 수정 2] 탭 버튼 클릭 및 화면 스와이프 시에만 호출되도록 분리
 export const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
@@ -67,11 +66,35 @@ export const updateDateFromScroll = () => {
     }
 };
 
-export const setScope = (scope) => {
+export const setScope = (scope, skipScrollUpdate = false) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
-    // 🌟 [핵심] 여기서 updateDateFromScroll() 호출을 제거하여 날짜 클릭 덮어쓰기 방지
+    
+    // 🌟 1. 탭을 떠나기 전: 현재 탭의 날짜를 전용 공간에 확실히 저장
+    if (!skipScrollUpdate) {
+        updateDateFromScroll();
+        if (store.scope && store.scope !== 'memo') {
+            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+        }
+    }
+    
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
+    
+    // 🌟 2. 새 탭 진입 시: 해당 탭의 과거 기록이 있으면 불러오고, 없으면 오늘로 세팅
+    if (!skipScrollUpdate) {
+        const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
+        if (savedDate) {
+            store.currentDate = new Date(savedDate);
+        } else {
+            store.currentDate = new Date(); // 기록이 없으면 오늘
+        }
+    } else {
+        // 날짜를 강제로 지정해서 넘어온 경우 (ex. 달력 날짜 클릭)
+        if (scope !== 'memo') {
+            localStorage.setItem(`workCalendar_date_${scope}`, store.currentDate.toISOString());
+        }
+    }
+
     render(true);
 };
 
@@ -99,12 +122,23 @@ export const moveDate = (dir) => {
     } else if (store.scope === 'year') {
         d.setFullYear(d.getFullYear() + dir);
     }
+
+    // 🌟 버튼으로 날짜를 이동할 때마다 현재 탭에 날짜 갱신 저장
+    if (store.scope !== 'memo') {
+        localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+    }
+
     render();
 };
 
 export const goToToday = () => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store.currentDate = new Date();
+
+    if (store.scope !== 'memo') {
+        localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+    }
+
     render(true);
 };
 
@@ -114,7 +148,7 @@ export const goToDay = (dateStr) => {
     const parts = dateStr.split('-');
     if (parts.length === 3) {
         store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        setScope('day'); 
+        setScope('day', true); 
     }
 };
 
@@ -345,7 +379,6 @@ const initApp = () => {
 
     document.querySelectorAll('.btn-scope').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            updateDateFromScroll(); // 🌟 상단 탭을 수동으로 누를 때만 스크롤 기반 업데이트 실행
             setScope(e.target.getAttribute('data-scope'));
         });
     });
@@ -361,7 +394,13 @@ const initApp = () => {
         if (installBtn) installBtn.style.display = 'block';
     });
 
+    // 🌟 3. 새로고침(F5) 및 페이지 이탈 감지: 화면 끄기 직전 위치 강제 저장
     window.addEventListener('beforeunload', (e) => {
+        updateDateFromScroll();
+        if (store.scope && store.scope !== 'memo') {
+            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+        }
+
         if (store.mode === 'editor' && store.hasUnsavedChanges) {
             const view = window[`${store.scope}ViewInstance`];
             if (view) {
@@ -375,16 +414,24 @@ const initApp = () => {
         }
     });
 
+    // 🌟 모바일 앱 뒤로가기(백그라운드 진입) 시에도 저장
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === 'hidden' && store.mode === 'editor' && store.hasUnsavedChanges) {
-            const view = window[`${store.scope}ViewInstance`];
-            if (view) {
-                if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
-                if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
-                if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
-                if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
+        if (document.visibilityState === 'hidden') {
+            updateDateFromScroll();
+            if (store.scope && store.scope !== 'memo') {
+                localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
             }
-            saveCurrentViewData(true);
+
+            if (store.mode === 'editor' && store.hasUnsavedChanges) {
+                const view = window[`${store.scope}ViewInstance`];
+                if (view) {
+                    if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
+                    if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
+                    if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
+                    if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
+                }
+                saveCurrentViewData(true);
+            }
         }
     });
 
@@ -419,6 +466,17 @@ const initApp = () => {
 
                 const savedOfflineMode = localStorage.getItem('workCalendar_offlineMode') === 'true';
                 await toggleNetworkMode(savedOfflineMode ? 'offline' : 'online');
+
+                // 🌟 [핵심] 로그인 직후: 가장 최근에 보던 탭과 날짜 정보 불러오기
+                const savedScope = localStorage.getItem('workCalendar_scope') || 'day';
+                store.scope = savedScope;
+                
+                const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
+                if (savedDate) {
+                    store.currentDate = new Date(savedDate);
+                } else {
+                    store.currentDate = new Date();
+                }
 
                 try {
                     await loadSettings();
