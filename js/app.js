@@ -96,7 +96,7 @@ export const setScope = (scope, skipScrollUpdate = false) => {
         }
     }
 
-    render(true);
+    render(false); // 🌟 [핵심 수정] 탭 전환 시 무조건 오늘로 튕기는 현상 차단 (false 전달)
 };
 
 export const setMode = (mode) => {
@@ -379,12 +379,33 @@ const initApp = () => {
 
     document.querySelectorAll('.btn-scope').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // 이제 setScope 내부에서 모든 순서(저장->추적->업데이트)를 관리합니다.
             setScope(e.target.getAttribute('data-scope'));
         });
     });
 
-    const markUnsaved = () => { if (store.mode === 'editor') store.hasUnsavedChanges = true; };
+    // 🌟 [핵심 수정] 1.5초 입력이 없으면 무조건 자동 저장되는 완벽한 오토세이브 엔진
+    let autoSaveTimer = null;
+    const markUnsaved = () => { 
+        if (store.mode === 'editor') {
+            store.hasUnsavedChanges = true; 
+            
+            clearTimeout(autoSaveTimer); // 사용자가 타이핑 중이면 저장 보류
+            
+            // 1.5초(1500ms) 동안 키보드 입력이 멈추면 자동으로 저장 실행
+            autoSaveTimer = setTimeout(() => {
+                if (store.hasUnsavedChanges) {
+                    const view = window[`${store.scope}ViewInstance`];
+                    if (view) {
+                        if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
+                        if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
+                        if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
+                        if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
+                    }
+                    saveCurrentViewData(false); // UI에 '저장 완료' 글씨를 깜빡여서 안심시킴
+                }
+            }, 1500);
+        }
+    };
     document.addEventListener('input', markUnsaved);
     document.addEventListener('change', markUnsaved);
 
@@ -395,9 +416,8 @@ const initApp = () => {
         if (installBtn) installBtn.style.display = 'block';
     });
 
-    // 🌟 [새로고침(F5) 및 앱 종료 이벤트 완벽 수정]
-    window.addEventListener('beforeunload', (e) => {
-        // 1. 무조건 작성 중이던 데이터 먼저 백그라운드 저장!
+    // 🌟 새로고침(F5) 시 방해 없이 스크롤 날짜를 즉시 저장
+    window.addEventListener('beforeunload', () => {
         if (store.mode === 'editor' && store.hasUnsavedChanges) {
             const view = window[`${store.scope}ViewInstance`];
             if (view) {
@@ -409,14 +429,11 @@ const initApp = () => {
             saveCurrentViewData(true);
         }
 
-        // 2. 그 다음, 스크롤 위치를 분석해서 현재 날짜 추출 및 보존
         updateDateFromScroll();
         if (store.scope && store.scope !== 'memo') {
             localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
         }
-        
-        // 브라우저의 "저장 안 됨" 경고창 표시를 억제하여 새로고침 즉시 진행
-        // (이미 IndexedDB에 즉시 저장되므로 경고가 필요 없습니다)
+        // e.preventDefault() 제거: 귀찮은 "사이트에서 나가시겠습니까?" 경고창 없이 매끄럽게 새로고침
     });
 
     document.addEventListener("visibilitychange", () => {
@@ -474,7 +491,6 @@ const initApp = () => {
                 const savedScope = localStorage.getItem('workCalendar_scope') || 'day';
                 store.scope = savedScope;
                 
-                // 🌟 [복원 1] 로그인 직후 가장 최근 보던 날짜를 복구합니다.
                 const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
                 if (savedDate) {
                     store.currentDate = new Date(savedDate);
@@ -488,7 +504,8 @@ const initApp = () => {
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
                 } catch (e) { console.error("초기 로딩 에러:", e); }
 
-                render(true);
+                // 🌟 [핵심 수정] F5 시 강제로 오늘로 튕기는 버그 차단
+                render(false);
 
                 setTimeout(() => {
                     if (localStorage.getItem('workCalendar_hideHelp_v4') !== 'true' && typeof window.openHelpModal === 'function') window.openHelpModal();
