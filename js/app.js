@@ -4,7 +4,6 @@ import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
 import { getUserCol, setNetworkOnline, setNetworkOffline } from './firebase.js';
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
 
-
 // ==========================================================================
 // 🚀 1. 앱 상태 관리 및 초기화 설정
 // ==========================================================================
