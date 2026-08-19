@@ -17,7 +17,7 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
-// 🌟 화면 최상단의 스크롤된 날짜를 추적하는 함수
+// 🌟 스크롤 시 화면 상단의 날짜를 분석하여 실시간으로 추적하는 함수
 export const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
@@ -40,7 +40,7 @@ export const updateDateFromScroll = () => {
             if (rect.width === 0 && rect.height === 0) continue; 
             
             const distance = Math.abs(rect.top - headerOffset);
-            if (distance < minDistance && rect.bottom > 0) {
+            if (distance < minDistance && rect.bottom > headerOffset) {
                 minDistance = distance;
                 closestEl = el;
             }
@@ -67,30 +67,18 @@ export const updateDateFromScroll = () => {
     }
 };
 
-export const setScope = (scope, skipScrollUpdate = false) => {
+export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
-    
-    if (!skipScrollUpdate) {
-        updateDateFromScroll();
-        if (store.scope && store.scope !== 'memo') {
-            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
-        }
-    }
     
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     
-    if (!skipScrollUpdate) {
-        const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
-        if (savedDate) {
-            store.currentDate = new Date(savedDate);
-        } else {
-            store.currentDate = new Date(); 
-        }
+    // 🌟 각 탭(월, 주, 일, 년)마다 마지막으로 보던 날짜를 불러옴
+    const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
+    if (savedDate) {
+        store.currentDate = new Date(savedDate);
     } else {
-        if (scope !== 'memo') {
-            localStorage.setItem(`workCalendar_date_${scope}`, store.currentDate.toISOString());
-        }
+        store.currentDate = new Date(); 
     }
 
     render(false); 
@@ -145,7 +133,10 @@ export const goToDay = (dateStr) => {
     const parts = dateStr.split('-');
     if (parts.length === 3) {
         store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        setScope('day', true); 
+        
+        // 하루 보기 탭의 날짜 기록을 강제로 덮어쓰고 탭 이동
+        localStorage.setItem(`workCalendar_date_day`, store.currentDate.toISOString());
+        setScope('day'); 
     }
 };
 
@@ -264,7 +255,7 @@ export const render = (autoScrollToToday = false) => {
         if (autoScrollToToday) scrollToTodayIfExist();
     } catch (error) {
         console.error("화면 렌더링 중 오류 발생:", error);
-        container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도하거나 F5를 눌러주세요.</div>`;
+        container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도 시 F5를 눌러주세요.</div>`;
     }
 };
 
@@ -330,17 +321,11 @@ export const saveCurrentViewData = (silent = false) => {
     
     try {
         if (view && typeof view.save === 'function') {
-            const saveResult = view.save();
-            if (saveResult instanceof Promise) {
-                saveResult.catch(e => console.warn("Background save warning:", e));
-            }
+            view.save(); // 비동기 대기 없이 동기식으로 즉시 실행!
         }
         
         if (window.autoForwardIncompleteEvents) {
-            const fwdResult = window.autoForwardIncompleteEvents();
-            if (fwdResult instanceof Promise) {
-                fwdResult.catch(e => console.warn("Forward event warning:", e));
-            }
+            window.autoForwardIncompleteEvents();
         }
     } catch(e) {
         console.error("Save execution error:", e);
@@ -354,7 +339,7 @@ export const saveCurrentViewData = (silent = false) => {
 };
 
 // ==========================================================================
-// ⚙️ 3. 앱 초기화 및 전역 이벤트 (🌟 완벽한 자동 저장 및 경고창 삭제 처리)
+// ⚙️ 3. 앱 초기화 및 전역 이벤트 (🌟 가장 진보된 스크롤/저장 엔진 탑재)
 // ==========================================================================
 let hasAttachedAppEvents = false;
 
@@ -380,26 +365,38 @@ const initApp = () => {
         });
     });
 
-    // 🌟 [오토세이브 엔진] 입력이 1.5초 멈추면 스스로 안전하게 저장!
+    // 🌟 [핵심] 사용자가 화면을 위아래로 스크롤할 때마다(0.2초 단위)
+    // 현재 화면 최상단에 있는 날짜를 파악해서 블랙박스(localStorage)에 실시간으로 보존합니다!
+    let scrollDebounce = null;
+    document.addEventListener('scroll', () => {
+        if (store.scope === 'memo' || store.scope === 'day') return;
+        
+        clearTimeout(scrollDebounce);
+        scrollDebounce = setTimeout(() => {
+            const prevTime = store.currentDate.getTime();
+            updateDateFromScroll();
+            // 스크롤로 인해 날짜가 변경되었다면 즉시 로컬에 저장하고 헤더 텍스트 갱신
+            if (store.currentDate.getTime() !== prevTime) {
+                updateTitle();
+                if (store.scope && store.scope !== 'memo') {
+                    localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+                }
+            }
+        }, 200);
+    }, { passive: true, capture: true });
+
+    // 🌟 [핵심] 타이핑 후 단 0.8초만 지나면 무조건 저장되는 강력한 오토세이브!
     let autoSaveTimer = null;
     const markUnsaved = () => { 
         if (store.mode === 'editor') {
             store.hasUnsavedChanges = true; 
-            
             clearTimeout(autoSaveTimer); 
             
             autoSaveTimer = setTimeout(() => {
                 if (store.hasUnsavedChanges) {
-                    const view = window[`${store.scope}ViewInstance`];
-                    if (view) {
-                        if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
-                        if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
-                        if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
-                        if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
-                    }
-                    saveCurrentViewData(false); // 화면 깜빡임 없이 '저장 완료' 표시
+                    saveCurrentViewData(false); // 화면 깜빡임과 함께 자동 저장
                 }
-            }, 1500);
+            }, 800);
         }
     };
     document.addEventListener('input', markUnsaved);
@@ -412,47 +409,17 @@ const initApp = () => {
         if (installBtn) installBtn.style.display = 'block';
     });
 
-    // 🌟 [핵심 수정] 새로고침(F5) 시 거추장스러운 경고창을 아예 띄우지 않고,
-    // 데이터와 스크롤 위치만 낚아채서 0.01초 만에 저장한 뒤 그대로 새로고침 진행!
+    // 새로고침, 창 닫기 시 마지막 데이터 구조 시도 (경고창 완벽 억제)
     window.addEventListener('beforeunload', () => {
-        // 1. 작성 중이던 데이터 낚아채서 저장
         if (store.mode === 'editor' && store.hasUnsavedChanges) {
-            const view = window[`${store.scope}ViewInstance`];
-            if (view) {
-                if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
-                if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
-                if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
-                if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
-            }
             saveCurrentViewData(true);
         }
-
-        // 2. 보고 있던 날짜 낚아채서 보존
-        updateDateFromScroll();
-        if (store.scope && store.scope !== 'memo') {
-            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
-        }
-        
-        // 주의: 이곳에 절대 e.preventDefault() 나 e.returnValue = '' 를 넣지 마세요!
-        // 넣는 순간 브라우저가 사용자에게 '저장되지 않았습니다. 떠나시겠습니까?' 팝업을 띄웁니다.
     });
 
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === 'hidden') {
             if (store.mode === 'editor' && store.hasUnsavedChanges) {
-                const view = window[`${store.scope}ViewInstance`];
-                if (view) {
-                    if(typeof view.syncEventInputs === 'function') view.syncEventInputs();
-                    if(typeof view.syncJournalInputs === 'function') view.syncJournalInputs();
-                    if(typeof view.syncScheduleInputs === 'function') view.syncScheduleInputs();
-                    if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
-                }
                 saveCurrentViewData(true);
-            }
-
-            updateDateFromScroll();
-            if (store.scope && store.scope !== 'memo') {
-                localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
             }
         }
     });
@@ -492,6 +459,7 @@ const initApp = () => {
                 const savedScope = localStorage.getItem('workCalendar_scope') || 'day';
                 store.scope = savedScope;
                 
+                // 로그인 시 각 탭별로 마지막에 보던 날짜를 불러옴
                 const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
                 if (savedDate) {
                     store.currentDate = new Date(savedDate);
