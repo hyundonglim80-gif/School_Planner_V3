@@ -17,6 +17,7 @@ const toggleState = (key) => {
 export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
+// 🌟 화면 최상단의 스크롤된 날짜를 추적하는 함수
 export const updateDateFromScroll = () => {
     if (store.scope === 'memo' || store.scope === 'day') return;
     
@@ -67,9 +68,10 @@ export const updateDateFromScroll = () => {
 };
 
 export const setScope = (scope, skipScrollUpdate = false) => {
+    // 🌟 [순서 보장 1] 무조건 작성 중인 데이터를 먼저 저장 (현재 날짜 기준)
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     
-    // 🌟 1. 탭을 떠나기 전: 현재 탭의 날짜를 전용 공간에 확실히 저장
+    // 🌟 [순서 보장 2] 데이터 안전 저장 후, 기존 탭의 스크롤 위치를 기록 공간에 저장
     if (!skipScrollUpdate) {
         updateDateFromScroll();
         if (store.scope && store.scope !== 'memo') {
@@ -80,16 +82,15 @@ export const setScope = (scope, skipScrollUpdate = false) => {
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     
-    // 🌟 2. 새 탭 진입 시: 해당 탭의 과거 기록이 있으면 불러오고, 없으면 오늘로 세팅
+    // 🌟 [순서 보장 3] 새 탭에 진입하면 해당 탭의 과거 기록이 있는지 확인 후 날짜 복구
     if (!skipScrollUpdate) {
         const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
         if (savedDate) {
             store.currentDate = new Date(savedDate);
         } else {
-            store.currentDate = new Date(); // 기록이 없으면 오늘
+            store.currentDate = new Date(); 
         }
     } else {
-        // 날짜를 강제로 지정해서 넘어온 경우 (ex. 달력 날짜 클릭)
         if (scope !== 'memo') {
             localStorage.setItem(`workCalendar_date_${scope}`, store.currentDate.toISOString());
         }
@@ -123,7 +124,6 @@ export const moveDate = (dir) => {
         d.setFullYear(d.getFullYear() + dir);
     }
 
-    // 🌟 버튼으로 날짜를 이동할 때마다 현재 탭에 날짜 갱신 저장
     if (store.scope !== 'memo') {
         localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
     }
@@ -379,6 +379,7 @@ const initApp = () => {
 
     document.querySelectorAll('.btn-scope').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            // 이제 setScope 내부에서 모든 순서(저장->추적->업데이트)를 관리합니다.
             setScope(e.target.getAttribute('data-scope'));
         });
     });
@@ -394,13 +395,9 @@ const initApp = () => {
         if (installBtn) installBtn.style.display = 'block';
     });
 
-    // 🌟 3. 새로고침(F5) 및 페이지 이탈 감지: 화면 끄기 직전 위치 강제 저장
+    // 🌟 [새로고침(F5) 및 앱 종료 이벤트 완벽 수정]
     window.addEventListener('beforeunload', (e) => {
-        updateDateFromScroll();
-        if (store.scope && store.scope !== 'memo') {
-            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
-        }
-
+        // 1. 무조건 작성 중이던 데이터 먼저 백그라운드 저장!
         if (store.mode === 'editor' && store.hasUnsavedChanges) {
             const view = window[`${store.scope}ViewInstance`];
             if (view) {
@@ -410,18 +407,20 @@ const initApp = () => {
                 if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
             }
             saveCurrentViewData(true);
-            e.preventDefault(); e.returnValue = ''; 
         }
+
+        // 2. 그 다음, 스크롤 위치를 분석해서 현재 날짜 추출 및 보존
+        updateDateFromScroll();
+        if (store.scope && store.scope !== 'memo') {
+            localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+        }
+        
+        // 브라우저의 "저장 안 됨" 경고창 표시를 억제하여 새로고침 즉시 진행
+        // (이미 IndexedDB에 즉시 저장되므로 경고가 필요 없습니다)
     });
 
-    // 🌟 모바일 앱 뒤로가기(백그라운드 진입) 시에도 저장
     document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === 'hidden') {
-            updateDateFromScroll();
-            if (store.scope && store.scope !== 'memo') {
-                localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
-            }
-
             if (store.mode === 'editor' && store.hasUnsavedChanges) {
                 const view = window[`${store.scope}ViewInstance`];
                 if (view) {
@@ -431,6 +430,11 @@ const initApp = () => {
                     if(typeof view.syncAllCompactEventInputs === 'function') view.syncAllCompactEventInputs();
                 }
                 saveCurrentViewData(true);
+            }
+
+            updateDateFromScroll();
+            if (store.scope && store.scope !== 'memo') {
+                localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
             }
         }
     });
@@ -467,10 +471,10 @@ const initApp = () => {
                 const savedOfflineMode = localStorage.getItem('workCalendar_offlineMode') === 'true';
                 await toggleNetworkMode(savedOfflineMode ? 'offline' : 'online');
 
-                // 🌟 [핵심] 로그인 직후: 가장 최근에 보던 탭과 날짜 정보 불러오기
                 const savedScope = localStorage.getItem('workCalendar_scope') || 'day';
                 store.scope = savedScope;
                 
+                // 🌟 [복원 1] 로그인 직후 가장 최근 보던 날짜를 복구합니다.
                 const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
                 if (savedDate) {
                     store.currentDate = new Date(savedDate);
