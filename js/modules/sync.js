@@ -585,14 +585,14 @@ async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
     const data = await googleFetch(listUrl, 'GET', token);
     
-    let targetCal = data.items ? data.items.find(cal => cal.summary === 'School Planner V3.4') : null;
+    let targetCal = data.items ? data.items.find(cal => cal.summary === 'School Planner') : null;
     if (targetCal) return targetCal.id;
 
     let oldCal = data.items ? data.items.find(cal => cal.summary.startsWith('School Planner V3')) : null;
     if (oldCal) {
         try {
             await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCal.id)}`, 'PUT', token, {
-                summary: 'School Planner V3.4',
+                summary: 'School Planner',
                 description: '업무 및 수업 계획표(웹)에서 동기화된 전용 캘린더입니다.',
                 timeZone: 'Asia/Seoul'
             });
@@ -602,7 +602,7 @@ async function getOrCreateDedicatedCalendar(token) {
 
     const createUrl = "https://www.googleapis.com/calendar/v3/calendars";
     const newCal = await googleFetch(createUrl, 'POST', token, {
-        summary: 'School Planner V3.4',
+        summary: 'School Planner',
         description: '업무 및 수업 계획표(웹)에서 스마트 동기화된 캘린더입니다.',
         timeZone: 'Asia/Seoul'
     });
