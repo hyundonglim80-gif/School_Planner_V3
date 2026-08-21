@@ -35,12 +35,10 @@ export const EvaluationManager = {
         this.toggleEvalType();
     },
 
-    // 🌟 [핵심 변경] 새 학급 추가하기 선택 시 다른 시스템 메뉴(학급 정보 관리)를 자동으로 찾아 실행함
     handleRosterChange: function(selectEl) {
         if (selectEl.value === 'ADD_ROSTER') {
             document.getElementById('eval-creation-modal')?.remove();
             
-            // 더보기 메뉴 안에 숨겨져 있는 '학급 정보', '명렬표', '내보내기' 등의 관련 버튼을 찾아 클릭 이벤트를 보냄
             const rosterBtn = Array.from(document.querySelectorAll('.dropdown-item')).find(btn => btn.textContent.includes('학급') || btn.textContent.includes('명렬표') || btn.textContent.includes('가져오기'));
             
             if (rosterBtn) {
@@ -69,7 +67,6 @@ export const EvaluationManager = {
              }).join('');
         }
         
-        // 🌟 명렬표 드롭다운 최하단에 학급 추가 옵션 삽입
         rosterOptions += `<option value="ADD_ROSTER" style="font-weight:bold; color:#2563eb;">➕ 새 학급(명렬표) 추가하기</option>`;
 
         const subjects = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'];
@@ -458,6 +455,12 @@ export const EvaluationManager = {
         const typeMap = { 'eval': '평가', 'check': '체크(O/X)', 'memo': '메모' };
         const displayType = typeMap[evalData.type] || evalData.type;
 
+        // 🌟 [핵심 변경] 상단 제목 영역에 대상 명렬표 정보 표시 추가
+        let classInfoStr = '';
+        if (evalData.rosterMeta && evalData.rosterMeta.year) {
+            classInfoStr = `<br><span style="color:#2563eb; font-size:0.85rem;">🧑‍🤝‍🧑 학급: ${evalData.rosterMeta.year}학년도 ${evalData.rosterMeta.grade}학년 ${evalData.rosterMeta.classNum}반</span>`;
+        }
+
         let batchUI = '';
         if (evalData.type === 'check') {
             batchUI = `
@@ -501,9 +504,12 @@ export const EvaluationManager = {
         }
 
         return `
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                <span style="font-size:0.9rem; color:#64748b; font-weight:bold;">유형: ${displayType} ${isEval ? ` | 교과: ${evalData.subject||'없음'} | 일시: ${evalData.dateStr}` : ''}</span>
-                <button onclick="window.EvaluationManager.deleteEvaluation('${evalData.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.9rem; font-weight:bold;">🗑️ 전체 삭제</button>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                <div style="font-size:0.9rem; color:#64748b; font-weight:bold; line-height:1.4;">
+                    유형: ${displayType} ${isEval ? ` | 교과: ${evalData.subject||'없음'} | 일시: ${evalData.dateStr}` : ''}
+                    ${classInfoStr}
+                </div>
+                <button onclick="window.EvaluationManager.deleteEvaluation('${evalData.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.9rem; font-weight:bold; flex-shrink:0; margin-left:10px;">🗑️ 전체 삭제</button>
             </div>
             
             ${batchUI}
