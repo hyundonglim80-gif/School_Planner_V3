@@ -86,7 +86,7 @@ export const fetchHolidaysFromGovApi = async function(year, apiKey) {
     return holidays;
 };
 
-// 조사표 데이터를 CSV 파일로 파이어베이스 저장소에 올리고 다운로드 링크를 받아오는 함수
+// 🌟 조사표 데이터를 CSV 파일로 파이어베이스 저장소에 올리고 다운로드 링크를 받아오는 함수
 async function uploadEvalCSVToStorage(ev) {
     if (!auth.currentUser || typeof window.BackupManager === 'undefined') return null;
     try {
@@ -125,7 +125,7 @@ export const executeGoogleExport = async function() {
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
-    startProgress(`구글 캘린더로 내보내는 중... (${mode === 'merge' ? '병합' : '교체'})`, "#ea4335");
+    startProgress(`구글 캘린더로 내보내는 중... (${mode === 'merge' ? '병합' : '교체'})`);
 
     try {
         if (syncTasks) {
@@ -195,7 +195,7 @@ export const executeGoogleExport = async function() {
             }
         }
 
-        finishProgress("🎉 구글 캘린더 내보내기가 완벽하게 완료되었습니다!");
+        finishProgress("✅ 구글 캘린더 내보내기가 완벽하게 완료되었습니다!");
     } catch (error) {
         handleSyncError(error);
     }
@@ -212,11 +212,11 @@ export const executeGoogleImport = async function() {
     const endStr = document.getElementById('backup-end-date').value;
     const mode = document.querySelector('input[name="import-mode"]:checked').value;
     
-    // 🌟 사생활 보호 정책: 개인 기본 캘린더 강제 제외
+    // 🌟 사생활 보호 및 자동화 설정: 기본 캘린더 금지, 전용 캘린더 & 공휴일 강제 포함
     const importPrimary = false; 
-    const importDedicated = true; // School Planner 전용 캘린더 강제 포함
-    const importHoliday = true; // 공휴일 강제 포함
-    const holidaySource = 'gov_api'; // 정부 공공데이터 API 강제 고정
+    const importDedicated = true; 
+    const importHoliday = true; 
+    const holidaySource = 'gov_api'; 
 
     // 구글 캘린더에서 웹으로 가져올 때, 전용 캘린더의 데이터는 merge일 경우 replace로 작동하여 중복을 방지
     const internalMode = mode === 'merge' ? 'replace' : 'overwrite';
@@ -224,7 +224,7 @@ export const executeGoogleImport = async function() {
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
-    startProgress("구글 캘린더 데이터 가져오기 준비 중...", "#16a34a");
+    startProgress("구글 캘린더 데이터 가져오기 시작...");
 
     try {
         const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
@@ -270,7 +270,7 @@ export const executeGoogleImport = async function() {
 
         // 🌟 정부 API 실패 시 구글 캘린더 공휴일로 스마트 대체
         if (!apiSuccess) {
-            alert("⚠️ 정부 API 서버에서 공휴일 정보를 가져오는 데 실패하여, '구글 캘린더 한국 공휴일' 정보로 대체하여 가져옵니다.");
+            alert("⚠️ 정부 공공데이터 서버 응답 실패로 인해, '구글 캘린더 기본 공휴일'로 대체하여 가져옵니다.");
             updateProgress("📅 구글 캘린더 한국 공휴일 읽는 중...", 25);
             const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
             try {
@@ -329,7 +329,7 @@ export const executeGoogleImport = async function() {
                                 }
                             } else if (type === 'journal') {
                                 let labelStr = priv.labelStr || '기록';
-                                let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '').replace(/\n\n📊 \[조사표 첨부파일\][\s\S]*$/, '') : rawSummary;
+                                let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '').replace(/\n\n📊 \[조사표 다운로드 링크\][\s\S]*$/, '') : rawSummary;
                                 const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
                                 if (match && !priv.labelStr) {
                                     labelStr = match[1].trim();
@@ -386,9 +386,9 @@ export const executeGoogleImport = async function() {
             }
         } catch (e) { console.warn("전용 캘린더 가져오기 실패:", e); }
 
-        updateProgress("💾 앱 데이터베이스에 스마트 저장 중...", 70);
+        updateProgress("💾 앱 데이터베이스에 완벽하게 병합 중...", 70);
         
-        // 🌟 [누락되었던 핵심 로직 완벽 복구] 수집된 데이터를 앱 DB(Firestore)에 기록합니다.
+        // 🌟 [누락 코드 복구 완료] Firestore에 저장하는 실제 쓰기 로직
         let eventsByDate = {};
         importedEvents.forEach(e => { if (!eventsByDate[e.dateStr]) eventsByDate[e.dateStr] = []; eventsByDate[e.dateStr].push(e); });
         
@@ -516,13 +516,15 @@ export const executeGoogleImport = async function() {
             }
 
             processedCount++;
-            updateProgress(`💾 데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 70 + (30 * (processedCount/totalDays)));
+            if (window.ProgressModal) {
+                window.ProgressModal.update(`데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 70 + (30 * (processedCount/totalDays)));
+            }
             curD.setDate(curD.getDate() + 1);
         }
         
         if (batchOpCount > 0) await batch.commit();
 
-        finishProgress("🎉 캘린더 및 공휴일 가져오기가 완료되었습니다!");
+        finishProgress("✅ 구글 캘린더 및 공휴일 정보 가져오기가 성공적으로 완료되었습니다!");
 
     } catch (error) {
         handleSyncError(error);
@@ -530,66 +532,44 @@ export const executeGoogleImport = async function() {
 };
 
 // ==========================================================================
-// 🛠️ 내부 코어(Core) 처리 로직들
+// 🛠️ 글로벌 팝업창 연동 유틸 함수 (Window.ProgressModal)
 // ==========================================================================
 
-function getDatesFromGoogleEvent(ev) {
-    let dates = [];
-    if (ev.start && ev.start.date) { 
-        let startD = new Date(ev.start.date);
-        let endD = new Date(ev.end.date);
-        endD.setDate(endD.getDate() - 1); 
-        while (startD <= endD) {
-            dates.push(formatDate(startD));
-            startD.setDate(startD.getDate() + 1);
-        }
-    } else if (ev.start && ev.start.dateTime) { 
-        dates.push(formatDate(new Date(ev.start.dateTime)));
+function startProgress(text) {
+    if (window.ProgressModal) {
+        window.ProgressModal.show("구글 캘린더 동기화");
+        window.ProgressModal.update(text, 0);
     }
-    return dates;
-}
-
-function startProgress(text, color) {
-    document.querySelectorAll('#btn-master-import, #btn-master-export').forEach(b => b.disabled = true);
-    document.getElementById('sync-progress-area').classList.remove('hidden');
-    const statusText = document.getElementById('sync-status-text');
-    const progressBar = document.getElementById('sync-progress-bar');
-    if (statusText) { statusText.innerText = text; statusText.style.color = color; }
-    if (progressBar) { progressBar.style.background = color; progressBar.style.width = "0%"; }
 }
 
 function updateProgress(text, percent) {
-    const statusText = document.getElementById('sync-status-text');
-    const progressBar = document.getElementById('sync-progress-bar');
-    if (statusText) statusText.innerText = text;
-    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (window.ProgressModal) {
+        window.ProgressModal.update(text, percent);
+    }
 }
 
 function finishProgress(text) {
-    const statusText = document.getElementById('sync-status-text');
-    const progressBar = document.getElementById('sync-progress-bar');
-    if (statusText) statusText.innerText = text;
-    if (progressBar) progressBar.style.width = "100%";
-    
-    setTimeout(() => {
-        if (window.BackupManager && window.BackupManager.modal) window.BackupManager.modal.close();
-        if (typeof window.render === 'function') window.render();
-    }, 1500);
+    if (window.ProgressModal) {
+        window.ProgressModal.complete(text, () => {
+            if (window.BackupManager && window.BackupManager.modal) window.BackupManager.modal.close();
+            if (typeof window.render === 'function') window.render();
+        });
+    }
 }
 
 function handleSyncError(error) {
     console.error("동기화 에러:", error);
-    const statusText = document.getElementById('sync-status-text');
-    if (statusText) {
-        statusText.innerText = "❌ 오류 발생: " + error.message;
-        statusText.style.color = "#ef4444";
-    }
-    document.querySelectorAll('#btn-master-import, #btn-master-export').forEach(b => b.disabled = false);
-    
-    if(error.message && (error.message.includes('401') || error.message.includes('403'))) {
-        alert("구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 창을 닫고 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!");
+    if (window.ProgressModal) {
+        window.ProgressModal.error(error.message, () => {
+            if(error.message && (error.message.includes('401') || error.message.includes('403'))) {
+                alert("구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 창을 닫고 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!");
+            }
+        });
     }
 }
+
+// ... 
+// 아래부터는 캘린더 전용 구글 API 로직입니다 (기존과 동일)
 
 async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
