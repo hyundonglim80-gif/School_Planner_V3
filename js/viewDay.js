@@ -13,6 +13,7 @@ export class DayView extends BaseView {
         this.currentJournals = [];
         this.currentSchedules = {};
         this.currentEvalList = []; 
+        this.draggedPeriod = null; // 🌟 드래그 앤 드롭 상태 저장을 위한 변수 추가
     }
 
     generateEvalBadgesHtml(source, period = null) {
@@ -195,26 +196,24 @@ export class DayView extends BaseView {
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
           const p = i + 1;
           const pObj = this.currentSchedules[p] || {};
+          const periodName = store.periodNames[i] || p + '교시';
           
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [핵심 변경] 순서 바꾸기 팝업 대신 직관적인 인라인 Dropdown <select> UI 적용
-          const swapOptions = Array.from({ length: this.maxPeriod }).map((_, idx) => {
-              const optP = idx + 1;
-              const optName = store.periodNames[idx] || optP + '교시';
-              return `<option value="${optP}" ${optP === p ? 'selected' : ''}>${optName}</option>`;
-          }).join('');
-
-          const swapSelectHtml = `
-            <select onchange="if(this.value !== '${p}') { window.dayViewInstance.executeClassSwap(${p}, parseInt(this.value)); }" style="width:100%; border:none; background:transparent; font-weight:900; color:#2563eb; outline:none; cursor:pointer; font-size:0.9rem; text-align-last:center; padding:4px;" title="클릭하여 순서 맞바꾸기">
-                ${swapOptions}
-            </select>
-          `;
-          
+          // 🌟 [핵심] 드래그 앤 드롭을 지원하는 행(TR) 생성
           return `
-            <tr data-period="${p}">
-              <td class="period-cell" style="padding:0; vertical-align:middle; text-align:center;">
-                  ${swapSelectHtml}
+            <tr data-period="${p}" 
+                draggable="true"
+                ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
+                ondragover="window.dayViewInstance.handlePeriodDragOver(event)"
+                ondrop="window.dayViewInstance.handlePeriodDrop(event, ${p})"
+                ondragend="this.style.opacity='1';"
+                style="transition: opacity 0.2s;">
+              <td class="period-cell" style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc;">
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                      <span style="cursor:grab; font-size:1.2rem; color:#94a3b8;" title="드래그하여 순서 맞바꾸기">≡</span>
+                      <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
+                  </div>
               </td>
               <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.subject || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
@@ -241,10 +240,11 @@ export class DayView extends BaseView {
             </div>
 
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
+              <div style="font-size:0.8rem; color:#64748b; margin-bottom:6px; text-align:right;">💡 왼쪽 '≡' 아이콘을 드래그하여 수업 순서를 맞바꿀 수 있습니다.</div>
               <table style="text-align: center;">
                 <thead>
                   <tr>
-                    <th style="width: 65px;">교시</th>
+                    <th style="width: 75px;">교시</th>
                     <th style="width: 120px;">수업</th>
                     <th>📝 수업 메모</th>
                     <th style="width: 25%; position:relative;">📌 비고
@@ -275,6 +275,28 @@ export class DayView extends BaseView {
           this.renderEventEntries();
           this.renderJournalEntries();
         }, 0);
+    }
+
+    // 🌟 [핵심 변경] 드래그 앤 드롭 처리를 위한 핸들러
+    handlePeriodDragStart(event, period) {
+        this.draggedPeriod = period;
+        event.dataTransfer.effectAllowed = 'move';
+        event.target.style.opacity = '0.5';
+    }
+
+    handlePeriodDragOver(event) {
+        event.preventDefault(); 
+        event.dataTransfer.dropEffect = 'move';
+    }
+
+    handlePeriodDrop(event, targetPeriod) {
+        event.preventDefault();
+        event.target.closest('tr').style.opacity = '1';
+        
+        if (!this.draggedPeriod || this.draggedPeriod === targetPeriod) return;
+
+        this.executeClassSwap(this.draggedPeriod, targetPeriod);
+        this.draggedPeriod = null;
     }
 
     renderEventEntries() {
@@ -463,7 +485,6 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
     }
 
-    // 🌟 [핵심 변경] 순서 바꾸기가 드롭다운으로 즉시 일어나도록 수정
     executeClassSwap(p1, p2) {
         if (p1 === p2) return;
         this.syncScheduleInputs();
