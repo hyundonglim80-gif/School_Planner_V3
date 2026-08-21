@@ -199,22 +199,24 @@ export class DayView extends BaseView {
           const periodName = store.periodNames[i] || p + '교시';
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [핵심 로직] 메모의 drag 방식을 완벽하게 벤치마킹하여 TR 전체에 이벤트를 바인딩.
-          // 교시 칸(td)에 마우스를 올릴 때만 TR이 draggable="true"가 되도록 설정합니다.
+          // 🌟 [핵심 변경] 브라우저 드래그 호환성을 위한 완벽한 인라인 이벤트 분리
+          // 1. tr(행 전체)는 드롭 대상(Drop target)으로만 작동합니다.
+          // 2. td(교시칸)만 드래그 손잡이(Drag source)로 작동합니다.
           return `
-            <tr data-period="${p}" id="period-row-${p}"
-                ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
-                ondragover="window.dayViewInstance.handlePeriodDragOver(event)"
-                ondrop="window.dayViewInstance.handlePeriodDrop(event, ${p})"
+            <tr data-period="${p}" 
+                ondragover="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                ondragleave="this.style.backgroundColor='';"
+                ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handlePeriodDrop(event, ${p});"
                 style="transition: background-color 0.2s;">
               
               <td class="period-cell" 
-                  onmouseenter="document.getElementById('period-row-${p}').setAttribute('draggable', 'true')"
-                  onmouseleave="document.getElementById('period-row-${p}').setAttribute('draggable', 'false')"
+                  draggable="true"
+                  ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
+                  ondragend="window.dayViewInstance.handlePeriodDragEnd(event)"
                   style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="드래그하여 순서 맞바꾸기">
-                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                      <span style="font-size:1.2rem; color:#94a3b8; pointer-events:none;">≡</span>
-                      <span style="font-weight:900; color:#475569; font-size:0.95rem; pointer-events:none;">${periodName}</span>
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none;">
+                      <span style="font-size:1.2rem; color:#94a3b8;">≡</span>
+                      <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
                   </div>
               </td>
 
@@ -243,7 +245,7 @@ export class DayView extends BaseView {
             </div>
 
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
-              <div style="font-size:0.8rem; color:#64748b; margin-bottom:6px; text-align:right;">💡 왼쪽 '≡' 아이콘을 잡고 다른 교시 위로 끌어다 놓으면 순서가 바뀝니다.</div>
+              <div style="font-size:0.8rem; color:#64748b; margin-bottom:6px; text-align:right;">💡 왼쪽 '≡' 영역을 잡고 다른 교시 위로 끌어다 놓으면 순서가 바뀝니다.</div>
               <table style="text-align: center;">
                 <thead>
                   <tr>
@@ -280,36 +282,35 @@ export class DayView extends BaseView {
         }, 0);
     }
 
-    // ==========================================================
-    // 🌟 메모의 드래그 방식을 완벽하게 차용한 드래그 앤 드롭 엔진
-    // ==========================================================
+    // 🌟 드래그 핸들러 함수들
     handlePeriodDragStart(event, period) {
         this.draggedPeriod = period;
         event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', period.toString()); 
+        event.dataTransfer.setData('text/plain', period.toString()); // 필수
         
+        // 드래그 중인 행(tr)을 시각적으로 반투명하게 만듦
         setTimeout(() => {
-            if(event.target) event.target.style.opacity = '0.4';
+            const row = event.target.closest('tr');
+            if (row) row.style.opacity = '0.4';
         }, 0);
     }
 
-    handlePeriodDragOver(event) {
-        event.preventDefault(); // 필수: 브라우저가 Drop을 허용하도록 만듦
-        event.dataTransfer.dropEffect = 'move';
+    handlePeriodDragEnd(event) {
+        this.draggedPeriod = null;
+        const row = event.target.closest('tr');
+        if (row) row.style.opacity = '1'; // 투명도 원상복구
     }
 
     handlePeriodDrop(event, targetPeriod) {
-        event.preventDefault();
+        let sourcePeriodStr = '';
+        try { sourcePeriodStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
         
-        const sourcePeriod = this.draggedPeriod;
-        this.draggedPeriod = null;
-
-        if (!sourcePeriod || sourcePeriod === targetPeriod) {
-            this.renderEditor(); // 스타일 원상복구
-            return;
-        }
+        const sourcePeriod = parseInt(sourcePeriodStr, 10) || this.draggedPeriod;
+        
+        if (!sourcePeriod || sourcePeriod === targetPeriod) return;
 
         this.executeClassSwap(sourcePeriod, targetPeriod);
+        this.draggedPeriod = null;
     }
 
     renderEventEntries() {
