@@ -5,7 +5,7 @@ import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '
 import { getUserCol, db } from '../firebase.js';
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
-// 🌟 [수정] z-index를 99999로 설정하여 모든 팝업창보다 무조건 위에 뜨도록 레이어 최상단 고정!
+// 🌟 [핵심 변경] z-index를 99999로 올려 무조건 최상단에 뜨게 하고, 완료 시 추가 버튼(extraHtml)을 띄울 수 있도록 개선
 window.ProgressModal = {
     modalEl: null,
     show: function(title) {
@@ -18,7 +18,8 @@ window.ProgressModal = {
                 <div id="progress-bar-container" style="width:100%; background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden; margin-bottom:15px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);">
                     <div id="progress-bar-fill" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #60a5fa); transition:width 0.3s ease; border-radius:6px;"></div>
                 </div>
-                <p id="progress-desc" style="margin:0 0 25px 0; color:#64748b; font-size:0.95rem; font-weight:600; line-height:1.5; word-break:keep-all;">준비 중...</p>
+                <p id="progress-desc" style="margin:0 0 15px 0; color:#64748b; font-size:0.95rem; font-weight:600; line-height:1.5; word-break:keep-all;">준비 중...</p>
+                <div id="progress-extra-area" style="margin-bottom:15px;"></div>
                 <button id="progress-ok-btn" style="display:none; width:100%; padding:12px; background:#10b981; color:#fff; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1.05rem; transition: background 0.2s;">확인</button>
             </div>
         </div>
@@ -37,13 +38,14 @@ window.ProgressModal = {
         if(descEl && desc) descEl.innerText = desc;
         if(barEl && percent !== undefined) barEl.style.width = percent + '%';
     },
-    complete: function(desc, callback) {
+    complete: function(desc, callback, extraHtml = '') {
         if(!this.modalEl) return;
         const spinner = document.getElementById('progress-spinner');
         const descEl = document.getElementById('progress-desc');
         const barEl = document.getElementById('progress-bar-fill');
         const btn = document.getElementById('progress-ok-btn');
         const title = document.getElementById('progress-title');
+        const extraArea = document.getElementById('progress-extra-area');
         
         if(spinner) {
             spinner.style.animation = "none";
@@ -55,6 +57,8 @@ window.ProgressModal = {
         if(title) title.innerText = "작업 완료";
         if(descEl && desc) { descEl.innerText = desc; descEl.style.color = "#047857"; }
         if(barEl) { barEl.style.width = '100%'; barEl.style.background = "linear-gradient(90deg, #10b981, #34d399)"; }
+        if(extraArea && extraHtml) { extraArea.innerHTML = extraHtml; }
+        
         if(btn) { 
             btn.style.display = 'block'; 
             btn.style.background = '#10b981';
@@ -195,7 +199,7 @@ export const BackupManager = {
                     </div>
                     
                     <!-- 구글 시트 링크 영역 (비어있을 때 공간 차지 안함) -->
-                    <div id="sheet-link-area"></div>
+                    <div id="sheet-link-area" style="display:none; margin-top:10px;"></div>
                 </div>
 
             </div>
@@ -207,7 +211,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v10', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v11', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -220,20 +224,19 @@ export const BackupManager = {
         const cCard = document.getElementById('target-card-calendar');
         const sCard = document.getElementById('target-card-sheets');
         const fCard = document.getElementById('target-card-csv');
-
         const sheetExtra = document.getElementById('sheet-link-area');
 
         cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
         sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
         fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
 
-        sheetExtra.style.display = 'none';
+        if (sheetExtra) sheetExtra.style.display = 'none';
 
         if (target === 'calendar') {
             cCard.style.borderColor = '#ea4335'; cCard.style.background = '#fce8e6'; cCard.style.color = '#ea4335';
         } else if (target === 'sheets') {
             sCard.style.borderColor = '#0f9d58'; sCard.style.background = '#e8f5e9'; sCard.style.color = '#0f9d58';
-            sheetExtra.style.display = 'block';
+            if (sheetExtra && this.currentSpreadsheetId) sheetExtra.style.display = 'block';
         } else if (target === 'csv') {
             fCard.style.borderColor = '#475569'; fCard.style.background = '#f1f5f9'; fCard.style.color = '#475569';
         }
@@ -327,15 +330,16 @@ export const BackupManager = {
             if (docSnap.exists() && docSnap.data().spreadsheetId && linkArea) {
                 this.currentSpreadsheetId = docSnap.data().spreadsheetId;
                 linkArea.innerHTML = `
-                    <div style="margin-top: 15px;">
-                        <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>
-                        <div style="text-align:right; margin-top:8px;">
-                            <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">시트 연결 해제/초기화</span>
-                        </div>
+                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 앱에 연동된 구글 시트 파일 열기</button>
+                    <div style="text-align:right; margin-top:8px;">
+                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">시트 연결 해제/초기화</span>
                     </div>
                 `;
+                const target = document.querySelector('input[name="backup-target"]:checked');
+                if (target && target.value === 'sheets') linkArea.style.display = 'block';
             } else if (linkArea) {
                 linkArea.innerHTML = '';
+                linkArea.style.display = 'none';
             }
         } catch(e) {}
     },
@@ -789,69 +793,7 @@ export const BackupManager = {
             }
         }
 
-        let activePeriods = {}; 
-        let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
-        
-        if (doEvent) {
-            sortedDates.forEach(dStr => {
-                let evList = parsedDaysMap[dStr].eventList;
-                let curDateObj = new Date(dStr);
-
-                evList.forEach(ev => {
-                    let labelObj = null;
-                    if (ev.labelIds && ev.labelIds.length > 0) {
-                        labelObj = masterLabels.find(l => l.id === ev.labelIds[0]);
-                    }
-                    if (!labelObj) return;
-
-                    const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
-                    const signature = labelObj.id + "|||" + pureContent;
-                    
-                    if (labelObj.isPeriod || labelObj.isRecur) {
-                        if (activePeriods[signature]) {
-                            let lastD = new Date(activePeriods[signature].lastDate);
-                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
-                            if (diff <= 14) { 
-                                ev.groupId = activePeriods[signature].groupId;
-                                activePeriods[signature].lastDate = dStr;
-                            } else {
-                                let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                                ev.groupId = newGroupId;
-                                activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
-                            }
-                        } else {
-                            let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                            ev.groupId = newGroupId;
-                            activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
-                        }
-                    }
-                    
-                    if (labelObj.isForward) {
-                         if (activeForwards[signature]) {
-                            let lastD = new Date(activeForwards[signature].lastDate);
-                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
-                            if (diff <= 14) { 
-                                ev.forwardChainId = activeForwards[signature].chainId;
-                                ev.originalDate = activeForwards[signature].originalDate;
-                                activeForwards[signature].lastDate = dStr;
-                            } else {
-                                let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                                ev.forwardChainId = newChainId;
-                                ev.originalDate = dStr; 
-                                activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
-                            }
-                         } else {
-                            let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                            ev.forwardChainId = newChainId;
-                            ev.originalDate = dStr;
-                            activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
-                         }
-                    }
-                });
-            });
-        }
-
         const batchPromises = [];
         let batch = writeBatch(db);
         let opCount = 0;
@@ -875,6 +817,9 @@ export const BackupManager = {
             await Promise.all(batchPromises);
             batchPromises.length = 0; 
         }
+
+        const totalDays = sortedDates.length;
+        let processedCount = 0;
 
         for (const dStr of sortedDates) {
             if (doEvent) {
@@ -942,6 +887,11 @@ export const BackupManager = {
                 batchPromises.push(batch.commit());
                 batch = writeBatch(db);
                 opCount = 0;
+            }
+
+            processedCount++;
+            if (window.ProgressModal) {
+                window.ProgressModal.update(`데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 30 + (70 * (processedCount/totalDays)));
             }
         }
         if(opCount > 0) batchPromises.push(batch.commit());
@@ -1115,9 +1065,12 @@ export const BackupManager = {
             }
 
             this.checkExistingSheet(); 
-            window.ProgressModal.complete("✅ 구글 시트 백업이 성공적으로 완료되었습니다!", () => {
+            
+            // 🌟 완료 창 내부에 버튼 삽입!
+            const sheetLinkHtml = `<button onclick="window.open('https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>`;
+            window.ProgressModal.complete("✅ 구글 시트 내보내기가 성공적으로 완료되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
-            });
+            }, sheetLinkHtml);
 
         } catch (e) {
             console.error(e);
@@ -1216,10 +1169,13 @@ export const BackupManager = {
                 }
             }
 
+            // 🌟 가져오기 완료 후에도 시트 링크 제공
+            const sheetLinkHtml = `<button onclick="window.open('https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 연동된 구글 시트 파일 열기</button>`;
+            
             window.ProgressModal.complete("✅ 구글 시트에서 성공적으로 복원 및 동기화가 완료되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
                 if(window.render) window.render();
-            });
+            }, sheetLinkHtml);
 
         } catch (e) {
             console.error(e);
