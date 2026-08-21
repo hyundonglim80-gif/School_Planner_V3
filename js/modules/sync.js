@@ -86,7 +86,6 @@ export const fetchHolidaysFromGovApi = async function(year, apiKey) {
     return holidays;
 };
 
-// 🌟 조사표 데이터를 CSV 파일로 파이어베이스 저장소에 올리고 다운로드 링크를 받아오는 함수
 async function uploadEvalCSVToStorage(ev) {
     if (!auth.currentUser || typeof window.BackupManager === 'undefined') return null;
     try {
@@ -125,7 +124,7 @@ export const executeGoogleExport = async function() {
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
-    startProgress(`구글 캘린더로 내보내는 중... (${mode === 'merge' ? '병합' : '교체'})`);
+    startProgress(`구글 캘린더로 내보내는 중... (${mode === 'merge' ? '병합' : '교체'})`, "#ea4335");
 
     try {
         if (syncTasks) {
@@ -212,10 +211,10 @@ export const executeGoogleImport = async function() {
     const endStr = document.getElementById('backup-end-date').value;
     const mode = document.querySelector('input[name="import-mode"]:checked').value;
     
-    // 🌟 사생활 보호 및 자동화 설정: 기본 캘린더 금지, 전용 캘린더 & 공휴일 강제 포함
+    // 사생활 보호 정책: 개인 기본 캘린더 강제 제외
     const importPrimary = false; 
-    const importDedicated = true; 
-    const importHoliday = true; 
+    const importDedicated = true; // School Planner 전용 캘린더 포함
+    const importHoliday = true; // 공휴일 포함
     const holidaySource = 'gov_api'; 
 
     // 구글 캘린더에서 웹으로 가져올 때, 전용 캘린더의 데이터는 merge일 경우 replace로 작동하여 중복을 방지
@@ -224,7 +223,7 @@ export const executeGoogleImport = async function() {
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
-    startProgress("구글 캘린더 데이터 가져오기 시작...");
+    startProgress("구글 캘린더 데이터 가져오기 시작...", "#16a34a");
 
     try {
         const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
@@ -237,7 +236,6 @@ export const executeGoogleImport = async function() {
         const masterEventLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
 
-        // 🏛️ 공휴일 데이터 가져오기 로직 (정부 API 우선, 실패 시 구글 캘린더 대체)
         const holidayLabelObj = masterEventLabels.find(l => l.isSkip) || masterEventLabels.find(l => l.name === '휴일');
         const labelId = holidayLabelObj ? holidayLabelObj.id : '';
         const labelName = holidayLabelObj ? holidayLabelObj.name : '공휴일';
@@ -268,7 +266,7 @@ export const executeGoogleImport = async function() {
             }
         }
 
-        // 🌟 정부 API 실패 시 구글 캘린더 공휴일로 스마트 대체
+        // 정부 API 실패 시 구글 캘린더 공휴일로 대체
         if (!apiSuccess) {
             alert("⚠️ 정부 공공데이터 서버 응답 실패로 인해, '구글 캘린더 기본 공휴일'로 대체하여 가져옵니다.");
             updateProgress("📅 구글 캘린더 한국 공휴일 읽는 중...", 25);
@@ -322,14 +320,14 @@ export const executeGoogleImport = async function() {
                                     if (rawDesc) {
                                         const mMatch = rawDesc.match(/- 수업 메모:\s*([\s\S]*?)(?=\n- 비고:|$)/);
                                         if (mMatch) memo = mMatch[1].trim();
-                                        const sMatch = rawDesc.match(/- 비고:\s*([\s\S]*?)(?=\n\n📊 \[조사표 첨부파일\]|$)/);
+                                        const sMatch = rawDesc.match(/- 비고:\s*([\s\S]*?)$/);
                                         if (sMatch) supplies = sMatch[1].trim();
                                     }
                                     importedClasses.push({ dateStr: dStr, period: pNum, subject, memo, supplies, source: 'google_dedicated' });
                                 }
                             } else if (type === 'journal') {
                                 let labelStr = priv.labelStr || '기록';
-                                let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '').replace(/\n\n📊 \[조사표 다운로드 링크\][\s\S]*$/, '') : rawSummary;
+                                let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '') : rawSummary;
                                 const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
                                 if (match && !priv.labelStr) {
                                     labelStr = match[1].trim();
@@ -355,6 +353,8 @@ export const executeGoogleImport = async function() {
                                 if (priv.sp_forwardChainId) newJr.forwardChainId = priv.sp_forwardChainId;
                                 
                                 importedJournals.push(newJr);
+                            } else if (type === 'eval') {
+                                // 🌟 조사표는 CSV나 구글 시트로 백업 및 복구되므로, 캘린더에서 웹으로 가져올 때 일반 이벤트로 등록되지 않도록 무시합니다.
                             } else { 
                                 let labelStr = priv.labelStr || '구글동기화';
                                 let content = rawSummary;
@@ -386,9 +386,8 @@ export const executeGoogleImport = async function() {
             }
         } catch (e) { console.warn("전용 캘린더 가져오기 실패:", e); }
 
-        updateProgress("💾 앱 데이터베이스에 완벽하게 병합 중...", 70);
+        updateProgress("💾 앱 데이터베이스에 합치는 중...", 70);
         
-        // 🌟 [누락 코드 복구 완료] Firestore에 저장하는 실제 쓰기 로직
         let eventsByDate = {};
         importedEvents.forEach(e => { if (!eventsByDate[e.dateStr]) eventsByDate[e.dateStr] = []; eventsByDate[e.dateStr].push(e); });
         
@@ -516,15 +515,13 @@ export const executeGoogleImport = async function() {
             }
 
             processedCount++;
-            if (window.ProgressModal) {
-                window.ProgressModal.update(`데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 70 + (30 * (processedCount/totalDays)));
-            }
+            updateProgress(`💾 데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 70 + (30 * (processedCount/totalDays)));
             curD.setDate(curD.getDate() + 1);
         }
         
         if (batchOpCount > 0) await batch.commit();
 
-        finishProgress("✅ 구글 캘린더 및 공휴일 정보 가져오기가 성공적으로 완료되었습니다!");
+        finishProgress("✅ 캘린더 및 공휴일 가져오기가 완료되었습니다!");
 
     } catch (error) {
         handleSyncError(error);
@@ -532,10 +529,26 @@ export const executeGoogleImport = async function() {
 };
 
 // ==========================================================================
-// 🛠️ 글로벌 팝업창 연동 유틸 함수 (Window.ProgressModal)
+// 🛠️ 내부 코어(Core) 처리 로직들
 // ==========================================================================
 
-function startProgress(text) {
+function getDatesFromGoogleEvent(ev) {
+    let dates = [];
+    if (ev.start && ev.start.date) { 
+        let startD = new Date(ev.start.date);
+        let endD = new Date(ev.end.date);
+        endD.setDate(endD.getDate() - 1); 
+        while (startD <= endD) {
+            dates.push(formatDate(startD));
+            startD.setDate(startD.getDate() + 1);
+        }
+    } else if (ev.start && ev.start.dateTime) { 
+        dates.push(formatDate(new Date(ev.start.dateTime)));
+    }
+    return dates;
+}
+
+function startProgress(text, color) {
     if (window.ProgressModal) {
         window.ProgressModal.show("구글 캘린더 동기화");
         window.ProgressModal.update(text, 0);
@@ -568,21 +581,18 @@ function handleSyncError(error) {
     }
 }
 
-// ... 
-// 아래부터는 캘린더 전용 구글 API 로직입니다 (기존과 동일)
-
 async function getOrCreateDedicatedCalendar(token) {
     const listUrl = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
     const data = await googleFetch(listUrl, 'GET', token);
     
-    let targetCal = data.items ? data.items.find(cal => cal.summary === 'School Planner') : null;
+    let targetCal = data.items ? data.items.find(cal => cal.summary === 'School Planner V3.4') : null;
     if (targetCal) return targetCal.id;
 
     let oldCal = data.items ? data.items.find(cal => cal.summary.startsWith('School Planner V3')) : null;
     if (oldCal) {
         try {
             await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCal.id)}`, 'PUT', token, {
-                summary: 'School Planner',
+                summary: 'School Planner V3.4',
                 description: '업무 및 수업 계획표(웹)에서 동기화된 전용 캘린더입니다.',
                 timeZone: 'Asia/Seoul'
             });
@@ -592,13 +602,14 @@ async function getOrCreateDedicatedCalendar(token) {
 
     const createUrl = "https://www.googleapis.com/calendar/v3/calendars";
     const newCal = await googleFetch(createUrl, 'POST', token, {
-        summary: 'School Planner',
+        summary: 'School Planner V3.4',
         description: '업무 및 수업 계획표(웹)에서 스마트 동기화된 캘린더입니다.',
         timeZone: 'Asia/Seoul'
     });
     return newCal.id;
 }
 
+// 🌟 [핵심 변경] 일정 ➔ 수업 ➔ 기록 ➔ 조사표 순으로 payloadsToCreate 배열에 데이터를 푸시합니다.
 async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData, jData, elData, incEvent, incClass, incJournal, incEval, existingEvents = [], mode = 'merge') {
     let payloadsToCreate = [];
     
@@ -612,6 +623,7 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
     const masterEventLabels = getEventLabels();
     const masterJournalLabels = getJournalLabels();
 
+    // 1. 일정(Event)
     if (incEvent && eData) {
         let list = eData.eventList || [];
         if (list.length === 0 && eData.eventText) list = parseRawEventTextToEventList(eData.eventText);
@@ -640,6 +652,7 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
+    // 2. 수업(Class)
     if (incClass && sData && sData.periods) {
         const periods = sData.periods;
         let periodCount = window.periodNames ? window.periodNames.length : 6; 
@@ -650,14 +663,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
                 if (p.memo) desc += `- 수업 메모: ${p.memo}\n`;
                 if (p.supplies) desc += `- 비고: ${p.supplies}\n`;
                 if (!p.memo && !p.supplies) desc += `- 등록된 내용이 없습니다.\n`;
-
-                if (incEval && elData && elData.evalList) {
-                    let periodEvals = elData.evalList.filter(e => e.context?.source === 'schedule' && String(e.context?.period) === String(i));
-                    for (const ev of periodEvals) {
-                        const url = await uploadEvalCSVToStorage(ev);
-                        if (url) desc += `\n\n📊 [조사표 다운로드 링크: ${ev.title}]\n${url}\n`;
-                    }
-                }
 
                 let invisiblePrefix = getInvisiblePrefix(seq++);
                 let pName = (window.periodNames && window.periodNames[i - 1]) ? window.periodNames[i - 1] : `${i}교시`; 
@@ -672,17 +677,9 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         }
     }
 
+    // 3. 기록(Journal)
     if (incJournal && jData && jData.entries) {
         const journals = jData.entries.filter(j => j.content && j.content.trim() !== '');
-        
-        let journalEvalDesc = '';
-        if (incEval && elData && elData.evalList) {
-            let journalEvals = elData.evalList.filter(e => e.context?.source === 'journal');
-            for (const ev of journalEvals) {
-                const url = await uploadEvalCSVToStorage(ev);
-                if (url) journalEvalDesc += `\n\n📊 [조사표 다운로드 링크: ${ev.title}]\n${url}\n`;
-            }
-        }
 
         journals.forEach(j => {
             let labelNames = [];
@@ -697,7 +694,7 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
             
             payloadsToCreate.push({
                 summary: `${invisiblePrefix}${mark}[${labelStr}] ${displayContent}`,
-                description: `📝 [전체 기록 내용]\n${j.content}${journalEvalDesc}`,
+                description: `📝 [전체 기록 내용]\n${j.content}`,
                 start: { date: dateStr }, end: { date: endStr },
                 extendedProperties: { private: { 
                     app: 'SchoolPlannerV3', dateStr: dateStr, type: 'journal', labelStr: labelStr,
@@ -707,11 +704,37 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
+    // 🌟 4. 조사표(Evaluation) - 완전히 분리된 캘린더 일정으로 생성!
+    if (incEval && elData && elData.evalList) {
+        for (const ev of elData.evalList) {
+            let invisiblePrefix = getInvisiblePrefix(seq++);
+            const url = await uploadEvalCSVToStorage(ev);
+            
+            let desc = `📊 [조사표 데이터]\n- 대상 명렬표: ${ev.rosterMeta?.year || '?'}학년도 ${ev.rosterMeta?.grade || '?'}학년 ${ev.rosterMeta?.classNum || '?'}반\n`;
+            if (url) desc += `- 다운로드 링크: ${url}\n`;
+            else desc += `- CSV 파일을 생성하지 못했습니다.\n`;
+
+            payloadsToCreate.push({
+                summary: `${invisiblePrefix}[조사표] ${ev.title}`,
+                description: desc.trim(),
+                start: { date: dateStr }, end: { date: endStr },
+                extendedProperties: { private: { 
+                    app: 'SchoolPlannerV3', 
+                    dateStr: dateStr, 
+                    type: 'eval',
+                    sp_id: ev.id || ''
+                } }
+            });
+        }
+    }
+
+    // 기존 이벤트와 매칭하여 찌꺼기 삭제 및 업데이트 수행
     const managedExistingEvents = existingEvents.filter(ev => {
         const type = ev.extendedProperties?.private?.type || 'event';
         if (type === 'event' && !incEvent) return false; 
         if (type === 'class' && !incClass) return false;
         if (type === 'journal' && !incJournal) return false;
+        if (type === 'eval' && !incEval) return false; // 🌟 새로 추가된 eval 타입
         return true;
     });
 
