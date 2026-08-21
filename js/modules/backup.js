@@ -1,4 +1,4 @@
-//js/modules/backup.js
+// js/modules/backup.js
 
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '../core/utils.js';
@@ -7,120 +7,200 @@ import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orde
 
 export const BackupManager = {
     modal: null,
-    currentTab: 'schedule',
     currentSpreadsheetId: null,
 
     openModal: function() {
         if (!this.modal) {
             const html = `
-            <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6;">
-                <p style="margin:0;"><strong>[데이터 백업/복원]</strong> 클라우드 데이터를 파일(CSV)이나 구글 시트로 백업/복원합니다.</p>
-            </div>
-            <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <button id="backup-tab-schedule" onclick="window.BackupManager.setTab('schedule')" style="flex:1; padding:10px; border:2px solid #3b82f6; background:#eff6ff; color:#1e40af; border-radius:8px; font-weight:bold; cursor:pointer;">📅 캘린더 데이터</button>
-                <button id="backup-tab-memo" onclick="window.BackupManager.setTab('memo')" style="flex:1; padding:10px; border:2px solid #cbd5e1; background:#f8fafc; color:#64748b; border-radius:8px; font-weight:bold; cursor:pointer;">📝 메모</button>
-            </div>
-
-            <div id="backup-schedule-section">
-                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#475569;">백업/복원 기간 선택</label>
-                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                    <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold;">
-                        <option value="today">오늘</option>
-                        <option value="week">해당 주 (이번 주)</option>
-                        <option value="month">해당 월 (이번 달)</option>
-                        <option value="sem1">1학기 전체</option>
-                        <option value="sem2">2학기 전체</option>
-                        <option value="year" selected>해당 학년도 전체</option>
-                        <option value="custom">기간 직접 설정</option>
-                    </select>
-                    
-                    <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
-                        <input type="date" id="backup-start-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
-                        <span style="font-weight:bold; color:#64748b;">~</span>
-                        <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
-                    </div>
-                </div>
-
-                <label style="display:block; font-weight:bold; margin-bottom:5px; color:#475569;">대상 항목 선택</label>
-                <div style="display:flex; gap:15px; margin-bottom:15px; background:#f8fafc; padding:10px 15px; border-radius:8px; border:1px solid #e2e8f0; font-weight:bold; color:#1e293b;">
-                    <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-event" checked style="accent-color:#3b82f6;"> 일정</label>
-                    <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-class" checked style="accent-color:#10b981;"> 수업</label>
-                    <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-journal" checked style="accent-color:#ec4899;"> 기록</label>
-                    <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-eval" checked style="accent-color:#f59e0b;"> 조사표</label>
-                </div>
-            </div>
-
-            <div id="backup-memo-section" style="display:none; margin-bottom:15px; padding:15px; background:#f1f5f9; border-radius:8px; border: 1px dashed #cbd5e1;">
-                <p style="margin:0; color:#475569; font-size:0.95rem; line-height:1.5;">
-                    저장된 <strong>모든 메모 데이터</strong>와 <strong>자주 쓰는 문서/링크</strong> 목록을 처리합니다.<br>
-                </p>
-            </div>
-
-            <div style="background:#fef2f2; padding:15px; border-radius:8px; border:1px solid #fca5a5; margin-bottom:15px;">
-                <p style="margin:0 0 10px 0; font-weight:bold; color:#b91c1c; font-size:1.05rem;">📥 가져오기 방식 선택</p>
-                <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; cursor:pointer;">
-                    <input type="radio" name="import-mode" value="merge" checked style="margin-top:3px; accent-color:#059669;">
-                    <div>
-                        <span style="font-weight:bold; color:#059669; font-size:0.95rem;">기존 데이터 유지하며 추가 (병합 및 시트 최신화)</span><br>
-                        <span style="font-size:0.8rem; color:#64748b;">현재 데이터를 보존하고, 구글 시트의 데이터와 비교하여 수정한 내용을 앱에 최신화하여 합칩니다.</span>
-                    </div>
-                </label>
-                <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
-                    <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
-                    <div>
-                        <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">모두 지우고 덮어쓰기 (교체)</span><br>
-                        <span style="font-size:0.8rem; color:#64748b;">현재 데이터를 싹 지우고, 가져오는 데이터로 완전히 교체합니다.</span>
-                    </div>
-                </label>
+            <div style="display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
                 
-                <div style="margin-top:12px; padding:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px;">
-                    <p style="margin:0; font-size:0.85rem; color:#166534; font-weight:bold; line-height:1.4;">
-                        ✅ 구글 시트의 [조사표_학년-반] 탭에서 점수를 직접 수정한 후 가져오기를 누르시면, 시트에서 수정한 점수가 앱에도 완벽하게 최신화(동기화) 됩니다!
-                    </p>
+                <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin-bottom:0;">
+                    <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 클라우드 데이터를 구글 캘린더, 시트, 로컬(CSV)과 양방향으로 동기화합니다.</p>
                 </div>
+
+                <!-- 1단계: 기간 선택 -->
+                <div>
+                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 기간 선택</label>
+                    <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold;">
+                            <option value="today">오늘</option>
+                            <option value="week">해당 주 (이번 주)</option>
+                            <option value="month">해당 월 (이번 달)</option>
+                            <option value="sem1">1학기 전체</option>
+                            <option value="sem2">2학기 전체</option>
+                            <option value="year" selected>해당 학년도 전체</option>
+                            <option value="custom">기간 직접 설정</option>
+                        </select>
+                        <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
+                            <input type="date" id="backup-start-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
+                            <span style="font-weight:bold; color:#64748b;">~</span>
+                            <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" disabled>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2단계: 대상 정보 -->
+                <div>
+                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">2. 대상 정보</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:15px; background:#f8fafc; padding:12px 15px; border-radius:8px; border:1px solid #e2e8f0; font-weight:bold; color:#1e293b;">
+                        <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-event" checked style="accent-color:#3b82f6;"> 일정</label>
+                        <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-class" checked style="accent-color:#10b981;"> 수업</label>
+                        <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-journal" checked style="accent-color:#ec4899;"> 기록</label>
+                        <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-eval" checked style="accent-color:#f59e0b;"> 조사표</label>
+                        <label style="cursor:pointer;"><input type="checkbox" id="backup-chk-memo" checked style="accent-color:#64748b;"> 메모/링크</label>
+                    </div>
+                </div>
+
+                <!-- 3단계: 방식 선택 -->
+                <div>
+                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">3. 방식 선택 (가져오기 시)</label>
+                    <div style="background:#fef2f2; padding:15px; border-radius:8px; border:1px solid #fca5a5;">
+                        <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; cursor:pointer;">
+                            <input type="radio" name="import-mode" value="merge" checked style="margin-top:3px; accent-color:#059669;">
+                            <div>
+                                <span style="font-weight:bold; color:#059669; font-size:0.95rem;">기존 데이터 유지하며 추가 (병합)</span><br>
+                                <span style="font-size:0.8rem; color:#64748b;">기존에 작성된 데이터는 보호하고 새로운 내용만 추가/최신화합니다.</span>
+                            </div>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                            <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
+                            <div>
+                                <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">모두 지우고 덮어쓰기 (교체)</span><br>
+                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 데이터를 싹 지우고 외부 데이터로 완전히 교체합니다.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 4단계: 플랫폼 대상 -->
+                <div>
+                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">4. 대상 (플랫폼)</label>
+                    <div style="display:flex; gap:10px;">
+                        <label style="flex:1; cursor:pointer; text-align:center;">
+                            <input type="radio" name="backup-target" value="calendar" style="display:none;" onchange="window.BackupManager.onTargetChange()">
+                            <div class="target-card" id="target-card-calendar" style="padding:15px 5px; border:2px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#64748b; font-weight:bold; transition:0.2s;">
+                                📅 구글 캘린더
+                            </div>
+                        </label>
+                        <label style="flex:1; cursor:pointer; text-align:center;">
+                            <input type="radio" name="backup-target" value="sheets" checked style="display:none;" onchange="window.BackupManager.onTargetChange()">
+                            <div class="target-card" id="target-card-sheets" style="padding:15px 5px; border:2px solid #0f9d58; border-radius:8px; background:#e8f5e9; color:#0f9d58; font-weight:bold; transition:0.2s;">
+                                📗 구글 시트
+                            </div>
+                        </label>
+                        <label style="flex:1; cursor:pointer; text-align:center;">
+                            <input type="radio" name="backup-target" value="csv" style="display:none;" onchange="window.BackupManager.onTargetChange()">
+                            <div class="target-card" id="target-card-csv" style="padding:15px 5px; border:2px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#64748b; font-weight:bold; transition:0.2s;">
+                                💾 로컬 (CSV)
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- 캘린더 추가 옵션 패널 -->
+                    <div id="calendar-extra-options" style="display:none; margin-top:10px; background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #bbf7d0;">
+                        <div style="font-size:0.9rem; font-weight:bold; color:#166534; margin-bottom:8px;">✅ 구글 캘린더 전용 가져오기 옵션</div>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#1e293b; margin-bottom:6px; cursor:pointer;">
+                            <input type="checkbox" id="import-chk-primary" checked style="accent-color:#16a34a;"> 내 기본 구글 캘린더 가져오기
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#1e293b; margin-bottom:6px; cursor:pointer;">
+                            <input type="checkbox" id="import-chk-holiday" checked onchange="document.getElementById('holiday-source-box').style.display = this.checked ? 'block' : 'none'" style="accent-color:#ef4444;"> 대한민국 공휴일/기념일 가져오기
+                        </label>
+                        <div id="holiday-source-box" style="margin-left:24px; padding:8px; background:#fff; border:1px solid #fca5a5; border-radius:6px;">
+                            <label style="display:block; font-size:0.8rem; margin-bottom:4px; cursor:pointer; color:#1e293b;">
+                                <input type="radio" name="holiday_source" value="gov_api" checked onclick="document.getElementById('gov-api-key-container').style.display='block'"> 🏛️ 정부 공식 데이터 (대체공휴일 완벽 지원)
+                            </label>
+                            <div id="gov-api-key-container" style="margin-left:20px; margin-bottom:6px;">
+                                <input type="text" id="gov-api-key-input" placeholder="공공데이터 Service Key 입력..." style="width:100%; padding:4px 6px; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box;" value="${localStorage.getItem('gov_holiday_api_key') || ''}">
+                            </div>
+                            <label style="display:block; font-size:0.8rem; cursor:pointer; color:#1e293b;">
+                                <input type="radio" name="holiday_source" value="google" onclick="document.getElementById('gov-api-key-container').style.display='none'"> 📅 구글 캘린더 한국 공휴일
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 시트 추가 옵션 패널 -->
+                    <div id="sheet-link-area" style="margin-top:10px;"></div>
+                </div>
+
+                <!-- 진행 상태 바 -->
+                <div id="sync-progress-area" class="hidden" style="margin-top: 10px; text-align:center;">
+                    <div style="color:#2563eb; font-weight:bold; margin-bottom:8px; font-size:0.9rem;" id="sync-status-text">진행 중...</div>
+                    <div style="width:100%; background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
+                        <div id="sync-progress-bar" style="width:0%; height:100%; background:#2563eb; transition:0.3s;"></div>
+                    </div>
+                </div>
+
             </div>
 
-            <div style="background:#eef2ff; padding:15px; border-radius:8px; border:1px solid #c7d2fe; margin-top:10px;">
-                <p style="margin:0 0 10px 0; font-weight:bold; color:#3730a3; font-size:1.05rem;">☁️ 구글 스프레드시트</p>
-                <div style="display:flex; justify-content:space-between; gap:10px;">
-                    <button id="btn-sheets-import" onclick="window.BackupManager.importFromSheets()" class="modal-btn-secondary" style="flex:1; background:#fff; border: 2px solid #0f9d58; color:#0f9d58; font-size:1rem;">📗 가져오기 (시트 동기화)</button>
-                    <button id="btn-sheets-export" onclick="window.BackupManager.exportToSheets()" class="modal-btn-primary" style="flex:1; background:#0f9d58; font-size:1rem;">📗 내보내기</button>
-                </div>
-                <div id="sheet-link-area"></div>
-            </div>
-
-            <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
-                <p style="margin:0 0 10px 0; font-weight:bold; color:#475569; font-size:1.05rem;">💾 로컬 파일(CSV)</p>
-                <div style="display:flex; justify-content:space-between; gap:10px;">
-                    <input type="file" id="backup-upload-file" accept=".csv" style="display:none;" onchange="window.BackupManager.handleUpload(this)">
-                    <button onclick="document.getElementById('backup-upload-file').click()" class="modal-btn-secondary" style="flex:1; background:#fff; border-color:#64748b; color:#475569; font-size:1rem;">📤 가져오기</button>
-                    <button id="btn-backup-download" onclick="window.BackupManager.handleDownload()" class="modal-btn-primary" style="flex:1; background:#475569; font-size:1rem;">📥 내보내기</button>
-                </div>
+            <!-- 마스터 실행 버튼 -->
+            <div style="display:flex; gap:10px; border-top: 2px solid #e2e8f0; padding-top: 15px;">
+                <input type="file" id="backup-upload-file" accept=".csv" style="display:none;" onchange="window.BackupManager.handleUpload(this)">
+                <button id="btn-master-import" onclick="window.BackupManager.executeImport()" style="flex:1; padding:12px; font-size:1.1rem; border:2px solid #3b82f6; background:#fff; color:#3b82f6; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📥 가져오기</button>
+                <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v5', title: '백업 및 데이터 동기화', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v6', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
-        this.setTab('schedule');
         this.setDefaultDates();
         this.checkExistingSheet(); 
+        setTimeout(() => this.onTargetChange(), 50);
     },
 
-    setTab: function(tab) {
-        this.currentTab = tab;
-        const schBtn = document.getElementById('backup-tab-schedule');
-        const memoBtn = document.getElementById('backup-tab-memo');
-        const schSec = document.getElementById('backup-schedule-section');
-        const memoSec = document.getElementById('backup-memo-section');
+    onTargetChange: function() {
+        const target = document.querySelector('input[name="backup-target"]:checked').value;
+        const cCard = document.getElementById('target-card-calendar');
+        const sCard = document.getElementById('target-card-sheets');
+        const fCard = document.getElementById('target-card-csv');
 
-        if (tab === 'schedule') {
-            schBtn.style.background = '#eff6ff'; schBtn.style.borderColor = '#3b82f6'; schBtn.style.color = '#1e40af';
-            memoBtn.style.background = '#f8fafc'; memoBtn.style.borderColor = '#cbd5e1'; memoBtn.style.color = '#64748b';
-            schSec.style.display = 'block'; memoSec.style.display = 'none';
-        } else {
-            memoBtn.style.background = '#eff6ff'; memoBtn.style.borderColor = '#3b82f6'; memoBtn.style.color = '#1e40af';
-            schBtn.style.background = '#f8fafc'; schBtn.style.borderColor = '#cbd5e1'; schBtn.style.color = '#64748b';
-            schSec.style.display = 'none'; memoSec.style.display = 'block';
+        const calExtra = document.getElementById('calendar-extra-options');
+        const sheetExtra = document.getElementById('sheet-link-area');
+
+        cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
+        sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
+        fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
+
+        calExtra.style.display = 'none';
+        sheetExtra.style.display = 'none';
+
+        if (target === 'calendar') {
+            cCard.style.borderColor = '#ea4335'; cCard.style.background = '#fce8e6'; cCard.style.color = '#ea4335';
+            calExtra.style.display = 'block';
+        } else if (target === 'sheets') {
+            sCard.style.borderColor = '#0f9d58'; sCard.style.background = '#e8f5e9'; sCard.style.color = '#0f9d58';
+            sheetExtra.style.display = 'block';
+        } else if (target === 'csv') {
+            fCard.style.borderColor = '#475569'; fCard.style.background = '#f1f5f9'; fCard.style.color = '#475569';
+        }
+    },
+
+    executeExport: async function() {
+        const target = document.querySelector('input[name="backup-target"]:checked').value;
+        if (target === 'sheets') {
+            await this.exportToSheets();
+        } else if (target === 'csv') {
+            await this.handleDownload();
+        } else if (target === 'calendar') {
+            if (typeof window.executeGoogleExport === 'function') {
+                await window.executeGoogleExport();
+            } else {
+                alert("캘린더 연동 모듈을 불러오지 못했습니다.");
+            }
+        }
+    },
+
+    executeImport: async function() {
+        const target = document.querySelector('input[name="backup-target"]:checked').value;
+        if (target === 'sheets') {
+            await this.importFromSheets();
+        } else if (target === 'csv') {
+            document.getElementById('backup-upload-file').click();
+        } else if (target === 'calendar') {
+            if (typeof window.executeGoogleImport === 'function') {
+                await window.executeGoogleImport();
+            } else {
+                alert("캘린더 연동 모듈을 불러오지 못했습니다.");
+            }
         }
     },
 
@@ -180,9 +260,9 @@ export const BackupManager = {
             if (docSnap.exists() && docSnap.data().spreadsheetId && linkArea) {
                 this.currentSpreadsheetId = docSnap.data().spreadsheetId;
                 linkArea.innerHTML = `
-                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; margin-top:15px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 백업 시트 파일 바로 열기</button>
+                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; margin-top:15px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>
                     <div style="text-align:right; margin-top:8px;">
-                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">파일을 삭제하셨거나 못 찾으시나요? (연결 초기화)</span>
+                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">시트 연결 해제/초기화</span>
                     </div>
                 `;
             } else if (linkArea) {
@@ -192,11 +272,11 @@ export const BackupManager = {
     },
 
     resetSheetConnection: async function() {
-        if(confirm("기존 구글 시트와의 연결을 강제로 끊고 완전히 새로운 파일을 생성하시겠습니까?\n\n(구글 드라이브에서 파일을 완전히 삭제했거나 찾을 수 없을 때 누르세요!)")) {
+        if(confirm("기존 구글 시트와의 연결을 끊고 완전히 새로운 파일을 생성하시겠습니까?")) {
             await deleteDoc(doc(getUserCol('settings'), 'backup_config'));
             this.currentSpreadsheetId = null;
             this.checkExistingSheet();
-            alert("초기화 완료!\n이제 [📗 내보내기] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
+            alert("초기화 완료!\n[내보내기] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
         }
     },
 
@@ -810,124 +890,8 @@ export const BackupManager = {
         }
     },
 
-    processMemoRows: async function(rows, mode) {
-        if (rows.length < 2) return;
-        const batchPromises = [];
-        let batch = writeBatch(db);
-        let opCount = 0;
-        let newLinks = [];
-
-        if (mode === 'overwrite') {
-            const snap = await getDocs(getUserCol('tasks'));
-            snap.forEach(docSnap => {
-                batch.delete(docSnap.ref);
-                opCount++;
-                if(opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
-            });
-            await deleteDoc(doc(getUserCol('settings'), 'user_links'));
-            if(opCount > 0) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
-            await Promise.all(batchPromises);
-            batchPromises.length = 0; 
-        }
-
-        for (let i=1; i<rows.length; i++) {
-            const r = rows[i];
-            if(r.length < 3 || !r[2]) continue; 
-            
-            const dataType = r[0] || 'MEMO';
-            if (dataType === 'LINK') {
-                newLinks.push({ name: r[2], url: r[5] });
-            } else {
-                let id = r[1] && !r[1].startsWith('LINK_') ? r[1] : doc(getUserCol('tasks')).id; 
-                const completed = r[3] === 'O';
-                const labels = r[4] ? r[4].split(',').filter(x=>x.trim()) : [];
-                const imageUrl = r[5] || '';
-                const createdAt = parseInt(r[6], 10) || Date.now();
-
-                batch.set(doc(getUserCol('tasks'), id), {
-                    text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
-                    createdAt: createdAt, updatedAt: Date.now(), order: -createdAt 
-                }, { merge: true });
-                
-                opCount++;
-                if (opCount > 400) {
-                    batchPromises.push(batch.commit());
-                    batch = writeBatch(db);
-                    opCount = 0;
-                }
-            }
-        }
-        
-        if (newLinks.length > 0) {
-            const linkDoc = await getDoc(doc(getUserCol('settings'), 'user_links'));
-            let existingLinks = linkDoc.exists() ? (linkDoc.data().links || []) : [];
-            
-            if (mode === 'merge') {
-                const combinedLinks = [...existingLinks];
-                newLinks.forEach(nl => {
-                    if (!existingLinks.some(el => el.url === nl.url)) combinedLinks.push(nl);
-                });
-                newLinks = combinedLinks;
-            }
-            batch.set(doc(getUserCol('settings'), 'user_links'), { links: newLinks }, { merge: true });
-            opCount++;
-        }
-
-        if(opCount > 0) batchPromises.push(batch.commit());
-        await Promise.all(batchPromises);
-    },
-
-    getOrCreateSpreadsheet: async function(token) {
-        const configRef = doc(getUserCol('settings'), 'backup_config');
-        const docSnap = await getDoc(configRef);
-        let spreadsheetId = docSnap.exists() ? docSnap.data().spreadsheetId : null;
-
-        if (spreadsheetId) {
-            try {
-                const checkRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=spreadsheetId`, {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!checkRes.ok) {
-                    spreadsheetId = null; 
-                }
-            } catch (error) {
-                spreadsheetId = null;
-            }
-        }
-
-        if (!spreadsheetId) {
-            const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    properties: { title: '업무 및 수업 계획표 클라우드 백업' },
-                    sheets: [ { properties: { title: '일정기록' } }, { properties: { title: '메모' } } ]
-                })
-            });
-            
-            if (!res.ok) {
-                let errorMsg = "알 수 없는 오류가 발생했습니다.";
-                try {
-                    const errData = await res.json();
-                    if (errData.error && errData.error.status === 'PERMISSION_DENIED') {
-                        errorMsg = "구글 스프레드시트 접근 권한이 없습니다.\n\n해결방법: 화면 우측 상단의 [로그아웃]을 클릭하신 후, 다시 구글 로그인 창이 뜰 때 반드시 'Google 스프레드시트' 관련 체크박스에 체크해 주셔야 파일 생성이 가능합니다.";
-                    } else if (errData.error && errData.error.message) {
-                        errorMsg = `구글 클라우드 오류: ${errData.error.message}`;
-                    }
-                } catch(e) {}
-                throw new Error(errorMsg);
-            }
-            
-            const data = await res.json();
-            spreadsheetId = data.spreadsheetId;
-            await setDoc(configRef, { spreadsheetId });
-        }
-        return spreadsheetId;
-    },
-
     exportToSheets: async function() {
-        const btn = document.getElementById('btn-sheets-export');
+        const btn = document.getElementById('btn-master-export');
         const oldText = btn.textContent;
         btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
 
@@ -938,46 +902,65 @@ export const BackupManager = {
             btn.textContent = "⏳ 내보내는 중...";
 
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
-            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
             
-            const finalData = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : { scheduleRows: await this.getMemoDataArray(), evalSheetsData: {} };
+            const incEvent = document.getElementById('backup-chk-event').checked;
+            const incClass = document.getElementById('backup-chk-class').checked;
+            const incJournal = document.getElementById('backup-chk-journal').checked;
+            const incEval = document.getElementById('backup-chk-eval').checked;
+            const incMemo = document.getElementById('backup-chk-memo').checked;
 
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}:clear`, {
-                method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const doSchedule = incEvent || incClass || incJournal || incEval;
 
-            const updateRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A1')}?valueInputOption=USER_ENTERED`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ values: finalData.scheduleRows })
-            });
+            if (doSchedule) {
+                const finalData = await this.getScheduleDataArray();
+                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A:Z')}:clear`, {
+                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-            if (!updateRes.ok) throw new Error("업데이트 실패");
+                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A1')}?valueInputOption=USER_ENTERED`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ values: finalData.scheduleRows })
+                });
 
-            if (this.currentTab === 'schedule' && document.getElementById('backup-chk-eval').checked) {
-                for (const [sName, rows] of Object.entries(finalData.evalSheetsData)) {
-                    try {
-                        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sName } } }] })
+                if (incEval) {
+                    for (const [sName, rows] of Object.entries(finalData.evalSheetsData)) {
+                        try {
+                            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sName } } }] })
+                            });
+                        } catch(e) {}
+
+                        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A:Z')}:clear`, {
+                            method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
                         });
-                    } catch(e) {}
-
-                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A:Z')}:clear`, {
-                        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    
-                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A1')}?valueInputOption=USER_ENTERED`, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ values: rows })
-                    });
+                        
+                        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A1')}?valueInputOption=USER_ENTERED`, {
+                            method: 'PUT',
+                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ values: rows })
+                        });
+                    }
                 }
             }
 
+            if (incMemo) {
+                const memoData = await this.getMemoDataArray();
+                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A:Z')}:clear`, {
+                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A1')}?valueInputOption=USER_ENTERED`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ values: memoData })
+                });
+            }
+
             this.checkExistingSheet(); 
-            btn.textContent = "✅ 백업 완료!";
+            btn.textContent = "✅ 구글 시트 백업 완료!";
             setTimeout(() => {
                 btn.textContent = oldText;
                 btn.disabled = false;
@@ -995,9 +978,17 @@ export const BackupManager = {
         const mode = document.querySelector('input[name="import-mode"]:checked').value;
         const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터 유지하며 추가(병합)';
 
+        const incEvent = document.getElementById('backup-chk-event').checked;
+        const incClass = document.getElementById('backup-chk-class').checked;
+        const incJournal = document.getElementById('backup-chk-journal').checked;
+        const incEval = document.getElementById('backup-chk-eval').checked;
+        const incMemo = document.getElementById('backup-chk-memo').checked;
+
+        const doSchedule = incEvent || incClass || incJournal || incEval;
+
         if(!confirm(`[${modeName}]\n구글 시트의 데이터로 현재 화면을 복원하시겠습니까?`)) return;
 
-        const btn = document.getElementById('btn-sheets-import');
+        const btn = document.getElementById('btn-master-import');
         const oldText = btn.textContent;
         btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
 
@@ -1009,21 +1000,17 @@ export const BackupManager = {
 
             const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
             const spreadsheetId = docSnap.exists() ? docSnap.data().spreadsheetId : null;
-            if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 백업'을 진행해주세요.");
+            if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 내보내기'를 진행해주세요.");
 
-            const sheetName = this.currentTab === 'schedule' ? '일정기록' : '메모';
-            const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + '!A:Z')}`, {
-                method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if(!res.ok) throw new Error("시트 읽기에 실패했습니다. (접근 권한이 없거나 파일이 삭제되었습니다.)");
-            
-            const data = await res.json();
-            const rows = data.values || [];
+            if (doSchedule) {
+                const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A:Z')}`, {
+                    method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if(!res.ok) throw new Error("일정기록 시트 읽기에 실패했습니다.");
+                const data = await res.json();
+                const rows = data.values || [];
 
-            let matrixUpdates = [];
-
-            if (this.currentTab === 'schedule') {
+                let matrixUpdates = [];
                 const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const metaData = await metaRes.json();
                 const evalSheetNames = metaData.sheets.map(s => s.properties.title).filter(t => t.startsWith('조사표_'));
@@ -1060,13 +1047,18 @@ export const BackupManager = {
                         }
                     });
                 }
-            }
-
-            if (this.currentTab === 'schedule') {
                 await this.processScheduleRows(rows, mode, matrixUpdates);
             }
-            else {
-                await this.processMemoRows(rows, mode);
+
+            if (incMemo) {
+                const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A:Z')}`, {
+                    method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if(res.ok) {
+                    const data = await res.json();
+                    const rows = data.values || [];
+                    await this.processMemoRows(rows, mode);
+                }
             }
 
             alert("✅ 구글 시트에서 성공적으로 복원 및 데이터 동기화가 완료되었습니다!");
@@ -1105,32 +1097,53 @@ export const BackupManager = {
     },
 
     handleDownload: async function() {
-        const btn = document.getElementById('btn-backup-download');
-        const oldText = btn.textContent; btn.textContent = "⏳ 집계 중..."; btn.disabled = true;
+        const btn = document.getElementById('btn-master-export');
+        const oldText = btn.textContent; btn.textContent = "⏳ CSV 생성 중..."; btn.disabled = true;
+        
         try {
-            const data = this.currentTab === 'schedule' ? await this.getScheduleDataArray() : { scheduleRows: await this.getMemoDataArray(), evalSheetsData: {} };
-            
-            const csvContent1 = "\uFEFF" + data.scheduleRows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
-            const blob1 = new Blob([csvContent1], { type: 'text/csv;charset=utf-8;' });
-            const link1 = document.createElement("a");
-            link1.href = URL.createObjectURL(blob1);
-            link1.download = this.currentTab === 'schedule' ? `업무계획표_일정백업.csv` : `업무계획표_메모백업.csv`;
-            link1.click();
+            const incEvent = document.getElementById('backup-chk-event').checked;
+            const incClass = document.getElementById('backup-chk-class').checked;
+            const incJournal = document.getElementById('backup-chk-journal').checked;
+            const incEval = document.getElementById('backup-chk-eval').checked;
+            const incMemo = document.getElementById('backup-chk-memo').checked;
 
-            if (this.currentTab === 'schedule' && document.getElementById('backup-chk-eval').checked) {
-                let delay = 500;
-                for (const [sName, rows] of Object.entries(data.evalSheetsData)) {
-                    setTimeout(() => {
-                        const csvContent = "\uFEFF" + rows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
-                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                        const link = document.createElement("a");
-                        link.href = URL.createObjectURL(blob);
-                        link.download = `업무계획표_${sName}.csv`;
-                        link.click();
-                    }, delay);
-                    delay += 500;
+            const doSchedule = incEvent || incClass || incJournal || incEval;
+
+            if (doSchedule) {
+                const data = await this.getScheduleDataArray();
+                const csvContent1 = "\uFEFF" + data.scheduleRows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
+                const blob1 = new Blob([csvContent1], { type: 'text/csv;charset=utf-8;' });
+                const link1 = document.createElement("a");
+                link1.href = URL.createObjectURL(blob1);
+                link1.download = `업무계획표_일정백업.csv`;
+                link1.click();
+
+                if (incEval) {
+                    let delay = 500;
+                    for (const [sName, rows] of Object.entries(data.evalSheetsData)) {
+                        setTimeout(() => {
+                            const csvContent = "\uFEFF" + rows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement("a");
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `업무계획표_${sName}.csv`;
+                            link.click();
+                        }, delay);
+                        delay += 500;
+                    }
                 }
             }
+
+            if (incMemo) {
+                const memoData = await this.getMemoDataArray();
+                const csvContent2 = "\uFEFF" + memoData.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
+                const blob2 = new Blob([csvContent2], { type: 'text/csv;charset=utf-8;' });
+                const link2 = document.createElement("a");
+                link2.href = URL.createObjectURL(blob2);
+                link2.download = `업무계획표_메모백업.csv`;
+                link2.click();
+            }
+
         } catch (e) { alert("다운로드 중 오류가 발생했습니다."); } 
         finally { btn.textContent = oldText; btn.disabled = false; }
     },
@@ -1144,112 +1157,32 @@ export const BackupManager = {
 
         if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
 
-        const btn = input.nextElementSibling;
-        const oldText = btn.textContent; btn.textContent = "⏳ 업로드 적용 중..."; btn.disabled = true;
+        const btn = document.getElementById('btn-master-import');
+        const oldText = btn.textContent; btn.textContent = "⏳ CSV 업로드 적용 중..."; btn.disabled = true;
 
         try {
             const text = await file.text();
             const rows = this.parseCSV(text);
             
-            if (this.currentTab === 'schedule') {
-                if (rows[0] && rows[0][0] === "상위 항목(조사표 제목)") {
-                    const mRows = rows;
-                    const idRow = mRows.find(r => r[0] === "조사표 ID (수정금지)");
-                    const dateRow = mRows.find(r => r[0] === "하위 항목(날짜)");
-                    const headerRow = mRows.find(r => r[0] === "번호" && r[1] === "이름");
-                    
-                    if (!idRow || !dateRow || !headerRow) throw new Error("유효하지 않은 조사표 형식입니다.");
-                    
-                    let colMapping = {};
-                    let currentEvalId = null;
-                    let uniqueDates = new Set();
-                    for (let c = 3; c < headerRow.length; c++) {
-                        if (idRow[c] && idRow[c].trim() !== '') {
-                            currentEvalId = idRow[c].trim();
-                            if (dateRow[c] && dateRow[c].trim() !== '') uniqueDates.add(dateRow[c].trim());
-                        }
-                        if (currentEvalId) colMapping[c] = { evalId: currentEvalId, colName: headerRow[c] };
-                    }
-
-                    const updatesByEval = {};
-                    const dataRows = mRows.slice(mRows.indexOf(headerRow) + 1);
-                    dataRows.forEach(r => {
-                        const studentNum = parseInt(r[0], 10);
-                        if (isNaN(studentNum)) return;
-                        for (let c = 3; c < r.length; c++) {
-                            const mapping = colMapping[c];
-                            if (!mapping) continue;
-                            if (!updatesByEval[mapping.evalId]) updatesByEval[mapping.evalId] = {};
-                            if (!updatesByEval[mapping.evalId][studentNum]) updatesByEval[mapping.evalId][studentNum] = {};
-                            updatesByEval[mapping.evalId][studentNum][mapping.colName] = (r[c] || '').trim();
-                        }
-                    });
-
-                    const batchPromises = [];
-                    let batch = writeBatch(db);
-                    let opCount = 0;
-                    
-                    for (const dStr of uniqueDates) {
-                        const evalDoc = await getDoc(doc(getUserCol('evaluations'), dStr));
-                        if (evalDoc.exists()) {
-                            const evalList = evalDoc.data().evalList || [];
-                            let changed = false;
-                            evalList.forEach(ev => {
-                                const updates = updatesByEval[ev.id];
-                                if (updates) {
-                                    changed = true;
-                                    for (const sNumStr in updates) {
-                                        const sNum = parseInt(sNumStr, 10);
-                                        const u = updates[sNumStr];
-                                        if (!ev.records[sNum]) ev.records[sNum] = {};
-                                        
-                                        if (ev.type === 'eval') {
-                                            if (u['조이름'] !== undefined) ev.records[sNum].groupName = u['조이름'];
-                                            if (u['조별결과'] !== undefined) ev.records[sNum].groupScore = u['조별결과'];
-                                            if (u['개별결과'] !== undefined) {
-                                                ev.records[sNum].indivScore = u['개별결과'];
-                                                ev.records[sNum].score = u['개별결과'];
-                                            }
-                                            if (u['미평가사유(메모)'] !== undefined) ev.records[sNum].reason = u['미평가사유(메모)'];
-                                        } else if (ev.type === 'check') {
-                                            if (u['체크결과'] !== undefined) {
-                                                if (u['체크결과'] === 'O') ev.records[sNum].checked = true;
-                                                else if (u['체크결과'] === 'X') ev.records[sNum].checked = false;
-                                                else delete ev.records[sNum].checked;
-                                            }
-                                            if (u['미평가사유(메모)'] !== undefined) ev.records[sNum].reason = u['미평가사유(메모)'];
-                                        } else if (ev.type === 'memo') {
-                                            if (u['메모내용'] !== undefined) ev.records[sNum].memo = u['메모내용'];
-                                        }
-                                    }
-                                }
-                            });
-                            if (changed) {
-                                batch.set(doc(getUserCol('evaluations'), dStr), { evalList: evalList, updatedAt: Date.now() }, { merge: true });
-                                opCount++;
-                                if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
-                            }
-                        }
-                    }
-                    if (opCount > 0) batchPromises.push(batch.commit());
-                    await Promise.all(batchPromises);
-                    
-                    this.modal.close();
-                    if(window.render) window.render();
-                    alert("✅ CSV 파일에서 조사표 정보가 성공적으로 반영되었습니다!");
-                    return;
-                }
-                
-                await this.processScheduleRows(rows, mode);
+            const headerStr = rows[0] ? rows[0].join(',') : '';
+            if (headerStr.includes('조사표 ID (수정금지)')) {
+                throw new Error("유효하지 않은 조사표 형식입니다. (조사표를 직접 복원하는 기능은 구글 시트 연동을 이용하세요.)");
             }
-            else await this.processMemoRows(rows, mode);
+
+            if (headerStr.includes('데이터분류') && headerStr.includes('생성일자')) {
+                await this.processMemoRows(rows, mode);
+            } else if (headerStr.includes('날짜')) {
+                await this.processScheduleRows(rows, mode);
+            } else {
+                throw new Error("알 수 없는 CSV 파일 형식입니다.");
+            }
             
             this.modal.close();
             if(window.render) window.render();
             alert("✅ CSV 파일에서 성공적으로 복원되었습니다!");
         } catch (e) { 
             if (e.message !== "열람용 파일 업로드 시도") {
-                alert("업로드 처리 중 오류가 발생했습니다."); 
+                alert("업로드 처리 중 오류가 발생했습니다.\n" + e.message); 
                 console.error(e);
             }
         } finally {
@@ -1257,7 +1190,53 @@ export const BackupManager = {
             btn.disabled = false; 
             input.value = ``;
         } 
+    },
+
+    // 🌟 [핵심 변경] CSV 문자열로 변환하는 헬퍼 함수
+    generateSingleEvalCSV: function(ev) {
+        const rows = [];
+        rows.push(["조사표 제목", ev.title || ""]);
+        rows.push(["날짜", ev.dateStr || ""]);
+        rows.push(["교시/위치", ev.periodStr ? `${ev.periodStr}교시` : (ev.context?.source==='journal' ? "기록" : "")]);
+        
+        const isEval = ev.type === 'eval';
+        const isIndiv = isEval ? (ev.methodObj ? ev.methodObj.indiv : (ev.method !== 'group')) : false;
+        const isGroup = isEval ? (ev.methodObj ? ev.methodObj.group : (ev.method === 'group')) : false;
+
+        const headers = ["번호", "이름", "성별"];
+        if (isEval) {
+            if (isGroup) headers.push("조이름", "조별결과");
+            if (isIndiv) headers.push("개별결과");
+            headers.push("미평가사유");
+        } else if (ev.type === 'check') {
+            headers.push("체크결과", "미평가사유");
+        } else {
+            headers.push("메모내용");
+        }
+        rows.push(headers);
+
+        (ev.studentsSnapshot || []).forEach(st => {
+            const rec = ev.records[st.num] || {};
+            const r = [st.num, st.name, st.gender || ""];
+            
+            if (isEval) {
+                if (isGroup) r.push(rec.groupName || "", rec.groupScore || "");
+                if (isIndiv) r.push(rec.indivScore || rec.score || "");
+                r.push(rec.reason || "");
+            } else if (ev.type === 'check') {
+                let cRes = '';
+                if (rec.checked === true) cRes = 'O';
+                else if (rec.checked === false) cRes = 'X';
+                r.push(cRes, rec.reason || "");
+            } else if (ev.type === 'memo') {
+                r.push(rec.memo || "");
+            }
+            rows.push(r);
+        });
+
+        return "\uFEFF" + rows.map(r => r.map(v => this.escapeCSV(v)).join(',')).join('\n');
     }
 };
 
 window.BackupManager = BackupManager;
+window.openGoogleSyncModal = () => { window.BackupManager.openModal(); setTimeout(() => { const r = document.querySelector('input[name="backup-target"][value="calendar"]'); if(r){ r.checked=true; window.BackupManager.onTargetChange(); } }, 50); };
