@@ -35,23 +35,39 @@ export const EvaluationManager = {
         this.toggleEvalType();
     },
 
+    // 🌟 [핵심 변경] 새 학급 추가하기 선택 시 팝업 닫고 명렬표 모달 띄우는 이벤트를 추가했습니다.
+    handleRosterChange: function(selectEl) {
+        if (selectEl.value === 'ADD_ROSTER') {
+            document.getElementById('eval-creation-modal')?.remove();
+            if (typeof window.openRosterModal === 'function') {
+                window.openRosterModal();
+            } else {
+                alert("더보기(⋮) 메뉴에서 '학급 정보 관리'를 선택하여 새 명렬표를 추가해주세요.");
+            }
+            return;
+        }
+        if (document.getElementById('eval-method-group')?.checked) {
+            this.renderDynamicGroups();
+        }
+    },
+
     getCreationHtml: function(defaultSubject) {
-        let rosterOptions = '<option value="">등록된 명렬표 없음 (먼저 명렬표를 등록해주세요)</option>';
+        let rosterOptions = '<option value="">선택 (또는 명렬표 등록)</option>';
         if (this.roster && this.roster.length > 0) {
              rosterOptions = this.roster.map((r, i) => {
                  return `<option value="${i}">${r.year}학년도 ${r.grade}학년 ${r.classNum}반 (${r.students ? r.students.length : 0}명)</option>`;
              }).join('');
         }
+        // 🌟 명렬표 드롭다운 최하단에 학급 추가 옵션 삽입
+        rosterOptions += `<option value="ADD_ROSTER" style="font-weight:bold; color:#2563eb;">➕ 새 학급(명렬표) 추가하기</option>`;
 
         const subjects = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'];
         const subjOptions = subjects.map(s => `<option value="${s}" ${s===defaultSubject?'selected':''}>${s}</option>`).join('');
 
-        // 🌟 [핵심 변경] 교시 드롭다운 목록 자동 생성
         const maxPeriod = store.periodNames ? store.periodNames.length : 6;
         let periodOptions = '';
         for (let i = 1; i <= maxPeriod; i++) {
             const pName = store.periodNames[i-1] || `${i}교시`;
-            // 현재 호출 위치가 schedule이고 그 교시라면 선택
             const isSelected = (this.currentContext.source === 'schedule' && String(this.currentContext.period) === String(i)) ? 'selected' : '';
             periodOptions += `<option value="${i}" ${isSelected}>${pName}</option>`;
         }
@@ -61,8 +77,8 @@ export const EvaluationManager = {
         return `
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px; max-height:60vh; overflow-y:auto; padding-right:5px;">
                 <div>
-                    <label style="font-weight:bold; font-size:0.9rem;">적용할 명렬표 확인</label>
-                    <select id="eval-roster" onchange="if(document.getElementById('eval-method-group')?.checked) window.EvaluationManager.renderDynamicGroups()" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; margin-top:4px; outline:none; background:#f8fafc; font-weight:bold; color:#1e40af;">
+                    <label style="font-weight:bold; font-size:0.9rem;">적용할 명렬표 선택</label>
+                    <select id="eval-roster" onchange="window.EvaluationManager.handleRosterChange(this)" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; margin-top:4px; outline:none; background:#f8fafc; font-weight:bold; color:#1e40af;">
                         ${rosterOptions}
                     </select>
                 </div>
@@ -166,7 +182,7 @@ export const EvaluationManager = {
         
         let activeStudents = [];
         const rosterSelect = document.getElementById('eval-roster');
-        if (rosterSelect && rosterSelect.value && this.roster) {
+        if (rosterSelect && rosterSelect.value && rosterSelect.value !== 'ADD_ROSTER' && this.roster) {
             const selectedRoster = this.roster[parseInt(rosterSelect.value, 10)];
             if (selectedRoster) {
                 activeStudents = (selectedRoster.students || []).filter(s => s.isActive !== false);
@@ -223,13 +239,12 @@ export const EvaluationManager = {
 
         const rosterSelect = document.getElementById('eval-roster');
         const rosterIndex = rosterSelect.value;
-        if (!rosterIndex) return alert("선택된 명렬표가 없습니다.");
+        if (!rosterIndex || rosterIndex === 'ADD_ROSTER') return alert("적용할 명렬표를 선택해주세요.");
 
         const type = document.querySelector('input[name="eval-type"]:checked').value;
         const subject = document.getElementById('eval-subject').value;
         const dateStr = document.getElementById('eval-date').value || this.currentDateStr;
         
-        // 🌟 [핵심 변경] 드롭다운(select)에서 선택한 값을 기반으로 위치(source, period) 배정
         const selectedPeriodVal = document.getElementById('eval-period').value;
         let finalSource = 'schedule';
         let finalPeriod = '';
