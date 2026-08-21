@@ -5,6 +5,101 @@ import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '
 import { getUserCol, db } from '../firebase.js';
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
+// 🌟 [핵심 신규 기능] 화면 중앙을 덮는 글로벌 프로세스 팝업창 로직
+window.ProgressModal = {
+    modalEl: null,
+    show: function(title) {
+        if (this.modalEl) this.modalEl.remove();
+        const html = `
+        <div id="global-progress-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.75); z-index:10005; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);">
+            <div style="background:#fff; width:380px; padding:30px 25px; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); text-align:center; transform: scale(0.95); animation: popIn 0.2s forwards ease-out;">
+                <div id="progress-spinner" style="margin:0 auto 20px auto; width:50px; height:50px; border:4px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite;"></div>
+                <h3 id="progress-title" style="margin:0 0 12px 0; color:#1e293b; font-size:1.25rem; font-weight:800;">${title}</h3>
+                <div id="progress-bar-container" style="width:100%; background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden; margin-bottom:15px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);">
+                    <div id="progress-bar-fill" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #60a5fa); transition:width 0.3s ease; border-radius:6px;"></div>
+                </div>
+                <p id="progress-desc" style="margin:0 0 25px 0; color:#64748b; font-size:0.95rem; font-weight:600; line-height:1.5; word-break:keep-all;">준비 중...</p>
+                <button id="progress-ok-btn" style="display:none; width:100%; padding:12px; background:#10b981; color:#fff; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1.05rem; transition: background 0.2s;">확인</button>
+            </div>
+        </div>
+        <style>
+            @keyframes spin { 100% { transform:rotate(360deg); } }
+            @keyframes popIn { 100% { transform: scale(1); } }
+        </style>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        this.modalEl = document.getElementById('global-progress-modal');
+    },
+    update: function(desc, percent) {
+        if(!this.modalEl) return;
+        const descEl = document.getElementById('progress-desc');
+        const barEl = document.getElementById('progress-bar-fill');
+        if(descEl && desc) descEl.innerText = desc;
+        if(barEl && percent !== undefined) barEl.style.width = percent + '%';
+    },
+    complete: function(desc, callback) {
+        if(!this.modalEl) return;
+        const spinner = document.getElementById('progress-spinner');
+        const descEl = document.getElementById('progress-desc');
+        const barEl = document.getElementById('progress-bar-fill');
+        const btn = document.getElementById('progress-ok-btn');
+        const title = document.getElementById('progress-title');
+        
+        if(spinner) {
+            spinner.style.animation = "none";
+            spinner.style.border = "none";
+            spinner.innerHTML = "✅";
+            spinner.style.fontSize = "3.5rem";
+            spinner.style.lineHeight = "50px";
+        }
+        if(title) title.innerText = "작업 완료";
+        if(descEl && desc) { descEl.innerText = desc; descEl.style.color = "#047857"; }
+        if(barEl) { barEl.style.width = '100%'; barEl.style.background = "linear-gradient(90deg, #10b981, #34d399)"; }
+        if(btn) { 
+            btn.style.display = 'block'; 
+            btn.style.background = '#10b981';
+            btn.onclick = () => {
+                this.close();
+                if(callback) callback();
+            };
+        }
+    },
+    error: function(desc, callback) {
+        if(!this.modalEl) return;
+        const spinner = document.getElementById('progress-spinner');
+        const descEl = document.getElementById('progress-desc');
+        const barEl = document.getElementById('progress-bar-fill');
+        const btn = document.getElementById('progress-ok-btn');
+        const title = document.getElementById('progress-title');
+        
+        if(spinner) {
+            spinner.style.animation = "none";
+            spinner.style.border = "none";
+            spinner.innerHTML = "❌";
+            spinner.style.fontSize = "3.5rem";
+            spinner.style.lineHeight = "50px";
+        }
+        if(title) { title.innerText = "오류 발생"; title.style.color = "#b91c1c"; }
+        if(descEl && desc) { descEl.innerText = desc; descEl.style.color = "#b91c1c"; }
+        if(barEl) barEl.style.background = "#ef4444";
+        if(btn) { 
+            btn.style.display = 'block'; 
+            btn.style.background = '#ef4444';
+            btn.onclick = () => {
+                this.close();
+                if(callback) callback();
+            };
+        }
+    },
+    close: function() {
+        if(this.modalEl) {
+            this.modalEl.remove();
+            this.modalEl = null;
+        }
+    }
+};
+
+
 export const BackupManager = {
     modal: null,
     currentSpreadsheetId: null,
@@ -18,7 +113,7 @@ export const BackupManager = {
                     <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 클라우드 데이터를 구글 캘린더, 시트, 로컬(CSV)과 양방향으로 동기화합니다.</p>
                 </div>
 
-                <!-- 1단계: 기간 선택 (기본값: 오늘) -->
+                <!-- 1단계: 기간 선택 -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 기간 선택</label>
                     <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
@@ -99,16 +194,8 @@ export const BackupManager = {
                         </label>
                     </div>
                     
-                    <!-- 구글 시트 링크 영역 (비어있을 때 공간을 차지하지 않도록 여백 제거) -->
+                    <!-- 구글 시트 링크 영역 -->
                     <div id="sheet-link-area"></div>
-                </div>
-
-                <!-- 진행 상태 바 -->
-                <div id="sync-progress-area" class="hidden" style="margin-top: 10px; text-align:center;">
-                    <div style="color:#2563eb; font-weight:bold; margin-bottom:8px; font-size:0.9rem;" id="sync-status-text">진행 중...</div>
-                    <div style="width:100%; background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
-                        <div id="sync-progress-bar" style="width:0%; height:100%; background:#2563eb; transition:0.3s;"></div>
-                    </div>
                 </div>
 
             </div>
@@ -120,7 +207,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v8', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v9', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -133,13 +220,11 @@ export const BackupManager = {
         const cCard = document.getElementById('target-card-calendar');
         const sCard = document.getElementById('target-card-sheets');
         const fCard = document.getElementById('target-card-csv');
-
         const sheetExtra = document.getElementById('sheet-link-area');
 
         cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
         sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
         fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
-
         sheetExtra.style.display = 'none';
 
         if (target === 'calendar') {
@@ -237,7 +322,6 @@ export const BackupManager = {
             const linkArea = document.getElementById('sheet-link-area');
             if (docSnap.exists() && docSnap.data().spreadsheetId && linkArea) {
                 this.currentSpreadsheetId = docSnap.data().spreadsheetId;
-                // 🌟 버튼이 생길 때만 내부에 여백을 줌으로써 텅 빈 상태일 때의 레이아웃 흔들림 방지
                 linkArea.innerHTML = `
                     <div style="margin-top: 15px;">
                         <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>
@@ -492,10 +576,6 @@ export const BackupManager = {
         
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
-        if (!startStr || !endStr) {
-            alert("기간이 올바르게 설정되지 않았습니다.");
-            return;
-        }
 
         const incEvent = document.getElementById('backup-chk-event').checked;
         const incClass = document.getElementById('backup-chk-class').checked;
@@ -569,13 +649,7 @@ export const BackupManager = {
                         mappedLabelIds.push(lObj.id);
                     });
 
-                    eventList.push({ 
-                        labelIds: mappedLabelIds, 
-                        label: labelsArray[0], 
-                        labels: labelsArray, 
-                        content: content, 
-                        completed: completed 
-                    });
+                    eventList.push({ labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: content, completed: completed });
                 } else {
                     let defaultLabelIds = [];
                     if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
@@ -651,11 +725,7 @@ export const BackupManager = {
                     evalStr = evalStr.trim();
                     if (evalStr.startsWith("'")) evalStr = evalStr.substring(1);
                     if (evalStr.endsWith("'")) evalStr = evalStr.substring(0, evalStr.length - 1);
-                    try { 
-                        evalDataMap[dStr] = JSON.parse(evalStr); 
-                    } catch(e) { 
-                        console.warn("조사표 파싱 에러", e); 
-                    }
+                    try { evalDataMap[dStr] = JSON.parse(evalStr); } catch(e) { console.warn("조사표 파싱 에러", e); }
                 }
             }
         }
@@ -701,69 +771,7 @@ export const BackupManager = {
             }
         }
 
-        let activePeriods = {}; 
-        let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
-        
-        if (doEvent) {
-            sortedDates.forEach(dStr => {
-                let evList = parsedDaysMap[dStr].eventList;
-                let curDateObj = new Date(dStr);
-
-                evList.forEach(ev => {
-                    let labelObj = null;
-                    if (ev.labelIds && ev.labelIds.length > 0) {
-                        labelObj = masterLabels.find(l => l.id === ev.labelIds[0]);
-                    }
-                    if (!labelObj) return;
-
-                    const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
-                    const signature = labelObj.id + "|||" + pureContent;
-                    
-                    if (labelObj.isPeriod || labelObj.isRecur) {
-                        if (activePeriods[signature]) {
-                            let lastD = new Date(activePeriods[signature].lastDate);
-                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
-                            if (diff <= 14) { 
-                                ev.groupId = activePeriods[signature].groupId;
-                                activePeriods[signature].lastDate = dStr;
-                            } else {
-                                let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                                ev.groupId = newGroupId;
-                                activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
-                            }
-                        } else {
-                            let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                            ev.groupId = newGroupId;
-                            activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
-                        }
-                    }
-                    
-                    if (labelObj.isForward) {
-                         if (activeForwards[signature]) {
-                            let lastD = new Date(activeForwards[signature].lastDate);
-                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
-                            if (diff <= 14) { 
-                                ev.forwardChainId = activeForwards[signature].chainId;
-                                ev.originalDate = activeForwards[signature].originalDate;
-                                activeForwards[signature].lastDate = dStr;
-                            } else {
-                                let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                                ev.forwardChainId = newChainId;
-                                ev.originalDate = dStr; 
-                                activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
-                            }
-                         } else {
-                            let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
-                            ev.forwardChainId = newChainId;
-                            ev.originalDate = dStr;
-                            activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
-                         }
-                    }
-                });
-            });
-        }
-
         const batchPromises = [];
         let batch = writeBatch(db);
         let opCount = 0;
@@ -787,6 +795,9 @@ export const BackupManager = {
             await Promise.all(batchPromises);
             batchPromises.length = 0; 
         }
+
+        const totalDays = sortedDates.length;
+        let processedCount = 0;
 
         for (const dStr of sortedDates) {
             if (doEvent) {
@@ -855,6 +866,11 @@ export const BackupManager = {
                 batch = writeBatch(db);
                 opCount = 0;
             }
+
+            processedCount++;
+            if (window.ProgressModal) {
+                window.ProgressModal.update(`데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 30 + (70 * (processedCount/totalDays)));
+            }
         }
         if(opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
@@ -891,6 +907,9 @@ export const BackupManager = {
             batchPromises.length = 0; 
         }
 
+        const totalRows = rows.length - 1;
+        let processedRows = 0;
+
         for (let i=1; i<rows.length; i++) {
             const r = rows[i];
             if(r.length < 3 || !r[2]) continue; 
@@ -917,6 +936,11 @@ export const BackupManager = {
                     opCount = 0;
                 }
             }
+
+            processedRows++;
+            if (processedRows % 10 === 0 && window.ProgressModal) {
+                window.ProgressModal.update(`메모 데이터 저장 중... [${processedRows}/${totalRows}]`, 50 + (50 * (processedRows/totalRows)));
+            }
         }
         
         if (newLinks.length > 0) {
@@ -939,16 +963,15 @@ export const BackupManager = {
     },
 
     exportToSheets: async function() {
-        const btn = document.getElementById('btn-master-export');
-        const oldText = btn.textContent;
-        btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
-
         try {
+            window.ProgressModal.show("구글 시트 내보내기");
+            window.ProgressModal.update("구글 계정 연결 확인 중...", 10);
+
             const token = await window.getValidGoogleToken();
             if(!token) throw new Error("토큰 발급이 취소되었습니다.");
             
             const mode = document.querySelector('input[name="import-mode"]:checked').value;
-            btn.textContent = "⏳ 구글 시트로 내보내는 중...";
+            window.ProgressModal.update("시트 파일 및 환경 준비 중...", 20);
 
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
             
@@ -961,6 +984,7 @@ export const BackupManager = {
             const doSchedule = incEvent || incClass || incJournal || incEval;
 
             if (doSchedule) {
+                window.ProgressModal.update("일정 및 수업 기록 업로드 중...", 50);
                 const finalData = await this.getScheduleDataArray();
                 
                 if (mode === 'overwrite') {
@@ -976,6 +1000,7 @@ export const BackupManager = {
                 });
 
                 if (incEval) {
+                    window.ProgressModal.update("조사표 및 명렬표 연동 데이터 업로드 중...", 70);
                     for (const [sName, rows] of Object.entries(finalData.evalSheetsData)) {
                         try {
                             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
@@ -1001,6 +1026,7 @@ export const BackupManager = {
             }
 
             if (incMemo) {
+                window.ProgressModal.update("메모 및 링크 업로드 중...", 85);
                 const memoData = await this.getMemoDataArray();
                 
                 if (mode === 'overwrite') {
@@ -1017,17 +1043,17 @@ export const BackupManager = {
             }
 
             this.checkExistingSheet(); 
-            btn.textContent = "✅ 구글 시트 백업 완료!";
-            setTimeout(() => {
-                btn.textContent = oldText;
-                btn.disabled = false;
-            }, 2000);
+            window.ProgressModal.complete("✅ 구글 시트 백업이 성공적으로 완료되었습니다!", () => {
+                if(window.BackupManager.modal) window.BackupManager.modal.close();
+            });
 
         } catch (e) {
             console.error(e);
-            if(e.message !== "토큰 발급이 취소되었습니다.") alert("❌ 백업 실패:\n" + e.message);
-            btn.textContent = oldText; 
-            btn.disabled = false;
+            if(e.message !== "토큰 발급이 취소되었습니다.") {
+                window.ProgressModal.error("❌ 백업 실패:\n" + e.message);
+            } else {
+                window.ProgressModal.close();
+            }
         }
     },
 
@@ -1043,21 +1069,20 @@ export const BackupManager = {
 
         const doSchedule = incEvent || incClass || incJournal || incEval;
 
-        if(!confirm(`[${modeName}]\n구글 시트의 데이터로 현재 화면을 복원하시겠습니까?`)) return;
-
-        const btn = document.getElementById('btn-master-import');
-        const oldText = btn.textContent;
-        btn.textContent = "⏳ 연결 확인 중..."; btn.disabled = true;
+        if(!confirm(`[${modeName}]\n구글 시트의 데이터로 현재 앱 화면을 복원하시겠습니까?`)) return;
 
         try {
+            window.ProgressModal.show("구글 시트 가져오기");
+            window.ProgressModal.update("구글 계정 연결 확인 중...", 10);
+
             const token = await window.getValidGoogleToken();
             if(!token) throw new Error("토큰 발급이 취소되었습니다.");
             
-            btn.textContent = "⏳ 불러오는 중...";
+            window.ProgressModal.update("시트 파일 읽는 중...", 20);
 
             const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
             const spreadsheetId = docSnap.exists() ? docSnap.data().spreadsheetId : null;
-            if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '구글 시트로 내보내기'를 진행해주세요.");
+            if(!spreadsheetId) throw new Error("백업된 시트를 찾을 수 없습니다. 먼저 '내보내기'를 진행해주세요.");
 
             if (doSchedule) {
                 const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A:Z')}`, {
@@ -1108,6 +1133,7 @@ export const BackupManager = {
             }
 
             if (incMemo) {
+                window.ProgressModal.update("메모 데이터 읽는 중...", 80);
                 const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A:Z')}`, {
                     method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -1118,16 +1144,18 @@ export const BackupManager = {
                 }
             }
 
-            alert("✅ 구글 시트에서 성공적으로 복원 및 데이터 동기화가 완료되었습니다!");
-            this.modal.close();
-            if(window.render) window.render();
+            window.ProgressModal.complete("✅ 구글 시트에서 성공적으로 복원 및 동기화가 완료되었습니다!", () => {
+                if(window.BackupManager.modal) window.BackupManager.modal.close();
+                if(window.render) window.render();
+            });
 
         } catch (e) {
             console.error(e);
-            if(e.message !== "토큰 발급이 취소되었습니다.") alert("복원 중 오류 발생: " + e.message);
-        } finally {
-            btn.textContent = oldText; 
-            btn.disabled = false;
+            if(e.message !== "토큰 발급이 취소되었습니다.") {
+                window.ProgressModal.error("복원 중 오류 발생:\n" + e.message);
+            } else {
+                window.ProgressModal.close();
+            }
         } 
     },
 
@@ -1154,10 +1182,10 @@ export const BackupManager = {
     },
 
     handleDownload: async function() {
-        const btn = document.getElementById('btn-master-export');
-        const oldText = btn.textContent; btn.textContent = "⏳ CSV 생성 중..."; btn.disabled = true;
-        
         try {
+            window.ProgressModal.show("로컬 파일(CSV) 내보내기");
+            window.ProgressModal.update("데이터 집계 및 파일 생성 중...", 30);
+
             const incEvent = document.getElementById('backup-chk-event').checked;
             const incClass = document.getElementById('backup-chk-class').checked;
             const incJournal = document.getElementById('backup-chk-journal').checked;
@@ -1167,6 +1195,7 @@ export const BackupManager = {
             const doSchedule = incEvent || incClass || incJournal || incEval;
 
             if (doSchedule) {
+                window.ProgressModal.update("일정 및 수업 기록 변환 중...", 50);
                 const data = await this.getScheduleDataArray();
                 const csvContent1 = "\uFEFF" + data.scheduleRows.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
                 const blob1 = new Blob([csvContent1], { type: 'text/csv;charset=utf-8;' });
@@ -1176,6 +1205,7 @@ export const BackupManager = {
                 link1.click();
 
                 if (incEval) {
+                    window.ProgressModal.update("조사표 파일 묶음 변환 중...", 70);
                     let delay = 500;
                     for (const [sName, rows] of Object.entries(data.evalSheetsData)) {
                         setTimeout(() => {
@@ -1192,6 +1222,7 @@ export const BackupManager = {
             }
 
             if (incMemo) {
+                window.ProgressModal.update("메모 파일 생성 중...", 80);
                 const memoData = await this.getMemoDataArray();
                 const csvContent2 = "\uFEFF" + memoData.map(row => row.map(v => this.escapeCSV(v)).join(',')).join('\n');
                 const blob2 = new Blob([csvContent2], { type: 'text/csv;charset=utf-8;' });
@@ -1201,8 +1232,13 @@ export const BackupManager = {
                 link2.click();
             }
 
-        } catch (e) { alert("다운로드 중 오류가 발생했습니다."); } 
-        finally { btn.textContent = oldText; btn.disabled = false; }
+            window.ProgressModal.complete("✅ CSV 파일 다운로드가 완료되었습니다!", () => {
+                if(window.BackupManager.modal) window.BackupManager.modal.close();
+            });
+
+        } catch (e) { 
+            window.ProgressModal.error("다운로드 중 오류가 발생했습니다.\n" + e.message);
+        } 
     },
 
     handleUpload: async function(input) {
@@ -1214,10 +1250,10 @@ export const BackupManager = {
 
         if(!confirm(`[${modeName}]\n선택하신 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
 
-        const btn = document.getElementById('btn-master-import');
-        const oldText = btn.textContent; btn.textContent = "⏳ CSV 업로드 적용 중..."; btn.disabled = true;
-
         try {
+            window.ProgressModal.show("로컬 파일(CSV) 가져오기");
+            window.ProgressModal.update("파일 읽기 및 분석 중...", 10);
+
             const text = await file.text();
             const rows = this.parseCSV(text);
             
@@ -1234,17 +1270,17 @@ export const BackupManager = {
                 throw new Error("알 수 없는 CSV 파일 형식입니다.");
             }
             
-            this.modal.close();
-            if(window.render) window.render();
-            alert("✅ CSV 파일에서 성공적으로 복원되었습니다!");
+            window.ProgressModal.complete("✅ CSV 파일에서 성공적으로 복원되었습니다!", () => {
+                if(window.BackupManager.modal) window.BackupManager.modal.close();
+                if(window.render) window.render();
+            });
+
         } catch (e) { 
             if (e.message !== "열람용 파일 업로드 시도") {
-                alert("업로드 처리 중 오류가 발생했습니다.\n" + e.message); 
                 console.error(e);
+                window.ProgressModal.error("업로드 처리 중 오류가 발생했습니다.\n" + e.message);
             }
         } finally {
-            btn.textContent = oldText; 
-            btn.disabled = false; 
             input.value = ``;
         } 
     },
@@ -1296,5 +1332,4 @@ export const BackupManager = {
 };
 
 window.BackupManager = BackupManager;
-// 캘린더 전용 호출 트리거
 window.openGoogleSyncModal = () => { window.BackupManager.openModal(); setTimeout(() => { const r = document.querySelector('input[name="backup-target"][value="calendar"]'); if(r){ r.checked=true; window.BackupManager.onTargetChange(); } }, 50); };
