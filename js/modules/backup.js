@@ -1,3 +1,5 @@
+//js/modules/backup.js
+
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '../core/utils.js';
 import { getUserCol, db } from '../firebase.js';
