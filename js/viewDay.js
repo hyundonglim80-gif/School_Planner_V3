@@ -13,7 +13,7 @@ export class DayView extends BaseView {
         this.currentJournals = [];
         this.currentSchedules = {};
         this.currentEvalList = []; 
-        this.draggedPeriod = null; // 🌟 드래그 앤 드롭 상태 저장을 위한 변수 추가
+        this.draggedPeriod = null; 
     }
 
     generateEvalBadgesHtml(source, period = null) {
@@ -130,7 +130,7 @@ export class DayView extends BaseView {
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <h3 style="font-size:1.2rem; color:#1e40af; margin-top:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
+              <h3 style="font-size:1.2rem; color:#1e40af; margin:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
               ${window.generateEventBadgesHTML(events, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
@@ -200,7 +200,6 @@ export class DayView extends BaseView {
           
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [핵심] 드래그 앤 드롭을 지원하는 행(TR) 생성
           return `
             <tr data-period="${p}" 
                 draggable="true"
@@ -277,10 +276,12 @@ export class DayView extends BaseView {
         }, 0);
     }
 
-    // 🌟 [핵심 변경] 드래그 앤 드롭 처리를 위한 핸들러
+    // 🌟 [핵심 변경] 브라우저 표준 드래그 앤 드롭 데이터 설정(setData) 추가
     handlePeriodDragStart(event, period) {
         this.draggedPeriod = period;
         event.dataTransfer.effectAllowed = 'move';
+        // HTML5 표준: 브라우저가 드래그를 올바르게 인식하도록 빈 데이터라도 세팅해야 함
+        event.dataTransfer.setData('text/plain', period.toString()); 
         event.target.style.opacity = '0.5';
     }
 
