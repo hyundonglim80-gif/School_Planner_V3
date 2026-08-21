@@ -1,4 +1,4 @@
-//js/modules/roster.js
+// js/modules/roster.js
 
 import { dbAPI } from '../firebase.js';
 
@@ -52,6 +52,8 @@ export const RosterManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h4 style="margin:0; color:#0f172a;">📋 학생 명단</h4>
                 <div style="display:flex; gap:6px; align-items:center;">
+                    <!-- 🌟 [핵심 변경] 모든 학생 삭제 버튼 추가 -->
+                    <button onclick="window.RosterManager.removeAllStudents()" style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;" title="현재 학급의 모든 학생을 명단에서 삭제합니다.">🗑️ 모두 삭제</button>
                     <input type="number" id="roster-add-count" placeholder="명수" min="1" style="width:60px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') window.RosterManager.addStudent()">
                     <button onclick="window.RosterManager.addStudent()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;">+ 학생 추가</button>
                 </div>
@@ -118,7 +120,7 @@ export const RosterManager = {
     },
 
     deleteCurrentClass: function() {
-        if (!confirm("현재 선택된 학급 명렬표를 완전히 삭제하시겠습니까?\\n(이 작업은 하단 '저장' 버튼을 누르면 최종 반영됩니다.)")) return;
+        if (!confirm("현재 선택된 학급 명렬표를 완전히 삭제하시겠습니까?\n(이 작업은 하단 '저장' 버튼을 누르면 최종 반영됩니다.)")) return;
         this.rosterList.splice(this.currentIndex, 1);
         
         if (this.rosterList.length === 0) {
@@ -189,8 +191,21 @@ export const RosterManager = {
 
     removeStudent: function(idx) {
         const studentName = this.rosterList[this.currentIndex].students[idx].name;
-        if(confirm(`'${studentName === '000' || !studentName ? '이 학생' : studentName}'을(를) 명단에서 완전히 삭제하시겠습니까?\\n※ 이미 진행된 평가가 있다면 전출(숨김) 처리를 권장합니다.`)) {
+        if(confirm(`'${studentName === '000' || !studentName ? '이 학생' : studentName}'을(를) 명단에서 완전히 삭제하시겠습니까?\n※ 이미 진행된 평가가 있다면 전출(숨김) 처리를 권장합니다.`)) {
             this.rosterList[this.currentIndex].students.splice(idx, 1);
+            this.renderStudentList();
+        }
+    },
+
+    // 🌟 [핵심 변경] 모든 학생을 한 번에 지우는 기능 추가
+    removeAllStudents: function() {
+        const currentStudents = this.rosterList[this.currentIndex].students;
+        if (!currentStudents || currentStudents.length === 0) {
+            return alert("삭제할 학생 명단이 없습니다.");
+        }
+        
+        if(confirm(`현재 선택된 학급의 '모든 학생'을 명단에서 삭제하시겠습니까?\n(이 작업은 하단 '저장' 버튼을 누르면 최종 반영됩니다.)`)) {
+            this.rosterList[this.currentIndex].students = [];
             this.renderStudentList();
         }
     },
