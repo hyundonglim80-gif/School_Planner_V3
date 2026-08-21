@@ -197,29 +197,29 @@ export class DayView extends BaseView {
           const p = i + 1;
           const pObj = this.currentSchedules[p] || {};
           const periodName = store.periodNames[i] || p + '교시';
+          
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [핵심 변경] 브라우저 드래그 호환성을 위한 완벽한 인라인 이벤트 분리
-          // 1. tr(행 전체)는 드롭 대상(Drop target)으로만 작동합니다.
-          // 2. td(교시칸)만 드래그 손잡이(Drag source)로 작동합니다.
+          // 🌟 [핵심 해결] 마우스가 닿았을 때만 행 전체를 draggable로 만들고, drop 이벤트를 브라우저 표준에 맞게 강제 허용
           return `
-            <tr data-period="${p}" 
-                ondragover="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+            <tr id="period-row-${p}" data-period="${p}" 
+                ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
+                ondragend="window.dayViewInstance.handlePeriodDragEnd(event)"
+                ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
                 ondragleave="this.style.backgroundColor='';"
                 ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handlePeriodDrop(event, ${p});"
                 style="transition: background-color 0.2s;">
               
               <td class="period-cell" 
-                  draggable="true"
-                  ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
-                  ondragend="window.dayViewInstance.handlePeriodDragEnd(event)"
-                  style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="드래그하여 순서 맞바꾸기">
+                  onmouseenter="document.getElementById('period-row-${p}').setAttribute('draggable', 'true')"
+                  onmouseleave="document.getElementById('period-row-${p}').removeAttribute('draggable')"
+                  style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="이곳을 드래그하여 순서 맞바꾸기">
                   <div style="display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none;">
                       <span style="font-size:1.2rem; color:#94a3b8;">≡</span>
                       <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
                   </div>
               </td>
-
               <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.subject || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
               <td style="text-align: left; vertical-align: top;">
@@ -234,6 +234,14 @@ export class DayView extends BaseView {
         }).join('');
 
         this.container.innerHTML = `
+          <!-- 🌟 [핵심 CSS] 드래그 중에 글씨 입력칸이 마우스 포인터를 훔쳐가지 못하게 차단 -->
+          <style>
+            .table-container.is-dragging .editable-cell { 
+                pointer-events: none !important; 
+                user-select: none !important; 
+            }
+          </style>
+
           <div class="day-viewer-container">
             <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
@@ -282,35 +290,59 @@ export class DayView extends BaseView {
         }, 0);
     }
 
-    // 🌟 드래그 핸들러 함수들
+    // ==========================================================
+    // 🌟 드래그 앤 드롭 완벽 처리 엔진
+    // ==========================================================
     handlePeriodDragStart(event, period) {
-        this.draggedPeriod = period;
+        window.dayViewInstance.draggedPeriod = period;
         event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', period.toString()); // 필수
         
-        // 드래그 중인 행(tr)을 시각적으로 반투명하게 만듦
+        // 브라우저 표준 (데이터가 세팅되어야 드래그 이벤트가 유지됨)
+        event.dataTransfer.setData('text/plain', String(period)); 
+        
         setTimeout(() => {
             const row = event.target.closest('tr');
             if (row) row.style.opacity = '0.4';
+            // 전체 표 영역의 텍스트 클릭을 무력화하여 Drop 이벤트 보장
+            const tableContainer = window.dayViewInstance.container.querySelector('.table-container');
+            if (tableContainer) tableContainer.classList.add('is-dragging'); 
         }, 0);
     }
 
     handlePeriodDragEnd(event) {
-        this.draggedPeriod = null;
-        const row = event.target.closest('tr');
-        if (row) row.style.opacity = '1'; // 투명도 원상복구
+        const tbody = window.dayViewInstance.container.querySelector('tbody');
+        if (tbody) {
+            tbody.querySelectorAll('tr').forEach(tr => { 
+                tr.style.opacity = '1'; 
+                tr.style.backgroundColor = '';
+                tr.removeAttribute('draggable');
+            });
+        }
+        const tableContainer = window.dayViewInstance.container.querySelector('.table-container');
+        if (tableContainer) tableContainer.classList.remove('is-dragging');
+        window.dayViewInstance.draggedPeriod = null;
     }
 
     handlePeriodDrop(event, targetPeriod) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // 테이블 투명망토 해제 및 원상복구
+        const tableContainer = window.dayViewInstance.container.querySelector('.table-container');
+        if (tableContainer) tableContainer.classList.remove('is-dragging');
+        
         let sourcePeriodStr = '';
         try { sourcePeriodStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
         
-        const sourcePeriod = parseInt(sourcePeriodStr, 10) || this.draggedPeriod;
+        const sourcePeriod = parseInt(sourcePeriodStr, 10) || window.dayViewInstance.draggedPeriod;
         
-        if (!sourcePeriod || sourcePeriod === targetPeriod) return;
+        if (!sourcePeriod || sourcePeriod === targetPeriod) {
+            this.renderEditor(); // 스타일 원상복구
+            return;
+        }
 
-        this.executeClassSwap(sourcePeriod, targetPeriod);
-        this.draggedPeriod = null;
+        window.dayViewInstance.executeClassSwap(sourcePeriod, targetPeriod);
+        window.dayViewInstance.draggedPeriod = null;
     }
 
     renderEventEntries() {
