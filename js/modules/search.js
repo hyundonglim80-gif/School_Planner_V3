@@ -1,3 +1,4 @@
+//js/modules/search.js
 import { store } from '../core/store.js';
 import { parseLocalDate, formatDate, getSemesterDates, getEventLabels, getJournalLabels, getLabelStyle } from '../core/utils.js';
 import { getUserCol } from '../firebase.js';
@@ -135,7 +136,6 @@ export const SearchModule = {
         ? `<button onclick="this.closest('.search-filter-row').remove()" class="modal-delete-btn" title="조건 삭제" style="flex-shrink:0; margin:0;">✖</button>`
         : ``;
 
-    // 버튼 크기를 줄이고 한 줄에 담기 위해 인라인 스타일(padding, font-size, margin:0, nowrap) 적용
     filterRow.innerHTML = `
          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
              <div class="filter-type-chips label-chip-container" style="margin:0; flex:1; display:flex; gap:4px; flex-wrap:nowrap; overflow-x:auto;">
@@ -153,7 +153,7 @@ export const SearchModule = {
                  ${deleteBtnHTML}
              </div>
          </div>
-         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 키워드 입력 후 엔터(Enter)..." style="width:100%;" onkeydown="if(event.key === 'Enter') { SearchModule.executeSearch(); event.preventDefault(); }">
+         <input type="text" class="filter-keyword modal-input-text" placeholder="검색어 입력 후 엔터 (빈 칸으로 검색 시 모든 데이터 조회)" style="width:100%;" onkeydown="if(event.key === 'Enter') { SearchModule.executeSearch(); event.preventDefault(); }">
     `;
     container.appendChild(filterRow);
     this.filterIdCounter++;
@@ -219,7 +219,7 @@ export const SearchModule = {
     
     rows.forEach(row => {
       const logic = row.querySelector('.filter-logic').value;
-      const keyword = row.querySelector('.filter-keyword').value.trim().toLowerCase();
+      let keyword = row.querySelector('.filter-keyword').value.trim().toLowerCase();
       const activeChips = Array.from(row.querySelectorAll('.filter-type-chips .label-chip.active'));
       const types = activeChips.map(c => c.dataset.val);
       
@@ -228,13 +228,20 @@ export const SearchModule = {
           return;
       }
       
-      if (keyword) {
-        searchConditions.push({ logic, types, keyword });
-        allKeywords.push(keyword);
+      // 🌟 [핵심 변경] 검색어가 비어있거나 * 이면 모든 데이터를 허용하는 특수 키워드 '*' 로 변환
+      if (keyword === '' || keyword === '*') {
+          keyword = '*';
+      }
+      
+      searchConditions.push({ logic, types, keyword });
+      
+      if (keyword !== '*') {
+          allKeywords.push(keyword);
       }
     });
 
-    if (searchConditions.length === 0) return alert("검색어를 한 글자 이상 입력해 주세요.");
+    if (searchConditions.length === 0) return;
+    
     allKeywords = [...new Set(allKeywords)]; 
 
     const resultList = document.getElementById('search-results-area');
@@ -387,8 +394,10 @@ export const SearchModule = {
             validDates = targetDatesObj.map(item => item.dateStr);
         }
 
+        // 🌟 [핵심 변경] 검색어가 '*' 일 경우, 텍스트가 실제로 존재하기만 하면 무조건 일치 처리
         const checkMatch = (text, keyword) => {
-          if (!text) return false;
+          if (!text || text.trim() === '') return false;
+          if (keyword === '*') return true;
           return text.toLowerCase().includes(keyword);
         };
 
