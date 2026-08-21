@@ -36,7 +36,7 @@ export const RosterManager = {
                 <select id="roster-class-selector" onchange="window.RosterManager.changeClass(this.value)" style="padding:8px; font-weight:bold; outline:none; border-radius:4px; border:1px solid #93c5fd; color:#1e40af; flex:1; margin-right:10px;">
                 </select>
                 <div style="display:flex; gap:6px;">
-                    <button onclick="window.RosterManager.addNewClass()" style="background:#2563eb; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;" title="새로운 학급을 추가합니다.">+ 학급 추가</button>
+                    <!-- 학급 추가 버튼 삭제됨 -->
                     <button onclick="window.RosterManager.deleteCurrentClass()" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;" title="현재 화면에 열려있는 학급을 삭제합니다.">삭제</button>
                 </div>
             </div>
@@ -52,7 +52,6 @@ export const RosterManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h4 style="margin:0; color:#0f172a;">📋 학생 명단</h4>
                 <div style="display:flex; gap:6px; align-items:center;">
-                    <!-- 🌟 [핵심 변경] 모든 학생 삭제 버튼 추가 -->
                     <button onclick="window.RosterManager.removeAllStudents()" style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;" title="현재 학급의 모든 학생을 명단에서 삭제합니다.">🗑️ 모두 삭제</button>
                     <input type="number" id="roster-add-count" placeholder="명수" min="1" style="width:60px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') window.RosterManager.addStudent()">
                     <button onclick="window.RosterManager.addStudent()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;">+ 학생 추가</button>
@@ -64,7 +63,7 @@ export const RosterManager = {
 
             <div class="modal-footer-actions" style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
                 <button onclick="window.RosterManager.modalInstance.close()" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">취소</button>
-                <button onclick="window.RosterManager.saveRoster(event)" style="padding:10px 20px; border:none; background:#10b981; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;" title="명렬표 정보를 저장합니다.">저장 및 적용</button>
+                <button onclick="window.RosterManager.saveRoster(event)" style="padding:10px 20px; border:none; background:#10b981; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;" title="명렬표 정보를 저장합니다.">저장</button>
             </div>
         `;
     },
@@ -197,7 +196,6 @@ export const RosterManager = {
         }
     },
 
-    // 🌟 [핵심 변경] 모든 학생을 한 번에 지우는 기능 추가
     removeAllStudents: function() {
         const currentStudents = this.rosterList[this.currentIndex].students;
         if (!currentStudents || currentStudents.length === 0) {
@@ -223,7 +221,7 @@ export const RosterManager = {
 
         const btn = event.target;
         const oldText = btn.innerText;
-        btn.innerText = "저장 및 구글 시트 연동 중...";
+        btn.innerText = "저장 중...";
         btn.disabled = true;
 
         try {
