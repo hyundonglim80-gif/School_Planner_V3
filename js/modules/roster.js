@@ -6,9 +6,12 @@ export const RosterManager = {
     modalInstance: null,
     rosterList: [],
     currentIndex: 0,
+    deletedKeys: [], // 🌟 사용자가 강제로 삭제한 학급을 기억하기 위한 배열
 
     openModal: async function() {
         this.rosterList = await dbAPI.loadRoster();
+        this.deletedKeys = []; // 열 때마다 초기화
+        
         if (!this.rosterList || this.rosterList.length === 0) {
             this.rosterList = [{ year: new Date().getFullYear(), grade: '', classNum: '', students: [] }];
         }
@@ -36,7 +39,6 @@ export const RosterManager = {
                 <select id="roster-class-selector" onchange="window.RosterManager.changeClass(this.value)" style="padding:8px; font-weight:bold; outline:none; border-radius:4px; border:1px solid #93c5fd; color:#1e40af; flex:1; margin-right:10px;">
                 </select>
                 <div style="display:flex; gap:6px;">
-                    <!-- 학급 추가 버튼 삭제됨 -->
                     <button onclick="window.RosterManager.deleteCurrentClass()" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;" title="현재 화면에 열려있는 학급을 삭제합니다.">삭제</button>
                 </div>
             </div>
@@ -52,6 +54,7 @@ export const RosterManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h4 style="margin:0; color:#0f172a;">📋 학생 명단</h4>
                 <div style="display:flex; gap:6px; align-items:center;">
+                    <!-- 🌟 모든 학생 삭제 버튼 추가 -->
                     <button onclick="window.RosterManager.removeAllStudents()" style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;" title="현재 학급의 모든 학생을 명단에서 삭제합니다.">🗑️ 모두 삭제</button>
                     <input type="number" id="roster-add-count" placeholder="명수" min="1" style="width:60px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') window.RosterManager.addStudent()">
                     <button onclick="window.RosterManager.addStudent()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;">+ 학생 추가</button>
@@ -120,6 +123,13 @@ export const RosterManager = {
 
     deleteCurrentClass: function() {
         if (!confirm("현재 선택된 학급 명렬표를 완전히 삭제하시겠습니까?\n(이 작업은 하단 '저장' 버튼을 누르면 최종 반영됩니다.)")) return;
+        
+        const r = this.rosterList[this.currentIndex];
+        // 🌟 완전히 삭제할 학급을 기억해 둡니다
+        if (r.year && r.grade && r.classNum) {
+            this.deletedKeys.push(`${r.year}-${r.grade}-${r.classNum}`);
+        }
+
         this.rosterList.splice(this.currentIndex, 1);
         
         if (this.rosterList.length === 0) {
@@ -196,6 +206,7 @@ export const RosterManager = {
         }
     },
 
+    // 🌟 모든 학생 삭제 함수 추가
     removeAllStudents: function() {
         const currentStudents = this.rosterList[this.currentIndex].students;
         if (!currentStudents || currentStudents.length === 0) {
@@ -208,12 +219,31 @@ export const RosterManager = {
         }
     },
 
+    // 🌟 [핵심 변경] 저장 시 기존 데이터와 병합하여 "다른 이름으로 저장" 논리 완성
     saveRoster: async function(event) {
-        this.rosterList.forEach(roster => {
-            roster.students = (roster.students || []).filter(st => st.name && st.name.trim() !== '');
+        const dbRosters = await dbAPI.loadRoster() || [];
+        let finalMap = {};
+
+        // 1. 기존 DB에 있던 학급들을 모두 맵에 담습니다. (단, 사용자가 [삭제]를 누른 학급은 제외합니다.)
+        dbRosters.forEach(r => {
+            if (!r.year && !r.grade && !r.classNum) return;
+            const key = `${r.year}-${r.grade}-${r.classNum}`;
+            if (!this.deletedKeys.includes(key)) {
+                finalMap[key] = r;
+            }
         });
 
-        this.rosterList = this.rosterList.filter(r => r.grade || r.classNum || (r.students && r.students.length > 0));
+        // 2. 사용자가 이번에 수정/추가한 학급들을 맵에 덮어씌웁니다.
+        // 같은 '학년-반'이 있다면 학생 명단이 덮어씌워지고, 없으면 새로운 학급으로 맵에 추가됩니다.
+        this.rosterList.forEach(r => {
+            r.students = (r.students || []).filter(st => st.name && st.name.trim() !== '');
+            if (!r.grade && !r.classNum && r.students.length === 0) return;
+            
+            const key = `${r.year}-${r.grade}-${r.classNum}`;
+            finalMap[key] = r;
+        });
+
+        this.rosterList = Object.values(finalMap);
         
         if(this.rosterList.length === 0) {
              this.rosterList.push({ year: new Date().getFullYear(), grade: '', classNum: '', students: [] });
