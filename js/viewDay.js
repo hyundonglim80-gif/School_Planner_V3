@@ -129,7 +129,7 @@ export class DayView extends BaseView {
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <h3 style="font-size:1.2rem; color:#1e40af; margin:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
+              <h3 style="font-size:1.2rem; color:#1e40af; margin-top:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
               ${window.generateEventBadgesHTML(events, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
@@ -140,7 +140,6 @@ export class DayView extends BaseView {
                     <th style="width: 60px;">교시</th>
                     <th style="width: 120px;">수업</th>
                     <th>📝 수업 메모</th>
-                    <!-- 🌟 [수정] 비고 헤더에만 조사표 버튼 배치 -->
                     <th style="width: 25%; position:relative;">📌 비고
                         <button onclick="window.EvaluationManager && window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
                     </th>
@@ -196,15 +195,27 @@ export class DayView extends BaseView {
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
           const p = i + 1;
           const pObj = this.currentSchedules[p] || {};
-          const periodName = store.periodNames[i] || p + '교시';
           
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [삭제] 개별 칸의 조사표 추가 버튼 삭제됨
+          // 🌟 [핵심 변경] 순서 바꾸기 팝업 대신 직관적인 인라인 Dropdown <select> UI 적용
+          const swapOptions = Array.from({ length: this.maxPeriod }).map((_, idx) => {
+              const optP = idx + 1;
+              const optName = store.periodNames[idx] || optP + '교시';
+              return `<option value="${optP}" ${optP === p ? 'selected' : ''}>${optName}</option>`;
+          }).join('');
+
+          const swapSelectHtml = `
+            <select onchange="if(this.value !== '${p}') { window.dayViewInstance.executeClassSwap(${p}, parseInt(this.value)); }" style="width:100%; border:none; background:transparent; font-weight:900; color:#2563eb; outline:none; cursor:pointer; font-size:0.9rem; text-align-last:center; padding:4px;" title="클릭하여 순서 맞바꾸기">
+                ${swapOptions}
+            </select>
+          `;
           
           return `
             <tr data-period="${p}">
-              <td class="period-cell" onclick="window.dayViewInstance.openClassSwapModal(${p})" style="cursor:pointer; color:#2563eb; text-decoration:underline; font-weight:900; font-size:0.9rem;" title="클릭하여 교환">${periodName}</td>
+              <td class="period-cell" style="padding:0; vertical-align:middle; text-align:center;">
+                  ${swapSelectHtml}
+              </td>
               <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.subject || ''}</td>
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
               <td style="text-align: left; vertical-align: top;">
@@ -233,10 +244,9 @@ export class DayView extends BaseView {
               <table style="text-align: center;">
                 <thead>
                   <tr>
-                    <th style="width: 60px;">교시</th>
+                    <th style="width: 65px;">교시</th>
                     <th style="width: 120px;">수업</th>
                     <th>📝 수업 메모</th>
-                    <!-- 🌟 [수정] 비고 헤더에만 조사표 버튼 배치 -->
                     <th style="width: 25%; position:relative;">📌 비고
                         <button onclick="window.EvaluationManager && window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
                     </th>
@@ -250,7 +260,6 @@ export class DayView extends BaseView {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                 <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록</h3>
                 <div>
-                    <!-- 🌟 [삭제] 기록 섹션의 조사표 추가 버튼 삭제됨 -->
                     <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
                 </div>
               </div>
@@ -454,37 +463,9 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
     }
 
-    openClassSwapModal(period) {
-        if (this.currentMode !== 'editor') return;
-        const max = this.maxPeriod;
-        let optionsHtml = '';
-        for(let i=1; i<=max; i++) {
-            if (i !== period) {
-                const pName = store.periodNames[i-1] || `${i}교시`;
-                const sub = (this.currentSchedules[i] && this.currentSchedules[i].subject) ? ` (${this.currentSchedules[i].subject})` : ' (빈 시간)';
-                optionsHtml += `<option value="${i}">${pName}${sub}</option>`;
-            }
-        }
-        
-        const targetName = store.periodNames[period-1] || `${period}교시`;
-        const modalHtml = `
-        <div id="swap-modal" class="modal-overlay" style="display:flex; z-index:10005; justify-content:center; align-items:center;">
-            <div class="modal-content" style="width:300px; padding:20px; border-radius:12px; text-align:center;">
-                <h3 style="color:#2563eb; margin-top:0;">🔄 수업 맞바꾸기</h3>
-                <p style="font-size:0.95rem; color:#475569; margin-bottom:15px;"><b>${targetName}</b> 수업을 몇 교시와 바꾸시겠습니까?</p>
-                <select id="swap-target-select" style="width:100%; padding:10px; border-radius:6px; border:1px solid #cbd5e1; margin-bottom:20px; font-size:1rem;">
-                    ${optionsHtml}
-                </select>
-                <div style="display:flex; gap:10px; justify-content:center;">
-                    <button onclick="document.getElementById('swap-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; font-weight:bold; border-radius:6px; cursor:pointer;">취소</button>
-                    <button onclick="window.dayViewInstance.executeClassSwap(${period}, parseInt(document.getElementById('swap-target-select').value))" style="padding:8px 16px; border:none; background:#2563eb; color:white; font-weight:bold; border-radius:6px; cursor:pointer;">바꾸기</button>
-                </div>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
+    // 🌟 [핵심 변경] 순서 바꾸기가 드롭다운으로 즉시 일어나도록 수정
     executeClassSwap(p1, p2) {
+        if (p1 === p2) return;
         this.syncScheduleInputs();
         const temp = this.currentSchedules[p1] ? { ...this.currentSchedules[p1] } : null;
         if (this.currentSchedules[p2]) this.currentSchedules[p1] = { ...this.currentSchedules[p2] };
@@ -492,7 +473,6 @@ export class DayView extends BaseView {
         if (temp) this.currentSchedules[p2] = temp;
         else delete this.currentSchedules[p2];
         
-        document.getElementById('swap-modal').remove();
         store.hasUnsavedChanges = true;
         this.renderEditor();
     }
