@@ -5,13 +5,13 @@ import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '
 import { getUserCol, db } from '../firebase.js';
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
-// 🌟 [핵심 신규 기능] 화면 중앙을 덮는 글로벌 프로세스 팝업창 로직
+// 🌟 [수정] z-index를 99999로 설정하여 모든 팝업창보다 무조건 위에 뜨도록 레이어 최상단 고정!
 window.ProgressModal = {
     modalEl: null,
     show: function(title) {
         if (this.modalEl) this.modalEl.remove();
         const html = `
-        <div id="global-progress-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.75); z-index:10005; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);">
+        <div id="global-progress-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.75); z-index:99999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(4px);">
             <div style="background:#fff; width:380px; padding:30px 25px; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); text-align:center; transform: scale(0.95); animation: popIn 0.2s forwards ease-out;">
                 <div id="progress-spinner" style="margin:0 auto 20px auto; width:50px; height:50px; border:4px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation: spin 1s linear infinite;"></div>
                 <h3 id="progress-title" style="margin:0 0 12px 0; color:#1e293b; font-size:1.25rem; font-weight:800;">${title}</h3>
@@ -194,7 +194,7 @@ export const BackupManager = {
                         </label>
                     </div>
                     
-                    <!-- 구글 시트 링크 영역 -->
+                    <!-- 구글 시트 링크 영역 (비어있을 때 공간 차지 안함) -->
                     <div id="sheet-link-area"></div>
                 </div>
 
@@ -207,7 +207,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v9', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v10', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -220,11 +220,13 @@ export const BackupManager = {
         const cCard = document.getElementById('target-card-calendar');
         const sCard = document.getElementById('target-card-sheets');
         const fCard = document.getElementById('target-card-csv');
+
         const sheetExtra = document.getElementById('sheet-link-area');
 
         cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
         sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
         fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
+
         sheetExtra.style.display = 'none';
 
         if (target === 'calendar') {
@@ -247,7 +249,8 @@ export const BackupManager = {
             if (typeof window.executeGoogleExport === 'function') {
                 await window.executeGoogleExport();
             } else {
-                alert("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
+                window.ProgressModal.show("오류");
+                window.ProgressModal.error("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
             }
         }
     },
@@ -262,7 +265,8 @@ export const BackupManager = {
             if (typeof window.executeGoogleImport === 'function') {
                 await window.executeGoogleImport();
             } else {
-                alert("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
+                window.ProgressModal.show("오류");
+                window.ProgressModal.error("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
             }
         }
     },
@@ -576,6 +580,10 @@ export const BackupManager = {
         
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
+        if (!startStr || !endStr) {
+            alert("기간이 올바르게 설정되지 않았습니다.");
+            return;
+        }
 
         const incEvent = document.getElementById('backup-chk-event').checked;
         const incClass = document.getElementById('backup-chk-class').checked;
@@ -649,7 +657,13 @@ export const BackupManager = {
                         mappedLabelIds.push(lObj.id);
                     });
 
-                    eventList.push({ labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: content, completed: completed });
+                    eventList.push({ 
+                        labelIds: mappedLabelIds, 
+                        label: labelsArray[0], 
+                        labels: labelsArray, 
+                        content: content, 
+                        completed: completed 
+                    });
                 } else {
                     let defaultLabelIds = [];
                     if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
@@ -725,7 +739,11 @@ export const BackupManager = {
                     evalStr = evalStr.trim();
                     if (evalStr.startsWith("'")) evalStr = evalStr.substring(1);
                     if (evalStr.endsWith("'")) evalStr = evalStr.substring(0, evalStr.length - 1);
-                    try { evalDataMap[dStr] = JSON.parse(evalStr); } catch(e) { console.warn("조사표 파싱 에러", e); }
+                    try { 
+                        evalDataMap[dStr] = JSON.parse(evalStr); 
+                    } catch(e) { 
+                        console.warn("조사표 파싱 에러", e); 
+                    }
                 }
             }
         }
@@ -771,7 +789,69 @@ export const BackupManager = {
             }
         }
 
+        let activePeriods = {}; 
+        let activeForwards = {}; 
         const sortedDates = Object.keys(parsedDaysMap).sort();
+        
+        if (doEvent) {
+            sortedDates.forEach(dStr => {
+                let evList = parsedDaysMap[dStr].eventList;
+                let curDateObj = new Date(dStr);
+
+                evList.forEach(ev => {
+                    let labelObj = null;
+                    if (ev.labelIds && ev.labelIds.length > 0) {
+                        labelObj = masterLabels.find(l => l.id === ev.labelIds[0]);
+                    }
+                    if (!labelObj) return;
+
+                    const pureContent = ev.content.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+                    const signature = labelObj.id + "|||" + pureContent;
+                    
+                    if (labelObj.isPeriod || labelObj.isRecur) {
+                        if (activePeriods[signature]) {
+                            let lastD = new Date(activePeriods[signature].lastDate);
+                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
+                            if (diff <= 14) { 
+                                ev.groupId = activePeriods[signature].groupId;
+                                activePeriods[signature].lastDate = dStr;
+                            } else {
+                                let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                                ev.groupId = newGroupId;
+                                activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
+                            }
+                        } else {
+                            let newGroupId = 'group_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                            ev.groupId = newGroupId;
+                            activePeriods[signature] = { groupId: newGroupId, lastDate: dStr };
+                        }
+                    }
+                    
+                    if (labelObj.isForward) {
+                         if (activeForwards[signature]) {
+                            let lastD = new Date(activeForwards[signature].lastDate);
+                            let diff = (curDateObj - lastD) / (1000 * 60 * 60 * 24);
+                            if (diff <= 14) { 
+                                ev.forwardChainId = activeForwards[signature].chainId;
+                                ev.originalDate = activeForwards[signature].originalDate;
+                                activeForwards[signature].lastDate = dStr;
+                            } else {
+                                let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                                ev.forwardChainId = newChainId;
+                                ev.originalDate = dStr; 
+                                activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
+                            }
+                         } else {
+                            let newChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                            ev.forwardChainId = newChainId;
+                            ev.originalDate = dStr;
+                            activeForwards[signature] = { chainId: newChainId, originalDate: dStr, lastDate: dStr };
+                         }
+                    }
+                });
+            });
+        }
+
         const batchPromises = [];
         let batch = writeBatch(db);
         let opCount = 0;
@@ -795,9 +875,6 @@ export const BackupManager = {
             await Promise.all(batchPromises);
             batchPromises.length = 0; 
         }
-
-        const totalDays = sortedDates.length;
-        let processedCount = 0;
 
         for (const dStr of sortedDates) {
             if (doEvent) {
@@ -865,11 +942,6 @@ export const BackupManager = {
                 batchPromises.push(batch.commit());
                 batch = writeBatch(db);
                 opCount = 0;
-            }
-
-            processedCount++;
-            if (window.ProgressModal) {
-                window.ProgressModal.update(`데이터베이스 저장 중... [${processedCount}/${totalDays}]`, 30 + (70 * (processedCount/totalDays)));
             }
         }
         if(opCount > 0) batchPromises.push(batch.commit());
@@ -1285,7 +1357,6 @@ export const BackupManager = {
         } 
     },
 
-    // 🌟 조사표를 CSV 형태의 문자열로 변환하는 함수
     generateSingleEvalCSV: function(ev) {
         const rows = [];
         rows.push(["조사표 제목", ev.title || ""]);
