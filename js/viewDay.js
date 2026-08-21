@@ -1,3 +1,5 @@
+// js/viewDay.js
+
 import { BaseView } from './components/BaseView.js';
 import { store } from './core/store.js';
 import { getEventLabels, getJournalLabels, getLabelStyle } from './core/utils.js';
@@ -102,7 +104,6 @@ export class DayView extends BaseView {
                     <td style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</td>
                     <td style="color: #d97706; font-weight: 600; text-align: left; vertical-align:top;">
                         <div style="white-space:pre-wrap; margin-bottom:4px;">${pObj.supplies || ''}</div>
-                        <!-- 보기 모드이므로 추가 버튼은 삭제하고 배지만 렌더링 -->
                         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                             <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
                                 ${evalBadges}
@@ -128,14 +129,22 @@ export class DayView extends BaseView {
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <h3 style="font-size:1.2rem; color:#1e40af; margin-top:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
+              <h3 style="font-size:1.2rem; color:#1e40af; margin:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
               ${window.generateEventBadgesHTML(events, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
               <table style="text-align: center;">
                 <thead>
-                  <tr><th style="width: 60px;">교시</th><th style="width: 120px;">수업</th><th>📝 수업 메모</th><th style="width: 25%;">📌 비고</th></tr>
+                  <tr>
+                    <th style="width: 60px;">교시</th>
+                    <th style="width: 120px;">수업</th>
+                    <th>📝 수업 메모</th>
+                    <!-- 🌟 [수정] 비고 헤더에만 조사표 버튼 배치 -->
+                    <th style="width: 25%; position:relative;">📌 비고
+                        <button onclick="window.EvaluationManager && window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
+                    </th>
+                  </tr>
                 </thead>
                 <tbody>${periodRowsHtml}</tbody>
               </table>
@@ -144,7 +153,6 @@ export class DayView extends BaseView {
             <div class="day-journal-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                   <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록</h3>
-                  <!-- 보기 모드이므로 기록 조사표 추가 버튼 삭제 -->
               </div>
               <div class="journal-eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal') ? '' : 'display:none;'}">
                   ${this.generateEvalBadgesHtml('journal')}
@@ -191,7 +199,8 @@ export class DayView extends BaseView {
           const periodName = store.periodNames[i] || p + '교시';
           
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
-          const addEvalBtn = `<button onclick="window.EvaluationManager.openCreationModal('${dateStr}', 'schedule', ${p}, '${pObj.subject || ''}')" style="background:none; border:none; cursor:pointer; font-size:1.1rem; padding:0; vertical-align:middle; display:flex; align-items:center;" title="조사표 추가">📊+</button>`;
+          
+          // 🌟 [삭제] 개별 칸의 조사표 추가 버튼 삭제됨
           
           return `
             <tr data-period="${p}">
@@ -200,9 +209,7 @@ export class DayView extends BaseView {
               <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
               <td style="text-align: left; vertical-align: top;">
                 <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.supplies || ''}</div>
-                <!-- 편집 모드에서도 동일하게 flexbox 구조 사용 -->
                 <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                    ${addEvalBtn}
                     <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
                         ${evalBadges}
                     </div>
@@ -225,7 +232,15 @@ export class DayView extends BaseView {
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
               <table style="text-align: center;">
                 <thead>
-                  <tr><th style="width: 60px;">교시</th><th style="width: 120px;">수업</th><th>📝 수업 메모</th><th style="width: 25%;">📌 비고</th></tr>
+                  <tr>
+                    <th style="width: 60px;">교시</th>
+                    <th style="width: 120px;">수업</th>
+                    <th>📝 수업 메모</th>
+                    <!-- 🌟 [수정] 비고 헤더에만 조사표 버튼 배치 -->
+                    <th style="width: 25%; position:relative;">📌 비고
+                        <button onclick="window.EvaluationManager && window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
+                    </th>
+                  </tr>
                 </thead>
                 <tbody>${periodRowsHtml}</tbody>
               </table>
@@ -235,7 +250,7 @@ export class DayView extends BaseView {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                 <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록</h3>
                 <div>
-                    <button onclick="window.EvaluationManager.openCreationModal('${dateStr}', 'journal')" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d; margin-right:4px;">📊 조사표 추가</button>
+                    <!-- 🌟 [삭제] 기록 섹션의 조사표 추가 버튼 삭제됨 -->
                     <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
                 </div>
               </div>
