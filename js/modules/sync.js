@@ -86,6 +86,7 @@ export const fetchHolidaysFromGovApi = async function(year, apiKey) {
     return holidays;
 };
 
+// 조사표 데이터를 CSV 파일로 파이어베이스 저장소에 올리고 다운로드 링크를 받아오는 함수
 async function uploadEvalCSVToStorage(ev) {
     if (!auth.currentUser || typeof window.BackupManager === 'undefined') return null;
     try {
@@ -232,6 +233,7 @@ export const executeGoogleImport = async function() {
         let importedEvents = [];
         let importedClasses = [];
         let importedJournals = [];
+        let importedEvals = []; // 🌟 복원된 조사표 데이터 보관용 배열
 
         const masterEventLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
@@ -354,7 +356,16 @@ export const executeGoogleImport = async function() {
                                 
                                 importedJournals.push(newJr);
                             } else if (type === 'eval') {
-                                // 🌟 조사표는 CSV나 구글 시트로 백업 및 복구되므로, 캘린더에서 웹으로 가져올 때 일반 이벤트로 등록되지 않도록 무시합니다.
+                                // 🌟 [핵심] JSON으로 캘린더에 숨겨둔 조사표 데이터 복원
+                                const evalMatch = rawDesc.match(/SP_EVAL_DATA_START\n([\s\S]*?)\nSP_EVAL_DATA_END/);
+                                if (evalMatch) {
+                                    try {
+                                        let parsedEval = JSON.parse(evalMatch[1].trim());
+                                        importedEvals.push(parsedEval);
+                                    } catch(err) {
+                                        console.warn("조사표 JSON 파싱 실패:", err);
+                                    }
+                                }
                             } else { 
                                 let labelStr = priv.labelStr || '구글동기화';
                                 let content = rawSummary;
@@ -397,6 +408,9 @@ export const executeGoogleImport = async function() {
         let journalsByDate = {};
         importedJournals.forEach(j => { if (!journalsByDate[j.dateStr]) journalsByDate[j.dateStr] = []; journalsByDate[j.dateStr].push(j); });
 
+        let evalsByDate = {};
+        importedEvals.forEach(ev => { if (!evalsByDate[ev.dateStr]) evalsByDate[ev.dateStr] = []; evalsByDate[ev.dateStr].push(ev); });
+
         let curD = new Date(startD);
         let processedCount = 0;
         const totalDays = (endD - startD) / (1000 * 60 * 60 * 24) + 1;
@@ -434,6 +448,7 @@ export const executeGoogleImport = async function() {
             const newEvents = eventsByDate[dStr] || [];
             const newClasses = classesByDate[dStr] || [];
             const newJournals = journalsByDate[dStr] || [];
+            const newEvals = evalsByDate[dStr] || [];
             
             const evRef = doc(getUserCol('events'), dStr);
             const evSnap = await getDoc(evRef);
@@ -476,7 +491,7 @@ export const executeGoogleImport = async function() {
                 }
             }
 
-            if (importDedicated && (newClasses.length > 0 || internalMode === 'overwrite')) {
+            if (newClasses.length > 0 || internalMode === 'overwrite') {
                 const scRef = doc(getUserCol('schedules'), dStr);
                 const scSnap = await getDoc(scRef);
                 let periods = scSnap.exists() ? (scSnap.data().periods || {}) : {};
@@ -493,7 +508,7 @@ export const executeGoogleImport = async function() {
                 }
             }
 
-            if (importDedicated && (newJournals.length > 0 || internalMode === 'replace' || internalMode === 'overwrite')) {
+            if (newJournals.length > 0 || internalMode === 'replace' || internalMode === 'overwrite') {
                 const jrRef = doc(getUserCol('journals'), dStr);
                 const jrSnap = await getDoc(jrRef);
                 let entries = jrSnap.exists() ? (jrSnap.data().entries || []) : [];
@@ -504,6 +519,26 @@ export const executeGoogleImport = async function() {
                 if (newJournals.length > 0 || internalMode === 'replace' || internalMode === 'overwrite') {
                     const mergedEntries = getUniqueList([...entries, ...newJournals]); 
                     batch.set(jrRef, { entries: mergedEntries, updatedAt: Date.now() }, { merge: true });
+                    batchOpCount++;
+                }
+            }
+
+            // 🌟 조사표 데이터베이스 병합 저장 로직
+            if (newEvals.length > 0 || internalMode === 'overwrite') {
+                const elRef = doc(getUserCol('evaluations'), dStr);
+                const elSnap = await getDoc(elRef);
+                let currentEvals = elSnap.exists() ? (elSnap.data().evalList || []) : [];
+
+                if (internalMode === 'overwrite') currentEvals = [];
+
+                if (newEvals.length > 0 || internalMode === 'overwrite') {
+                    const combined = [...currentEvals];
+                    newEvals.forEach(newItem => {
+                        const idx = combined.findIndex(old => old.id === newItem.id);
+                        if (idx !== -1) combined[idx] = newItem; 
+                        else combined.push(newItem);
+                    });
+                    batch.set(elRef, { evalList: combined, updatedAt: Date.now() }, { merge: true });
                     batchOpCount++;
                 }
             }
@@ -609,7 +644,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 변경] 일정 ➔ 수업 ➔ 기록 ➔ 조사표 순으로 payloadsToCreate 배열에 데이터를 푸시합니다.
+// 🌟 [핵심 변경] 캘린더 내보내기 시, 조사표의 원본 JSON 데이터를 설명란(Description)에 비밀리에 심어둠
 async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData, jData, elData, incEvent, incClass, incJournal, incEval, existingEvents = [], mode = 'merge') {
     let payloadsToCreate = [];
     
@@ -704,7 +739,7 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
-    // 🌟 4. 조사표(Evaluation) - 완전히 분리된 캘린더 일정으로 생성!
+    // 🌟 4. 조사표(Evaluation) - 원본 데이터(JSON)를 설명란에 완벽 보존
     if (incEval && elData && elData.evalList) {
         for (const ev of elData.evalList) {
             let invisiblePrefix = getInvisiblePrefix(seq++);
@@ -713,6 +748,9 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
             let desc = `📊 [조사표 데이터]\n- 대상 명렬표: ${ev.rosterMeta?.year || '?'}학년도 ${ev.rosterMeta?.grade || '?'}학년 ${ev.rosterMeta?.classNum || '?'}반\n`;
             if (url) desc += `- 다운로드 링크: ${url}\n`;
             else desc += `- CSV 파일을 생성하지 못했습니다.\n`;
+
+            // 시스템이 복원할 때 사용할 JSON 데이터를 안전하게 캡슐화하여 첨부
+            desc += `\n\n[조사표 원본 데이터 - 시스템용이므로 절대 수정하지 마세요]\nSP_EVAL_DATA_START\n${JSON.stringify(ev)}\nSP_EVAL_DATA_END`;
 
             payloadsToCreate.push({
                 summary: `${invisiblePrefix}[조사표] ${ev.title}`,
@@ -728,13 +766,12 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         }
     }
 
-    // 기존 이벤트와 매칭하여 찌꺼기 삭제 및 업데이트 수행
     const managedExistingEvents = existingEvents.filter(ev => {
         const type = ev.extendedProperties?.private?.type || 'event';
         if (type === 'event' && !incEvent) return false; 
         if (type === 'class' && !incClass) return false;
         if (type === 'journal' && !incJournal) return false;
-        if (type === 'eval' && !incEval) return false; // 🌟 새로 추가된 eval 타입
+        if (type === 'eval' && !incEval) return false;
         return true;
     });
 
