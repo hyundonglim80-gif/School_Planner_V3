@@ -1,7 +1,8 @@
-//js/modules/evaluations.js
+// js/modules/evaluations.js
 
 import { dbAPI } from '../firebase.js';
 import { formatDate } from '../core/utils.js';
+import { store } from '../core/store.js';
 
 export const EvaluationManager = {
     creationModal: null,
@@ -45,6 +46,18 @@ export const EvaluationManager = {
         const subjects = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'];
         const subjOptions = subjects.map(s => `<option value="${s}" ${s===defaultSubject?'selected':''}>${s}</option>`).join('');
 
+        // 🌟 [핵심 변경] 교시 드롭다운 목록 자동 생성
+        const maxPeriod = store.periodNames ? store.periodNames.length : 6;
+        let periodOptions = '';
+        for (let i = 1; i <= maxPeriod; i++) {
+            const pName = store.periodNames[i-1] || `${i}교시`;
+            // 현재 호출 위치가 schedule이고 그 교시라면 선택
+            const isSelected = (this.currentContext.source === 'schedule' && String(this.currentContext.period) === String(i)) ? 'selected' : '';
+            periodOptions += `<option value="${i}" ${isSelected}>${pName}</option>`;
+        }
+        const isJournalSelected = this.currentContext.source === 'journal' ? 'selected' : '';
+        periodOptions += `<option value="journal" ${isJournalSelected}>기록 (오늘 기록 칸)</option>`;
+
         return `
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px; max-height:60vh; overflow-y:auto; padding-right:5px;">
                 <div>
@@ -79,8 +92,10 @@ export const EvaluationManager = {
                         <input type="date" id="eval-date" value="${this.currentDateStr}" style="width:100%; padding:6px; border-radius:4px; border:1px solid #cbd5e1; margin-top:4px;">
                     </div>
                     <div style="flex:1;">
-                        <label style="font-size:0.85rem; color:#475569; font-weight:bold;">교시</label>
-                        <input type="text" id="eval-period" value="${this.currentContext.period}" placeholder="예: 1" style="width:100%; padding:6px; border-radius:4px; border:1px solid #cbd5e1; margin-top:4px;">
+                        <label style="font-size:0.85rem; color:#475569; font-weight:bold;">위치(교시/기록)</label>
+                        <select id="eval-period" style="width:100%; padding:6px; border-radius:4px; border:1px solid #cbd5e1; margin-top:4px; outline:none; background:#fff;">
+                            ${periodOptions}
+                        </select>
                     </div>
                 </div>
                 
@@ -211,10 +226,20 @@ export const EvaluationManager = {
         if (!rosterIndex) return alert("선택된 명렬표가 없습니다.");
 
         const type = document.querySelector('input[name="eval-type"]:checked').value;
-        
         const subject = document.getElementById('eval-subject').value;
         const dateStr = document.getElementById('eval-date').value || this.currentDateStr;
-        const periodStr = document.getElementById('eval-period').value.trim();
+        
+        // 🌟 [핵심 변경] 드롭다운(select)에서 선택한 값을 기반으로 위치(source, period) 배정
+        const selectedPeriodVal = document.getElementById('eval-period').value;
+        let finalSource = 'schedule';
+        let finalPeriod = '';
+
+        if (selectedPeriodVal === 'journal') {
+            finalSource = 'journal';
+        } else {
+            finalSource = 'schedule';
+            finalPeriod = parseInt(selectedPeriodVal, 10);
+        }
         
         let methodObj = { indiv: false, group: false };
         let steps = [], groups = [];
@@ -247,9 +272,6 @@ export const EvaluationManager = {
 
         if (activeStudents.length === 0) return alert("선택한 명렬표에 활성 상태인 학생이 없습니다.");
 
-        const cleanPeriodStr = periodStr.replace(/[^0-9]/g, '');
-        const finalPeriod = cleanPeriodStr ? parseInt(cleanPeriodStr, 10) : '';
-
         const newEval = {
             id: 'eval_' + Date.now().toString(36),
             title,
@@ -261,7 +283,7 @@ export const EvaluationManager = {
             rosterMeta: { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum },
             dateStr: dateStr,
             periodStr: finalPeriod ? String(finalPeriod) : '',
-            context: { source: this.currentContext.source, period: finalPeriod },
+            context: { source: finalSource, period: finalPeriod },
             studentsSnapshot: activeStudents, 
             records: {}
         };
