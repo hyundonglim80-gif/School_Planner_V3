@@ -14,21 +14,17 @@ export const BackupManager = {
             const html = `
             <div style="display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
                 
-                <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin-bottom:0;">
-                    <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 클라우드 데이터를 구글 캘린더, 시트, 로컬(CSV)과 양방향으로 동기화합니다.</p>
-                </div>
-
-                <!-- 1단계: 기간 선택 -->
+                <!-- 1단계: 기간 선택 (기본값: 오늘) -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 기간 선택</label>
                     <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
                         <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold;">
-                            <option value="today">오늘</option>
+                            <option value="today" selected>오늘 (기본)</option>
                             <option value="week">해당 주 (이번 주)</option>
                             <option value="month">해당 월 (이번 달)</option>
                             <option value="sem1">1학기 전체</option>
                             <option value="sem2">2학기 전체</option>
-                            <option value="year" selected>해당 학년도 전체</option>
+                            <option value="year">해당 학년도 전체</option>
                             <option value="custom">기간 직접 설정</option>
                         </select>
                         <div style="display:flex; gap:10px; align-items:center; justify-content:center; margin-top:5px;">
@@ -53,22 +49,25 @@ export const BackupManager = {
 
                 <!-- 3단계: 방식 선택 -->
                 <div>
-                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">3. 방식 선택 (가져오기 시)</label>
+                    <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">3. 동기화 방식 (가져오기/내보내기)</label>
                     <div style="background:#fef2f2; padding:15px; border-radius:8px; border:1px solid #fca5a5;">
                         <label style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; cursor:pointer;">
                             <input type="radio" name="import-mode" value="merge" checked style="margin-top:3px; accent-color:#059669;">
                             <div>
-                                <span style="font-weight:bold; color:#059669; font-size:0.95rem;">기존 데이터 유지하며 추가 (병합)</span><br>
-                                <span style="font-size:0.8rem; color:#64748b;">기존에 작성된 데이터는 보호하고 새로운 내용만 추가/최신화합니다.</span>
+                                <span style="font-weight:bold; color:#059669; font-size:0.95rem;">병합 (기존 데이터 보호 및 최신화)</span><br>
+                                <span style="font-size:0.8rem; color:#64748b;">기존에 작성된 데이터는 그대로 유지하면서 새로 추가/수정된 내용만 스마트하게 반영합니다.</span>
                             </div>
                         </label>
                         <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
                             <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
                             <div>
-                                <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">모두 지우고 덮어쓰기 (교체)</span><br>
-                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 데이터를 싹 지우고 외부 데이터로 완전히 교체합니다.</span>
+                                <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">완전 교체 (모두 지우고 덮어쓰기)</span><br>
+                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 타겟 데이터를 모두 싹 지우고 지정한 데이터로 완전히 교체합니다.</span>
                             </div>
                         </label>
+                        <div style="margin-top:8px; font-size:0.75rem; color:#94a3b8; border-top: 1px dashed #fca5a5; padding-top:6px;">
+                            ※ 로컬(CSV) 내보내기는 위 옵션과 무관하게 항상 새 파일로 저장됩니다.
+                        </div>
                     </div>
                 </div>
 
@@ -96,29 +95,7 @@ export const BackupManager = {
                         </label>
                     </div>
                     
-                    <!-- 캘린더 추가 옵션 패널 -->
-                    <div id="calendar-extra-options" style="display:none; margin-top:10px; background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #bbf7d0;">
-                        <div style="font-size:0.9rem; font-weight:bold; color:#166534; margin-bottom:8px;">✅ 구글 캘린더 전용 가져오기 옵션</div>
-                        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#1e293b; margin-bottom:6px; cursor:pointer;">
-                            <input type="checkbox" id="import-chk-primary" checked style="accent-color:#16a34a;"> 내 기본 구글 캘린더 가져오기
-                        </label>
-                        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#1e293b; margin-bottom:6px; cursor:pointer;">
-                            <input type="checkbox" id="import-chk-holiday" checked onchange="document.getElementById('holiday-source-box').style.display = this.checked ? 'block' : 'none'" style="accent-color:#ef4444;"> 대한민국 공휴일/기념일 가져오기
-                        </label>
-                        <div id="holiday-source-box" style="margin-left:24px; padding:8px; background:#fff; border:1px solid #fca5a5; border-radius:6px;">
-                            <label style="display:block; font-size:0.8rem; margin-bottom:4px; cursor:pointer; color:#1e293b;">
-                                <input type="radio" name="holiday_source" value="gov_api" checked onclick="document.getElementById('gov-api-key-container').style.display='block'"> 🏛️ 정부 공식 데이터 (대체공휴일 완벽 지원)
-                            </label>
-                            <div id="gov-api-key-container" style="margin-left:20px; margin-bottom:6px;">
-                                <input type="text" id="gov-api-key-input" placeholder="공공데이터 Service Key 입력..." style="width:100%; padding:4px 6px; font-size:0.75rem; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box;" value="${localStorage.getItem('gov_holiday_api_key') || ''}">
-                            </div>
-                            <label style="display:block; font-size:0.8rem; cursor:pointer; color:#1e293b;">
-                                <input type="radio" name="holiday_source" value="google" onclick="document.getElementById('gov-api-key-container').style.display='none'"> 📅 구글 캘린더 한국 공휴일
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- 시트 추가 옵션 패널 -->
+                    <!-- 구글 시트 링크 영역 -->
                     <div id="sheet-link-area" style="margin-top:10px;"></div>
                 </div>
 
@@ -139,7 +116,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v6', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v7', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -153,19 +130,16 @@ export const BackupManager = {
         const sCard = document.getElementById('target-card-sheets');
         const fCard = document.getElementById('target-card-csv');
 
-        const calExtra = document.getElementById('calendar-extra-options');
         const sheetExtra = document.getElementById('sheet-link-area');
 
         cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
         sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
         fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
 
-        calExtra.style.display = 'none';
         sheetExtra.style.display = 'none';
 
         if (target === 'calendar') {
             cCard.style.borderColor = '#ea4335'; cCard.style.background = '#fce8e6'; cCard.style.color = '#ea4335';
-            calExtra.style.display = 'block';
         } else if (target === 'sheets') {
             sCard.style.borderColor = '#0f9d58'; sCard.style.background = '#e8f5e9'; sCard.style.color = '#0f9d58';
             sheetExtra.style.display = 'block';
@@ -184,7 +158,7 @@ export const BackupManager = {
             if (typeof window.executeGoogleExport === 'function') {
                 await window.executeGoogleExport();
             } else {
-                alert("캘린더 연동 모듈을 불러오지 못했습니다.");
+                alert("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
             }
         }
     },
@@ -199,7 +173,7 @@ export const BackupManager = {
             if (typeof window.executeGoogleImport === 'function') {
                 await window.executeGoogleImport();
             } else {
-                alert("캘린더 연동 모듈을 불러오지 못했습니다.");
+                alert("구글 캘린더 연동 기능이 준비되지 않았습니다. (sync.js 필요)");
             }
         }
     },
@@ -207,7 +181,7 @@ export const BackupManager = {
     setDefaultDates: function() {
         const select = document.getElementById('backup-period-select');
         if (select) {
-            select.value = 'year';
+            select.value = 'today';
             this.onPeriodChange(); 
         }
     },
@@ -890,6 +864,73 @@ export const BackupManager = {
         }
     },
 
+    processMemoRows: async function(rows, mode) {
+        if (rows.length < 2) return;
+        const batchPromises = [];
+        let batch = writeBatch(db);
+        let opCount = 0;
+        let newLinks = [];
+
+        if (mode === 'overwrite') {
+            const snap = await getDocs(getUserCol('tasks'));
+            snap.forEach(docSnap => {
+                batch.delete(docSnap.ref);
+                opCount++;
+                if(opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
+            });
+            await deleteDoc(doc(getUserCol('settings'), 'user_links'));
+            if(opCount > 0) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
+            await Promise.all(batchPromises);
+            batchPromises.length = 0; 
+        }
+
+        for (let i=1; i<rows.length; i++) {
+            const r = rows[i];
+            if(r.length < 3 || !r[2]) continue; 
+            
+            const dataType = r[0] || 'MEMO';
+            if (dataType === 'LINK') {
+                newLinks.push({ name: r[2], url: r[5] });
+            } else {
+                let id = r[1] && !r[1].startsWith('LINK_') ? r[1] : doc(getUserCol('tasks')).id; 
+                const completed = r[3] === 'O';
+                const labels = r[4] ? r[4].split(',').filter(x=>x.trim()) : [];
+                const imageUrl = r[5] || '';
+                const createdAt = parseInt(r[6], 10) || Date.now();
+
+                batch.set(doc(getUserCol('tasks'), id), {
+                    text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
+                    createdAt: createdAt, updatedAt: Date.now(), order: -createdAt 
+                }, { merge: true });
+                
+                opCount++;
+                if (opCount > 400) {
+                    batchPromises.push(batch.commit());
+                    batch = writeBatch(db);
+                    opCount = 0;
+                }
+            }
+        }
+        
+        if (newLinks.length > 0) {
+            const linkDoc = await getDoc(doc(getUserCol('settings'), 'user_links'));
+            let existingLinks = linkDoc.exists() ? (linkDoc.data().links || []) : [];
+            
+            if (mode === 'merge') {
+                const combinedLinks = [...existingLinks];
+                newLinks.forEach(nl => {
+                    if (!existingLinks.some(el => el.url === nl.url)) combinedLinks.push(nl);
+                });
+                newLinks = combinedLinks;
+            }
+            batch.set(doc(getUserCol('settings'), 'user_links'), { links: newLinks }, { merge: true });
+            opCount++;
+        }
+
+        if(opCount > 0) batchPromises.push(batch.commit());
+        await Promise.all(batchPromises);
+    },
+
     exportToSheets: async function() {
         const btn = document.getElementById('btn-master-export');
         const oldText = btn.textContent;
@@ -899,7 +940,8 @@ export const BackupManager = {
             const token = await window.getValidGoogleToken();
             if(!token) throw new Error("토큰 발급이 취소되었습니다.");
             
-            btn.textContent = "⏳ 내보내는 중...";
+            const mode = document.querySelector('input[name="import-mode"]:checked').value;
+            btn.textContent = "⏳ 구글 시트로 내보내는 중...";
 
             const spreadsheetId = await this.getOrCreateSpreadsheet(token);
             
@@ -913,10 +955,13 @@ export const BackupManager = {
 
             if (doSchedule) {
                 const finalData = await this.getScheduleDataArray();
-                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A:Z')}:clear`, {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-                });
-
+                
+                if (mode === 'overwrite') {
+                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A:Z')}:clear`, {
+                        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+                
                 await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('일정기록!A1')}?valueInputOption=USER_ENTERED`, {
                     method: 'PUT',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -933,9 +978,11 @@ export const BackupManager = {
                             });
                         } catch(e) {}
 
-                        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A:Z')}:clear`, {
-                            method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-                        });
+                        if (mode === 'overwrite') {
+                            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A:Z')}:clear`, {
+                                method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                        }
                         
                         await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A1')}?valueInputOption=USER_ENTERED`, {
                             method: 'PUT',
@@ -948,9 +995,12 @@ export const BackupManager = {
 
             if (incMemo) {
                 const memoData = await this.getMemoDataArray();
-                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A:Z')}:clear`, {
-                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-                });
+                
+                if (mode === 'overwrite') {
+                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A:Z')}:clear`, {
+                        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
 
                 await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('메모!A1')}?valueInputOption=USER_ENTERED`, {
                     method: 'PUT',
@@ -1098,7 +1148,7 @@ export const BackupManager = {
 
     handleDownload: async function() {
         const btn = document.getElementById('btn-master-export');
-        const oldText = btn.textContent; btn.textContent = "⏳ CSV 생성 중..."; btn.disabled = true;
+        const oldText = btn.textContent; btn.textContent = "⏳ CSV 파일 생성 중..."; btn.disabled = true;
         
         try {
             const incEvent = document.getElementById('backup-chk-event').checked;
@@ -1192,7 +1242,7 @@ export const BackupManager = {
         } 
     },
 
-    // 🌟 [핵심 변경] CSV 문자열로 변환하는 헬퍼 함수
+    // 🌟 조사표를 CSV 형태의 문자열로 변환하는 함수
     generateSingleEvalCSV: function(ev) {
         const rows = [];
         rows.push(["조사표 제목", ev.title || ""]);
@@ -1239,4 +1289,5 @@ export const BackupManager = {
 };
 
 window.BackupManager = BackupManager;
+// 캘린더 전용 호출 트리거
 window.openGoogleSyncModal = () => { window.BackupManager.openModal(); setTimeout(() => { const r = document.querySelector('input[name="backup-target"][value="calendar"]'); if(r){ r.checked=true; window.BackupManager.onTargetChange(); } }, 50); };
