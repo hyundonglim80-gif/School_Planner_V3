@@ -14,6 +14,10 @@ export const BackupManager = {
             const html = `
             <div style="display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
                 
+                <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin-bottom:0;">
+                    <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 클라우드 데이터를 구글 캘린더, 시트, 로컬(CSV)과 양방향으로 동기화합니다.</p>
+                </div>
+
                 <!-- 1단계: 기간 선택 (기본값: 오늘) -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 기간 선택</label>
@@ -95,8 +99,8 @@ export const BackupManager = {
                         </label>
                     </div>
                     
-                    <!-- 구글 시트 링크 영역 -->
-                    <div id="sheet-link-area" style="margin-top:10px;"></div>
+                    <!-- 구글 시트 링크 영역 (비어있을 때 공간을 차지하지 않도록 여백 제거) -->
+                    <div id="sheet-link-area"></div>
                 </div>
 
                 <!-- 진행 상태 바 -->
@@ -116,7 +120,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v7', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v8', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -233,10 +237,13 @@ export const BackupManager = {
             const linkArea = document.getElementById('sheet-link-area');
             if (docSnap.exists() && docSnap.data().spreadsheetId && linkArea) {
                 this.currentSpreadsheetId = docSnap.data().spreadsheetId;
+                // 🌟 버튼이 생길 때만 내부에 여백을 줌으로써 텅 빈 상태일 때의 레이아웃 흔들림 방지
                 linkArea.innerHTML = `
-                    <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; margin-top:15px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>
-                    <div style="text-align:right; margin-top:8px;">
-                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">시트 연결 해제/초기화</span>
+                    <div style="margin-top: 15px;">
+                        <button onclick="window.open('https://docs.google.com/spreadsheets/d/${this.currentSpreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>
+                        <div style="text-align:right; margin-top:8px;">
+                            <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">시트 연결 해제/초기화</span>
+                        </div>
                     </div>
                 `;
             } else if (linkArea) {
@@ -1148,7 +1155,7 @@ export const BackupManager = {
 
     handleDownload: async function() {
         const btn = document.getElementById('btn-master-export');
-        const oldText = btn.textContent; btn.textContent = "⏳ CSV 파일 생성 중..."; btn.disabled = true;
+        const oldText = btn.textContent; btn.textContent = "⏳ CSV 생성 중..."; btn.disabled = true;
         
         try {
             const incEvent = document.getElementById('backup-chk-event').checked;
