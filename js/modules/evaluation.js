@@ -35,14 +35,24 @@ export const EvaluationManager = {
         this.toggleEvalType();
     },
 
-    // 🌟 [핵심 변경] 새 학급 추가하기 선택 시 팝업 닫고 명렬표 모달 띄우는 이벤트를 추가했습니다.
+    // 🌟 [핵심 변경] 새 학급 추가하기 선택 시 다른 시스템 메뉴(학급 정보 관리)를 자동으로 찾아 실행함
     handleRosterChange: function(selectEl) {
         if (selectEl.value === 'ADD_ROSTER') {
             document.getElementById('eval-creation-modal')?.remove();
-            if (typeof window.openRosterModal === 'function') {
+            
+            // 더보기 메뉴 안에 숨겨져 있는 '학급 정보', '명렬표', '내보내기' 등의 관련 버튼을 찾아 클릭 이벤트를 보냄
+            const rosterBtn = Array.from(document.querySelectorAll('.dropdown-item')).find(btn => btn.textContent.includes('학급') || btn.textContent.includes('명렬표') || btn.textContent.includes('가져오기'));
+            
+            if (rosterBtn) {
+                rosterBtn.click();
+            } else if (typeof window.BackupManager !== 'undefined' && window.BackupManager.openModal) {
+                window.BackupManager.openModal();
+            } else if (typeof window.openSettingsModal === 'function') {
+                window.openSettingsModal();
+            } else if (typeof window.openRosterModal === 'function') {
                 window.openRosterModal();
             } else {
-                alert("더보기(⋮) 메뉴에서 '학급 정보 관리'를 선택하여 새 명렬표를 추가해주세요.");
+                alert("명렬표(학급 정보) 관리 메뉴를 찾을 수 없습니다. 더보기(⋮) 메뉴를 확인해주세요.");
             }
             return;
         }
@@ -52,12 +62,13 @@ export const EvaluationManager = {
     },
 
     getCreationHtml: function(defaultSubject) {
-        let rosterOptions = '<option value="">선택 (또는 명렬표 등록)</option>';
+        let rosterOptions = '<option value="">등록된 명렬표 없음 (먼저 명렬표를 등록해주세요)</option>';
         if (this.roster && this.roster.length > 0) {
              rosterOptions = this.roster.map((r, i) => {
                  return `<option value="${i}">${r.year}학년도 ${r.grade}학년 ${r.classNum}반 (${r.students ? r.students.length : 0}명)</option>`;
              }).join('');
         }
+        
         // 🌟 명렬표 드롭다운 최하단에 학급 추가 옵션 삽입
         rosterOptions += `<option value="ADD_ROSTER" style="font-weight:bold; color:#2563eb;">➕ 새 학급(명렬표) 추가하기</option>`;
 
@@ -77,7 +88,7 @@ export const EvaluationManager = {
         return `
             <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px; max-height:60vh; overflow-y:auto; padding-right:5px;">
                 <div>
-                    <label style="font-weight:bold; font-size:0.9rem;">적용할 명렬표 선택</label>
+                    <label style="font-weight:bold; font-size:0.9rem;">적용할 명렬표 확인</label>
                     <select id="eval-roster" onchange="window.EvaluationManager.handleRosterChange(this)" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:4px; margin-top:4px; outline:none; background:#f8fafc; font-weight:bold; color:#1e40af;">
                         ${rosterOptions}
                     </select>
