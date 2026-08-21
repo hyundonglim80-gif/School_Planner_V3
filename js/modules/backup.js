@@ -5,7 +5,7 @@ import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '
 import { getUserCol, db } from '../firebase.js';
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
-// 🌟 글로벌 진행 상태창 (z-index: 99999 적용 완료)
+// 🌟 글로벌 진행 상태창 (z-index 99999)
 window.ProgressModal = {
     modalEl: null,
     show: function(title) {
@@ -103,6 +103,7 @@ window.ProgressModal = {
     }
 };
 
+
 export const BackupManager = {
     modal: null,
     currentSpreadsheetId: null,
@@ -164,11 +165,11 @@ export const BackupManager = {
                             <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
                             <div>
                                 <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">완전 교체 (모두 지우고 덮어쓰기)</span><br>
-                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 타겟 데이터를 모두 싹 지우고 지정한 데이터로 완전히 교체합니다.</span>
+                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 데이터를 모두 싹 지우고 지정한 데이터로 완전히 교체합니다.</span>
                             </div>
                         </label>
                         <div style="margin-top:8px; font-size:0.75rem; color:#94a3b8; border-top: 1px dashed #fca5a5; padding-top:6px;">
-                            ※ 로컬(CSV) 내보내기는 위 옵션과 무관하게 항상 새 파일(통합본)로 저장됩니다.
+                            ※ 로컬(CSV) 내보내기는 위 옵션과 무관하게 항상 전체 데이터를 담은 새 파일로 저장됩니다.
                         </div>
                     </div>
                 </div>
@@ -196,9 +197,6 @@ export const BackupManager = {
                             </div>
                         </label>
                     </div>
-                    
-                    <!-- 구글 시트 링크 영역 (기존 버튼 제거하고 초기화 안내만 남김) -->
-                    <div id="sheet-link-area" style="display:none; margin-top:10px;"></div>
                 </div>
 
             </div>
@@ -210,7 +208,7 @@ export const BackupManager = {
                 <button id="btn-master-export" onclick="window.BackupManager.executeExport()" style="flex:1; padding:12px; font-size:1.1rem; border:none; background:#3b82f6; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s;">📤 내보내기</button>
             </div>
             `;
-            this.modal = new window.Modal({ id: 'backup-modal-v12', title: '내보내기/가져오기', width: '550px', content: html });
+            this.modal = new window.Modal({ id: 'backup-modal-v13', title: '내보내기/가져오기', width: '550px', content: html });
         }
         this.modal.open();
         this.setDefaultDates();
@@ -223,19 +221,15 @@ export const BackupManager = {
         const cCard = document.getElementById('target-card-calendar');
         const sCard = document.getElementById('target-card-sheets');
         const fCard = document.getElementById('target-card-csv');
-        const sheetExtra = document.getElementById('sheet-link-area');
 
         cCard.style.borderColor = '#cbd5e1'; cCard.style.background = '#f8fafc'; cCard.style.color = '#64748b';
         sCard.style.borderColor = '#cbd5e1'; sCard.style.background = '#f8fafc'; sCard.style.color = '#64748b';
         fCard.style.borderColor = '#cbd5e1'; fCard.style.background = '#f8fafc'; fCard.style.color = '#64748b';
 
-        if (sheetExtra) sheetExtra.style.display = 'none';
-
         if (target === 'calendar') {
             cCard.style.borderColor = '#ea4335'; cCard.style.background = '#fce8e6'; cCard.style.color = '#ea4335';
         } else if (target === 'sheets') {
             sCard.style.borderColor = '#0f9d58'; sCard.style.background = '#e8f5e9'; sCard.style.color = '#0f9d58';
-            if (sheetExtra && this.currentSpreadsheetId) sheetExtra.style.display = 'block';
         } else if (target === 'csv') {
             fCard.style.borderColor = '#475569'; fCard.style.background = '#f1f5f9'; fCard.style.color = '#475569';
         }
@@ -322,7 +316,18 @@ export const BackupManager = {
         endInput.value = formatDate(eDate);
     },
 
-    // 🌟 [핵심 변경] 누락되었던 getOrCreateSpreadsheet 함수 완벽 복구
+    // UI에 보여주지 않고 백그라운드에서 ID만 체크
+    checkExistingSheet: async function() {
+        try {
+            const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
+            if (docSnap.exists() && docSnap.data().spreadsheetId) {
+                this.currentSpreadsheetId = docSnap.data().spreadsheetId;
+            } else {
+                this.currentSpreadsheetId = null;
+            }
+        } catch(e) {}
+    },
+
     getOrCreateSpreadsheet: async function(token) {
         const configRef = doc(getUserCol('settings'), 'backup_config');
         const docSnap = await getDoc(configRef);
@@ -370,35 +375,6 @@ export const BackupManager = {
             await setDoc(configRef, { spreadsheetId });
         }
         return spreadsheetId;
-    },
-
-    checkExistingSheet: async function() {
-        try {
-            const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
-            const linkArea = document.getElementById('sheet-link-area');
-            if (docSnap.exists() && docSnap.data().spreadsheetId && linkArea) {
-                this.currentSpreadsheetId = docSnap.data().spreadsheetId;
-                linkArea.innerHTML = `
-                    <div style="text-align:center; margin-top:5px;">
-                        <span onclick="window.BackupManager.resetSheetConnection()" style="font-size:0.85rem; color:#64748b; cursor:pointer; text-decoration:underline;">※ 구글 시트 연결 해제 / 꼬임 초기화</span>
-                    </div>
-                `;
-                const target = document.querySelector('input[name="backup-target"]:checked');
-                if (target && target.value === 'sheets') linkArea.style.display = 'block';
-            } else if (linkArea) {
-                linkArea.innerHTML = '';
-                linkArea.style.display = 'none';
-            }
-        } catch(e) {}
-    },
-
-    resetSheetConnection: async function() {
-        if(confirm("기존 구글 시트와의 연결을 강제로 끊고 완전히 새로운 파일을 생성하시겠습니까?")) {
-            await deleteDoc(doc(getUserCol('settings'), 'backup_config'));
-            this.currentSpreadsheetId = null;
-            this.checkExistingSheet();
-            alert("초기화 완료!\n[내보내기] 버튼을 누르시면 드라이브에 새로운 파일이 생성됩니다.");
-        }
     },
 
     getScheduleDataArray: async function() {
@@ -637,16 +613,21 @@ export const BackupManager = {
             return;
         }
 
+        const incEvent = document.getElementById('backup-chk-event').checked;
+        const incClass = document.getElementById('backup-chk-class').checked;
+        const incJournal = document.getElementById('backup-chk-journal').checked;
+        const incEval = document.getElementById('backup-chk-eval').checked;
+
         const header = rows[0];
         const dateIdx = header.findIndex(h => typeof h === 'string' && h.includes("날짜"));
-        const eventIdx = header.findIndex(h => typeof h === 'string' && h.includes("일정"));
-        const journalIdx = header.findIndex(h => typeof h === 'string' && h.includes("기록"));
-        const evalIdx = header.findIndex(h => typeof h === 'string' && h.includes("조사표"));
+        const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정")) : -1;
+        const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록")) : -1;
+        const evalIdx = incEval ? header.findIndex(h => typeof h === 'string' && h.includes("조사표")) : -1;
 
-        const doEvent = eventIdx !== -1;
-        const doJournal = journalIdx !== -1;
-        const doEval = evalIdx !== -1;
-        const doClass = header.some(h => typeof h === 'string' && h.includes("교시"));
+        const doEvent = incEvent && eventIdx !== -1;
+        const doJournal = incJournal && journalIdx !== -1;
+        const doEval = incEval && evalIdx !== -1;
+        const doClass = incClass;
 
         const periodIndices = [];
         if (doClass) {
@@ -1099,7 +1080,6 @@ export const BackupManager = {
 
             this.checkExistingSheet(); 
             
-            // 🌟 [핵심 변경] 완료 화면에서만 띄우는 시트 열기 버튼!
             const sheetLinkHtml = `<button onclick="window.open('https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 내 구글 시트 파일 바로 열기</button>`;
             
             window.ProgressModal.complete("✅ 구글 시트 내보내기가 성공적으로 완료되었습니다!", () => {
@@ -1242,7 +1222,7 @@ export const BackupManager = {
         return rows;
     },
 
-    // 🌟 [핵심 변경] 모든 항목을 하나의 거대한 CSV 파일로 묶어서 다운로드합니다!
+    // 🌟 단일 통합 파일로 내보내기!
     handleDownload: async function() {
         try {
             window.ProgressModal.show("로컬 파일(CSV) 통합 내보내기");
@@ -1261,14 +1241,13 @@ export const BackupManager = {
                 window.ProgressModal.update("일정 및 수업 기록 변환 중...", 50);
                 const data = await this.getScheduleDataArray();
                 
-                // 스케줄 섹션 마커 삽입
+                // 스케줄 섹션
                 combinedRows.push(["#SECTION", "SCHEDULE"]);
                 combinedRows = combinedRows.concat(data.scheduleRows);
 
                 if (incEval) {
-                    window.ProgressModal.update("조사표 파일 묶음 변환 중...", 70);
+                    window.ProgressModal.update("조사표 데이터 병합 중...", 70);
                     for (const [sName, rows] of Object.entries(data.evalSheetsData)) {
-                        // 조사표 섹션 마커 삽입 (시트명 포함)
                         combinedRows.push(["#SECTION", "EVAL", sName]);
                         combinedRows = combinedRows.concat(rows);
                     }
@@ -1276,10 +1255,10 @@ export const BackupManager = {
             }
 
             if (incMemo) {
-                window.ProgressModal.update("메모 파일 생성 중...", 80);
+                window.ProgressModal.update("메모 데이터 병합 중...", 80);
                 const memoData = await this.getMemoDataArray();
                 
-                // 메모 섹션 마커 삽입
+                // 메모 섹션
                 combinedRows.push(["#SECTION", "MEMO"]);
                 combinedRows = combinedRows.concat(memoData);
             }
@@ -1304,7 +1283,7 @@ export const BackupManager = {
         } 
     },
 
-    // 🌟 [핵심 변경] 통합된 단일 CSV 파일을 스스로 구획을 나누어 복원합니다!
+    // 🌟 단일 통합 파일에서 각 구획별로 잘라서 자동 복원!
     handleUpload: async function(input) {
         const file = input.files[0];
         if (!file) return;
@@ -1312,7 +1291,7 @@ export const BackupManager = {
         const mode = document.querySelector('input[name="import-mode"]:checked').value;
         const modeName = mode === 'overwrite' ? '완전 초기화 및 덮어쓰기(교체)' : '기존 데이터에 병합';
 
-        if(!confirm(`[${modeName}]\n선택하신 통합 백업 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
+        if(!confirm(`[${modeName}]\n선택하신 통합 파일(${file.name})로 복원을 진행하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) { input.value = ''; return; }
 
         try {
             window.ProgressModal.show("로컬 통합 파일(CSV) 가져오기");
@@ -1325,7 +1304,7 @@ export const BackupManager = {
             let memoRows = [];
             let evalSheetsData = {};
 
-            // 통합 파일 여부 체크 (최신 방식)
+            // 통합 파일 여부 체크 및 파싱
             if (rows[0] && rows[0][0] === "#SECTION") {
                 let currentSection = null;
                 let currentSheetName = null;
@@ -1352,10 +1331,10 @@ export const BackupManager = {
                     }
                 }
             } else {
-                // 구버전 파일(개별 파일) 하위 호환 로직
+                // 구버전 파일(개별 파일) 하위 호환
                 const headerStr = rows[0] ? rows[0].join(',') : '';
                 if (headerStr.includes('조사표 ID (수정금지)')) {
-                    throw new Error("개별 조사표 CSV 파일입니다. 조사표 개별 복원은 구글 시트를 사용하시거나 새로운 형태의 '통합 CSV 백업 파일'을 이용해주세요.");
+                    throw new Error("개별 조사표 CSV 파일입니다. 조사표 개별 복원은 구글 시트를 사용하시거나, 새로운 '통합 CSV 백업 파일'을 이용해주세요.");
                 } else if (headerStr.includes('데이터분류') && headerStr.includes('생성일자')) {
                     memoRows = rows;
                 } else if (headerStr.includes('날짜')) {
@@ -1365,7 +1344,26 @@ export const BackupManager = {
                 }
             }
 
-            // 통합 파일의 조사표 섹션을 업데이트 큐(matrixUpdates)로 변환
+            // 🌟 [핵심 변경] CSV 복원 시, 팝업창의 기간을 무시하고 파일에 있는 전체 기간을 자동으로 읽어서 복원하도록 수정!
+            if (schedRows.length > 1) {
+                const dateIdx = schedRows[0].findIndex(h => typeof h === 'string' && h.includes("날짜"));
+                if (dateIdx !== -1) {
+                    let minDate = "9999-99-99";
+                    let maxDate = "0000-00-00";
+                    for (let i = 1; i < schedRows.length; i++) {
+                        const dStr = schedRows[i][dateIdx];
+                        if (dStr && dStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                            if (dStr < minDate) minDate = dStr;
+                            if (dStr > maxDate) maxDate = dStr;
+                        }
+                    }
+                    if (minDate <= maxDate) {
+                        document.getElementById('backup-start-date').value = minDate;
+                        document.getElementById('backup-end-date').value = maxDate;
+                    }
+                }
+            }
+
             let matrixUpdates = [];
             if (Object.keys(evalSheetsData).length > 0) {
                 for (const sName of Object.keys(evalSheetsData)) {
@@ -1400,7 +1398,6 @@ export const BackupManager = {
                 }
             }
 
-            // 분류된 데이터를 각각 처리 엔진에 투입
             if (schedRows.length > 0) {
                 await this.processScheduleRows(schedRows, mode, matrixUpdates);
             }
