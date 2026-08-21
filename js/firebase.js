@@ -1,7 +1,6 @@
 // js/firebase.js
 
 import { initializeApp } from "firebase/app";
-// 🌟 [SP3.4 변경] initializeFirestore, 로컬 캐시 관리자, 네트워크 제어 함수(enableNetwork, disableNetwork) 추가
 import { 
     initializeFirestore, 
     persistentLocalCache, 
@@ -22,10 +21,8 @@ const firebaseConfig = {
     appId: "1:906471951519:web:1d3e6952d9579b2a9b26aa"
 };
 
-// 1. Firebase 모듈화 초기화
 const app = initializeApp(firebaseConfig);
 
-// 🌟 [SP3.4 핵심] Firestore 오프라인 캐시 및 동기화 엔진 활성화 (다중 탭 충돌 방지 포함)
 export const db = initializeFirestore(app, {
     localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
@@ -43,7 +40,6 @@ provider.addScope('https://www.googleapis.com/auth/calendar');
 provider.addScope('https://www.googleapis.com/auth/tasks');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets');
 
-// 🌟 [SP3.4 추가] 네트워크 제어 함수 (온라인/오프라인 모드 전환용)
 export const setNetworkOnline = async () => {
     try {
         await enableNetwork(db);
@@ -62,7 +58,6 @@ export const setNetworkOffline = async () => {
     }
 };
 
-// 2. Collection Reference 반환
 export const getUserCol = (collectionName) => {
     const user = auth.currentUser;
     if (!user) throw new Error("로그인이 필요합니다.");
@@ -153,7 +148,6 @@ export const compressImage = (file, maxWidth = 1200) => {
     });
 };
 
-// 3. 데이터베이스 조작 API
 export const dbAPI = {
     loadMemos: async () => {
         try {
@@ -209,31 +203,26 @@ export const dbAPI = {
             await deleteObject(storageRef); 
         } catch(e) { console.warn("이미지 삭제 실패", e); }
     },
-    // [SP3.5 변경] 다중 학급 명렬표 로드 (배열 반환)
     loadRoster: async () => {
         try {
             const docSnap = await getDoc(doc(getUserCol('settings'), 'rosters'));
             if (docSnap.exists() && docSnap.data().classList) {
                 return docSnap.data().classList;
             }
-            // 기존 단일 데이터 하위 호환용
             const oldSnap = await getDoc(doc(getUserCol('settings'), 'roster'));
             if (oldSnap.exists()) return [oldSnap.data()];
             return [];
         } catch (error) { return []; }
     },
-    // [SP3.5 변경] 다중 학급 명렬표 저장
     saveRoster: async (classList) => {
         await setDoc(doc(getUserCol('settings'), 'rosters'), { classList, updatedAt: Date.now() }, { merge: true });
     },
-    // [SP3.5 추가] 해당 날짜의 조사표/평가 로드
     loadEvaluations: async (dateStr) => {
         try {
             const docSnap = await getDoc(doc(getUserCol('evaluations'), dateStr));
             return docSnap.exists() ? docSnap.data().evalList || [] : [];
         } catch (error) { return []; }
     },
-    // [SP3.5 추가] 해당 날짜의 조사표/평가 저장
     saveEvaluations: async (dateStr, evalList) => {
         await setDoc(doc(getUserCol('evaluations'), dateStr), { evalList, updatedAt: Date.now() }, { merge: true });
     }
@@ -278,9 +267,6 @@ export const getValidGoogleToken = async () => {
     return await forceRenewToken();
 };
 
-// ==========================================================================
-// 🌉 과도기 호환성 레이어 
-// ==========================================================================
 window.getUserCol = getUserCol;
 window.signInWithGoogle = signInWithGoogle;
 window.signOut = signOut;
