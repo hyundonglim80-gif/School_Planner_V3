@@ -1,5 +1,6 @@
 // js/modules/sync.js
 
+import { store } from '../core/store.js'; 
 import { formatDate, getEventLabels, getJournalLabels } from '../core/utils.js'; 
 import { parseRawEventTextToEventList } from '../core/eventUtils.js'; 
 import { getUserCol, auth, storage, db } from '../firebase.js'; 
@@ -86,7 +87,6 @@ export const fetchHolidaysFromGovApi = async function(year, apiKey) {
     return holidays;
 };
 
-// 조사표 데이터를 CSV 파일로 파이어베이스 저장소에 올리고 다운로드 링크를 받아오는 함수
 async function uploadEvalCSVToStorage(ev) {
     if (!auth.currentUser || typeof window.BackupManager === 'undefined') return null;
     try {
@@ -104,7 +104,7 @@ async function uploadEvalCSVToStorage(ev) {
 }
 
 // ==============================================================================
-// 📤 [내보내기] 웹 화면의 데이터를 구글 캘린더에 저장
+// 📤 [내보내기] 웹 화면의 데이터를 구글 캘린더/Tasks에 저장
 // ==============================================================================
 export const executeGoogleExport = async function() {
     const token = await window.getValidGoogleToken();
@@ -129,8 +129,8 @@ export const executeGoogleExport = async function() {
 
     try {
         if (syncTasks) {
-            updateProgress("📝 구글 Tasks 확인 및 정리 중...", 10);
-            await syncMemosToGoogleTasks(token);
+            updateProgress("📝 구글 Tasks 확인 및 메모 동기화 중...", 10);
+            await syncMemosToGoogleTasks(token, mode);
         }
 
         if (syncEvent || syncClass || syncJournal || syncEval) {
@@ -202,7 +202,7 @@ export const executeGoogleExport = async function() {
 };
 
 // ==============================================================================
-// 📥 [가져오기] 구글 캘린더/공휴일 데이터를 웹 화면에 저장
+// 📥 [가져오기] 구글 캘린더/공휴일/Tasks 데이터를 웹 화면에 저장
 // ==============================================================================
 export const executeGoogleImport = async function() {
     const token = await window.getValidGoogleToken();
@@ -212,15 +212,19 @@ export const executeGoogleImport = async function() {
     const endStr = document.getElementById('backup-end-date').value;
     const mode = document.querySelector('input[name="import-mode"]:checked').value;
     
-    // 사생활 보호 정책: 개인 기본 캘린더 강제 제외
     const importPrimary = false; 
-    const importDedicated = true; // School Planner 전용 캘린더 포함
-    const importHoliday = true; // 공휴일 포함
+    const importDedicated = true; 
+    const importHoliday = true; 
     const holidaySource = 'gov_api'; 
 
-    // 구글 캘린더에서 웹으로 가져올 때, 전용 캘린더의 데이터는 merge일 경우 replace로 작동하여 중복을 방지
     const internalMode = mode === 'merge' ? 'replace' : 'overwrite';
     
+    const syncEvent = document.getElementById('backup-chk-event').checked;
+    const syncClass = document.getElementById('backup-chk-class').checked;
+    const syncJournal = document.getElementById('backup-chk-journal').checked;
+    const syncEval = document.getElementById('backup-chk-eval').checked;
+    const syncTasks = document.getElementById('backup-chk-memo').checked;
+
     let startD = new Date(startStr); let endD = new Date(endStr);
     if (startD > endD) { alert("시작일이 종료일보다 늦을 수 없습니다."); return; }
 
@@ -230,10 +234,15 @@ export const executeGoogleImport = async function() {
         const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
         const timeMax = new Date(endStr + 'T23:59:59+09:00').toISOString();
 
+        if (syncTasks) {
+            updateProgress("📝 구글 Tasks 메모 복원 중...", 10);
+            await importMemosFromGoogleTasks(token, internalMode);
+        }
+
         let importedEvents = [];
         let importedClasses = [];
         let importedJournals = [];
-        let importedEvals = []; // 🌟 복원된 조사표 데이터 보관용 배열
+        let importedEvals = [];
 
         const masterEventLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
@@ -242,160 +251,177 @@ export const executeGoogleImport = async function() {
         const labelId = holidayLabelObj ? holidayLabelObj.id : '';
         const labelName = holidayLabelObj ? holidayLabelObj.name : '공휴일';
 
-        updateProgress("🏛️ 정부 공식 공휴일 처리 중...", 20);
-        
-        const savedApiKey = localStorage.getItem('gov_holiday_api_key') || '61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D';
-        const sYear = startD.getFullYear();
-        const eYear = endD.getFullYear();
-        let apiSuccess = false;
+        if (importHoliday) {
+            updateProgress("🏛️ 정부 공식 공휴일 처리 중...", 20);
+            
+            const savedApiKey = localStorage.getItem('gov_holiday_api_key') || '61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D';
+            const sYear = startD.getFullYear();
+            const eYear = endD.getFullYear();
+            let apiSuccess = false;
 
-        for (let y = sYear; y <= eYear; y++) {
-            try {
-                const govHolidays = await fetchHolidaysFromGovApi(y, savedApiKey);
-                if (govHolidays && Object.keys(govHolidays).length > 0) {
-                    apiSuccess = true;
-                    for (const [dStr, hName] of Object.entries(govHolidays)) {
-                        if (dStr >= startStr && dStr <= endStr) {
-                            importedEvents.push({ 
-                                dateStr: dStr, labelIds: labelId ? [labelId] : [], label: labelName, 
-                                labels: [labelName], content: hName, completed: false, source: 'holiday' 
-                            });
+            if (holidaySource === 'gov_api') {
+                for (let y = sYear; y <= eYear; y++) {
+                    try {
+                        const govHolidays = await fetchHolidaysFromGovApi(y, savedApiKey);
+                        if (govHolidays && Object.keys(govHolidays).length > 0) {
+                            apiSuccess = true;
+                            for (const [dStr, hName] of Object.entries(govHolidays)) {
+                                if (dStr >= startStr && dStr <= endStr) {
+                                    importedEvents.push({ 
+                                        dateStr: dStr, labelIds: labelId ? [labelId] : [], label: labelName, 
+                                        labels: [labelName], content: hName, completed: false, source: 'holiday' 
+                                    });
+                                }
+                            }
                         }
+                    } catch (err) {
+                        console.warn(`${y}년 공공데이터 API 가져오기 실패:`, err);
                     }
                 }
-            } catch (err) {
-                console.warn(`${y}년 공공데이터 API 가져오기 실패:`, err);
+            }
+
+            if (!apiSuccess) {
+                if (holidaySource === 'gov_api') alert("⚠️ 정부 공공데이터 서버 응답 실패로 인해, '구글 캘린더 기본 공휴일'로 대체하여 가져옵니다.");
+                updateProgress("📅 구글 캘린더 한국 공휴일 읽는 중...", 25);
+                const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
+                try {
+                    const resItems = await fetchAllGoogleEvents(token, holidayCalId, timeMin, timeMax);
+                    if (resItems && resItems.length > 0) {
+                        resItems.forEach(ev => {
+                            const dateArr = getDatesFromGoogleEvent(ev);
+                            dateArr.forEach(dStr => {
+                                if (dStr >= startStr && dStr <= endStr) {
+                                    importedEvents.push({ 
+                                        dateStr: dStr, labelIds: labelId ? [labelId] : [], label: labelName, 
+                                        labels: [labelName], content: ev.summary, completed: false, source: 'holiday' 
+                                    });
+                                }
+                            });
+                        });
+                    }
+                } catch (e) {
+                    console.warn("구글 대체 공휴일 가져오기 실패:", e);
+                }
             }
         }
 
-        // 정부 API 실패 시 구글 캘린더 공휴일로 대체
-        if (!apiSuccess) {
-            alert("⚠️ 정부 공공데이터 서버 응답 실패로 인해, '구글 캘린더 기본 공휴일'로 대체하여 가져옵니다.");
-            updateProgress("📅 구글 캘린더 한국 공휴일 읽는 중...", 25);
-            const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
+        if (importDedicated) {
+            updateProgress("📅 'School Planner' 전용 캘린더 복원 중...", 40);
             try {
-                const resItems = await fetchAllGoogleEvents(token, holidayCalId, timeMin, timeMax);
+                const calId = await getOrCreateDedicatedCalendar(token);
+                const resItems = await fetchAllGoogleEvents(token, calId, timeMin, timeMax);
+                
                 if (resItems && resItems.length > 0) {
                     resItems.forEach(ev => {
+                        const priv = ev.extendedProperties?.private || {};
+                        const type = priv.type || 'event'; 
+                        const isCompleted = priv.completed === 'true'; 
+                        
                         const dateArr = getDatesFromGoogleEvent(ev);
                         dateArr.forEach(dStr => {
                             if (dStr >= startStr && dStr <= endStr) {
-                                importedEvents.push({ 
-                                    dateStr: dStr, labelIds: labelId ? [labelId] : [], label: labelName, 
-                                    labels: [labelName], content: ev.summary, completed: false, source: 'holiday' 
-                                });
+                                let rawSummary = (ev.summary || '').replace(/^[\u200C\u200D]+/, '');
+                                let rawDesc = ev.description || '';
+
+                                if (type === 'class') {
+                                    const pNum = priv.period ? parseInt(priv.period, 10) : null;
+                                    if (pNum) {
+                                        let subject = rawSummary;
+                                        const match = subject.match(/^(?:✅\s*)?\[(.*?)\]\s*(.*)$/);
+                                        if (match) subject = match[2].trim();
+                                        
+                                        let memo = ''; let supplies = '';
+                                        if (rawDesc) {
+                                            const mMatch = rawDesc.match(/- 수업 메모:\s*([\s\S]*?)(?=\n- 비고:|$)/);
+                                            if (mMatch) memo = mMatch[1].trim();
+                                            const sMatch = rawDesc.match(/- 비고:\s*([\s\S]*?)$/);
+                                            if (sMatch) supplies = sMatch[1].trim();
+                                        }
+                                        importedClasses.push({ dateStr: dStr, period: pNum, subject, memo, supplies, source: 'google_dedicated' });
+                                    }
+                                } else if (type === 'journal') {
+                                    let labelStr = priv.labelStr || '기록';
+                                    let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '') : rawSummary;
+                                    const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
+                                    if (match && !priv.labelStr) {
+                                        labelStr = match[1].trim();
+                                        content = match[2].trim();
+                                    } else if (priv.labelStr && match && match[1].trim() === priv.labelStr) {
+                                        content = match[2].trim();
+                                    }
+                                    
+                                    let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
+                                    if(labelsArray.length === 0) labelsArray = ['기록'];
+                                    
+                                    let mappedLabelIds = [];
+                                    labelsArray.forEach(lbl => {
+                                        const found = masterJournalLabels.find(m => m.name === lbl);
+                                        if (found) mappedLabelIds.push(found.id);
+                                    });
+
+                                    let newJr = { 
+                                        dateStr: dStr, labelIds: mappedLabelIds, label: labelsArray[0], 
+                                        labels: labelsArray, content: content, completed: isCompleted, source: 'google_dedicated' 
+                                    };
+                                    
+                                    if (priv.sp_id) newJr.id = priv.sp_id;
+                                    else newJr.id = ev.id; 
+
+                                    if (priv.sp_forwardChainId) newJr.forwardChainId = priv.sp_forwardChainId;
+                                    
+                                    importedJournals.push(newJr);
+                                } else if (type === 'eval') {
+                                    const evalMatch = rawDesc.match(/SP_EVAL_DATA_START\n([\s\S]*?)\nSP_EVAL_DATA_END/);
+                                    if (evalMatch) {
+                                        try {
+                                            let parsedEval = JSON.parse(evalMatch[1].trim());
+                                            importedEvals.push(parsedEval);
+                                        } catch(err) {
+                                            console.warn("조사표 JSON 파싱 실패:", err);
+                                        }
+                                    }
+                                } else { 
+                                    let labelStr = priv.labelStr || '구글동기화';
+                                    let content = rawSummary;
+                                    const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
+                                    if (match && !priv.labelStr) {
+                                        labelStr = match[1].trim();
+                                        content = match[2].trim();
+                                    } else if (priv.labelStr && match && match[1].trim() === priv.labelStr) {
+                                        content = match[2].trim();
+                                    }
+                                    
+                                    let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
+                                    if(labelsArray.length === 0) labelsArray = ['구글동기화'];
+
+                                    let mappedLabelIds = [];
+                                    labelsArray.forEach(lbl => {
+                                        const found = masterEventLabels.find(m => m.name === lbl);
+                                        if (found) mappedLabelIds.push(found.id);
+                                    });
+
+                                    let newEv = { 
+                                        dateStr: dStr, labelIds: mappedLabelIds, label: labelsArray[0], 
+                                        labels: labelsArray, content: content, completed: isCompleted, source: 'google_dedicated' 
+                                    };
+                                    
+                                    if (priv.sp_id) newEv.id = priv.sp_id;
+                                    else newEv.id = ev.id;
+                                    
+                                    if (priv.sp_forwardChainId) newEv.forwardChainId = priv.sp_forwardChainId;
+                                    
+                                    importedEvents.push(newEv);
+                                }
                             }
                         });
                     });
                 }
-            } catch (e) {
-                console.warn("구글 대체 공휴일 가져오기 실패:", e);
-            }
+            } catch (e) { console.warn("전용 캘린더 가져오기 실패:", e); }
         }
 
-        // 📅 전용 캘린더 가져오기
-        updateProgress("📅 'School Planner' 전용 캘린더 복원 중...", 50);
-        try {
-            const calId = await getOrCreateDedicatedCalendar(token);
-            const resItems = await fetchAllGoogleEvents(token, calId, timeMin, timeMax);
-            
-            if (resItems && resItems.length > 0) {
-                resItems.forEach(ev => {
-                    const priv = ev.extendedProperties?.private || {};
-                    const type = priv.type || 'event'; 
-                    const isCompleted = priv.completed === 'true'; 
-                    
-                    const dateArr = getDatesFromGoogleEvent(ev);
-                    dateArr.forEach(dStr => {
-                        if (dStr >= startStr && dStr <= endStr) {
-                            let rawSummary = (ev.summary || '').replace(/^[\u200C\u200D]+/, '');
-                            let rawDesc = ev.description || '';
-
-                            if (type === 'class') {
-                                const pNum = priv.period ? parseInt(priv.period, 10) : null;
-                                if (pNum) {
-                                    let subject = rawSummary;
-                                    const match = subject.match(/^(?:✅\s*)?\[(.*?)\]\s*(.*)$/);
-                                    if (match) subject = match[2].trim();
-                                    
-                                    let memo = ''; let supplies = '';
-                                    if (rawDesc) {
-                                        const mMatch = rawDesc.match(/- 수업 메모:\s*([\s\S]*?)(?=\n- 비고:|$)/);
-                                        if (mMatch) memo = mMatch[1].trim();
-                                        const sMatch = rawDesc.match(/- 비고:\s*([\s\S]*?)$/);
-                                        if (sMatch) supplies = sMatch[1].trim();
-                                    }
-                                    importedClasses.push({ dateStr: dStr, period: pNum, subject, memo, supplies, source: 'google_dedicated' });
-                                }
-                            } else if (type === 'journal') {
-                                let labelStr = priv.labelStr || '기록';
-                                let content = rawDesc ? rawDesc.replace(/^📝 \[전체 기록 내용\]\n/, '') : rawSummary;
-                                const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
-                                if (match && !priv.labelStr) {
-                                    labelStr = match[1].trim();
-                                    content = match[2].trim();
-                                } else if (priv.labelStr && match && match[1].trim() === priv.labelStr) {
-                                    content = match[2].trim();
-                                }
-                                
-                                let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
-                                if(labelsArray.length === 0) labelsArray = ['기록'];
-                                
-                                let mappedLabelIds = [];
-                                labelsArray.forEach(lbl => {
-                                    const found = masterJournalLabels.find(m => m.name === lbl);
-                                    if (found) mappedLabelIds.push(found.id);
-                                });
-
-                                let newJr = { 
-                                    dateStr: dStr, labelIds: mappedLabelIds, label: labelsArray[0], 
-                                    labels: labelsArray, content: content, completed: isCompleted, source: 'google_dedicated' 
-                                };
-                                if (priv.sp_id) newJr.id = priv.sp_id;
-                                if (priv.sp_forwardChainId) newJr.forwardChainId = priv.sp_forwardChainId;
-                                
-                                importedJournals.push(newJr);
-                            } else if (type === 'eval') {
-                                // 🌟 [핵심] JSON으로 캘린더에 숨겨둔 조사표 데이터 복원
-                                const evalMatch = rawDesc.match(/SP_EVAL_DATA_START\n([\s\S]*?)\nSP_EVAL_DATA_END/);
-                                if (evalMatch) {
-                                    try {
-                                        let parsedEval = JSON.parse(evalMatch[1].trim());
-                                        importedEvals.push(parsedEval);
-                                    } catch(err) {
-                                        console.warn("조사표 JSON 파싱 실패:", err);
-                                    }
-                                }
-                            } else { 
-                                let labelStr = priv.labelStr || '구글동기화';
-                                let content = rawSummary;
-                                const match = content.match(/^(?:✅\s*)?\[(.*?)\]\s*([\s\S]*)$/);
-                                if (match && !priv.labelStr) {
-                                    labelStr = match[1].trim();
-                                    content = match[2].trim();
-                                }
-                                
-                                let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
-                                if(labelsArray.length === 0) labelsArray = ['구글동기화'];
-
-                                let mappedLabelIds = [];
-                                labelsArray.forEach(lbl => {
-                                    const found = masterEventLabels.find(m => m.name === lbl);
-                                    if (found) mappedLabelIds.push(found.id);
-                                });
-
-                                let newEv = { 
-                                    dateStr: dStr, labelIds: mappedLabelIds, label: labelsArray[0], 
-                                    labels: labelsArray, content: content, completed: isCompleted, source: 'google_dedicated' 
-                                };
-                                if (priv.sp_id) newEv.id = priv.sp_id;
-                                importedEvents.push(newEv);
-                            }
-                        }
-                    });
-                });
-            }
-        } catch (e) { console.warn("전용 캘린더 가져오기 실패:", e); }
+        if (importPrimary) {
+            console.log("기본 캘린더 동기화는 활성화되었습니다. (현재 구현 생략됨)");
+        }
 
         updateProgress("💾 앱 데이터베이스에 합치는 중...", 70);
         
@@ -418,29 +444,38 @@ export const executeGoogleImport = async function() {
         let batch = writeBatch(db);
         let batchOpCount = 0;
 
+        // 🌟 [에러 수정 부분] uniqueMap 대신 배열(merged)을 그대로 반환하도록 수정 완료!
         const getUniqueList = (list) => {
-            const uniqueMap = new Map();
+            const merged = [];
             for (const item of list) {
                 const lblStr = (item.labels || []).join(',');
-                let key = '';
-                if (item.id) key = `id_${item.id}`; 
-                else if (item.forwardChainId) key = `chain_${item.forwardChainId}_${item.content}`; 
-                else key = `val_${item.content}-${lblStr}`; 
 
-                if (!uniqueMap.has(key)) {
-                    uniqueMap.set(key, { ...item });
-                } else {
-                    const existing = uniqueMap.get(key);
+                let existing = null;
+                if (item.id) {
+                    existing = merged.find(e => e.id === item.id);
+                }
+                if (!existing && item.forwardChainId) {
+                    existing = merged.find(e => e.forwardChainId === item.forwardChainId && e.content === item.content);
+                }
+                if (!existing) {
+                    existing = merged.find(e => {
+                        const eLblStr = (e.labels || []).join(',');
+                        return e.content === item.content && eLblStr === lblStr && (!e.id || !item.id); 
+                    });
+                }
+
+                if (existing) {
                     existing.completed = item.completed; 
                     existing.source = item.source || existing.source;
-                    
                     if (!existing.id && item.id) existing.id = item.id;
                     if (!existing.forwardChainId && item.forwardChainId) existing.forwardChainId = item.forwardChainId;
                     if (!existing.groupId && item.groupId) existing.groupId = item.groupId;
                     if (!existing.originalDate && item.originalDate) existing.originalDate = item.originalDate;
+                } else {
+                    merged.push({ ...item }); 
                 }
             }
-            return Array.from(uniqueMap.values());
+            return merged; 
         };
 
         while (curD <= endD) {
@@ -465,33 +500,37 @@ export const executeGoogleImport = async function() {
             if (internalMode === 'replace') currentList = currentList.filter(e => e.source !== 'google_primary' && e.source !== 'google_dedicated' && e.source !== 'holiday');
             else if (internalMode === 'overwrite') currentList = [];
 
-            if (newEvents.length > 0 || internalMode === 'replace' || internalMode === 'overwrite') {
-                const mergedList = getUniqueList([...currentList, ...newEvents]); 
-                batch.set(evRef, { eventList: mergedList, updatedAt: Date.now() }, { merge: true });
-                batchOpCount++;
+            if ((syncEvent && newEvents.length > 0) || internalMode === 'replace' || internalMode === 'overwrite') {
+                if(syncEvent || internalMode === 'overwrite') {
+                    const mergedList = getUniqueList([...currentList, ...newEvents]); 
+                    
+                    const eventText = window.formatEventListToText ? window.formatEventListToText(mergedList) : '';
+                    batch.set(evRef, { eventList: mergedList, eventText: eventText, updatedAt: Date.now() }); 
+                    batchOpCount++;
 
-                let isSkipDay = false;
-                for (const e of mergedList) {
-                    if (e.source === 'holiday' || (e.labelIds && e.labelIds.some(id => { const match = masterEventLabels.find(l => l.id === id); return match && match.isSkip; }))) {
-                        isSkipDay = true; break;
-                    }
-                }
-                
-                if (isSkipDay) {
-                    const scRef = doc(getUserCol('schedules'), dStr);
-                    const scSnap = await getDoc(scRef);
-                    if (scSnap.exists()) {
-                        let periods = scSnap.data().periods || {};
-                        let scheduleChanged = false;
-                        for (let p in periods) {
-                            if (periods[p].subject && periods[p].subject.trim() !== '') { periods[p].subject = ''; scheduleChanged = true; }
+                    let isSkipDay = false;
+                    for (const e of mergedList) {
+                        if (e.source === 'holiday' || (e.labelIds && e.labelIds.some(id => { const match = masterEventLabels.find(l => l.id === id); return match && match.isSkip; }))) {
+                            isSkipDay = true; break;
                         }
-                        if (scheduleChanged) { batch.set(scRef, { periods: periods, updatedAt: Date.now() }, { merge: true }); batchOpCount++; }
+                    }
+                    
+                    if (isSkipDay && syncClass) {
+                        const scRef = doc(getUserCol('schedules'), dStr);
+                        const scSnap = await getDoc(scRef);
+                        if (scSnap.exists()) {
+                            let periods = scSnap.data().periods || {};
+                            let scheduleChanged = false;
+                            for (let p in periods) {
+                                if (periods[p].subject && periods[p].subject.trim() !== '') { periods[p].subject = ''; scheduleChanged = true; }
+                            }
+                            if (scheduleChanged) { batch.set(scRef, { periods: periods, updatedAt: Date.now() }, { merge: true }); batchOpCount++; }
+                        }
                     }
                 }
             }
 
-            if (newClasses.length > 0 || internalMode === 'overwrite') {
+            if ((syncClass && newClasses.length > 0) || (syncClass && internalMode === 'overwrite')) {
                 const scRef = doc(getUserCol('schedules'), dStr);
                 const scSnap = await getDoc(scRef);
                 let periods = scSnap.exists() ? (scSnap.data().periods || {}) : {};
@@ -503,12 +542,12 @@ export const executeGoogleImport = async function() {
                 });
                 
                 if (newClasses.length > 0 || internalMode === 'overwrite') {
-                    batch.set(scRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
+                    batch.set(scRef, { periods: periods, updatedAt: Date.now() }); 
                     batchOpCount++;
                 }
             }
 
-            if (newJournals.length > 0 || internalMode === 'replace' || internalMode === 'overwrite') {
+            if ((syncJournal && newJournals.length > 0) || (syncJournal && (internalMode === 'replace' || internalMode === 'overwrite'))) {
                 const jrRef = doc(getUserCol('journals'), dStr);
                 const jrSnap = await getDoc(jrRef);
                 let entries = jrSnap.exists() ? (jrSnap.data().entries || []) : [];
@@ -518,13 +557,12 @@ export const executeGoogleImport = async function() {
                 
                 if (newJournals.length > 0 || internalMode === 'replace' || internalMode === 'overwrite') {
                     const mergedEntries = getUniqueList([...entries, ...newJournals]); 
-                    batch.set(jrRef, { entries: mergedEntries, updatedAt: Date.now() }, { merge: true });
+                    batch.set(jrRef, { entries: mergedEntries, updatedAt: Date.now() }); 
                     batchOpCount++;
                 }
             }
 
-            // 🌟 조사표 데이터베이스 병합 저장 로직
-            if (newEvals.length > 0 || internalMode === 'overwrite') {
+            if ((syncEval && newEvals.length > 0) || (syncEval && internalMode === 'overwrite')) {
                 const elRef = doc(getUserCol('evaluations'), dStr);
                 const elSnap = await getDoc(elRef);
                 let currentEvals = elSnap.exists() ? (elSnap.data().evalList || []) : [];
@@ -538,7 +576,7 @@ export const executeGoogleImport = async function() {
                         if (idx !== -1) combined[idx] = newItem; 
                         else combined.push(newItem);
                     });
-                    batch.set(elRef, { evalList: combined, updatedAt: Date.now() }, { merge: true });
+                    batch.set(elRef, { evalList: combined, updatedAt: Date.now() }); 
                     batchOpCount++;
                 }
             }
@@ -556,7 +594,9 @@ export const executeGoogleImport = async function() {
         
         if (batchOpCount > 0) await batch.commit();
 
-        finishProgress("✅ 캘린더 및 공휴일 가져오기가 완료되었습니다!");
+        store.hasUnsavedChanges = false;
+
+        finishProgress("✅ 구글 캘린더 동기화가 완벽하게 완료되었습니다!");
 
     } catch (error) {
         handleSyncError(error);
@@ -600,6 +640,7 @@ function finishProgress(text) {
     if (window.ProgressModal) {
         window.ProgressModal.complete(text, () => {
             if (window.BackupManager && window.BackupManager.modal) window.BackupManager.modal.close();
+            store.hasUnsavedChanges = false; 
             if (typeof window.render === 'function') window.render();
         });
     }
@@ -644,7 +685,7 @@ async function getOrCreateDedicatedCalendar(token) {
     return newCal.id;
 }
 
-// 🌟 [핵심 변경] 캘린더 내보내기 시, 조사표의 원본 JSON 데이터를 설명란(Description)에 비밀리에 심어둠
+// 🌟 캘린더 내보내기 핵심 로직 
 async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData, jData, elData, incEvent, incClass, incJournal, incEval, existingEvents = [], mode = 'merge') {
     let payloadsToCreate = [];
     
@@ -658,7 +699,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
     const masterEventLabels = getEventLabels();
     const masterJournalLabels = getJournalLabels();
 
-    // 1. 일정(Event)
     if (incEvent && eData) {
         let list = eData.eventList || [];
         if (list.length === 0 && eData.eventText) list = parseRawEventTextToEventList(eData.eventText);
@@ -687,7 +727,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
-    // 2. 수업(Class)
     if (incClass && sData && sData.periods) {
         const periods = sData.periods;
         let periodCount = window.periodNames ? window.periodNames.length : 6; 
@@ -712,7 +751,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         }
     }
 
-    // 3. 기록(Journal)
     if (incJournal && jData && jData.entries) {
         const journals = jData.entries.filter(j => j.content && j.content.trim() !== '');
 
@@ -739,7 +777,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
         });
     }
 
-    // 🌟 4. 조사표(Evaluation) - 원본 데이터(JSON)를 설명란에 완벽 보존
     if (incEval && elData && elData.evalList) {
         for (const ev of elData.evalList) {
             let invisiblePrefix = getInvisiblePrefix(seq++);
@@ -749,7 +786,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
             if (url) desc += `- 다운로드 링크: ${url}\n`;
             else desc += `- CSV 파일을 생성하지 못했습니다.\n`;
 
-            // 시스템이 복원할 때 사용할 JSON 데이터를 안전하게 캡슐화하여 첨부
             desc += `\n\n[조사표 원본 데이터 - 시스템용이므로 절대 수정하지 마세요]\nSP_EVAL_DATA_START\n${JSON.stringify(ev)}\nSP_EVAL_DATA_END`;
 
             payloadsToCreate.push({
@@ -776,7 +812,6 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
     });
 
     let matchedExistingIds = new Set();
-    const toCreate = [];
 
     for (const payload of payloadsToCreate) {
         const pPriv = payload.extendedProperties.private;
@@ -787,7 +822,10 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
             if (priv.dateStr !== pPriv.dateStr) return false;
             if (priv.type === 'class') return priv.period === pPriv.period;
             if (priv.sp_id && pPriv.sp_id) return priv.sp_id === pPriv.sp_id;
-            return ev.summary === payload.summary;
+            
+            const cleanEvSummary = (ev.summary || '').replace(/^[\u200C\u200D]+/, '').replace(/^✅\s*/, '').trim();
+            const cleanPayloadSummary = (payload.summary || '').replace(/^[\u200C\u200D]+/, '').replace(/^✅\s*/, '').trim();
+            return cleanEvSummary === cleanPayloadSummary;
         });
 
         if (identityMatchIdx !== -1) {
@@ -816,36 +854,37 @@ async function syncSingleDateDataToCalendar(token, calId, dateStr, eData, sData,
     }
 }
 
-async function syncMemosToGoogleTasks(token) {
+// 🌟 메모(Google Tasks) 양방향 동기화 최적화 코어 로직 
+const TASK_ID_MARKER = '\n\n[SP_ID: ';
+
+// [메모 내보내기]
+async function syncMemosToGoogleTasks(token, mode = 'merge') {
     const listUrl = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
     const data = await googleFetch(listUrl, 'GET', token);
     
     let targetList = (data.items || []).find(list => list.title === 'School Planner 메모');
     let taskListId;
     
-    if (targetList) {
-        taskListId = targetList.id;
-        let allTasks = [];
-        let pageToken = '';
-        
-        do {
-            const tasksData = await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks${pageToken ? '?pageToken='+pageToken : ''}`, 'GET', token);
-            if (tasksData && tasksData.items) allTasks.push(...tasksData.items);
-            pageToken = tasksData?.nextPageToken || '';
-        } while(pageToken);
-
-        for (const task of allTasks) {
-            if (task.id) {
-                try { await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${task.id}`, 'DELETE', token); } catch(e) {}
-            }
-        }
-    } else {
+    if (!targetList) {
         const newList = await googleFetch(listUrl, 'POST', token, { title: 'School Planner 메모' });
         taskListId = newList.id;
+    } else {
+        taskListId = targetList.id;
     }
 
+    let allTasks = [];
+    let pageToken = '';
+    do {
+        const tasksData = await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks${pageToken ? '?pageToken='+pageToken : ''}`, 'GET', token);
+        if (tasksData && tasksData.items) allTasks.push(...tasksData.items);
+        pageToken = tasksData?.nextPageToken || '';
+    } while(pageToken);
+
     const webMemos = await window.dbAPI.loadMemos();
+    let matchedTaskIds = new Set();
+
     for (const memo of webMemos) {
+        const memoId = memo.firestoreId || memo.id;
         const contentStr = memo.text || ""; 
         let titleSnippet = contentStr ? (contentStr.length > 30 ? contentStr.substring(0, 30) + "..." : contentStr) : "내용 없음";
         
@@ -853,17 +892,105 @@ async function syncMemosToGoogleTasks(token) {
         if (Array.isArray(memo.labels) && memo.labels.length > 0) labelStr = memo.labels.join(', ');
         else if (memo.label) labelStr = memo.label;
 
+        // 메모 식별자(ID) 삽입
         let finalNotes = contentStr;
         if (memo.imageUrl) finalNotes += `\n\n🖼️ [첨부 이미지 링크]\n${memo.imageUrl}`;
+        if (memoId) finalNotes += `${TASK_ID_MARKER}${memoId}]`;
 
         const payload = {
             title: `[${labelStr}] ${titleSnippet}`, 
             notes: finalNotes, 
             status: memo.completed ? 'completed' : 'needsAction'
         };
-        await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks`, 'POST', token, payload);
-        await new Promise(res => setTimeout(res, 20)); 
+
+        const existingTask = allTasks.find(t => {
+            if (t.notes && memoId && t.notes.includes(`${TASK_ID_MARKER}${memoId}]`)) return true;
+            return t.title === payload.title; 
+        });
+
+        if (existingTask) {
+            matchedTaskIds.add(existingTask.id);
+            if (existingTask.title !== payload.title || existingTask.notes !== payload.notes || existingTask.status !== payload.status) {
+                payload.id = existingTask.id;
+                await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${existingTask.id}`, 'PUT', token, payload);
+            }
+        } else {
+            await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks`, 'POST', token, payload);
+            await new Promise(res => setTimeout(res, 20)); 
+        }
     }
+
+    if (mode === 'overwrite') {
+        const tasksToDelete = allTasks.filter(t => !matchedTaskIds.has(t.id));
+        for (const task of tasksToDelete) {
+            try { await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks/${task.id}`, 'DELETE', token); } catch(e) {}
+        }
+    }
+}
+
+// [메모 가져오기]
+async function importMemosFromGoogleTasks(token, mode = 'replace') {
+    const listUrl = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
+    const data = await googleFetch(listUrl, 'GET', token);
+    let targetList = (data.items || []).find(list => list.title === 'School Planner 메모');
+    
+    if (!targetList) return; 
+
+    let allTasks = [];
+    let pageToken = '';
+    do {
+        const tasksData = await googleFetch(`https://tasks.googleapis.com/tasks/v1/lists/${targetList.id}/tasks${pageToken ? '?pageToken='+pageToken : ''}`, 'GET', token);
+        if (tasksData && tasksData.items) allTasks.push(...tasksData.items);
+        pageToken = tasksData?.nextPageToken || '';
+    } while(pageToken);
+
+    const webMemos = await window.dbAPI.loadMemos();
+    let batch = writeBatch(db);
+    let batchOpCount = 0;
+    
+    if (mode === 'overwrite') {
+        for (const m of webMemos) {
+            batch.delete(doc(getUserCol('tasks'), m.firestoreId || m.id));
+            batchOpCount++;
+            if (batchOpCount >= 400) { await batch.commit(); batch = writeBatch(db); batchOpCount = 0; }
+        }
+    }
+
+    for (const task of allTasks) {
+        let titleMatch = task.title ? task.title.match(/^\[(.*?)\]\s*(.*)$/) : null;
+        let labelStr = titleMatch ? titleMatch[1].trim() : '일반';
+        
+        let notes = task.notes || '';
+        let extractedId = null;
+        
+        if (notes.includes(TASK_ID_MARKER)) {
+            const splitArr = notes.split(TASK_ID_MARKER);
+            const rawIdPart = splitArr[splitArr.length - 1];
+            if (rawIdPart.endsWith(']')) {
+                extractedId = rawIdPart.slice(0, -1);
+                notes = splitArr.slice(0, -1).join(TASK_ID_MARKER).trim();
+            }
+        }
+        
+        notes = notes.replace(/\n\n🖼️ \[첨부 이미지 링크\]\nhttps?:\/\/.+/, '').trim();
+        if (!notes) notes = titleMatch ? titleMatch[2].trim() : task.title;
+
+        const isCompleted = task.status === 'completed';
+        const targetMemo = extractedId ? webMemos.find(m => (m.firestoreId || m.id) === extractedId) : webMemos.find(m => m.text === notes);
+
+        if (targetMemo && mode !== 'overwrite') {
+            const memoRef = doc(getUserCol('tasks'), targetMemo.firestoreId || targetMemo.id);
+            batch.update(memoRef, { text: notes, completed: isCompleted, labels: [labelStr], updatedAt: Date.now() });
+        } else {
+            const newRef = doc(getUserCol('tasks'));
+            batch.set(newRef, { text: notes, completed: isCompleted, labels: [labelStr], createdAt: Date.now(), order: -Date.now() });
+        }
+
+        batchOpCount++;
+        if (batchOpCount >= 400) { await batch.commit(); batch = writeBatch(db); batchOpCount = 0; }
+    }
+    
+    if (batchOpCount > 0) await batch.commit();
 }
 
 window.openGoogleSyncModal = () => { if (window.BackupManager && window.BackupManager.openModal) window.BackupManager.openModal(); };

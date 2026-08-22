@@ -316,7 +316,6 @@ export const BackupManager = {
         endInput.value = formatDate(eDate);
     },
 
-    // UI에 보여주지 않고 백그라운드에서 ID만 체크
     checkExistingSheet: async function() {
         try {
             const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
@@ -835,28 +834,70 @@ export const BackupManager = {
         const totalDays = sortedDates.length;
         let processedCount = 0;
 
+        // 🌟 [핵심] 중복 방지 병합 헬퍼 함수
+        const getUniqueList = (list) => {
+            const merged = [];
+            for (const item of list) {
+                const lblStr = (item.labels || []).join(',');
+
+                let existing = null;
+                if (item.id) {
+                    existing = merged.find(e => e.id === item.id);
+                }
+                if (!existing && item.forwardChainId) {
+                    existing = merged.find(e => e.forwardChainId === item.forwardChainId && e.content === item.content);
+                }
+                if (!existing) {
+                    existing = merged.find(e => {
+                        const eLblStr = (e.labels || []).join(',');
+                        return e.content === item.content && eLblStr === lblStr && (!e.id || !item.id); 
+                    });
+                }
+
+                if (existing) {
+                    existing.completed = item.completed; 
+                    existing.source = item.source || existing.source;
+                    if (!existing.id && item.id) existing.id = item.id;
+                    if (!existing.forwardChainId && item.forwardChainId) existing.forwardChainId = item.forwardChainId;
+                    if (!existing.groupId && item.groupId) existing.groupId = item.groupId;
+                    if (!existing.originalDate && item.originalDate) existing.originalDate = item.originalDate;
+                } else {
+                    merged.push({ ...item }); 
+                }
+            }
+            return merged;
+        };
+
         for (const dStr of sortedDates) {
             if (doEvent) {
                 let newEventList = parsedDaysMap[dStr].eventList;
                 let evText = parsedDaysMap[dStr].eventText;
+                
                 if (mode === 'merge') {
                     const existDoc = await getDoc(doc(getUserCol('events'), dStr));
                     if (existDoc.exists()) {
                         const existList = existDoc.data().eventList || [];
-                        const combinedList = [...existList];
-                        newEventList.forEach(newItem => {
-                            const isDup = existList.some(old => old.content === newItem.content);
-                            if(!isDup) combinedList.push(newItem);
-                        });
-                        newEventList = combinedList;
+                        newEventList = getUniqueList([...existList, ...newEventList]); 
                     }
                 }
-                batch.set(doc(getUserCol('events'), dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }, { merge: true });
+                
+                if (window.formatEventListToText) evText = window.formatEventListToText(newEventList);
+
+                batch.set(doc(getUserCol('events'), dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }); 
                 opCount++;
             }
 
             if (doClass && scheduleDataMap[dStr]) {
-                batch.set(doc(getUserCol('schedules'), dStr), { periods: scheduleDataMap[dStr], updatedAt: Date.now() }, { merge: true });
+                if (mode === 'merge') {
+                    const scRef = doc(getUserCol('schedules'), dStr);
+                    const scSnap = await getDoc(scRef);
+                    let existingPeriods = scSnap.exists() ? (scSnap.data().periods || {}) : {};
+                    const newPeriods = scheduleDataMap[dStr];
+                    for (let p in newPeriods) existingPeriods[p] = newPeriods[p];
+                    batch.set(scRef, { periods: existingPeriods, updatedAt: Date.now() });
+                } else {
+                    batch.set(doc(getUserCol('schedules'), dStr), { periods: scheduleDataMap[dStr], updatedAt: Date.now() }); 
+                }
                 opCount++;
             }
 
@@ -866,15 +907,10 @@ export const BackupManager = {
                     const existDoc = await getDoc(doc(getUserCol('journals'), dStr));
                     if (existDoc.exists()) {
                         const existList = existDoc.data().entries || [];
-                        const combinedList = [...existList];
-                        newJournalList.forEach(newItem => {
-                            const isDup = existList.some(old => old.content === newItem.content);
-                            if(!isDup) combinedList.push(newItem);
-                        });
-                        newJournalList = combinedList;
+                        newJournalList = getUniqueList([...existList, ...newJournalList]); 
                     }
                 }
-                batch.set(doc(getUserCol('journals'), dStr), { entries: newJournalList, updatedAt: Date.now() }, { merge: true });
+                batch.set(doc(getUserCol('journals'), dStr), { entries: newJournalList, updatedAt: Date.now() }); 
                 opCount++;
             }
 
@@ -893,7 +929,7 @@ export const BackupManager = {
                         newEvalList = combined;
                     }
                 }
-                batch.set(doc(getUserCol('evaluations'), dStr), { evalList: newEvalList, updatedAt: Date.now() }, { merge: true });
+                batch.set(doc(getUserCol('evaluations'), dStr), { evalList: newEvalList, updatedAt: Date.now() }); 
                 opCount++;
             }
 
@@ -921,6 +957,7 @@ export const BackupManager = {
                 }, { merge: true });
             }
         }
+        store.hasUnsavedChanges = false;
     },
 
     processMemoRows: async function(rows, mode) {
@@ -996,6 +1033,7 @@ export const BackupManager = {
 
         if(opCount > 0) batchPromises.push(batch.commit());
         await Promise.all(batchPromises);
+        store.hasUnsavedChanges = false;
     },
 
     exportToSheets: async function() {
@@ -1084,6 +1122,8 @@ export const BackupManager = {
             
             window.ProgressModal.complete("✅ 구글 시트 내보내기가 성공적으로 완료되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
+                store.hasUnsavedChanges = false; 
+                if(window.render) window.render();
             }, sheetLinkHtml);
 
         } catch (e) {
@@ -1183,10 +1223,13 @@ export const BackupManager = {
                 }
             }
 
+            store.hasUnsavedChanges = false; 
+
             const sheetLinkHtml = `<button onclick="window.open('https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit', '_blank')" style="width:100%; padding:10px; background:#c7d2fe; color:#312e81; border:none; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s;">🔗 연동된 구글 시트 파일 열기</button>`;
             
             window.ProgressModal.complete("✅ 구글 시트에서 성공적으로 복원 및 동기화가 완료되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
+                store.hasUnsavedChanges = false; 
                 if(window.render) window.render();
             }, sheetLinkHtml);
 
@@ -1276,6 +1319,7 @@ export const BackupManager = {
 
             window.ProgressModal.complete("✅ 통합 CSV 파일 다운로드가 완료되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
+                store.hasUnsavedChanges = false; 
             });
 
         } catch (e) { 
@@ -1344,7 +1388,6 @@ export const BackupManager = {
                 }
             }
 
-            // 🌟 [핵심 변경] CSV 복원 시, 팝업창의 기간을 무시하고 파일에 있는 전체 기간을 자동으로 읽어서 복원하도록 수정!
             if (schedRows.length > 1) {
                 const dateIdx = schedRows[0].findIndex(h => typeof h === 'string' && h.includes("날짜"));
                 if (dateIdx !== -1) {
@@ -1406,8 +1449,11 @@ export const BackupManager = {
                 await this.processMemoRows(memoRows, mode);
             }
             
+            store.hasUnsavedChanges = false;
+
             window.ProgressModal.complete("✅ 통합 CSV 파일에서 성공적으로 복원되었습니다!", () => {
                 if(window.BackupManager.modal) window.BackupManager.modal.close();
+                store.hasUnsavedChanges = false; 
                 if(window.render) window.render();
             });
 

@@ -246,7 +246,6 @@ export class MemoView extends BaseView {
     this._drawHTML();
   }
 
-  // 🌟 [핵심 수정 2] 내용이 한 줄을 넘어갈 때만 자동으로 높이가 늘어나도록 수정
   autoResizeTextarea(textarea) {
       store.hasUnsavedChanges = (textarea.value.trim() !== '' || this.pendingImageUrl !== null);
       textarea.style.height = '50px'; // 1줄 기준 기본 높이
@@ -564,10 +563,8 @@ export class MemoView extends BaseView {
   }
 
   save() {
-    const input = document.getElementById("memo-input-text");
-    if (input && (input.value.trim() !== '' || this.pendingImageUrl)) {
-      this.addMemoItem();
-    }
+    // 자동 저장 타이머(0.8초)에 의해 입력 중인 새 메모가 의도치 않게 등록되는 현상을 방지합니다.
+    // 작성 중인 메모는 사용자가 '추가' 버튼을 명시적으로 클릭하거나 Ctrl+Enter를 누를 때만 등록되도록 합니다.
   }
 }
 

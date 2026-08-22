@@ -200,7 +200,6 @@ export class DayView extends BaseView {
           
           const evalBadges = this.generateEvalBadgesHtml('schedule', p);
           
-          // 🌟 [핵심 해결] 마우스가 닿았을 때만 행 전체를 draggable로 만들고, drop 이벤트를 브라우저 표준에 맞게 강제 허용
           return `
             <tr id="period-row-${p}" data-period="${p}" 
                 ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
@@ -234,7 +233,6 @@ export class DayView extends BaseView {
         }).join('');
 
         this.container.innerHTML = `
-          <!-- 🌟 [핵심 CSS] 드래그 중에 글씨 입력칸이 마우스 포인터를 훔쳐가지 못하게 차단 -->
           <style>
             .table-container.is-dragging .editable-cell { 
                 pointer-events: none !important; 
@@ -290,20 +288,15 @@ export class DayView extends BaseView {
         }, 0);
     }
 
-    // ==========================================================
-    // 🌟 드래그 앤 드롭 완벽 처리 엔진
-    // ==========================================================
     handlePeriodDragStart(event, period) {
         window.dayViewInstance.draggedPeriod = period;
         event.dataTransfer.effectAllowed = 'move';
         
-        // 브라우저 표준 (데이터가 세팅되어야 드래그 이벤트가 유지됨)
         event.dataTransfer.setData('text/plain', String(period)); 
         
         setTimeout(() => {
             const row = event.target.closest('tr');
             if (row) row.style.opacity = '0.4';
-            // 전체 표 영역의 텍스트 클릭을 무력화하여 Drop 이벤트 보장
             const tableContainer = window.dayViewInstance.container.querySelector('.table-container');
             if (tableContainer) tableContainer.classList.add('is-dragging'); 
         }, 0);
@@ -327,7 +320,6 @@ export class DayView extends BaseView {
         event.preventDefault();
         event.stopPropagation();
         
-        // 테이블 투명망토 해제 및 원상복구
         const tableContainer = window.dayViewInstance.container.querySelector('.table-container');
         if (tableContainer) tableContainer.classList.remove('is-dragging');
         
@@ -336,13 +328,105 @@ export class DayView extends BaseView {
         
         const sourcePeriod = parseInt(sourcePeriodStr, 10) || window.dayViewInstance.draggedPeriod;
         
+        // 데이터가 없거나 목적지와 똑같다면 아무 작업도 수행하지 않고 취소
         if (!sourcePeriod || sourcePeriod === targetPeriod) {
-            this.renderEditor(); // 스타일 원상복구
             return;
         }
 
         window.dayViewInstance.executeClassSwap(sourcePeriod, targetPeriod);
         window.dayViewInstance.draggedPeriod = null;
+    }
+
+    executeClassSwap(p1, p2) {
+        if (p1 === p2) return;
+        
+        // 1. 현재 화면에 입력 중이던 데이터를 모두 메모리에 임시 저장 (데이터 유실 방지)
+        this.syncScheduleInputs();
+        this.syncEventInputs();
+        this.syncJournalInputs();
+
+        // 2. 수업 데이터(수업, 메모, 비고) 스왑
+        const temp = this.currentSchedules[p1] ? { ...this.currentSchedules[p1] } : null;
+        if (this.currentSchedules[p2]) this.currentSchedules[p1] = { ...this.currentSchedules[p2] };
+        else delete this.currentSchedules[p1];
+        if (temp) this.currentSchedules[p2] = temp;
+        else delete this.currentSchedules[p2];
+
+        // 3. 조사표(평가 뱃지) 데이터 스왑 (비고란에 위치 이동시키기 위해)
+        let evalChanged = false;
+        this.currentEvalList.forEach(ev => {
+            const eSource = ev.context?.source || (ev.periodStr ? 'schedule' : 'journal');
+            if (eSource === 'schedule') {
+                const savedPeriod = ev.periodStr || ev.context?.period || '';
+                const pStr = String(savedPeriod).replace(/[^0-9]/g, '');
+                
+                if (parseInt(pStr, 10) === parseInt(p1, 10)) {
+                    ev.periodStr = String(p2);
+                    if (ev.context) ev.context.period = p2;
+                    evalChanged = true;
+                } else if (parseInt(pStr, 10) === parseInt(p2, 10)) {
+                    ev.periodStr = String(p1);
+                    if (ev.context) ev.context.period = p1;
+                    evalChanged = true;
+                }
+            }
+        });
+
+        store.hasUnsavedChanges = true;
+
+        // 4. 스왑된 상태로 표(tbody) 영역만 즉시 새로 렌더링
+        const tbody = this.container.querySelector('tbody');
+        if (tbody) {
+            tbody.innerHTML = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                const p = i + 1;
+                const pObj = this.currentSchedules[p] || {};
+                const periodName = store.periodNames[i] || p + '교시';
+                const evalBadges = this.generateEvalBadgesHtml('schedule', p);
+                
+                return `
+                <tr id="period-row-${p}" data-period="${p}" 
+                    ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p})"
+                    ondragend="window.dayViewInstance.handlePeriodDragEnd(event)"
+                    ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                    ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                    ondragleave="this.style.backgroundColor='';"
+                    ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handlePeriodDrop(event, ${p});"
+                    style="transition: background-color 0.2s;">
+                  
+                  <td class="period-cell" 
+                      onmouseenter="document.getElementById('period-row-${p}').setAttribute('draggable', 'true')"
+                      onmouseleave="document.getElementById('period-row-${p}').removeAttribute('draggable')"
+                      style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="이곳을 드래그하여 순서 맞바꾸기">
+                      <div style="display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none;">
+                          <span style="font-size:1.2rem; color:#94a3b8;">≡</span>
+                          <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
+                      </div>
+                  </td>
+                  <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.subject || ''}</td>
+                  <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.memo || ''}</td>
+                  <td style="text-align: left; vertical-align: top;">
+                    <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs()">${pObj.supplies || ''}</div>
+                    <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                        <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${evalBadges}
+                        </div>
+                    </div>
+                  </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // 5. 변경된 데이터를 Firebase 클라우드에 즉시 저장하여 영구 고정
+        if (evalChanged) {
+            dbAPI.saveEvaluations(this.dateStr, this.currentEvalList).catch(e => console.warn(e));
+        }
+        
+        if (typeof window.saveCurrentViewData === 'function') {
+            window.saveCurrentViewData(true);
+        } else {
+            this.save();
+            store.hasUnsavedChanges = false;
+        }
     }
 
     renderEventEntries() {
@@ -529,19 +613,6 @@ export class DayView extends BaseView {
             if (subject || memo || supplies) this.currentSchedules[p] = { subject, memo, supplies };
         });
         store.hasUnsavedChanges = true;
-    }
-
-    executeClassSwap(p1, p2) {
-        if (p1 === p2) return;
-        this.syncScheduleInputs();
-        const temp = this.currentSchedules[p1] ? { ...this.currentSchedules[p1] } : null;
-        if (this.currentSchedules[p2]) this.currentSchedules[p1] = { ...this.currentSchedules[p2] };
-        else delete this.currentSchedules[p1];
-        if (temp) this.currentSchedules[p2] = temp;
-        else delete this.currentSchedules[p2];
-        
-        store.hasUnsavedChanges = true;
-        this.renderEditor();
     }
 
     save() {
