@@ -269,11 +269,9 @@ export class MemoView extends BaseView {
       }
   }
 
-  // 🌟 [새 메모 전용] 작성 영역의 공유 버튼을 클릭했을 때 처리하는 함수
   setNewMemoGroup(groupId) {
       this.currentNewMemoGroupId = groupId;
       
-      // UI를 수동으로 갱신하여 텍스트 입력창 포커스가 유지되도록 함
       document.querySelectorAll('.new-memo-group-chip').forEach(el => {
           const val = el.getAttribute('data-value');
           const targetVal = groupId === null ? 'personal' : String(groupId);
@@ -316,10 +314,10 @@ export class MemoView extends BaseView {
         `;
     }
 
-    // 🌟 [V3.6] 버튼형 공유 대상 선택 UI 생성
+    // 🌟 undefined 및 null 커버를 위해 !this.currentNewMemoGroupId 조건 사용
     const newMemoGroupChipsHtml = `
         <div style="display:inline-flex; background:#f1f5f9; padding:3px; border-radius:8px; border:1px solid #cbd5e1; align-items:center; margin-right:8px;">
-            <div class="new-memo-group-chip" data-value="personal" onclick="window.memoViewInstance.setNewMemoGroup(null)" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.currentNewMemoGroupId === null ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+            <div class="new-memo-group-chip" data-value="personal" onclick="window.memoViewInstance.setNewMemoGroup(null)" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.currentNewMemoGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
             ${this.myGroups.map(g => `<div class="new-memo-group-chip" data-value="${g.id}" onclick="window.memoViewInstance.setNewMemoGroup('${g.id}')" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.currentNewMemoGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
         </div>
     `;
@@ -340,7 +338,6 @@ export class MemoView extends BaseView {
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
               <div id="memo-add-labels" class="label-chip-container" style="flex: 1; margin: 0; padding-right: 10px;"></div>
               
-              <!-- 🌟 버튼 칩들을 우측 정렬로 배치 -->
               <div style="display:flex; align-items:center; gap:8px;">
                   ${newMemoGroupChipsHtml}
                   <button onclick="window.openMemoLabelModal()" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight: bold; transition: 0.2s; flex-shrink: 0;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙️ 설정</button>
@@ -466,10 +463,10 @@ export class MemoView extends BaseView {
         </div>
     `;
 
-    // 🌟 목록에 렌더링된 메모별 공유 그룹 버튼 칩 (우측 정렬용)
+    // 🌟 undefined 및 null 커버를 위해 !item.groupId 조건 사용
     const groupButtonsHtml = `
         <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-            <div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${item.groupId === null ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+            <div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!item.groupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
             ${this.myGroups.map(g => `<div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${item.groupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
         </div>
     `;
@@ -493,7 +490,6 @@ export class MemoView extends BaseView {
           </div>
         </div>
         
-        <!-- 🌟 우측 정렬된 컨트롤 영역 -->
         <div class="memo-controls" style="display: flex; align-items: center; gap: 8px; padding-top:2px; flex-wrap:wrap; justify-content:flex-end;">
             ${groupButtonsHtml}
             ${deleteBtnHtml}
@@ -604,7 +600,7 @@ export class MemoView extends BaseView {
     const text = input.value.trim();
     if (!text && !this.pendingImageUrl) return;
 
-    const targetGroupId = this.currentNewMemoGroupId; // 🌟 칩 버튼에서 선택된 ID 활용
+    const targetGroupId = this.currentNewMemoGroupId; 
 
     const newMemo = { 
         text: text, 
