@@ -212,7 +212,7 @@ export class WeekView extends BaseView {
 
     this.container.innerHTML = `
       <div class="clean-viewer-board">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:10px; flex-wrap:wrap;">
+        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 10px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
            ${this.getEventFilterHtml('weekViewInstance')}
            <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('weekViewInstance')}</div>
         </div>
@@ -301,7 +301,7 @@ export class WeekView extends BaseView {
 
     this.container.innerHTML = `
       <div class="table-container">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:10px; flex-wrap:wrap;">
+        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 10px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
            ${this.getEventFilterHtml('weekViewInstance')}
            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
         </div>
@@ -437,6 +437,63 @@ export class WeekView extends BaseView {
       });
   }
 
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      const scopeInstance = window[`${store.scope}ViewInstance`];
+      if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
+      store.hasUnsavedChanges = true;
+      
+      const ev = window[`tempEvents_${dateStr}`]?.[idx];
+      if (!ev) return;
+      ev.labelIds = ev.labelIds || [];
+      
+      const isActive = ev.labelIds.includes(labelId);
+      const labelObj = getEventLabels().find(l => l.id === labelId);
+
+      if (isActive) {
+          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
+      } else {
+          if (labelObj?.isPeriod || labelObj?.isRecur) {
+              const evContent = ev.content || '';
+              const backupEvent = { ...ev };
+              
+              if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
+                  scopeInstance.syncScheduleInputs();
+              }
+
+              window[`tempEvents_${dateStr}`].splice(idx, 1);
+              window.saveCurrentViewData(true);
+              
+              const callback = (isSaved) => { 
+                  if(isSaved) window.render(); 
+                  else {
+                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+                      window[`tempEvents_${dateStr}`].push(backupEvent);
+                      window.saveCurrentViewData(true);
+                      setTimeout(() => window.render(), 100);
+                  }
+              };
+
+              labelObj.isPeriod 
+                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
+                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
+              return; 
+          }
+          
+          if (labelObj?.isForward) {
+              ev.labelIds = ev.labelIds.filter(id => {
+                  const lObj = getEventLabels().find(x => x.id === id);
+                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
+              });
+          }
+          ev.labelIds.push(labelId);
+      }
+      
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      if (container && scopeInstance) {
+          container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
+      }
+  }
+
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
@@ -550,59 +607,6 @@ Object.assign(window, {
     saveWeekDataFromEditor: () => instance.save(),
     
     handleCompactLabelClick: async (dateStr, idx, labelId) => {
-        const scopeInstance = window[`${store.scope}ViewInstance`];
-        if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
-        store.hasUnsavedChanges = true;
-        
-        const ev = window[`tempEvents_${dateStr}`]?.[idx];
-        if (!ev) return;
-        ev.labelIds = ev.labelIds || [];
-        
-        const isActive = ev.labelIds.includes(labelId);
-        const labelObj = getEventLabels().find(l => l.id === labelId);
-
-        if (isActive) {
-            ev.labelIds = ev.labelIds.filter(id => id !== labelId);
-        } else {
-            if (labelObj?.isPeriod || labelObj?.isRecur) {
-                const evContent = ev.content || '';
-                const backupEvent = { ...ev };
-                
-                if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
-                    scopeInstance.syncScheduleInputs();
-                }
-
-                window[`tempEvents_${dateStr}`].splice(idx, 1);
-                window.saveCurrentViewData(true);
-                
-                const callback = (isSaved) => { 
-                    if(isSaved) window.render(); 
-                    else {
-                        window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-                        window[`tempEvents_${dateStr}`].push(backupEvent);
-                        window.saveCurrentViewData(true);
-                        setTimeout(() => window.render(), 100);
-                    }
-                };
-
-                labelObj.isPeriod 
-                    ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
-                    : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
-                return; 
-            }
-            
-            if (labelObj?.isForward) {
-                ev.labelIds = ev.labelIds.filter(id => {
-                    const lObj = getEventLabels().find(x => x.id === id);
-                    return !(lObj && (lObj.isPeriod || lObj.isRecur));
-                });
-            }
-            ev.labelIds.push(labelId);
-        }
-        
-        const container = document.getElementById(`compact-events-${dateStr}`);
-        if (container && scopeInstance) {
-            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
-        }
+        if (window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
     }
 });
