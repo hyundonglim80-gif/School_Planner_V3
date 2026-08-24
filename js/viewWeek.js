@@ -34,7 +34,6 @@ export class WeekView extends BaseView {
       return html;
   }
 
-  // 🌟 [V3.6] 시간표 중복 선택 필터 UI 렌더러
   getScheduleFilterHtml(instanceName) {
       if (!this.activeScheduleFilters) {
           this.activeScheduleFilters = ['personal'];
@@ -79,7 +78,6 @@ export class WeekView extends BaseView {
     }, []);
   }
 
-  // 🌟 [V3.6] 주간 시간표 데이터 몽땅 불러와서 그룹별로 매핑
   async fetchWeekData(startStr, endStr) {
     try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
@@ -152,7 +150,6 @@ export class WeekView extends BaseView {
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      // 🌟 [V3.6] 다중 필터 적용 시 뷰어 칸 분할 렌더링
       const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
         const p = i + 1;
         let cellContentHtml = '';
@@ -243,7 +240,6 @@ export class WeekView extends BaseView {
     `;
 
     const rowsHtml = weekDates.map(d => {
-      // 🌟 [V3.6] 에디터는 선택된 워크스페이스의 데이터만 매핑
       const periods = sMap[d.dateStr]?.[this.scheduleGroupId || 'personal'] || {};
       const eventList = eMap[d.dateStr]?.eventList || [];
       
@@ -563,8 +559,10 @@ Object.assign(window, {
     renderWeekEditor: (c) => { instance.container = c; instance.renderEditor(); },
     saveWeekDataFromEditor: () => instance.save(),
     
+    // 🌟 [V3.6 버그 픽스] 전역 스코프 참조 문제 해결
     handleCompactLabelClick: async (dateStr, idx, labelId) => {
-        if (window.weekViewInstance) window.weekViewInstance.syncCompactEventInputs(dateStr);
+        const scopeInstance = window[`${store.scope}ViewInstance`];
+        if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
         store.hasUnsavedChanges = true;
         
         const ev = window[`tempEvents_${dateStr}`]?.[idx];
@@ -581,8 +579,9 @@ Object.assign(window, {
                 const evContent = ev.content || '';
                 const backupEvent = { ...ev };
                 
-                if(window.weekViewInstance) window.weekViewInstance.syncScheduleInputs();
-                if(window.monthViewInstance) window.monthViewInstance.syncScheduleInputs();
+                if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
+                    scopeInstance.syncScheduleInputs();
+                }
 
                 window[`tempEvents_${dateStr}`].splice(idx, 1);
                 window.saveCurrentViewData(true);
@@ -613,10 +612,8 @@ Object.assign(window, {
         }
         
         const container = document.getElementById(`compact-events-${dateStr}`);
-        if (container) {
-            container.innerHTML = window.weekViewInstance 
-                ? window.weekViewInstance.generateCompactEventEditor(dateStr) 
-                : (window.monthViewInstance ? window.monthViewInstance.generateCompactEventEditor(dateStr) : window.yearViewInstance.generateCompactEventEditor(dateStr));
+        if (container && scopeInstance) {
+            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
         }
     }
 });
