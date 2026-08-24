@@ -70,6 +70,7 @@ export class MonthView extends BaseView {
           this.save(); 
       }
       this.scheduleGroupId = newGroupId || null;
+      
       if (store.mode === 'editor') this.renderEditor();
       else this.renderViewer();
   }
@@ -212,7 +213,7 @@ export class MonthView extends BaseView {
     }).join('');
 
     this.container.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
+        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 10px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
            ${this.getEventFilterHtml('monthViewInstance')}
            <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('monthViewInstance')}</div>
         </div>
@@ -310,12 +311,9 @@ export class MonthView extends BaseView {
 
     this.container.innerHTML = `
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-            <h3 style="margin:0; color:#1e293b; font-size:var(--font-header-title);">📅 ${y}년 ${m+1}월 편집</h3>
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                ${this.getEventFilterHtml('monthViewInstance')}
-                <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-            </div>
+        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 12px; margin: -12px -12px 12px -12px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            ${this.getEventFilterHtml('monthViewInstance')}
+            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
         </div>
         <table style="width:100%; border-collapse:collapse; text-align:center;">
           <thead>
@@ -461,6 +459,9 @@ export class MonthView extends BaseView {
       });
   }
 
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
+  }
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
@@ -490,18 +491,6 @@ export class MonthView extends BaseView {
   removeCompactEvent(dateStr, idx) {
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
-  }
-
-  addCompactEvent(dateStr) {
-      this.syncCompactEventInputs(dateStr); 
-      store.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-      window[`tempEvents_${dateStr}`].push({ 
-          id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-          authorId: window.auth?.currentUser?.uid,
-          labelIds: [], content: '', completed: false, sharedGroupId: null 
-      });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
