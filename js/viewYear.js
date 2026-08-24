@@ -5,7 +5,7 @@ import { store } from './core/store.js';
 import { formatDate, getEventLabels, isRedDay, getHolidayName } from './core/utils.js';
 import { dbAPI, getUserCol, getGroupCol } from './firebase.js'; 
 import { generateEventBadgesHTML, formatEventListToText } from './core/eventUtils.js';
-import { query, where, documentId, getDocs, doc, setDoc } from "firebase/firestore";
+import { query, where, documentId, getDocs, doc, setDoc, writeBatch } from "firebase/firestore";
 
 export class YearView extends BaseView {
   constructor(container) {
@@ -59,6 +59,7 @@ export class YearView extends BaseView {
           this.save(); 
       }
       this.scheduleGroupId = newGroupId || null;
+      
       if (store.mode === 'editor') this.renderEditor();
       else this.renderViewer();
   }
@@ -117,6 +118,41 @@ export class YearView extends BaseView {
     return { eMap, sMap };
   }
 
+  // 🌟 [V3.6 신규] 지연 로딩을 위한 우선순위 월 배열 생성
+  getPrioritizedMonths(targetY) {
+    const nextYear = targetY + 1;
+    const monthsInfo = [
+      { year: targetY, month: 3, label: "3월" },
+      { year: targetY, month: 4, label: "4월" },
+      { year: targetY, month: 5, label: "5월" },
+      { year: targetY, month: 6, label: "6월" },
+      { year: targetY, month: 7, label: "7월" },
+      { year: targetY, month: 8, label: "8월" },
+      { year: targetY, month: 9, label: "9월" },
+      { year: targetY, month: 10, label: "10월" },
+      { year: targetY, month: 11, label: "11월" },
+      { year: targetY, month: 12, label: "12월" },
+      { year: nextYear, month: 1, label: "1월" },
+      { year: nextYear, month: 2, label: "2월" }
+    ];
+
+    const targetDate = store.currentDate || new Date();
+    const currentYearVal = targetDate.getFullYear();
+    const currentMonthVal = targetDate.getMonth() + 1;
+
+    let currentIndex = monthsInfo.findIndex(m => m.year === currentYearVal && m.month === currentMonthVal);
+    if (currentIndex === -1) currentIndex = 0; // 방학 등 예외 범위면 3월부터
+
+    // 거리에 따라 우선순위 정렬
+    const prioritizedMonths = monthsInfo.map((m, idx) => ({
+      ...m,
+      distance: Math.abs(idx - currentIndex),
+      match: `${m.year}-${String(m.month).padStart(2, '0')}-` // 검색용 접두사
+    })).sort((a, b) => a.distance - b.distance);
+
+    return { orderedMonths: monthsInfo, prioritizedMonths };
+  }
+
   async renderViewer() {
     this.renderId = Date.now();
     const currentRenderId = this.renderId;
@@ -126,8 +162,6 @@ export class YearView extends BaseView {
 
     if (!window.db) return;
 
-    let allEvents = [];
-    
     try {
       const targetY = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
       const startStr = `${targetY}-03-01`;
@@ -141,6 +175,7 @@ export class YearView extends BaseView {
       if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
 
       const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
+      let allEvents = [];
 
       allDates.forEach(dateStr => {
         let hasContent = false;
@@ -150,7 +185,6 @@ export class YearView extends BaseView {
         let boxesHtml = '';
         let hasClass = false;
 
-        // 🌟 [V3.6] 중복 시간표 필터 적용 렌더링
         for (let p = 1; p <= this.maxPeriod; p++) {
           let pTexts = [];
           this.activeScheduleFilters.forEach(filterId => {
@@ -200,22 +234,13 @@ export class YearView extends BaseView {
 
       allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const nextYear = targetYear + 1;
-
-      const months = [
-        { label: "3월", match: `${targetYear}-03-` }, { label: "4월", match: `${targetYear}-04-` },
-        { label: "5월", match: `${targetYear}-05-` }, { label: "6월", match: `${targetYear}-06-` },
-        { label: "7월", match: `${targetYear}-07-` }, { label: "8월", match: `${targetYear}-08-` },
-        { label: "9월", match: `${targetYear}-09-` }, { label: "10월", match: `${targetYear}-10-` },
-        { label: "11월", match: `${targetYear}-11-` }, { label: "12월", match: `${targetYear}-12-` },
-        { label: "1월", match: `${nextYear}-01-` }, { label: "2월", match: `${nextYear}-02-` }
-      ];
-
+      // 🌟 [V3.6] 지연 로딩을 위한 스켈레톤 UI 생성 (순서 보장)
+      const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(targetY);
+      
       const progressHtml = `
-          <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:20px; color:#2563eb; font-weight:bold; font-size:1.1rem; gap:10px; grid-column: 1 / -1;">
-              <div style="width:24px; height:24px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-              화면을 부드럽게 구성하고 있습니다...
+          <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
+              <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
+              현재 월부터 순차적으로 화면을 부드럽게 구성하고 있습니다...
           </div>
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
@@ -225,14 +250,18 @@ export class YearView extends BaseView {
              ${this.getEventFilterHtml('yearViewInstance')}
              <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
           </div>
-          <div class="year-grid" id="year-grid-container">${progressHtml}</div>
+          ${progressHtml}
+          <div class="year-grid" id="year-grid-container">
+             ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
+          </div>
       `;
       this.container.innerHTML = skeletonHtml;
       
-      const grid = document.getElementById('year-grid-container');
       const realTodayStr = formatDate(new Date());
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-      for (const mObj of months) {
+      // 🌟 우선순위 배열을 돌면서 비동기 렌더링
+      for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
 
         const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
@@ -270,13 +299,23 @@ export class YearView extends BaseView {
         const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
 
         const cardHtml = `
-          <div class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
+          <div id="viewer-card-${mObj.year}-${mObj.month}" class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
             <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
             <div style="line-height:1.4;">${eventListHtml}</div>
           </div>`;
         
-        grid.insertAdjacentHTML('beforeend', cardHtml);
-        await new Promise(r => setTimeout(r, 10)); 
+        const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
+        if (containerEl) {
+            containerEl.outerHTML = cardHtml;
+            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동
+            if (mObj.distance === 0) {
+                setTimeout(() => {
+                    const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
+                    if (focusEl) focusEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+            }
+        }
+        await new Promise(r => setTimeout(r, 40)); 
       }
 
       const progressEl = document.getElementById('year-render-progress');
@@ -312,24 +351,18 @@ export class YearView extends BaseView {
         this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
     }
 
-    const monthChunks = [];
-    for (let month = 2; month <= 11; month++) {
-      const lastDay = new Date(currentYear, month + 1, 0).getDate();
-      const chunk = [];
-      for (let d = 1; d <= lastDay; d++) {
-        const dateStr = `${currentYear}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        chunk.push({ year: currentYear, month: month + 1, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
-      }
-      monthChunks.push(chunk);
-    }
-    for (let month = 0; month <= 1; month++) {
-      const lastDay = new Date(nextYear, month + 1, 0).getDate();
-      const chunk = [];
-      for (let d = 1; d <= lastDay; d++) {
-        const dateStr = `${nextYear}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        chunk.push({ year: nextYear, month: month + 1, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
-      }
-      monthChunks.push(chunk);
+    const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
+    
+    // 월별 데이터를 청크로 분리
+    const monthChunksMap = {};
+    for (const mObj of orderedMonths) {
+        const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
+        const chunk = [];
+        for (let d = 1; d <= lastDay; d++) {
+            const dateStr = `${mObj.year}-${String(mObj.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            chunk.push({ year: mObj.year, month: mObj.month, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
+        }
+        monthChunksMap[`${mObj.year}-${mObj.month}`] = chunk;
     }
 
     this.renderedDateStrings = [];
@@ -343,17 +376,14 @@ export class YearView extends BaseView {
     `;
 
     const progressHtml = `
-        <tr id="year-render-progress">
-            <td colspan="10" style="padding:40px; text-align:center;">
-                <div style="display:flex; justify-content:center; align-items:center; color:#2563eb; font-weight:bold; font-size:1.1rem; gap:10px;">
-                    <div style="width:24px; height:24px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-                    1년 치 편집 시트를 부드럽게 구성하고 있습니다...
-                </div>
-            </td>
-        </tr>
+        <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
+            <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            현재 월부터 순차적으로 화면을 부드럽게 구성하고 있습니다...
+        </div>
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
+    // 🌟 [V3.6] 지연 로딩을 위한 에디터 스켈레톤 HTML
     this.container.innerHTML = `
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
@@ -363,6 +393,7 @@ export class YearView extends BaseView {
                 <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
             </div>
         </div>
+        ${progressHtml}
         <table style="width:100%; border-collapse:collapse; text-align:center;">
           <thead>
             <tr style="background:#f1f5f9;">
@@ -371,16 +402,13 @@ export class YearView extends BaseView {
               <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
             </tr>
           </thead>
-          <tbody id="year-editor-tbody">
-            ${progressHtml}
-          </tbody>
+          ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    const tbody = document.getElementById('year-editor-tbody');
-
-    for (const chunk of monthChunks) {
+    for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
+        const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
 
         let rowsHtml = chunk.map(item => {
           const dateObj = new Date(item.year, item.month - 1, item.day);
@@ -442,8 +470,16 @@ export class YearView extends BaseView {
             </tr>`;
         }).join('');
 
-        tbody.insertAdjacentHTML('beforeend', rowsHtml);
-        await new Promise(r => setTimeout(r, 10)); 
+        const tbodyEl = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
+        if (tbodyEl) {
+            tbodyEl.innerHTML = rowsHtml;
+            if (mObj.distance === 0) {
+                setTimeout(() => {
+                    tbodyEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+            }
+        }
+        await new Promise(r => setTimeout(r, 40)); 
     }
 
     const progressEl = document.getElementById('year-render-progress');
@@ -626,6 +662,7 @@ export class YearView extends BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
+  // 🌟 [V3.6 버그 해결] 연간 데이터 일괄 저장 (서버 부하 방지 및 속도 향상)
   save() {
     if (this.isRendering) {
         alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
@@ -650,6 +687,9 @@ export class YearView extends BaseView {
     });
 
     const masterLabels = getEventLabels();
+    let batch = writeBatch(window.db);
+    let opCount = 0;
+    let batchPromises = [];
     
     snapshot.forEach(item => {
         const eventsByGroup = { 'personal': [] };
@@ -661,19 +701,23 @@ export class YearView extends BaseView {
         });
 
         const pEvents = eventsByGroup['personal'];
-        setDoc(doc(getUserCol('events'), item.dateStr), {
+        batch.set(doc(getUserCol('events'), item.dateStr), {
             eventList: pEvents,
             eventText: formatEventListToText(pEvents),
             updatedAt: Date.now()
-        }, { merge: true }).catch(e => console.warn(e));
+        }, { merge: true });
+        opCount++;
+        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
 
         this.myGroups.forEach(g => {
             const gEvents = eventsByGroup[g.id];
-            setDoc(doc(getGroupCol(g.id, 'events'), item.dateStr), {
+            batch.set(doc(getGroupCol(g.id, 'events'), item.dateStr), {
                 eventList: gEvents,
                 eventText: formatEventListToText(gEvents),
                 updatedAt: Date.now()
-            }, { merge: true }).catch(e => console.warn(e));
+            }, { merge: true });
+            opCount++;
+            if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
         });
 
         const isSkipDay = item.validEvents.some(e => e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
@@ -682,11 +726,18 @@ export class YearView extends BaseView {
         }
 
         const scheduleCol = this.scheduleGroupId ? getGroupCol(this.scheduleGroupId, 'schedules') : getUserCol('schedules');
-        setDoc(doc(scheduleCol, item.dateStr), {
+        batch.set(doc(scheduleCol, item.dateStr), {
             periods: item.periodsData,
             updatedAt: Date.now()
-        }, { merge: true }).catch(e => console.warn(e));
+        }, { merge: true });
+        opCount++;
+        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
     });
+
+    if (opCount > 0) batchPromises.push(batch.commit());
+    Promise.all(batchPromises).catch(e => console.warn(e));
+    
+    store.hasUnsavedChanges = false;
   }
 }
 
