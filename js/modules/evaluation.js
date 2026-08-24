@@ -289,6 +289,7 @@ export const EvaluationManager = {
 
         const newEval = {
             id: 'eval_' + Date.now().toString(36),
+            authorId: window.auth?.currentUser?.uid, // 🌟 [V3.6] 작성자 권한 기록 추가
             title, subject, type, methodObj, steps, groups,
             dateStr, periodStr: finalPeriod,
             context: { source: finalSource, period: finalPeriod },
@@ -316,6 +317,10 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
 
+        // 🌟 [V3.6] 작성자 권한 확인 (본인이 작성했거나, 로컬 모드이거나, 그룹 공유가 아닐 때)
+        const uid = window.auth?.currentUser?.uid;
+        const isAuthor = !this.currentGroupId || !ev.authorId || !uid || ev.authorId === uid;
+
         const isEval = ev.type === 'eval';
         const isCheck = ev.type === 'check';
         const isMemo = ev.type === 'memo';
@@ -323,6 +328,10 @@ export const EvaluationManager = {
         const isGroup = isEval && ev.methodObj?.group;
 
         let rowsHtml = '';
+        const disabledAttr = isAuthor ? '' : 'disabled';
+        const readonlyAttr = isAuthor ? '' : 'readonly';
+        const bgStyle = isAuthor ? '' : 'background:#f1f5f9; cursor:not-allowed; color:#64748b;';
+
         ev.studentsSnapshot.forEach(st => {
             const rec = ev.records[st.num] || {};
             let inputsHtml = '';
@@ -331,18 +340,18 @@ export const EvaluationManager = {
                 if (isGroup) {
                     const studentGroup = ev.groups?.find(g => g.members.includes(st.num));
                     const gName = studentGroup ? studentGroup.name : '';
-                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="groupName" value="${rec.groupName || gName}" style="width:40px; padding:4px; text-align:center;"></td>`;
-                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="groupScore" style="padding:4px;"><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.groupScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="groupName" value="${rec.groupName || gName}" style="width:40px; padding:4px; text-align:center; ${bgStyle}" ${readonlyAttr}></td>`;
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="groupScore" style="padding:4px; ${bgStyle}" ${disabledAttr}><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.groupScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
                 }
                 if (isIndiv) {
-                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="indivScore" style="padding:4px;"><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.indivScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="indivScore" style="padding:4px; ${bgStyle}" ${disabledAttr}><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.indivScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
                 }
-                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px;"></td>`;
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px; ${bgStyle}" ${readonlyAttr}></td>`;
             } else if (isCheck) {
-                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="checkbox" data-snum="${st.num}" data-field="checked" ${rec.checked ? 'checked' : ''} style="width:20px;height:20px; accent-color:#059669;"></td>`;
-                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px;"></td>`;
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="checkbox" data-snum="${st.num}" data-field="checked" ${rec.checked ? 'checked' : ''} style="width:20px;height:20px; accent-color:#059669; cursor:${isAuthor?'pointer':'not-allowed'};" ${disabledAttr}></td>`;
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px; ${bgStyle}" ${readonlyAttr}></td>`;
             } else if (isMemo) {
-                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="memo" value="${rec.memo || ''}" style="width:98%; padding:4px;"></td>`;
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="memo" value="${rec.memo || ''}" style="width:98%; padding:4px; ${bgStyle}" ${readonlyAttr}></td>`;
             }
 
             rowsHtml += `<tr style="transition:0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'"><td style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#475569;">${st.num}</td><td style="padding:6px; border:1px solid #cbd5e1; font-weight:bold;">${st.name}</td>${inputsHtml}</tr>`;
@@ -359,7 +368,12 @@ export const EvaluationManager = {
             headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별 메모</th>`;
         }
 
-        const titleText = this.currentGroupId ? `📊 ${ev.title} [👥 공유됨]` : `📊 ${ev.title} [🔒 개인]`;
+        const titleText = this.currentGroupId ? `📊 ${ev.title} [👥 공유됨${isAuthor ? '' : ' - 읽기전용'}]` : `📊 ${ev.title} [🔒 개인]`;
+        
+        // 🌟 [V3.6] 읽기 전용 모드에서는 저장/삭제 버튼 숨기기
+        const deleteBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" style="padding:8px 12px; background:#fee2e2; color:#ef4444; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️ 삭제</button>` : `<div></div>`;
+        const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" style="padding:8px 16px; border:none; background:#2563eb; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">💾 저장</button>` : '';
+        const cancelText = isAuthor ? '취소' : '닫기';
 
         const html = `
             <div style="max-height:60vh; overflow-y:auto; padding-right:5px; margin-bottom:10px;">
@@ -369,10 +383,10 @@ export const EvaluationManager = {
                 </table>
             </div>
             <div style="display:flex; justify-content:space-between; margin-top:15px; border-top:2px solid #e2e8f0; padding-top:15px;">
-                <button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" style="padding:8px 12px; background:#fee2e2; color:#ef4444; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️ 삭제</button>
+                ${deleteBtnHtml}
                 <div style="display:flex; gap:10px;">
-                    <button onclick="document.getElementById('eval-viewer-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; cursor:pointer; font-weight:bold;">취소</button>
-                    <button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" style="padding:8px 16px; border:none; background:#2563eb; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">💾 저장</button>
+                    <button onclick="document.getElementById('eval-viewer-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; cursor:pointer; font-weight:bold;">${cancelText}</button>
+                    ${saveBtnHtml}
                 </div>
             </div>
         `;
@@ -391,6 +405,12 @@ export const EvaluationManager = {
     saveViewerData: async function(evalId) {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
+
+        // 🌟 [V3.6] 작성자 권한 재검증
+        const uid = window.auth?.currentUser?.uid;
+        if (this.currentGroupId && ev.authorId && uid && ev.authorId !== uid) {
+            return alert("권한이 없습니다. 읽기 전용 조사표입니다.");
+        }
 
         const table = document.getElementById('eval-viewer-table');
         if (!table) return;
@@ -416,6 +436,15 @@ export const EvaluationManager = {
     },
 
     deleteEvaluation: async function(evalId) {
+        const ev = this.currentEvalList.find(e => e.id === evalId);
+        if (!ev) return;
+
+        // 🌟 [V3.6] 작성자 권한 재검증
+        const uid = window.auth?.currentUser?.uid;
+        if (this.currentGroupId && ev.authorId && uid && ev.authorId !== uid) {
+            return alert("권한이 없습니다. 본인이 작성한 조사표만 삭제할 수 있습니다.");
+        }
+
         if (!confirm("정말 이 조사표를 완전히 삭제하시겠습니까?")) return;
         this.currentEvalList = this.currentEvalList.filter(e => e.id !== evalId);
         await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId);
