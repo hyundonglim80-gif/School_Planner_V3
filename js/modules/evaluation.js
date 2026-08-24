@@ -11,16 +11,13 @@ export const EvaluationManager = {
     currentEvalList: [],
     currentContext: null,
     roster: null,
-    currentGroupId: null, // 🌟 [V3.6 신규] 현재 활성화된 그룹 ID
+    currentGroupId: null, 
 
     openCreationModal: async function(dateStr, source, period = null, defaultSubject = '') {
         this.currentDateStr = dateStr || formatDate(new Date());
         this.currentContext = { source, period: period || '' };
         
-        // 🌟 [V3.6 연동] 그룹 ID에 맞는 평가 목록 로드
         this.currentEvalList = await dbAPI.loadEvaluations(this.currentDateStr, this.currentGroupId);
-        
-        // 명렬표는 무조건 개인 DB에서 로드 (보안)
         this.roster = await dbAPI.loadRoster();
 
         const html = this.getCreationHtml(defaultSubject);
@@ -28,7 +25,6 @@ export const EvaluationManager = {
         const existingCreation = document.getElementById('eval-creation-modal');
         if (existingCreation) existingCreation.remove();
 
-        // 제목 표시줄에 공유 여부 확실히 표시
         const titleText = this.currentGroupId ? '📊 새 조사표 [👥 공유됨]' : '📊 새 조사표 [🔒 개인]';
 
         this.creationModal = new window.Modal({
@@ -79,7 +75,6 @@ export const EvaluationManager = {
         const isJournalSelected = this.currentContext.source === 'journal' ? 'selected' : '';
         periodOptions += `<option value="journal" ${isJournalSelected}>기록 (오늘 기록 칸)</option>`;
 
-        // 🌟 [V3.6 신규] 그룹 공유 시 강력한 경고창 노출
         const groupWarning = this.currentGroupId 
             ? `<div style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #bfdbfe; color:#1d4ed8; font-size:0.85rem; margin-bottom:12px; font-weight:bold;">ℹ️ 현재 '공유 시간표'에서 생성 중입니다. 만들어진 데이터는 그룹 멤버에게 노출됩니다.</div>`
             : '';
@@ -271,326 +266,162 @@ export const EvaluationManager = {
         if (type === 'eval') {
             methodObj.indiv = document.getElementById('eval-method-indiv').checked;
             methodObj.group = document.getElementById('eval-method-group').checked;
-
-            if (!methodObj.indiv && !methodObj.group) return alert("평가 방식을 최소 하나 이상 선택하세요.");
-
-            const stepCount = parseInt(document.getElementById('eval-step-count').value, 10) || 0;
-            for(let i=0; i<stepCount; i++) {
-                const sval = document.getElementById(`eval-step-name-${i}`).value.trim();
-                if(sval) steps.push(sval);
-            }
+            if (!methodObj.indiv && !methodObj.group) return alert("평가 방식을 하나 이상 선택해주세요.");
 
             if (methodObj.group) {
-                const groupCount = parseInt(document.getElementById('eval-group-count').value, 10) || 0;
-                for(let i=0; i<groupCount; i++) {
-                    const gname = document.getElementById(`eval-gname-${i}`).value.trim();
-                    const gmembers = document.getElementById(`eval-gmembers-${i}`).value;
-                    const membersArr = gmembers.split(new RegExp("[,\\s/]+")).map(n => parseInt(n, 10)).filter(n => !isNaN(n));
-                    if(gname) groups.push({ name: gname, members: membersArr });
+                const gCount = parseInt(document.getElementById('eval-group-count').value, 10);
+                for (let i=0; i<gCount; i++) {
+                    const gName = document.getElementById(`eval-gname-${i}`).value.trim();
+                    const gMembers = document.getElementById(`eval-gmembers-${i}`).value.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+                    if(gName && gMembers.length > 0) groups.push({ name: gName, members: gMembers });
                 }
+            }
+            
+            const stepCount = parseInt(document.getElementById('eval-step-count').value, 10);
+            for (let i=0; i<stepCount; i++) {
+                const sName = document.getElementById(`eval-step-name-${i}`).value.trim();
+                if(sName) steps.push(sName);
             }
         }
 
         const selectedRoster = this.roster[parseInt(rosterIndex, 10)];
-        const activeStudents = (selectedRoster.students || []).filter(s => s.isActive !== false);
-
-        if (activeStudents.length === 0) return alert("선택한 명렬표에 활성 상태인 학생이 없습니다.");
+        const studentsSnapshot = selectedRoster.students.filter(s => s.isActive !== false).map(s => ({ num: s.num, name: s.name, gender: s.gender }));
 
         const newEval = {
             id: 'eval_' + Date.now().toString(36),
-            title,
-            type,
-            subject,
-            methodObj,
-            steps,
-            groups,
-            rosterMeta: { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum },
-            dateStr: dateStr,
-            periodStr: finalPeriod ? String(finalPeriod) : '',
+            title, subject, type, methodObj, steps, groups,
+            dateStr, periodStr: finalPeriod,
             context: { source: finalSource, period: finalPeriod },
-            studentsSnapshot: activeStudents, // 명렬표 스냅샷 저장(공유 시 활용)
-            records: {}
+            rosterMeta: { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum },
+            studentsSnapshot,
+            records: {} 
         };
 
-        const submitBtn = document.querySelector('#eval-creation-modal button:last-child');
-        if(submitBtn) { submitBtn.innerText = "저장 중..."; submitBtn.disabled = true; }
+        this.currentEvalList.push(newEval);
+        
+        await dbAPI.saveEvaluations(dateStr, this.currentEvalList, this.currentGroupId);
+        document.getElementById('eval-creation-modal').remove();
 
-        try {
-            if (dateStr === this.currentDateStr) {
-                this.currentEvalList.push(newEval);
-                // 🌟 그룹/개인 DB에 저장
-                await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId);
-            } else {
-                const targetEvalList = await dbAPI.loadEvaluations(dateStr, this.currentGroupId) || [];
-                targetEvalList.push(newEval);
-                await dbAPI.saveEvaluations(dateStr, targetEvalList, this.currentGroupId);
-            }
-        } catch(e) {
-            console.error(e);
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr) {
+            window.dayViewInstance.refreshEvalBadges();
         }
         
-        const creationModalEl = document.getElementById('eval-creation-modal');
-        if (creationModalEl) creationModalEl.remove();
-        
-        if (dateStr === this.currentDateStr && window.dayViewInstance && typeof window.dayViewInstance.refreshEvalBadges === 'function') {
-            await window.dayViewInstance.refreshEvalBadges();
-        } else if (typeof window.render === 'function') {
-            window.render();
-        }
-
-        setTimeout(() => {
-            window.EvaluationManager.openViewer(dateStr, newEval.id);
-        }, 100);
+        this.openViewer(dateStr, newEval.id);
     },
 
     openViewer: async function(dateStr, evalId) {
         this.currentDateStr = dateStr;
-        // 🌟 현재 설정된 currentGroupId 위치의 데이터를 불러옴
         this.currentEvalList = await dbAPI.loadEvaluations(dateStr, this.currentGroupId);
-        const evalData = this.currentEvalList.find(e => e.id === evalId);
-        if (!evalData) return alert("조사표를 찾을 수 없습니다.");
-
-        const html = this.getViewerHtml(evalData);
         
-        const existingViewer = document.getElementById('eval-viewer-modal');
-        if (existingViewer) existingViewer.remove();
+        const ev = this.currentEvalList.find(e => e.id === evalId);
+        if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
+
+        const isEval = ev.type === 'eval';
+        const isCheck = ev.type === 'check';
+        const isMemo = ev.type === 'memo';
+        const isIndiv = isEval && ev.methodObj?.indiv;
+        const isGroup = isEval && ev.methodObj?.group;
+
+        let rowsHtml = '';
+        ev.studentsSnapshot.forEach(st => {
+            const rec = ev.records[st.num] || {};
+            let inputsHtml = '';
+            
+            if (isEval) {
+                if (isGroup) {
+                    const studentGroup = ev.groups?.find(g => g.members.includes(st.num));
+                    const gName = studentGroup ? studentGroup.name : '';
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="groupName" value="${rec.groupName || gName}" style="width:40px; padding:4px; text-align:center;"></td>`;
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="groupScore" style="padding:4px;"><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.groupScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                }
+                if (isIndiv) {
+                    inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><select data-snum="${st.num}" data-field="indivScore" style="padding:4px;"><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.indivScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                }
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px;"></td>`;
+            } else if (isCheck) {
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="checkbox" data-snum="${st.num}" data-field="checked" ${rec.checked ? 'checked' : ''} style="width:20px;height:20px; accent-color:#059669;"></td>`;
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" style="width:90%; padding:4px;"></td>`;
+            } else if (isMemo) {
+                inputsHtml += `<td style="padding:6px; border:1px solid #cbd5e1;"><input type="text" data-snum="${st.num}" data-field="memo" value="${rec.memo || ''}" style="width:98%; padding:4px;"></td>`;
+            }
+
+            rowsHtml += `<tr style="transition:0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'"><td style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#475569;">${st.num}</td><td style="padding:6px; border:1px solid #cbd5e1; font-weight:bold;">${st.name}</td>${inputsHtml}</tr>`;
+        });
+
+        let headersHtml = `<th style="padding:8px; border:1px solid #cbd5e1; width:40px;">번호</th><th style="padding:8px; border:1px solid #cbd5e1; width:80px;">이름</th>`;
+        if (isEval) {
+            if (isGroup) headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">조</th><th style="padding:8px; border:1px solid #cbd5e1;">조별</th>`;
+            if (isIndiv) headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별</th>`;
+            headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">사유/메모</th>`;
+        } else if (isCheck) {
+            headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">체크(O)</th><th style="padding:8px; border:1px solid #cbd5e1;">사유/메모</th>`;
+        } else {
+            headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별 메모</th>`;
+        }
+
+        const titleText = this.currentGroupId ? `📊 ${ev.title} [👥 공유됨]` : `📊 ${ev.title} [🔒 개인]`;
+
+        const html = `
+            <div style="max-height:60vh; overflow-y:auto; padding-right:5px; margin-bottom:10px;">
+                <table style="width:100%; text-align:center; border-collapse:collapse;" id="eval-viewer-table">
+                    <thead style="position:sticky; top:0; z-index:2; box-shadow:0 1px 2px rgba(0,0,0,0.05);"><tr style="background:#f1f5f9; color:#1e293b;">${headersHtml}</tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:15px; border-top:2px solid #e2e8f0; padding-top:15px;">
+                <button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" style="padding:8px 12px; background:#fee2e2; color:#ef4444; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️ 삭제</button>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="document.getElementById('eval-viewer-modal').remove()" style="padding:8px 16px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; cursor:pointer; font-weight:bold;">취소</button>
+                    <button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" style="padding:8px 16px; border:none; background:#2563eb; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">💾 저장</button>
+                </div>
+            </div>
+        `;
+
+        if (this.viewerModal) document.getElementById('eval-viewer-modal')?.remove();
 
         this.viewerModal = new window.Modal({
             id: 'eval-viewer-modal',
-            title: `📊 ${evalData.title} ${this.currentGroupId ? '[👥 공유됨]' : ''}`,
-            width: '650px',
+            title: titleText,
+            width: '600px',
             content: html
         });
         this.viewerModal.open();
     },
 
-    onReasonChange: function(evalId, studentNum, value) {
-        if (value === '기타_직접입력') {
-            const custom = prompt("미평가 사유를 직접 입력하세요:");
-            if (custom !== null && custom.trim() !== "") {
-                this.updateRecord(evalId, studentNum, 'reason', custom.trim());
-            } else {
-                this.updateRecord(evalId, studentNum, 'reason', '');
-            }
-        } else {
-            this.updateRecord(evalId, studentNum, 'reason', value);
-        }
-    },
+    saveViewerData: async function(evalId) {
+        const ev = this.currentEvalList.find(e => e.id === evalId);
+        if (!ev) return;
 
-    getViewerHtml: function(evalData) {
-        let listHtml = '';
-        const students = evalData.studentsSnapshot || [];
-        const isEval = evalData.type === 'eval';
-        const isIndiv = isEval ? (evalData.methodObj ? evalData.methodObj.indiv : (evalData.method !== 'group')) : false;
-        const isGroup = isEval ? (evalData.methodObj ? evalData.methodObj.group : (evalData.method === 'group')) : false;
+        const table = document.getElementById('eval-viewer-table');
+        if (!table) return;
 
-        students.forEach(st => {
-            const rec = evalData.records[st.num] || {};
-            
-            if (isGroup && rec.groupName === undefined) {
-                const foundG = evalData.groups.find(g => g.members.includes(st.num));
-                if (foundG) rec.groupName = foundG.name;
-            }
+        ev.records = {};
+        const inputs = table.querySelectorAll('input, select');
+        inputs.forEach(inp => {
+            const sNum = parseInt(inp.getAttribute('data-snum'), 10);
+            const field = inp.getAttribute('data-field');
+            let val = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
 
-            let inputUI = '';
-            
-            const reasonVal = rec.reason || '';
-            const reasonSelect = `
-                <select onchange="window.EvaluationManager.onReasonChange('${evalData.id}', ${st.num}, this.value)" style="padding:4px; font-size:0.8rem; border-radius:4px; border:1px solid #cbd5e1; outline:none; max-width:90px;">
-                    <option value="">사유(선택)</option>
-                    <option value="결석" ${reasonVal==='결석'?'selected':''}>결석</option>
-                    <option value="부상" ${reasonVal==='부상'?'selected':''}>부상</option>
-                    <option value="기타_직접입력">기타(직접입력)</option>
-                    ${reasonVal && reasonVal!=='결석' && reasonVal!=='부상' ? `<option value="${reasonVal}" selected>${reasonVal}</option>` : ''}
-                </select>
-            `;
+            if (inp.type !== 'checkbox' && !val) return; 
 
-            if (evalData.type === 'check') {
-                const isChecked = rec.checked ? 'checked' : '';
-                inputUI = `
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <input type="checkbox" onchange="window.EvaluationManager.updateRecord('${evalData.id}', ${st.num}, 'checked', this.checked)" ${isChecked} style="width:20px; height:20px; accent-color:#2563eb; cursor:pointer;">
-                        ${reasonSelect}
-                    </div>`;
-            } else if (evalData.type === 'memo') {
-                inputUI = `<input type="text" value="${rec.memo || ''}" onchange="window.EvaluationManager.updateRecord('${evalData.id}', ${st.num}, 'memo', this.value)" placeholder="내용 입력" style="flex:1; padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">`;
-            } else {
-                let indivHtml = '', groupHtml = '';
-                
-                if (isIndiv) {
-                    let curIndiv = rec.indivScore || rec.score || '';
-                    let btns = evalData.steps.map(step => {
-                        const active = curIndiv === step;
-                        return `<button onclick="window.EvaluationManager.updateRecord('${evalData.id}', ${st.num}, 'indivScore', '${step}')" style="padding:4px 6px; font-size:0.8rem; background:${active?'#10b981':'#f1f5f9'}; color:${active?'#fff':'#475569'}; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">${step}</button>`;
-                    }).join('');
-                    indivHtml = `<div style="display:flex; align-items:center; gap:4px;"><span style="font-size:0.75rem; color:#64748b;">[개인]</span>${btns}</div>`;
-                }
-                if (isGroup) {
-                    let curGroup = rec.groupScore || '';
-                    let btns = evalData.steps.map(step => {
-                        const active = curGroup === step;
-                        return `<button onclick="window.EvaluationManager.updateRecord('${evalData.id}', ${st.num}, 'groupScore', '${step}')" style="padding:4px 6px; font-size:0.8rem; background:${active?'#f59e0b':'#f1f5f9'}; color:${active?'#fff':'#475569'}; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer;">${step}</button>`;
-                    }).join('');
-                    groupHtml = `<div style="display:flex; align-items:center; gap:4px;"><span style="font-size:0.75rem; color:#64748b;">[조별]</span>${btns}</div>`;
-                }
-
-                const groupInput = isGroup ? `<input type="text" value="${rec.groupName || ''}" onchange="window.EvaluationManager.updateRecord('${evalData.id}', ${st.num}, 'groupName', this.value)" placeholder="조명" style="width:50px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-size:0.8rem;">` : '';
-
-                inputUI = `
-                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            ${groupInput}
-                            <div style="display:flex; flex-direction:column; gap:4px;">${groupHtml}${indivHtml}</div>
-                            ${reasonSelect}
-                        </div>
-                    </div>
-                `;
-            }
-
-            listHtml += `
-                <div style="display:flex; align-items:center; padding:8px; border-bottom:1px solid #f1f5f9; gap:10px;">
-                    <div style="width:80px; font-weight:bold; color:#475569;">${st.num}. ${st.name}</div>
-                    <div style="flex:1; display:flex; justify-content:flex-end;">${inputUI}</div>
-                </div>
-            `;
+            if (!ev.records[sNum]) ev.records[sNum] = {};
+            ev.records[sNum][field] = val;
         });
 
-        const typeMap = { 'eval': '평가', 'check': '체크(O/X)', 'memo': '메모' };
-        const displayType = typeMap[evalData.type] || evalData.type;
-
-        let classInfoStr = '';
-        if (evalData.rosterMeta && evalData.rosterMeta.year) {
-            classInfoStr = `<br><span style="color:#2563eb; font-size:0.85rem;">🧑‍🤝‍🧑 학급: ${evalData.rosterMeta.year}학년도 ${evalData.rosterMeta.grade}학년 ${evalData.rosterMeta.classNum}반</span>`;
+        await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId);
+        document.getElementById('eval-viewer-modal').remove();
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) {
+            window.dayViewInstance.refreshEvalBadges();
         }
-
-        let batchUI = '';
-        if (evalData.type === 'check') {
-            batchUI = `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; margin-bottom:10px;">
-                    <span style="font-weight:bold; color:#166534; font-size:0.9rem;">🚀 일괄 적용 (전체 학생)</span>
-                    <div style="display:flex; gap:10px;">
-                        <button onclick="window.EvaluationManager.batchUpdate('${evalData.id}', 'checked', true)" style="padding:4px 8px; font-size:0.85rem; background:#22c55e; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">전체 선택(O)</button>
-                        <button onclick="window.EvaluationManager.batchUpdate('${evalData.id}', 'checked', false)" style="padding:4px 8px; font-size:0.85rem; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; font-weight:bold;">전체 해제(X)</button>
-                    </div>
-                </div>
-            `;
-        } else if (evalData.type === 'memo') {
-            batchUI = `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; margin-bottom:10px; gap:10px;">
-                    <span style="font-weight:bold; color:#166534; font-size:0.9rem; white-space:nowrap;">🚀 일괄 적용 (전체 학생)</span>
-                    <div style="display:flex; flex:1; gap:4px;">
-                        <input type="text" id="batch-memo-input" placeholder="전체 학생에게 동일하게 입력할 내용" style="flex:1; padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-size:0.85rem;">
-                        <button onclick="window.EvaluationManager.batchUpdate('${evalData.id}', 'memo', document.getElementById('batch-memo-input').value)" style="padding:4px 12px; font-size:0.85rem; background:#22c55e; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold; white-space:nowrap;">적용</button>
-                    </div>
-                </div>
-            `;
-        } else {
-            let batchIndiv = '', batchGroup = '';
-            if (isGroup) {
-                let btns = evalData.steps.map(step => `<button onclick="window.EvaluationManager.batchUpdate('${evalData.id}', 'groupScore', '${step}')" style="padding:4px 8px; font-size:0.85rem; background:#fff; color:#b45309; border:1px solid #fcd34d; border-radius:4px; cursor:pointer; font-weight:bold;">${step}</button>`).join('');
-                batchGroup = `<div style="display:flex; align-items:center; gap:4px;"><span style="font-size:0.75rem; color:#92400e; font-weight:bold;">[조별]</span>${btns}</div>`;
-            }
-            if (isIndiv) {
-                let btns = evalData.steps.map(step => `<button onclick="window.EvaluationManager.batchUpdate('${evalData.id}', 'indivScore', '${step}')" style="padding:4px 8px; font-size:0.85rem; background:#fff; color:#047857; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; font-weight:bold;">${step}</button>`).join('');
-                batchIndiv = `<div style="display:flex; align-items:center; gap:4px;"><span style="font-size:0.75rem; color:#166534; font-weight:bold;">[개인]</span>${btns}</div>`;
-            }
-            batchUI = `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; margin-bottom:10px;">
-                    <span style="font-weight:bold; color:#166534; font-size:0.9rem;">🚀 일괄 적용</span>
-                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
-                        ${batchGroup}
-                        ${batchIndiv}
-                    </div>
-                </div>
-            `;
-        }
-
-        return `
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
-                <div style="font-size:0.9rem; color:#64748b; font-weight:bold; line-height:1.4;">
-                    유형: ${displayType} ${isEval ? ` | 교과: ${evalData.subject||'없음'} | 일시: ${evalData.dateStr}` : ''}
-                    ${classInfoStr}
-                </div>
-                <button onclick="window.EvaluationManager.deleteEvaluation('${evalData.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.9rem; font-weight:bold; flex-shrink:0; margin-left:10px;">🗑️ 전체 삭제</button>
-            </div>
-            
-            ${batchUI}
-
-            <div id="eval-records-container" style="max-height:400px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:10px; background:#fff;">
-                ${listHtml}
-            </div>
-            <div style="text-align:right; margin-top:10px;">
-                <span style="font-size:0.85rem; color:#10b981; font-weight:bold;">✅ 입력 시 자동으로 저장됩니다.</span>
-            </div>
-        `;
-    },
-
-    batchUpdate: async function(evalId, field, value) {
-        const evalData = this.currentEvalList.find(e => e.id === evalId);
-        if (!evalData) return;
-
-        const students = evalData.studentsSnapshot || [];
-        
-        students.forEach(st => {
-            if (!evalData.records[st.num]) evalData.records[st.num] = {};
-            evalData.records[st.num][field] = value;
-        });
-
-        const container = document.getElementById('eval-records-container');
-        let scrollTop = 0;
-        if (container) scrollTop = container.scrollTop;
-
-        const html = this.getViewerHtml(evalData);
-        const modalBody = document.querySelector('#eval-viewer-modal .modal-body');
-        if (modalBody) {
-            modalBody.innerHTML = html;
-            const newContainer = document.getElementById('eval-records-container');
-            if (newContainer) newContainer.scrollTop = scrollTop;
-        }
-
-        dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId).catch(e => console.warn(e));
-    },
-
-    updateRecord: async function(evalId, studentNum, field, value) {
-        const evalData = this.currentEvalList.find(e => e.id === evalId);
-        if (!evalData) return;
-
-        if (!evalData.records[studentNum]) evalData.records[studentNum] = {};
-        
-        if ((field === 'indivScore' || field === 'groupScore' || field === 'score') && evalData.records[studentNum][field] === value) {
-            evalData.records[studentNum][field] = '';
-        } else {
-            evalData.records[studentNum][field] = value;
-        }
-
-        const container = document.getElementById('eval-records-container');
-        let scrollTop = 0;
-        if (container) scrollTop = container.scrollTop;
-
-        const html = this.getViewerHtml(evalData);
-        const modalBody = document.querySelector('#eval-viewer-modal .modal-body');
-        if (modalBody) {
-            modalBody.innerHTML = html;
-            const newContainer = document.getElementById('eval-records-container');
-            if (newContainer) newContainer.scrollTop = scrollTop;
-        }
-
-        dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId).catch(e => console.warn(e));
     },
 
     deleteEvaluation: async function(evalId) {
-        if (!confirm("이 조사표를 완전히 삭제하시겠습니까?")) return;
+        if (!confirm("정말 이 조사표를 완전히 삭제하시겠습니까?")) return;
         this.currentEvalList = this.currentEvalList.filter(e => e.id !== evalId);
-        
         await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, this.currentGroupId);
-        
-        const existingViewer = document.getElementById('eval-viewer-modal');
-        if (existingViewer) existingViewer.remove();
-        
-        if (window.dayViewInstance && typeof window.dayViewInstance.refreshEvalBadges === 'function') {
-            await window.dayViewInstance.refreshEvalBadges();
-        } else if (typeof window.render === 'function') {
-            window.render();
+        document.getElementById('eval-viewer-modal')?.remove();
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) {
+            window.dayViewInstance.refreshEvalBadges();
         }
     }
 };
