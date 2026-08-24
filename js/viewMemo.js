@@ -21,6 +21,10 @@ export class MemoView extends BaseView {
 
     this.myGroups = [];
     this.currentNewMemoGroupId = null; 
+    
+    // 🌟 [V3.6] 메모 전용 공유 그룹 다중 선택 필터
+    this.activeGroupFilters = null;
+    this.isAllGroupsVisible = true;
   }
 
   loadMemoLabels() {
@@ -42,7 +46,22 @@ export class MemoView extends BaseView {
 
   setFilter(labelName) {
       this.currentFilter = labelName;
-      this.renderViewer();
+      this._drawHTML();
+  }
+
+  // 🌟 [V3.6] 그룹 필터 다중 토글 로직
+  toggleGroupFilter(groupId) {
+      if (!this.activeGroupFilters) {
+          this.activeGroupFilters = ['personal', ...this.myGroups.map(g => g.id)];
+      }
+      if (this.activeGroupFilters.includes(groupId)) {
+          if (this.activeGroupFilters.length > 1) { // 최소 1개는 켜져 있도록 방어
+              this.activeGroupFilters = this.activeGroupFilters.filter(id => id !== groupId);
+          }
+      } else {
+          this.activeGroupFilters.push(groupId);
+      }
+      this._drawHTML();
   }
 
   async loadLinks() {
@@ -123,16 +142,6 @@ export class MemoView extends BaseView {
     this.saveLinks(links); 
     document.getElementById('link-modal').remove();
     this.renderLinks();
-  }
-
-  deleteLink(index) {
-    const links = this.currentLinks || [];
-    const targetName = links[index]?.name;
-    if (confirm(`[${targetName}] 링크를 삭제하시겠습니까?`)) {
-      links.splice(index, 1);
-      this.saveLinks(links); 
-      this.renderLinks();
-    }
   }
 
   renderLabelChips(containerElement, selectedLabelsArray, onChangeCallback) {
@@ -287,19 +296,58 @@ export class MemoView extends BaseView {
   }
 
   _drawHTML() {
-    let filteredMemos = this.memoItems;
-    if (this.currentFilter !== '전체') {
-        filteredMemos = filteredMemos.filter(m => m.labels && m.labels.includes(this.currentFilter));
+    if (!this.activeGroupFilters) {
+        this.activeGroupFilters = ['personal', ...this.myGroups.map(g => g.id)];
     }
+
+    this.isAllGroupsVisible = this.activeGroupFilters.length === (this.myGroups.length + 1);
+
+    // 🌟 [V3.6] 다중 그룹 필터 적용
+    let filteredMemos = this.memoItems.filter(m => {
+        const gId = m.groupId || 'personal';
+        if (!this.activeGroupFilters.includes(gId)) return false;
+
+        if (this.currentFilter !== '전체') {
+            if (!m.labels || !m.labels.includes(this.currentFilter)) return false;
+        }
+        return true;
+    });
 
     let activeMemos = filteredMemos.filter(m => !m.completed).sort((a, b) => a.order - b.order);
     let completedMemos = filteredMemos.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
+    // 🌟 카운트 계산 (전체 대비)
     const allCount = this.memoItems.length;
     const labelCounts = {};
     this.AVAILABLE_LABELS.forEach(lObj => {
         labelCounts[lObj.name] = this.memoItems.filter(m => m.labels && m.labels.includes(lObj.name)).length;
     });
+
+    const groupCounts = { personal: 0 };
+    this.myGroups.forEach(g => groupCounts[g.id] = 0);
+    this.memoItems.forEach(m => {
+        const gId = m.groupId || 'personal';
+        if (groupCounts[gId] !== undefined) groupCounts[gId]++;
+    });
+
+    // 🌟 좌측 그룹 필터 HTML 생성
+    const isPersonalActive = this.activeGroupFilters.includes('personal');
+    const personalGroupHtml = `
+        <div class="label-chip ${isPersonalActive ? 'active' : ''}" onclick="window.memoViewInstance.toggleGroupFilter('personal')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer; ${isPersonalActive ? 'background:#3b82f6; color:#fff; border-color:#2563eb;' : 'background:#f8fafc; color:#64748b;'}">
+            <span>🔒 개인</span>
+            <span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${groupCounts['personal']}</span>
+        </div>
+    `;
+
+    const myGroupsHtml = this.myGroups.map(g => {
+        const isActive = this.activeGroupFilters.includes(g.id);
+        return `
+            <div class="label-chip ${isActive ? 'active' : ''}" onclick="window.memoViewInstance.toggleGroupFilter('${g.id}')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer; ${isActive ? 'background:#10b981; color:#fff; border-color:#059669;' : 'background:#f8fafc; color:#64748b;'}">
+                <span>👥 ${g.name}</span>
+                <span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${groupCounts[g.id]}</span>
+            </div>
+        `;
+    }).join('');
 
     let imageAttachmentHtml = '';
     if (this.isUploading) {
@@ -358,7 +406,9 @@ export class MemoView extends BaseView {
         </div>
 
         <div style="display:flex; align-items:flex-start; gap:20px; width:100%; flex-wrap:wrap;">
+            <!-- 🌟 [V3.6] 필터 패널 -->
             <div style="flex: 1 1 120px; max-width: 150px; min-width: 100px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 80px; display: flex; flex-direction: column; gap: 8px;">
+                
                 <div style="font-weight:bold; color:#1e40af; border-bottom:2px solid #f1f5f9; padding-bottom:8px; margin-bottom:4px;">📁 라벨 필터</div>
                 <div class="label-chip ${this.currentFilter === '전체' ? 'active' : ''}" onclick="window.memoViewInstance.setFilter('전체')" style="justify-content:space-between; display:flex; align-items:center; cursor:pointer;">
                     <span>👀 전체</span>
@@ -370,11 +420,16 @@ export class MemoView extends BaseView {
                         <span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${labelCounts[lObj.name]}</span>
                     </div>
                 `).join('')}
+
+                <div style="font-weight:bold; color:#0f766e; border-bottom:2px solid #f1f5f9; padding-bottom:8px; margin-top:12px; margin-bottom:4px;">👥 그룹 필터</div>
+                ${personalGroupHtml}
+                ${myGroupsHtml}
+
             </div>
 
             <div style="flex: 3 1 500px; min-width:0; background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div class="section-title" style="margin-bottom:5px; font-weight:bold; font-size:1.1rem; color:#0f172a;">진행 (${activeMemos.length})</div>
-                <div id="active-memo-list">${activeMemos.length === 0 ? `<p style="text-align:center; color:#94a3b8; font-size:1.1rem; padding: 20px 0;">${this.currentFilter !== '전체' ? '해당 라벨의 업무가 없습니다.' : '모든 업무를 완료했습니다!'}</p>` : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
+                <div id="active-memo-list">${activeMemos.length === 0 ? `<p style="text-align:center; color:#94a3b8; font-size:1.1rem; padding: 20px 0;">조건에 맞는 메모가 없습니다.</p>` : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
 
                 <div class="section-title" style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; font-weight:bold; font-size:1.1rem; color:#0f172a;">
                   <span>완료 (${completedMemos.length})</span>
@@ -428,11 +483,14 @@ export class MemoView extends BaseView {
     let dragHandleHtml = '';
     let dragAttributes = '';
     
-    if (!isCompleted && this.currentFilter === '전체' && isAuthor) {
+    // 🌟 모든 그룹이 켜져 있고 전체 라벨일 때만 드래그 허용 (순서 꼬임 방지)
+    if (!isCompleted && this.currentFilter === '전체' && this.isAllGroupsVisible && isAuthor) {
       dragAttributes = `draggable="true" ondragstart="window.memoViewInstance.handleDragStart(event, '${item.firestoreId}')" ondragover="window.memoViewInstance.handleDragOver(event)" ondrop="window.memoViewInstance.handleDrop(event, '${item.firestoreId}')"`;
       dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
     } else {
-      dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${!isAuthor ? '읽기 전용 메모는 순서 변경 불가' : '필터 적용 중에는 순서 변경 불가'}">≡</span>`;
+      let titleMsg = '필터 적용 중에는 순서 변경 불가';
+      if (!isAuthor) titleMsg = '읽기 전용 메모는 순서 변경 불가';
+      dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${titleMsg}">≡</span>`;
     }
 
     const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
