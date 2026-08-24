@@ -317,7 +317,7 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
 
-        // 🌟 [V3.6] 작성자 권한 확인 (본인이 작성했거나, 로컬 모드이거나, 그룹 공유가 아닐 때)
+        // 🌟 [V3.6] 작성자 권한 확인 (본인이 작성했거나, 그룹 공유가 아닐 때)
         const uid = window.auth?.currentUser?.uid;
         const isAuthor = !this.currentGroupId || !ev.authorId || !uid || ev.authorId === uid;
 
