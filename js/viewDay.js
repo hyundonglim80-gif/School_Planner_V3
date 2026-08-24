@@ -57,7 +57,6 @@ export class DayView extends BaseView {
         return html;
     }
 
-    // 🌟 [버그 수정 1] 다중 그룹 필터 사용 시 각각의 조사표가 어떤 그룹 소속인지 꼬리표(groupId) 붙이기
     async loadEvaluationsForDay(dateStr) {
         let allEvals = [];
         
@@ -87,7 +86,6 @@ export class DayView extends BaseView {
         return uniqueEvals;
     }
 
-    // 🌟 [버그 수정 2] 클릭 시 현재 환경의 scheduleGroupId가 아닌, 해당 조사표 고유의 groupId를 열도록 매핑
     generateEvalBadgesHtml(source, period = null) {
         const evals = this.currentEvalList.filter(e => {
             const eSource = e.context?.source || (e.periodStr ? 'schedule' : 'journal');
@@ -488,7 +486,6 @@ export class DayView extends BaseView {
         window.dayViewInstance.draggedPeriod = null;
     }
 
-    // 🌟 [버그 수정 3] 드래그로 시간표 위치 바꿀 때, 조사표 DB가 섞이지 않도록 완벽 분리
     handlePeriodDrop(event, targetPeriod) {
         event.preventDefault();
         event.stopPropagation();
@@ -600,7 +597,6 @@ export class DayView extends BaseView {
         }
 
         if (evalChanged) {
-            // 시간표 조사표와 개인 기록 조사표 분리 저장 (믹서기 버그 해결)
             const scheduleEvals = this.currentEvalList.filter(e => e.context?.source === 'schedule');
             const journalEvals = this.currentEvalList.filter(e => e.context?.source === 'journal');
             
@@ -910,6 +906,7 @@ Object.assign(window, {
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
 
+// 🌟 [V3.6] 전역 일정 필터 토글 기능 (모든 화면 공통)
 if (!window.toggleEventFilter) {
     window.toggleEventFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
@@ -924,12 +921,13 @@ if (!window.toggleEventFilter) {
     };
 }
 
+// 🌟 [V3.6] 시간표 중복 필터 토글 기능 (뷰어 전용)
 if (!window.toggleScheduleFilter) {
     window.toggleScheduleFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
         if (!instance || !instance.activeScheduleFilters) return;
         if (instance.activeScheduleFilters.includes(filterId)) {
-            if (instance.activeScheduleFilters.length > 1) { 
+            if (instance.activeScheduleFilters.length > 1) { // 최소 1개는 선택 유지
                 instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
             }
         } else {
