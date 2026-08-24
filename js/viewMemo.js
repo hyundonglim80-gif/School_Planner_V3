@@ -315,8 +315,8 @@ export class MemoView extends BaseView {
 
     const newMemoGroupChipsHtml = `
         <div style="display:inline-flex; background:#f1f5f9; padding:3px; border-radius:8px; border:1px solid #cbd5e1; align-items:center; margin-right:8px;">
-            <div class="new-memo-group-chip" data-value="personal" onclick="window.memoViewInstance.setNewMemoGroup(null)" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.currentNewMemoGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-            ${this.myGroups.map(g => `<div class="new-memo-group-chip" data-value="${g.id}" onclick="window.memoViewInstance.setNewMemoGroup('${g.id}')" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.currentNewMemoGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+            <div class="new-memo-group-chip" data-value="personal" onclick="window.memoViewInstance.setNewMemoGroup(null)" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.currentNewMemoGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인 메모</div>
+            ${this.myGroups.map(g => `<div class="new-memo-group-chip" data-value="${g.id}" onclick="window.memoViewInstance.setNewMemoGroup('${g.id}')" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.currentNewMemoGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name} 공유</div>`).join('')}
         </div>
     `;
 
@@ -419,7 +419,6 @@ export class MemoView extends BaseView {
 
   generateMemoHTML(item, isCompleted) {
     const uid = window.auth?.currentUser?.uid;
-    // 🌟 [V3.6] 작성자 권한 체크 (본인이 작성했거나, 오프라인이거나)
     const isAuthor = !item.authorId || !uid || item.authorId === uid;
 
     const deleteBtnHtml = isAuthor 
@@ -467,7 +466,6 @@ export class MemoView extends BaseView {
         </div>
     `;
 
-    // 🌟 [V3.6] 권한에 따른 그룹 표시 UI (버튼형 토글 or 읽기 전용 뱃지)
     let groupButtonsHtml = '';
     if (isAuthor) {
         groupButtonsHtml = `
@@ -527,7 +525,7 @@ export class MemoView extends BaseView {
           updatedAt: Date.now(),
           labels: item.labels || [],
           imageUrl: item.imageUrl || '',
-          authorId: item.authorId || window.auth?.currentUser?.uid // 작성자 정보 유지
+          authorId: item.authorId || window.auth?.currentUser?.uid 
       };
 
       if (item.completedAt) dataToMove.completedAt = item.completedAt;
@@ -615,7 +613,6 @@ export class MemoView extends BaseView {
 
     const targetGroupId = this.currentNewMemoGroupId; 
 
-    // 🌟 [V3.6] 작성자 ID 기록
     const newMemo = { 
         text: text, 
         completed: false, 
@@ -662,7 +659,6 @@ export class MemoView extends BaseView {
     const completedMemos = this.memoItems.filter(m => m.completed);
     if (completedMemos.length === 0) return;
     
-    // 권한이 있는 내 완료 메모만 필터링해서 비우기
     const uid = window.auth?.currentUser?.uid;
     const myCompletedMemos = completedMemos.filter(m => !m.authorId || !uid || m.authorId === uid);
 
