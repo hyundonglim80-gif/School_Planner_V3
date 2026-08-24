@@ -916,7 +916,7 @@ if (!window.toggleEventFilter) {
         } else {
             instance.activeEventFilters.push(filterId);
         }
-        if (window.store.mode === 'editor') instance.renderEditor();
+        if (store.mode === 'editor') instance.renderEditor();
         else instance.renderViewer();
     };
 }
