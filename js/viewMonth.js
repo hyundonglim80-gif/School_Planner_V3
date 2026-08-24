@@ -11,8 +11,9 @@ export class MonthView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; 
-    this.activeEventFilters = null; // 🌟 [V3.6] 일정 보기 필터 상태
+    this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
+    this.activeEventFilters = null;
+    this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택)
   }
 
   static setupGoToDay() {
@@ -28,7 +29,6 @@ export class MonthView extends BaseView {
     }
   }
 
-  // 🌟 [V3.6] 상단 일정 필터 버튼 렌더러
   getEventFilterHtml(instanceName) {
       if (!this.activeEventFilters) {
           this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
@@ -42,6 +42,24 @@ export class MonthView extends BaseView {
       this.myGroups.forEach(g => {
           const isActive = this.activeEventFilters.includes(g.id);
           html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+      });
+      html += `</div>`;
+      return html;
+  }
+
+  getScheduleFilterHtml(instanceName) {
+      if (!this.activeScheduleFilters) {
+          this.activeScheduleFilters = ['personal'];
+      }
+      const isPersonalActive = this.activeScheduleFilters.includes('personal');
+      let html = `
+          <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
+              <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
+              <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+      `;
+      this.myGroups.forEach(g => {
+          const isActive = this.activeScheduleFilters.includes(g.id);
+          html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
       });
       html += `</div>`;
       return html;
@@ -87,12 +105,25 @@ export class MonthView extends BaseView {
         );
     }
 
-    const scheduleCol = this.scheduleGroupId ? getGroupCol(this.scheduleGroupId, 'schedules') : getUserCol('schedules');
     promises.push(
-        getDocs(query(scheduleCol, where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
-            snap.forEach(docSnap => { sMap[docSnap.id] = docSnap.data().periods || {}; });
+        getDocs(query(getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+            snap.forEach(docSnap => {
+                if (!sMap[docSnap.id]) sMap[docSnap.id] = {};
+                sMap[docSnap.id]['personal'] = docSnap.data().periods || {};
+            });
         }).catch(e => console.warn(e))
     );
+
+    for (const g of this.myGroups) {
+        promises.push(
+            getDocs(query(getGroupCol(g.id, 'schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+                snap.forEach(docSnap => {
+                    if (!sMap[docSnap.id]) sMap[docSnap.id] = {};
+                    sMap[docSnap.id][g.id] = docSnap.data().periods || {};
+                });
+            }).catch(e => console.warn(e))
+        );
+    }
 
     await Promise.all(promises);
     return { eMap, sMap };
@@ -109,16 +140,8 @@ export class MonthView extends BaseView {
 
     const { eMap, sMap } = await this.fetchMonthData(startStr, endStr);
 
-    if (!this.activeEventFilters) {
-        this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
-    }
-
-    const wsSelectHtml = `
-        <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-            <div onclick="window.monthViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
-            ${this.myGroups.map(g => `<div onclick="window.monthViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 시간표</div>`).join('')}
-        </div>
-    `;
+    if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
 
     const daysList = this.isWeekendVisible ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
     const daysHeaderHtml = daysList.map(d => {
@@ -141,7 +164,6 @@ export class MonthView extends BaseView {
 
         const finalEvents = eMap[dateStr]?.eventList || [];
         
-        // 🌟 [V3.6] 일정 필터 적용 및 뱃지 삽입
         const filteredEvents = finalEvents.filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'));
         const processedEvents = filteredEvents.length > 0 ? filteredEvents.map(e => ({ 
             ...e, 
@@ -151,18 +173,25 @@ export class MonthView extends BaseView {
         
         const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:4px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
-        const dayPeriods = sMap[dateStr] || {};
         let hasClass = false;
-        
-        const boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
+        let boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
             const p = pi + 1;
-            const subject = dayPeriods[p]?.subject;
-            if (subject && subject.trim() !== '' && subject.toUpperCase() !== 'X') {
+            let pTexts = [];
+            
+            this.activeScheduleFilters.forEach(filterId => {
+                const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
+                if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
+                    let prefix = this.activeScheduleFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
+                    pTexts.push(prefix + subj.trim());
+                }
+            });
+
+            if (pTexts.length > 0) {
                 hasClass = true;
-                const text = subject.trim();
+                const text = pTexts.join(' / ');
                 let fontSize = text.length >= 5 ? "0.45rem" : (text.length === 4 ? "0.55rem" : (text.length === 3 ? "0.65rem" : "0.75rem"));
                 let letterSpacing = text.length >= 5 ? "-1.5px" : (text.length === 4 ? "-1px" : (text.length === 3 ? "-0.5px" : "normal"));
-                return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="메모: ${dayPeriods[p].memo || '없음'}, 비고: ${dayPeriods[p].supplies || '없음'}">${text}</div>`;
+                return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="${text}">${text}</div>`;
             }
             return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
         }).join('');
@@ -186,7 +215,7 @@ export class MonthView extends BaseView {
     this.container.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
            ${this.getEventFilterHtml('monthViewInstance')}
-           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
+           <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('monthViewInstance')}</div>
         </div>
         <div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr);">${daysHeaderHtml}${paddingHtml}${daysHtml}</div>
     `;
@@ -211,8 +240,8 @@ export class MonthView extends BaseView {
 
     const wsSelectHtml = `
         <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-            <div onclick="window.monthViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
-            ${this.myGroups.map(g => `<div onclick="window.monthViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 시간표</div>`).join('')}
+            <div onclick="window.monthViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
+            ${this.myGroups.map(g => `<div onclick="window.monthViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
         </div>
     `;
 
@@ -225,7 +254,7 @@ export class MonthView extends BaseView {
         if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return '';
 
         const eventList = eMap[dateStr]?.eventList || [];
-        const periods = sMap[dateStr] || {};
+        const periods = sMap[dateStr]?.[this.scheduleGroupId || 'personal'] || {};
 
         window[`tempEvents_${dateStr}`] = eventList.map(e => {
             let labelIds = e.labelIds || [];
@@ -324,7 +353,6 @@ export class MonthView extends BaseView {
       const uid = window.auth?.currentUser?.uid;
       
       return list.map((e, idx) => {
-          // 🌟 [V3.6] 필터 및 소유권 검사
           const isVisible = this.activeEventFilters.includes(e.sharedGroupId || 'personal');
           const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
@@ -337,8 +365,8 @@ export class MonthView extends BaseView {
           if (isAuthor) {
               groupButtonsHtml = `
                   <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                      <div onclick="window.monthViewInstance.changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                      ${(this.myGroups || []).map(g => `<div onclick="window.monthViewInstance.changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+                      <div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+                      ${(this.myGroups || []).map(g => `<div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
                   </div>
               `;
           } else {
@@ -358,7 +386,7 @@ export class MonthView extends BaseView {
           }).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = window.monthViewInstance.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
           const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -366,7 +394,7 @@ export class MonthView extends BaseView {
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           const deleteBtnHtml = isAuthor 
-                ? `<button onclick="window.monthViewInstance.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                ? `<button onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                 : '';
 
           return `
@@ -382,7 +410,7 @@ export class MonthView extends BaseView {
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.monthViewInstance.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -433,6 +461,9 @@ export class MonthView extends BaseView {
       });
   }
 
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
+  }
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
