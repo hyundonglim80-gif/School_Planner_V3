@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=800">
+  <title>SP3.5</title>
+  <link rel="stylesheet" href="css/style.css?v=14">
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- 🌟 브라우저에게 Firebase 모듈의 정확한 인터넷 주소를 알려주는 Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"
+      }
+    }
+  </script>
+
+  <!-- 서비스 워커 등록 스크립트 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          reg.onupdatefound = () => {
+            const installingWorker = reg.installing;
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed') {
+                if (navigator.serviceWorker.controller) {
+                  console.log('새로운 앱 버전이 있어 업데이트를 진행합니다.');
+                  window.location.reload();
+                }
+              }
+            };
+          };
+        }).catch(err => console.log('SW 등록 실패:', err));
+      });
+    }
+  </script>
+</head>
+<body>
+  <div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg-body); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:50px; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,0.1); text-align:center;">
+          <h1 style="margin-bottom:10px; font-size: clamp(1.5rem, 5vw, 2rem); color:var(--primary-color); white-space: nowrap; overflow: hidden;">SP3.5</h1>
+          <p style="color:#64748b; font-size: 1.2rem; margin-bottom:40px;">나만의 데이터를 안전하게 동기화하기 위해<br>구글 계정으로 시작해주세요.</p>
+          <button onclick="signInWithGoogle()" style="background:#4285F4; color:#fff; border:none; padding:12px 24px; font-size:1.2rem; border-radius:8px; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:10px; margin:0 auto; box-shadow: 0 4px 6px rgba(66, 133, 244, 0.3); transition: 0.2s;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Google 계정으로 로그인
+          </button>
+      </div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        
+        <!-- 1-1. 왼쪽 정렬 (로고, 네트워크 상태, D-Day, 시계) -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div class="title-group" style="display: flex; align-items: center; gap: 10px;">
+                <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;" id="app-title">SP3.5</h1>
+                
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button id="network-toggle-btn" style="background: #10b981; color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; display: flex; align-items: center; justify-content: center;" title="온라인 (클릭 시 오프라인 모드로 변경)">🌐</button>
+                    <button id="manual-sync-btn" style="display: none; background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc; width: 34px; height: 34px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; align-items: center; justify-content: center;" title="클라우드와 수동 동기화">🔄</button>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="position: relative;">
+                    <button class="nav-btn" id="btn-dday-display" onclick="window.toggleDdayMenu()" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; min-width: 90px; cursor:pointer;">D-Day 설정</button>
+                    <div id="dday-dropdown" class="dropdown-menu hidden" style="min-width: 220px; left: 0; right: auto;">
+                        <div id="dday-list-container"></div>
+                        <button class="dropdown-item" onclick="window.openDdaySettingsModal()" style="border-top: 1px solid #e2e8f0; font-weight: bold; color: #1a73e8; font-size: 0.95rem;">⚙️ D-Day 설정</button>
+                    </div>
+                </div>
+                <button class="nav-btn" onclick="window.openNativeClock()" style="background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; font-weight: bold; width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size: 1.2rem;" title="기본 타이머/알람 앱 열기">⏰</button>
+            </div>
+        </div>
+
+        <!-- 1-2. 오른쪽 정렬 (검색, 뷰 전환, 더보기 메뉴) -->
+        <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+            <button class="nav-btn" id="btn-search" title="단축키: / (슬래시)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
+
+            <div class="btn-group" title="보기 이동 단축키: Shift + ← / →" style="flex-wrap: wrap;">
+                <button class="btn-scope" data-scope="memo">메모</button>
+                <button class="btn-scope" data-scope="year">년간</button>
+                <button class="btn-scope" data-scope="month">월간</button>
+                <button class="btn-scope" data-scope="week">주간</button>
+                <button class="btn-scope" data-scope="day">하루</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div style="position: relative;" id="more-menu-container">
+                    <button class="btn-mode" id="btn-more-menu" onclick="toggleMoreMenu()" style="padding: 4px 8px; font-weight: bold;" title="더보기 및 메뉴">⋮</button>
+                    
+                    <div id="more-dropdown" class="dropdown-menu hidden" style="right: 0; left: auto;">
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.LabelManager.openUnifiedLabelModal('event');">통합 라벨 관리</button>
+                        
+                        <!-- SP3.5: 학급 정보 추가 메뉴 삽입 -->
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); if(window.RosterManager) window.RosterManager.openModal();" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px; font-weight:bold;">‍학급 정보(명렬표) 관리</button>
+                        <!-- SP3.6: 공유 그룹 관리 메뉴 추가 -->
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); if(window.GroupManager) window.GroupManager.openModal();" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px; font-weight:bold;">공유 그룹 관리</button>
+                        <button class="dropdown-item" onclick="openTimetableModal()" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px;">시간표 적용</button>
+<!--                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.openGoogleSyncModal();" style="font-weight:bold; ">구글 서비스 동기화</button>
+-->
+                        <button class="dropdown-item" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.BackupManager.openModal()">내보내기/가져오기</button>
+                        <button class="dropdown-item" onclick="openHelpModal()">사용 설명서</button>
+                        
+                        <button class="dropdown-item" id="menu-swipe-mode" onclick="document.getElementById('more-dropdown').classList.add('hidden'); window.toggleSwipeMode();" style="border-top: 1px dashed #e2e8f0; font-weight:bold; color:#f59e0b; padding-top: 8px; margin-top: 4px;">↔️ 스와이프: 날짜 이동</button>
+
+                        <button class="dropdown-item" id="btn-install-pwa" onclick="window.installPWA()" style="display: none; border-top: 1px dashed #e2e8f0; font-weight:bold; color:#10b981; padding-top: 8px; margin-top: 4px;">앱 설치하기</button>
+                    </div>
+                </div>
+
+                <div id="user-info" style="display:none; align-items:center; gap:6px; border-left:1px solid #cbd5e1; padding-left:8px;">
+                    <img id="user-photo" src="" style="width:24px; height:24px; border-radius:50%; border:1px solid #cbd5e1;" title="내 프로필">
+                    <button onclick="if(window.currentMode==='editor' && window.hasUnsavedChanges && !confirm('저장하지 않은 데이터가 있습니다. 정말 로그아웃 하시겠습니까?')) return; signOut()" style="background:transparent; border:none; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#475569; transition: 0.2s;">로그아웃</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 [둘째 줄] 완벽한 좌/중/우 3단 분할 정렬 -->
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; flex-wrap: wrap; gap: 10px;">
+        
+        <!-- 2-1. 왼쪽 정렬 (주말/수업 버튼) -->
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 200px; justify-content: flex-start;">
+            <button class="nav-btn" id="btn-toggle-weekend" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe;">주말 숨기기</button>
+            <button class="nav-btn" id="btn-toggle-class" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold;">수업 숨기기</button>
+        </div>
+
+        <!-- 2-2. 중앙 정렬 (이전/날짜/다음 버튼) -->
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1 1 auto;" id="date-nav-group">
+            <button class="nav-btn" id="btn-prev-date" title="단축키: Ctrl + ←">&lt; 이전</button>
+            <span class="current-range" id="date-range-text" style="cursor:pointer; transition: color 0.2s; min-width: 150px; text-align: center; font-size: 1.15rem;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
+            <button class="nav-btn" id="btn-next-date" title="단축키: Ctrl + →">다음 &gt;</button>
+        </div>
+
+        <!-- 🌟 2-3. 오른쪽 정렬 (보기/작성 버튼 너비 완벽 대칭) -->
+        <div style="display: flex; flex: 1 1 200px; justify-content: flex-end;">
+            <div class="mode-group" style="display: flex; flex-wrap: wrap;">
+                <button class="btn-mode" id="btn-mode-viewer" title="단축키: Ctrl + ↑" style="width: 80px; display: flex; justify-content: center; align-items: center; white-space: nowrap;">보기</button>
+                <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 80px; display: flex; justify-content: center; align-items: center; white-space: nowrap;">작성</button>
+            </div>
+        </div>
+
+    </div>
+
+  </header>
+
+  <main class="main-container" id="main-view"></main>
+
+  <script type="module" src="js/core/store.js"></script>
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/core/utils.js"></script>
+  <script type="module" src="js/core/eventUtils.js"></script>
+  <script type="module" src="js/core/events.js"></script>
+  
+  <script type="module" src="js/components/Modal.js"></script>
+  <script type="module" src="js/components/BaseView.js"></script>
+  
+  <script type="module" src="js/app.js"></script>
+  
+  <script type="module" src="js/modules/settings.js"></script>
+  <script type="module" src="js/modules/help.js"></script>
+  <script type="module" src="js/modules/search.js"></script>
+  <script type="module" src="js/modules/recurring.js"></script>
+  <script type="module" src="js/modules/labels.js"></script>
+
+  <script type="module" src="js/modules/timetable.js"></script>
+  <script type="module" src="js/modules/backup.js"></script>
+  <script type="module" src="js/modules/group.js"></script>
+  
+  <!-- SP3.5: 명렬표 및 평가 모듈 추가 -->
+  <script type="module" src="js/modules/roster.js"></script>
+  <script type="module" src="js/modules/evaluation.js"></script>
+  
+  <script type="module" src="js/viewWeek.js"></script>
+  <script type="module" src="js/viewDay.js"></script>
+  <script type="module" src="js/viewMonth.js"></script>
+  <script type="module" src="js/viewYear.js"></script>
+  <script type="module" src="js/viewMemo.js"></script>
+  
+  <script type="module" src="js/modules/sync.js"></script>
+  
+  <div id="image-viewer-modal" class="modal-overlay hidden" style="z-index: 10006; flex-direction: column;" onclick="this.classList.add('hidden')">
+      <img id="full-size-image" src="" style="max-width: 90%; max-height: 85vh; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); object-fit: contain;">
+      <span style="color: white; margin-top: 15px; font-size: 1.2rem; font-weight: bold; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;">화면 아무 곳이나 클릭하면 닫힙니다</span>
+  </div>
+
+</body>
+</html>
