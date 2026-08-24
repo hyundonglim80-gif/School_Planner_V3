@@ -11,11 +11,11 @@ export class YearView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; 
+    this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
     this.renderId = 0; 
     this.isRendering = false; 
     this.activeEventFilters = null; 
-    this.activeScheduleFilters = null; 
+    this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택)
   }
 
   getEventFilterHtml(instanceName) {
@@ -151,31 +151,39 @@ export class YearView extends BaseView {
     return { orderedMonths: monthsInfo, prioritizedMonths };
   }
 
-  // 🌟 [핵심 해결 1] 앱 헤더(1,2행)와 필터 바(3행)를 무조건 고정시키는 완벽한 스크립트
-  applyStickyTop() {
-      // 1. 브라우저의 기본 overflow 숨김이 고정(sticky)을 방해하는 것을 원천 차단
-      document.documentElement.style.setProperty('overflow-x', 'visible', 'important');
-      document.body.style.setProperty('overflow-x', 'visible', 'important');
-      if (this.container) {
-          this.container.style.setProperty('overflow', 'visible', 'important');
-      }
-      
-      const filterWrapper = document.getElementById('year-filter-wrapper');
+  // 🌟 [핵심 해결 1] 앱 전체 헤더와 필터 행을 "절대 고정(fixed)" 시키는 무적의 함수
+  applyStickyHeaderFix() {
       const appHeader = document.querySelector('.app-header');
+      let headerHeight = 0;
       
-      if (filterWrapper && appHeader) {
-          // 2. 앱 헤더(1, 2번째 줄)가 무조건 화면 맨 위에 붙도록 강제 설정
-          appHeader.style.setProperty('position', 'sticky', 'important');
+      // 1. 앱 헤더(1줄, 2줄)를 화면 최상단에 절대 고정
+      if (appHeader) {
+          appHeader.style.setProperty('position', 'fixed', 'important');
           appHeader.style.setProperty('top', '0', 'important');
-          appHeader.style.setProperty('z-index', '1000', 'important');
+          appHeader.style.setProperty('left', '0', 'important');
+          appHeader.style.setProperty('right', '0', 'important');
+          appHeader.style.setProperty('z-index', '2000', 'important');
+          appHeader.style.setProperty('box-sizing', 'border-box', 'important');
+          headerHeight = appHeader.offsetHeight;
+          // 헤더가 가리는 공간만큼 body를 밀어내기
+          document.body.style.setProperty('padding-top', headerHeight + 'px', 'important');
+      }
 
-          // 앱 헤더의 실제 높이를 소수점 단위까지 정확히 측정
-          const headerHeight = appHeader.getBoundingClientRect().height;
-          
-          // 3. 필터 영역(3번째 줄)을 앱 헤더 바로 밑에 빈틈없이 찰싹 붙임
-          filterWrapper.style.setProperty('position', 'sticky', 'important');
+      // 2. 필터 영역(3줄)을 앱 헤더 바로 밑에 절대 고정
+      const filterWrapper = document.getElementById('year-filter-wrapper');
+      const mainContent = document.getElementById('year-main-content');
+      
+      if (filterWrapper && mainContent) {
+          filterWrapper.style.setProperty('position', 'fixed', 'important');
           filterWrapper.style.setProperty('top', headerHeight + 'px', 'important');
-          filterWrapper.style.setProperty('z-index', '999', 'important');
+          filterWrapper.style.setProperty('left', '0', 'important');
+          filterWrapper.style.setProperty('right', '0', 'important');
+          filterWrapper.style.setProperty('z-index', '1999', 'important');
+          filterWrapper.style.setProperty('box-sizing', 'border-box', 'important');
+          
+          // 필터가 가리는 공간만큼 컨테이너를 아래로 밀어내기
+          const filterHeight = filterWrapper.offsetHeight;
+          mainContent.style.setProperty('margin-top', (filterHeight + 15) + 'px', 'important');
       }
   }
 
@@ -272,21 +280,24 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 뷰어 모드 HTML 렌더링
-      this.container.innerHTML = `
-          <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
+      // 🌟 [뷰어 모드] 필터 행과 본문을 완전히 분리하여 고정 스크립트가 잘 적용되도록 설계
+      let skeletonHtml = `
+          <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
              ${this.getEventFilterHtml('yearViewInstance')}
              <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
           </div>
-          ${progressHtml}
-          <div class="year-grid" id="year-grid-container">
-             ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
+          <div id="year-main-content">
+              ${progressHtml}
+              <div class="year-grid" id="year-grid-container">
+                 ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
+              </div>
           </div>
       `;
+      this.container.innerHTML = skeletonHtml;
       
-      // 🌟 HTML 삽입 직후 무조건 고정 함수 실행
-      setTimeout(() => this.applyStickyTop(), 0);
-      window.addEventListener('resize', () => this.applyStickyTop());
+      // 🌟 화면 렌더링 즉시 절대 고정 함수 실행
+      setTimeout(() => this.applyStickyHeaderFix(), 0);
+      window.addEventListener('resize', () => this.applyStickyHeaderFix());
       
       const realTodayStr = formatDate(new Date());
 
@@ -341,14 +352,15 @@ export class YearView extends BaseView {
                     const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
                     if (focusEl) {
                         const filterRow = document.getElementById('year-filter-wrapper');
-                        const offset = filterRow ? filterRow.getBoundingClientRect().height : 0;
                         const header = document.querySelector('.app-header');
-                        const hOffset = header ? header.getBoundingClientRect().height : 0;
-                        // 🌟 스크롤 시 앱 헤더 + 필터 행 높이를 모두 빼서 정확한 위치에 안착
-                        const y = focusEl.getBoundingClientRect().top + window.scrollY - offset - hOffset - 15;
-                        window.scrollTo({top: y, behavior: 'smooth'});
+                        const fOffset = filterRow ? filterRow.offsetHeight : 0;
+                        const hOffset = header ? header.offsetHeight : 0;
+                        const absoluteY = focusEl.getBoundingClientRect().top + window.pageYOffset;
+                        
+                        // 자동 스크롤 시 1, 2, 3번째 줄 밑에 정확히 화면이 맞춰지도록 계산
+                        window.scrollTo({top: absoluteY - hOffset - fOffset - 10, behavior: 'smooth'});
                     }
-                }, 50);
+                }, 300);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -402,6 +414,7 @@ export class YearView extends BaseView {
 
     this.renderedDateStrings = [];
     const masterLabels = getEventLabels(); 
+    const maxP = store.periodNames ? store.periodNames.length : 6;
 
     const wsSelectHtml = `
         <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
@@ -418,43 +431,33 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [핵심 해결 2] 에디터 머리글(날짜/구분/내용)이 절대 고정되지 못하게 style 주입 및 th 태그 강제 속성 해제
+    // 🌟 [에디터 모드] 필터 행은 컨테이너 밖으로 독립, 표의 머리글은 <td> 태그를 써서 절대 고정 안 됨(화면 밖으로 올라감)
     this.container.innerHTML = `
-      <style>
-        /* CSS의 표 머리글 고정 규칙을 완전히 덮어써서 파괴함 */
-        #year-editor-table thead, 
-        #year-editor-table th, 
-        #year-editor-table tr.editor-header-row, 
-        #year-editor-table th.editor-header-cell {
-            position: static !important;
-            top: auto !important;
-            z-index: auto !important;
-            transform: none !important;
-        }
-      </style>
-      
-      <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
+      <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
           ${this.getEventFilterHtml('yearViewInstance')}
           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
       </div>
       
-      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+      <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
-          <thead>
-            <tr class="editor-header-row" style="background:#f1f5f9;">
-              <th class="editor-header-cell" style="width:110px; padding:8px; border:1px solid #cbd5e1; color:#1e293b; font-weight:bold;">날짜</th>
-              <th class="editor-header-cell" style="width:60px; padding:8px; border:1px solid #cbd5e1; color:#1e293b; font-weight:bold;">구분</th>
-              <th class="editor-header-cell" colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; color:#1e293b; font-weight:bold;">📌 내용 (직접 수정)</th>
+          <!-- 🌟 <th> 대신 일반 <tbody>+<td> 조합을 사용하여 스크롤 시 무조건 같이 위로 밀려 올라가도록 보장 -->
+          <tbody style="border-bottom: 2px solid #cbd5e1;">
+            <tr style="background:#f1f5f9;">
+              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
             </tr>
-          </thead>
+          </tbody>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    // 🌟 HTML 삽입 직후 무조건 고정 함수 실행
-    setTimeout(() => this.applyStickyTop(), 0);
-    window.addEventListener('resize', () => this.applyStickyTop());
+    // 🌟 화면 렌더링 즉시 절대 고정 함수 실행
+    setTimeout(() => this.applyStickyHeaderFix(), 0);
+    window.addEventListener('resize', () => this.applyStickyHeaderFix());
+
+    const tbody = document.getElementById('year-editor-table');
 
     for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
@@ -490,7 +493,7 @@ export class YearView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
 
-          const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
+          const periodCellsHtml = Array.from({ length: maxP }).map((_, pi) => {
                const pObj = periods[pi + 1] || {};
                let cellText = "";
                if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
@@ -512,7 +515,7 @@ export class YearView extends BaseView {
                   일정<br>
                   <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
               </td>
-              <td colspan="${this.maxPeriod}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
+              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
             </tr>
             <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
               <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
@@ -520,23 +523,24 @@ export class YearView extends BaseView {
             </tr>`;
         }).join('');
 
-        const tbodyEl = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
-        if (tbodyEl) {
-            tbodyEl.innerHTML = rowsHtml;
-            // 🌟 에디터에서 1순위(현재 월)가 렌더링되면 즉시 자동 스크롤
+        const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
+        if (targetTbody) {
+            targetTbody.innerHTML = rowsHtml;
+            // 🌟 1순위(현재 월)가 그려지면 즉시 자동 스크롤
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
                     if (firstRow) {
                         const filterRow = document.getElementById('year-filter-wrapper');
-                        const offset = filterRow ? filterRow.getBoundingClientRect().height : 0;
                         const header = document.querySelector('.app-header');
-                        const hOffset = header ? header.getBoundingClientRect().height : 0;
-                        // 앱 헤더 높이 + 3번째 필터 행 높이를 빼서 그 아래에 콘텐츠가 오도록 조절
-                        const y = firstRow.getBoundingClientRect().top + window.scrollY - offset - hOffset - 15;
-                        window.scrollTo({top: y, behavior: 'smooth'});
+                        const fOffset = filterRow ? filterRow.offsetHeight : 0;
+                        const hOffset = header ? header.offsetHeight : 0;
+                        const absoluteY = firstRow.getBoundingClientRect().top + window.pageYOffset;
+                        
+                        // 자동 스크롤 시 1, 2, 3번째 줄 밑에 정확히 화면이 맞춰지도록 계산
+                        window.scrollTo({top: absoluteY - hOffset - fOffset - 10, behavior: 'smooth'});
                     }
-                }, 100);
+                }, 300);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
