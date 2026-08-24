@@ -118,7 +118,6 @@ export class YearView extends BaseView {
     return { eMap, sMap };
   }
 
-  // 🌟 지연 로딩을 위한 우선순위 월 배열 생성
   getPrioritizedMonths(targetY) {
     const nextYear = targetY + 1;
     const monthsInfo = [
@@ -152,13 +151,14 @@ export class YearView extends BaseView {
     return { orderedMonths: monthsInfo, prioritizedMonths };
   }
 
-  // 🌟 앱 헤더(1, 2번째 줄) 높이를 자동 계산하여 3번째 줄을 그 밑에 고정시키는 함수
+  // 🌟 상단 필터 행을 앱 헤더 바로 밑에 정확히 고정시키는 함수
   applyStickyTop() {
-      const header = document.querySelector('.app-header');
       const filterWrapper = document.getElementById('year-filter-wrapper');
-      if (header && filterWrapper) {
-          const headerHeight = Math.floor(header.getBoundingClientRect().height);
-          filterWrapper.style.top = headerHeight + 'px';
+      const appHeader = document.querySelector('.app-header');
+      if (filterWrapper && appHeader) {
+          // 브라우저에 앱 헤더가 고정(sticky)되어 있다면 그 높이만큼 띄우고, 아니면 0으로 설정
+          const isSticky = window.getComputedStyle(appHeader).position === 'sticky' || window.getComputedStyle(appHeader).position === 'fixed';
+          filterWrapper.style.top = isSticky ? appHeader.offsetHeight + 'px' : '0px';
       }
   }
 
@@ -168,13 +168,21 @@ export class YearView extends BaseView {
     this.isRendering = true;
 
     this.showLoading('클라우드에서 연간 일정을 가져오는 중입니다...'); 
+    
+    // 🌟 강제 오버플로우 해제 (position: sticky 버그 해결의 핵심)
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
 
     if (!window.db) return;
 
     let allEvents = [];
+    const maxP = store.periodNames ? store.periodNames.length : 6;
     
     try {
-      const targetY = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
+      const targetY = store.currentDate ? store.currentDate.getFullYear() : new Date().getFullYear();
       const startStr = `${targetY}-03-01`;
       const febLastDay = new Date(targetY + 1, 2, 0).getDate();
       const endStr = `${targetY + 1}-02-${febLastDay}`;
@@ -195,7 +203,7 @@ export class YearView extends BaseView {
         let boxesHtml = '';
         let hasClass = false;
 
-        for (let p = 1; p <= this.maxPeriod; p++) {
+        for (let p = 1; p <= maxP; p++) {
           let pTexts = [];
           this.activeScheduleFilters.forEach(filterId => {
               const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
@@ -255,9 +263,9 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 [뷰어 모드] 세 번째 행 (필터) 독립적 생성 (껍데기 컨테이너 밖으로 분리)
+      // 🌟 [뷰어 모드] 첫 줄 고정 (Sticky Header)
       let skeletonHtml = `
-          <div id="year-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
+          <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
              ${this.getEventFilterHtml('yearViewInstance')}
              <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
           </div>
@@ -268,7 +276,6 @@ export class YearView extends BaseView {
       `;
       this.container.innerHTML = skeletonHtml;
       
-      // 🌟 높이 자동 계산 함수 실행
       setTimeout(() => this.applyStickyTop(), 0);
       window.addEventListener('resize', () => this.applyStickyTop());
       
@@ -320,7 +327,6 @@ export class YearView extends BaseView {
         const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
         if (containerEl) {
             containerEl.outerHTML = cardHtml;
-            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동 (상단 고정 필터 높이 고려)
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
@@ -332,7 +338,7 @@ export class YearView extends BaseView {
                         const y = focusEl.getBoundingClientRect().top + window.scrollY - offset - hOffset - 10;
                         window.scrollTo({top: y, behavior: 'smooth'});
                     }
-                }, 50);
+                }, 100);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -341,7 +347,7 @@ export class YearView extends BaseView {
       const progressEl = document.getElementById('year-render-progress');
       if (progressEl) progressEl.remove();
 
-    } catch (error) {}
+    } catch (error) { console.error(error); }
     finally {
         this.isRendering = false;
     }
@@ -353,11 +359,19 @@ export class YearView extends BaseView {
     this.isRendering = true;
 
     this.showLoading('연간 데이터를 가져오는 중입니다...'); 
+    
+    // 🌟 강제 오버플로우 해제 (position: sticky 버그 해결)
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
 
     if (!window.db) return;
 
-    const currentYear = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
+    const currentYear = store.currentDate ? store.currentDate.getFullYear() : new Date().getFullYear();
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const maxP = store.periodNames ? store.periodNames.length : 6;
 
     const startStr = `${currentYear}-03-01`;
     const nextYear = currentYear + 1;
@@ -373,7 +387,6 @@ export class YearView extends BaseView {
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
-    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -403,30 +416,28 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [에디터 모드] 필터 행은 컨테이너 밖으로 독립시켜 무조건 상단 고정!
-    // 🌟 [에디터 모드] 표의 머리글은 <th> 대신 <td>를 사용하여 고정 속성 원천 차단!
+    // 🌟 [에디터 모드] 필터 행은 고정, 표의 머리글은 <td> 태그를 써서 절대 고정 안 됨(화면 밖으로 올라감)
     this.container.innerHTML = `
-      <div id="year-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
+      <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
           ${this.getEventFilterHtml('yearViewInstance')}
           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
       </div>
       
-      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
+      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
-          <!-- 🌟 <th> 태그를 완전히 제거하여 CSS에 의한 강제 고정을 회피합니다 -->
+          <!-- 🌟 <th> 대신 일반 <tbody>+<td> 조합을 사용하여 스크롤 시 무조건 같이 위로 밀려 올라가도록 보장 -->
           <tbody style="border-bottom: 2px solid #cbd5e1;">
-            <tr style="background:#f1f5f9;">
-              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
-              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
-              <td colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
+            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
             </tr>
           </tbody>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    // 🌟 높이 자동 계산 함수 실행
     setTimeout(() => this.applyStickyTop(), 0);
     window.addEventListener('resize', () => this.applyStickyTop());
 
@@ -466,7 +477,7 @@ export class YearView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
 
-          const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
+          const periodCellsHtml = Array.from({ length: maxP }).map((_, pi) => {
                const pObj = periods[pi + 1] || {};
                let cellText = "";
                if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
@@ -488,7 +499,7 @@ export class YearView extends BaseView {
                   일정<br>
                   <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
               </td>
-              <td colspan="${this.maxPeriod}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
+              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
             </tr>
             <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
               <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
@@ -499,7 +510,7 @@ export class YearView extends BaseView {
         const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
         if (targetTbody) {
             targetTbody.innerHTML = rowsHtml;
-            // 🌟 1순위(현재 월)가 그려지면 스크롤을 이동하여 보여줌
+            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
@@ -630,158 +641,6 @@ export class YearView extends BaseView {
 
           row.querySelectorAll('.edit-class-cell').forEach(cell => {
               const p = cell.getAttribute("data-p");
-              let text = cell.innerText?.trim() || "";
-              let subject = '', memo = '', supplies = '';
-
-              if (text !== '') {
-                  const allBrackets = text.match(/\[.*?\]/g);
-                  if (allBrackets && allBrackets.length >= 2) {
-                      const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
-                      supplies = lastMatch ? lastMatch[1].trim() : "";
-                      text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
-                  }
-                  const firstMatch = text.match(/^\[(.*?)\]/);
-                  if (firstMatch) {
-                      subject = firstMatch[1].trim();
-                      memo = text.replace(/^\[(.*?)\]\s*/, '').trim();
-                  } else {
-                      memo = text;
-                  }
-              }
-              window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
-          });
-      });
-  }
-
-  updateCompactEvent(dateStr, idx, field, value) {
-      store.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
-  }
-
-  addCompactEvent(dateStr) {
-      this.syncCompactEventInputs(dateStr); 
-      store.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-      window[`tempEvents_${dateStr}`].push({ 
-          id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-          authorId: window.auth?.currentUser?.uid,
-          labelIds: [], content: '', completed: false, sharedGroupId: null 
-      });
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
-  }
-
-  requestRemoveCompactEvent(dateStr, idx) {
-      this.syncCompactEventInputs(dateStr); 
-      const ev = window[`tempEvents_${dateStr}`][idx];
-      const isGrouped = !!ev.groupId; 
-      
-      const labelObjs = getEventLabels();
-      const forwardLabelId = (ev.labelIds || []).find(id => labelObjs.find(l => l.id === id)?.isForward);
-      const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
-
-      if (isGrouped && ev.groupId.startsWith('group_')) {
-          window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
-              () => window.render(), 
-              () => this.removeCompactEvent(dateStr, idx)
-          );
-      } else if (forwardLabelId && ev.forwardChainId) {
-          window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, () => window.render());
-      } else {
-          this.removeCompactEvent(dateStr, idx);
-      }
-  }
-
-  removeCompactEvent(dateStr, idx) {
-      store.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
-  }
-
-  save() {
-    if (this.isRendering) {
-        alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
-        return;
-    }
-
-    if (!this.renderedDateStrings) return;
-    this.syncScheduleInputs(); 
-    this.syncAllCompactEventInputs();
-
-    const snapshot = this.renderedDateStrings.map(dateStr => {
-        const rawList = window[`tempEvents_${dateStr}`] || [];
-        const validEvents = rawList
-            .filter(e => e.content?.trim() || e.labelIds?.length > 0)
-            .map(e => ({
-                ...e,
-                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || window.auth?.currentUser?.uid
-            }));
-        const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
-        return { dateStr, validEvents, periodsData };
-    });
-
-    const masterLabels = getEventLabels();
-    let batch = writeBatch(window.db);
-    let opCount = 0;
-    let batchPromises = [];
-    
-    snapshot.forEach(item => {
-        const eventsByGroup = { 'personal': [] };
-        this.myGroups.forEach(g => eventsByGroup[g.id] = []);
-
-        item.validEvents.forEach(e => {
-            const gId = e.sharedGroupId || 'personal';
-            if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
-        });
-
-        const pEvents = eventsByGroup['personal'];
-        batch.set(doc(getUserCol('events'), item.dateStr), {
-            eventList: pEvents,
-            eventText: formatEventListToText(pEvents),
-            updatedAt: Date.now()
-        }, { merge: true });
-        opCount++;
-        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
-
-        this.myGroups.forEach(g => {
-            const gEvents = eventsByGroup[g.id];
-            batch.set(doc(getGroupCol(g.id, 'events'), item.dateStr), {
-                eventList: gEvents,
-                eventText: formatEventListToText(gEvents),
-                updatedAt: Date.now()
-            }, { merge: true });
-            opCount++;
-            if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
-        });
-
-        const isSkipDay = item.validEvents.some(e => e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
-        if (isSkipDay) {
-            Object.values(item.periodsData).forEach(p => p.subject = '');
-        }
-
-        const scheduleCol = this.scheduleGroupId ? getGroupCol(this.scheduleGroupId, 'schedules') : getUserCol('schedules');
-        batch.set(doc(scheduleCol, item.dateStr), {
-            periods: item.periodsData,
-            updatedAt: Date.now()
-        }, { merge: true });
-        opCount++;
-        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
-    });
-
-    if (opCount > 0) batchPromises.push(batch.commit());
-    Promise.all(batchPromises).catch(e => console.warn(e));
-    
-    store.hasUnsavedChanges = false;
-  }
-}
-
-const instance = new YearView(document.getElementById("main-view"));
-Object.assign(window, {
-    yearViewInstance: instance,
-    renderYearViewer: (c) => { instance.container = c; instance.renderViewer(); },
-    renderYearEditor: (c) => { instance.container = c; instance.renderEditor(); },
-    saveYearDataFromEditor: () => instance.save()
-});
               let text = cell.innerText?.trim() || "";
               let subject = '', memo = '', supplies = '';
 
