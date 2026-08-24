@@ -246,9 +246,9 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 [뷰어 모드] 독립된 Sticky 행
+      // 🌟 [뷰어 모드] 독립된 껍데기 밖의 Sticky 행
       let skeletonHtml = `
-          <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
+          <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
              ${this.getEventFilterHtml('yearViewInstance')}
              <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
           </div>
@@ -357,7 +357,6 @@ export class YearView extends BaseView {
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
-    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -387,24 +386,24 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [작업 모드] 필터 메뉴는 독립적으로 고정, 표의 머리글(th)은 고정 안 됨(static)
+    // 🌟 [에디터 모드] 필터 메뉴는 독립적으로 고정, 표의 머리글(th)은 강제로 고정 해제(static)
     this.container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px; padding: 0 5px;">
-          <h3 style="margin:0; color:#1e293b; font-size:var(--font-header-title);">📅 ${currentYear}학년도 편집 시트</h3>
-      </div>
-      <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
+      <div id="year-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 12px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
           ${this.getEventFilterHtml('yearViewInstance')}
           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
       </div>
       
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
+        <style>
+            #year-editor-table th { position: static !important; top: auto !important; z-index: auto !important; }
+        </style>
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
           <thead>
             <tr style="background:#f1f5f9;">
-              <th style="width:110px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b; position: static !important; top: auto !important; z-index: 1 !important;">날짜</th>
-              <th style="width:60px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b; position: static !important; top: auto !important; z-index: 1 !important;">구분</th>
-              <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b; position: static !important; top: auto !important; z-index: 1 !important;">📌 내용 (직접 수정)</th>
+              <th style="width:110px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">날짜</th>
+              <th style="width:60px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">구분</th>
+              <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">📌 내용 (직접 수정)</th>
             </tr>
           </thead>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
@@ -484,7 +483,7 @@ export class YearView extends BaseView {
                     const offset = filterRow ? filterRow.offsetHeight : 0;
                     const y = tbodyEl.getBoundingClientRect().top + window.scrollY - offset - 10;
                     window.scrollTo({top: y, behavior: 'smooth'});
-                }, 50);
+                }, 100);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
