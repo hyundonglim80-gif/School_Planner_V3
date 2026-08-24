@@ -8,7 +8,7 @@ import {
     enableNetwork,
     disableNetwork,
     collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, setDoc, query, orderBy, 
-    where, arrayUnion, arrayRemove // 🌟 [V3.6] 그룹 쿼리 및 배열 수정을 위해 추가됨
+    where, arrayUnion, arrayRemove 
 } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
@@ -65,7 +65,6 @@ export const getUserCol = (collectionName) => {
     return collection(db, 'users', user.uid, collectionName);
 };
 
-// 🌟 [V3.6 신규] 그룹 컬렉션 접근 헬퍼 함수
 export const getGroupCol = (groupId, collectionName) => {
     if (!groupId) throw new Error("그룹 ID가 필요합니다.");
     return collection(db, 'groups', groupId, collectionName);
@@ -168,7 +167,6 @@ export const dbAPI = {
             return memos;
         } catch (error) { return []; }
     },
-    // 🌟 [신규] 특정 그룹의 메모 불러오기
     loadGroupMemos: async (groupId) => {
         try {
             const q = query(getGroupCol(groupId, 'tasks'), orderBy('createdAt'));
@@ -178,7 +176,6 @@ export const dbAPI = {
             return memos;
         } catch (error) { return []; }
     },
-    // 🌟 [수정] 그룹 ID가 있으면 그룹 컬렉션에, 없으면 개인 컬렉션에 추가
     addMemo: async (memoData, groupId = null) => { 
         if (groupId) {
             await addDoc(getGroupCol(groupId, 'tasks'), memoData);
@@ -215,7 +212,6 @@ export const dbAPI = {
             };
         } catch (error) { return { eventText: '', periods: {} }; }
     },
-    // 🌟 [신규] 그룹의 하루 일정/수업 데이터만 로드 (개인 데이터와 분리)
     loadGroupDayData: async (dateStr, groupId) => {
         try {
             const eventDoc = await getDoc(doc(getGroupCol(groupId, 'events'), dateStr));
@@ -323,34 +319,52 @@ export const dbAPI = {
         return { id: docRef.id, ...groupData };
     },
 
-    // 초대 코드로 기존 그룹에 가입
+    // 초대 코드로 기존 그룹에 가입 (🌟 버그 픽스 및 안전장치 강화 완료)
     joinGroup: async (inviteCode) => {
         const user = auth.currentUser;
         if (!user) throw new Error("로그인이 필요합니다.");
         
-        const q = query(collection(db, 'groups'), where('inviteCode', '==', inviteCode.toUpperCase()));
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) throw new Error("유효하지 않거나 존재하지 않는 초대 코드입니다.");
+        // 1. 공백 완벽 제거 및 대문자 변환
+        const cleanCode = (inviteCode || '').trim().toUpperCase();
+        if (!cleanCode) throw new Error("초대 코드를 올바르게 입력해주세요.");
 
-        const groupDoc = snapshot.docs[0];
-        const groupId = groupDoc.id;
-        const groupData = groupDoc.data();
+        try {
+            // 2. 정확히 치환된 코드로 쿼리 요청
+            const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
+            const snapshot = await getDocs(q);
+            
+            if (snapshot.empty) throw new Error("유효하지 않거나 존재하지 않는 초대 코드입니다.");
 
-        if (groupData.members.includes(user.uid)) {
-            throw new Error("이미 가입된 그룹입니다.");
-        }
+            const groupDoc = snapshot.docs[0];
+            const groupId = groupDoc.id;
+            const groupData = groupDoc.data();
 
-        await setDoc(doc(db, 'groups', groupId), {
-            members: arrayUnion(user.uid),
-            [`memberDetails.${user.uid}`]: {
-                name: user.displayName || '이름 없음',
-                joinedAt: Date.now(),
-                photoURL: user.photoURL || ''
+            // 3. members 배열이 비어있을 수 있는 예외 처리 보완
+            const currentMembers = groupData.members || [];
+            if (currentMembers.includes(user.uid)) {
+                throw new Error("이미 가입된 그룹입니다.");
             }
-        }, { merge: true });
 
-        return { id: groupId, name: groupData.name };
+            // 4. 안전하게 업데이트
+            await setDoc(doc(db, 'groups', groupId), {
+                members: arrayUnion(user.uid),
+                [`memberDetails.${user.uid}`]: {
+                    name: user.displayName || '이름 없음',
+                    joinedAt: Date.now(),
+                    photoURL: user.photoURL || ''
+                }
+            }, { merge: true });
+
+            return { id: groupId, name: groupData.name || '공유 그룹' };
+
+        } catch (error) {
+            console.error("초대 코드 가입 에러:", error);
+            // 🌟 5. Firebase Security Rules 권한 막힘 명시적 에러 반환
+            if (error.code === 'permission-denied') {
+                throw new Error("데이터베이스 접근 권한이 없습니다. Firebase의 [Firestore 데이터베이스 -> 규칙(Rules)] 설정이 모든 사용자가 읽을 수 있도록 허용되어 있는지 확인해주세요.");
+            }
+            throw new Error(error.message || "가입 처리 중 알 수 없는 오류가 발생했습니다.");
+        }
     },
 
     // 그룹 나가기
@@ -387,7 +401,7 @@ export const dbAPI = {
 };
 
 // =======================================================
-// 구글 연동 토큰 재발급 함수 (생략 없이 원본 유지)
+// 구글 연동 토큰 재발급 함수 
 // =======================================================
 export const forceRenewToken = async () => {
     const renewProvider = new GoogleAuthProvider();
@@ -429,7 +443,7 @@ export const getValidGoogleToken = async () => {
 };
 
 window.getUserCol = getUserCol;
-window.getGroupCol = getGroupCol; // 🌟 전역 스코프에 추가
+window.getGroupCol = getGroupCol; 
 window.signInWithGoogle = signInWithGoogle;
 window.signOut = signOut;
 window.compressImage = compressImage;
