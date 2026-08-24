@@ -926,10 +926,10 @@ if (!window.toggleScheduleFilter) {
     window.toggleScheduleFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
         if (!instance || !instance.activeScheduleFilters) return;
+        
         if (instance.activeScheduleFilters.includes(filterId)) {
-            if (instance.activeScheduleFilters.length > 1) { // 최소 1개는 선택 유지
-                instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
-            }
+            // 💡 기존에 있던 "최소 1개 유지(length > 1)" 제한 로직을 삭제하여 모두 해제 가능하도록 수정
+            instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
         } else {
             instance.activeScheduleFilters.push(filterId);
         }
