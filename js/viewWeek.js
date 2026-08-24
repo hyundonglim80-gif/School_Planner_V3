@@ -57,7 +57,8 @@ export class WeekView extends BaseView {
           this.save(); 
       }
       this.scheduleGroupId = newGroupId || null;
-      this.renderEditor();
+      if (store.mode === 'editor') this.renderEditor();
+      else this.renderViewer();
   }
 
   getWeekDates() {
@@ -328,6 +329,7 @@ export class WeekView extends BaseView {
       const labelObjs = getEventLabels();
       const realTodayStr = formatDate(new Date());
       const uid = window.auth?.currentUser?.uid;
+      const inst = 'window.weekViewInstance';
       
       return list.map((e, idx) => {
           const isVisible = this.activeEventFilters.includes(e.sharedGroupId || 'personal');
@@ -342,8 +344,8 @@ export class WeekView extends BaseView {
           if (isAuthor) {
               groupButtonsHtml = `
                   <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                      <div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                      ${(this.myGroups || []).map(g => `<div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+                      <div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+                      ${(this.myGroups || []).map(g => `<div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
                   </div>
               `;
           } else {
@@ -363,7 +365,7 @@ export class WeekView extends BaseView {
           }).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+              ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
               : '';
 
           const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -371,7 +373,7 @@ export class WeekView extends BaseView {
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           const deleteBtnHtml = isAuthor 
-                ? `<button onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                ? `<button onclick="${inst}.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                 : '';
 
           return `
@@ -387,7 +389,7 @@ export class WeekView extends BaseView {
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -433,18 +435,6 @@ export class WeekView extends BaseView {
               window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
           });
       });
-  }
-
-  toggleCompactEventLabel(dateStr, idx, labelId) {
-      this.syncCompactEventInputs(dateStr);
-      store.hasUnsavedChanges = true;
-      const ev = window[`tempEvents_${dateStr}`][idx];
-      if (!ev) return;
-      
-      ev.labelIds = ev.labelIds || [];
-      ev.labelIds = ev.labelIds.includes(labelId) ? ev.labelIds.filter(id => id !== labelId) : [...ev.labelIds, labelId];
-      
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
   updateCompactEvent(dateStr, idx, field, value) {
@@ -559,7 +549,6 @@ Object.assign(window, {
     renderWeekEditor: (c) => { instance.container = c; instance.renderEditor(); },
     saveWeekDataFromEditor: () => instance.save(),
     
-    // 🌟 [V3.6 버그 픽스] 전역 스코프 참조 문제 해결
     handleCompactLabelClick: async (dateStr, idx, labelId) => {
         const scopeInstance = window[`${store.scope}ViewInstance`];
         if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
