@@ -129,8 +129,25 @@ export class MonthView extends BaseView {
     return { eMap, sMap };
   }
 
+  // 🌟 상단 필터 행을 앱 헤더 바로 밑에 정확히 고정시키는 함수
+  applyStickyTop() {
+      const filterWrapper = document.getElementById('month-filter-wrapper');
+      const appHeader = document.querySelector('.app-header');
+      if (filterWrapper && appHeader) {
+          const isSticky = window.getComputedStyle(appHeader).position === 'sticky' || window.getComputedStyle(appHeader).position === 'fixed';
+          filterWrapper.style.top = isSticky ? appHeader.offsetHeight + 'px' : '0px';
+      }
+  }
+
   async renderViewer() {
     this.showLoading('클라우드에서 월간 일정을 불러오는 중...'); 
+
+    // 🌟 강제 오버플로우 해제 (position: sticky 버그 해결의 핵심)
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
 
     const y = store.currentDate.getFullYear();
     const m = store.currentDate.getMonth();
@@ -212,17 +229,28 @@ export class MonthView extends BaseView {
           </div>`;
     }).join('');
 
+    // 🌟 [보기 모드] 첫 줄 고정 (Sticky Header)
     this.container.innerHTML = `
-        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 10px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div id="month-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
            ${this.getEventFilterHtml('monthViewInstance')}
            <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('monthViewInstance')}</div>
         </div>
         <div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr);">${daysHeaderHtml}${paddingHtml}${daysHtml}</div>
     `;
+
+    setTimeout(() => this.applyStickyTop(), 0);
+    window.addEventListener('resize', () => this.applyStickyTop());
   }
 
   async renderEditor() {
     this.showLoading('월간 편집 시트를 불러오는 중...');
+
+    // 🌟 강제 오버플로우 해제 (position: sticky 버그 해결)
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
 
     const y = store.currentDate.getFullYear();
     const m = store.currentDate.getMonth();
@@ -309,23 +337,29 @@ export class MonthView extends BaseView {
         </tr>`;
     }).join('');
 
+    // 🌟 [에디터 모드] 필터 행은 고정, 표의 머리글은 <td> 태그를 써서 절대 고정 안 됨
     this.container.innerHTML = `
-      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
-        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 12px; margin: -12px -12px 12px -12px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-            ${this.getEventFilterHtml('monthViewInstance')}
-            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-        </div>
-        <table style="width:100%; border-collapse:collapse; text-align:center;">
-          <thead>
-            <tr style="background:#f1f5f9;">
-              <th style="width:80px; padding:8px; border:1px solid #cbd5e1;">날짜</th>
-              <th style="width:60px; padding:8px; border:1px solid #cbd5e1;">구분</th>
-              <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1;">📌 내용 (직접 수정)</th>
+      <div id="month-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
+          ${this.getEventFilterHtml('monthViewInstance')}
+          <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
+      </div>
+      
+      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+        <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
+          <!-- 🌟 <th> 대신 일반 <tbody>+<td> 조합을 사용하여 스크롤 시 위로 밀려 올라가도록 보장 -->
+          <tbody style="border-bottom: 2px solid #cbd5e1;">
+            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+              <td style="width:80px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
+              <td colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
             </tr>
-          </thead>
+          </tbody>
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`;
+
+    setTimeout(() => this.applyStickyTop(), 0);
+    window.addEventListener('resize', () => this.applyStickyTop());
   }
 
   changeEventGroup(dateStr, idx, newGroupId) {
@@ -378,7 +412,7 @@ export class MonthView extends BaseView {
           }
 
           const chipsHtml = labelObjs.map(lObj => {
-              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}')"` : '';
+              const chipClickAttr = isAuthor ? `onclick="window.monthViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lObj.id}')"` : '';
               const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
               return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
           }).join('') + warningIcon;
@@ -460,8 +494,62 @@ export class MonthView extends BaseView {
   }
 
   toggleCompactEventLabel(dateStr, idx, labelId) {
-      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
+      const scopeInstance = window[`${store.scope}ViewInstance`];
+      if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
+      store.hasUnsavedChanges = true;
+      
+      const ev = window[`tempEvents_${dateStr}`]?.[idx];
+      if (!ev) return;
+      ev.labelIds = ev.labelIds || [];
+      
+      const isActive = ev.labelIds.includes(labelId);
+      const labelObj = getEventLabels().find(l => l.id === labelId);
+
+      if (isActive) {
+          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
+      } else {
+          if (labelObj?.isPeriod || labelObj?.isRecur) {
+              const evContent = ev.content || '';
+              const backupEvent = { ...ev };
+              
+              if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
+                  scopeInstance.syncScheduleInputs();
+              }
+
+              window[`tempEvents_${dateStr}`].splice(idx, 1);
+              window.saveCurrentViewData(true);
+              
+              const callback = (isSaved) => { 
+                  if(isSaved) window.render(); 
+                  else {
+                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+                      window[`tempEvents_${dateStr}`].push(backupEvent);
+                      window.saveCurrentViewData(true);
+                      setTimeout(() => window.render(), 100);
+                  }
+              };
+
+              labelObj.isPeriod 
+                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
+                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
+              return; 
+          }
+          
+          if (labelObj?.isForward) {
+              ev.labelIds = ev.labelIds.filter(id => {
+                  const lObj = getEventLabels().find(x => x.id === id);
+                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
+              });
+          }
+          ev.labelIds.push(labelId);
+      }
+      
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      if (container && scopeInstance) {
+          container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
+      }
   }
+
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
