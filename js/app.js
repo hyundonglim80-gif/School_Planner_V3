@@ -2,7 +2,7 @@
 
 import { store } from './core/store.js';
 import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
-import { getUserCol, getGroupCol, setNetworkOnline, setNetworkOffline } from './firebase.js'; // 🌟 그룹 DB 함수 추가
+import { getUserCol, getGroupCol, setNetworkOnline, setNetworkOffline } from './firebase.js'; 
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
 
 // ==========================================================================
@@ -591,8 +591,6 @@ export const toggleSwipeMode = () => {
 export const autoForwardIncompleteEvents = async () => {
     const todayStr = formatDate(new Date()); 
     try {
-        // 🌟 [V3.6 설계 원칙] 자동 이월 엔진은 복제/증식 버그를 막기 위해 철저히 '개인 DB'에만 작동합니다.
-        // 공유 일정이 이월되어야 한다면 작성자 본인의 캘린더에서 수동으로 이월해 주어야 생태계가 꼬이지 않습니다.
         const pastDate = new Date(parseLocalDate(todayStr));
         pastDate.setDate(pastDate.getDate() - 365); 
         
@@ -660,10 +658,14 @@ export const autoForwardIncompleteEvents = async () => {
                     const existsInNext = nextList.some(n => n.forwardChainId === chainId);
                     if (!existsInNext) {
                         const sourceEv = chainEventData[chainId];
+                        // 🌟 [V3.6 버그 픽스] 이월되는 일정에 id와 authorId가 누락되는 문제 해결
                         nextList.unshift({
+                            id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
+                            authorId: sourceEv.authorId || window.auth?.currentUser?.uid,
                             labelIds: [...(sourceEv.labelIds || [])], label: sourceEv.label || '', labels: [...(sourceEv.labels || [])],
                             content: sourceEv.content, completed: false, forwardChainId: chainId, originalDate: sourceEv.originalDate,
-                            groupId: sourceEv.groupId || null, sharedGroupId: sourceEv.sharedGroupId || null
+                            groupId: sourceEv.groupId || null, sharedGroupId: sourceEv.sharedGroupId || null,
+                            groupName: sourceEv.groupName || ''
                         });
                         nextChanged = true;
                     }
@@ -724,7 +726,6 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
     const matchEvent = (e) => e.forwardChainId === chainId;
 
     try {
-        // 🌟 [V3.6 강력 삭제 로직] 내가 속한 모든 공유 그룹 + 개인 DB 모두 수색
         let myGroups = [];
         try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
         const colsToSearch = [window.getUserCol('events'), ...myGroups.map(g => window.getGroupCol(g.id, 'events'))];
@@ -733,7 +734,6 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
             if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
                window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
             } else if (mode === 'stop') {
-               // maxPastDateStr 계산 전 임시 방어
                window.dayViewInstance.currentEvents.forEach(e => { if (matchEvent(e)) e.completed = true; });
             }
         }
@@ -803,7 +803,6 @@ export const openPeriodModal = async (startDateStr, labelName, textContent, call
     let myGroups = [];
     try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
     
-    // 🌟 [V3.6] 반복 일정 저장 위치 드롭다운
     const groupOptions = `<option value="">🔒 개인 일정으로 등록 (나만 보기)</option>` +
         myGroups.map(g => `<option value="${g.id}">👥 [${g.name}] 그룹에 공유</option>`).join('');
 
@@ -856,7 +855,6 @@ export const executeGroupSave = async (labelName, callback, mode, labelId) => {
     const endStr = document.getElementById(`${prefix}-end`).value;
     const excludeWeekend = isPeriod ? document.getElementById('period-exclude-weekend').checked : false;
 
-    // 🌟 [V3.6] 저장할 공유 대상 지정
     const sharedGroupId = document.getElementById(`${prefix}-shared-group`)?.value || null;
 
     if(!content) return alert("일정 내용을 입력해주세요.");
@@ -879,7 +877,6 @@ export const executeGroupSave = async (labelName, callback, mode, labelId) => {
     let batch = writeBatch(window.db);
     const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`; 
 
-    // 🌟 타겟 컬렉션 분기
     const targetCol = sharedGroupId ? getGroupCol(sharedGroupId, 'events') : getUserCol('events');
 
     for(let i=0; i<totalDays; i++) {
@@ -888,7 +885,10 @@ export const executeGroupSave = async (labelName, callback, mode, labelId) => {
         const docSnap = await getDoc(docRef);
         let list = docSnap.exists() ? (docSnap.data().eventList || []) : [];
 
+        // 🌟 [V3.6 버그 픽스] 다중/반복 일정 생성 시 id 및 authorId 누락 문제 해결
         list.push({ 
+            id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
+            authorId: window.auth?.currentUser?.uid,
             labelIds: labelId ? [labelId] : [], 
             label: labelName, labels: [labelName], 
             content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
@@ -952,7 +952,6 @@ export const executeGroupDelete = async (mode, baseDateStr, groupId, labelIdOrNa
     });
 
     try {
-        // 🌟 [V3.6 강력 삭제 로직] 내가 속한 모든 공유 그룹 + 개인 DB 모두 수색
         let myGroups = [];
         try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
         const colsToSearch = [window.getUserCol('events'), ...myGroups.map(g => window.getGroupCol(g.id, 'events'))];
