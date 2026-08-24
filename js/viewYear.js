@@ -118,7 +118,6 @@ export class YearView extends BaseView {
     return { eMap, sMap };
   }
 
-  // 🌟 [V3.6] 지연 로딩을 위한 우선순위 월 배열 생성
   getPrioritizedMonths(targetY) {
     const nextYear = targetY + 1;
     const monthsInfo = [
@@ -141,13 +140,12 @@ export class YearView extends BaseView {
     const currentMonthVal = targetDate.getMonth() + 1;
 
     let currentIndex = monthsInfo.findIndex(m => m.year === currentYearVal && m.month === currentMonthVal);
-    if (currentIndex === -1) currentIndex = 0; // 방학 등 예외 범위면 3월부터
+    if (currentIndex === -1) currentIndex = 0; 
 
-    // 거리에 따라 우선순위 정렬
     const prioritizedMonths = monthsInfo.map((m, idx) => ({
       ...m,
       distance: Math.abs(idx - currentIndex),
-      match: `${m.year}-${String(m.month).padStart(2, '0')}-` // 검색용 접두사
+      match: `${m.year}-${String(m.month).padStart(2, '0')}-` 
     })).sort((a, b) => a.distance - b.distance);
 
     return { orderedMonths: monthsInfo, prioritizedMonths };
@@ -186,7 +184,6 @@ export class YearView extends BaseView {
         let boxesHtml = '';
         let hasClass = false;
 
-        // 🌟 [V3.6] 중복 시간표 필터 적용 렌더링
         for (let p = 1; p <= this.maxPeriod; p++) {
           let pTexts = [];
           this.activeScheduleFilters.forEach(filterId => {
@@ -236,8 +233,8 @@ export class YearView extends BaseView {
 
       allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
-      // 🌟 [V3.6] 지연 로딩을 위한 스켈레톤 UI 생성 (순서 보장)
       const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(targetY);
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
       
       const progressHtml = `
           <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
@@ -247,7 +244,7 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 뷰어 모드 상단 필터 완벽 고정
+      // 🌟 [보기 모드] 최상단 필터만 Sticky 고정됨
       let skeletonHtml = `
           <div id="year-filter-row" style="position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
              ${this.getEventFilterHtml('yearViewInstance')}
@@ -261,9 +258,7 @@ export class YearView extends BaseView {
       this.container.innerHTML = skeletonHtml;
       
       const realTodayStr = formatDate(new Date());
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-      // 🌟 우선순위 배열을 돌면서 비동기 렌더링
       for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
 
@@ -310,11 +305,15 @@ export class YearView extends BaseView {
         const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
         if (containerEl) {
             containerEl.outerHTML = cardHtml;
-            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
-                    if (focusEl) focusEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (focusEl) {
+                        const filterRow = document.getElementById('year-filter-row');
+                        const offset = filterRow ? filterRow.offsetHeight : 0;
+                        const y = focusEl.getBoundingClientRect().top + window.scrollY - offset - 10;
+                        window.scrollTo({top: y, behavior: 'smooth'});
+                    }
                 }, 50);
             }
         }
@@ -356,7 +355,6 @@ export class YearView extends BaseView {
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
-    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -386,41 +384,25 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [핵심 변경] 에디터 모드 이중(Double) Sticky 구조
-    // 필터 영역이 최상단(top:0)에 고정되고, 테이블 헤더 영역이 그 바로 밑에 물려서 고정됨
+    // 🌟 [작업 모드] 표(Table) 안의 th(날짜/구분/내용) 요소는 고정 해제. 최상단 필터만 Sticky 고정됨.
     this.container.innerHTML = `
-      <div id="year-filter-row" style="position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
-          ${this.getEventFilterHtml('yearViewInstance')}
-          <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-      </div>
-      <div class="table-container" style="background:#fff; padding:0 12px 12px 12px; border-radius:8px;">
+      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
+        <div id="year-filter-row" style="position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 12px; margin: -12px -12px 12px -12px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            ${this.getEventFilterHtml('yearViewInstance')}
+            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
+        </div>
         ${progressHtml}
-        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
+        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center; margin-top:15px;">
           <thead>
             <tr style="background:#f1f5f9;">
-              <th style="width:110px; padding:8px; border:1px solid #cbd5e1; z-index:40; background:#f1f5f9; color:#1e293b;">날짜</th>
-              <th style="width:60px; padding:8px; border:1px solid #cbd5e1; z-index:40; background:#f1f5f9; color:#1e293b;">구분</th>
-              <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; z-index:40; background:#f1f5f9; color:#1e293b;">📌 내용 (직접 수정)</th>
+              <th style="width:110px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">날짜</th>
+              <th style="width:60px; padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">구분</th>
+              <th colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#1e293b;">📌 내용 (직접 수정)</th>
             </tr>
           </thead>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
-
-    // 🌟 렌더링 즉시 필터 행의 높이를 측정하여 표 헤더의 고정 위치를 맞춤
-    const updateStickyHeader = () => {
-        const filterRow = document.getElementById('year-filter-row');
-        const ths = document.querySelectorAll('#year-editor-table th');
-        if (filterRow && ths.length > 0) {
-            const fh = filterRow.getBoundingClientRect().height;
-            ths.forEach(th => {
-                th.style.position = 'sticky';
-                th.style.top = fh + 'px';
-            });
-        }
-    };
-    setTimeout(updateStickyHeader, 50);
-    window.addEventListener('resize', updateStickyHeader, { once: true });
 
     for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
@@ -491,12 +473,11 @@ export class YearView extends BaseView {
             tbodyEl.innerHTML = rowsHtml;
             if (mObj.distance === 0) {
                 setTimeout(() => {
-                    // 스크롤 시 필터 행(고정)에 헤더가 가려지지 않도록 오프셋 조절
                     const filterRow = document.getElementById('year-filter-row');
                     const offset = filterRow ? filterRow.offsetHeight : 0;
                     const y = tbodyEl.getBoundingClientRect().top + window.scrollY - offset - 10;
                     window.scrollTo({top: y, behavior: 'smooth'});
-                }, 100);
+                }, 50);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -682,7 +663,6 @@ export class YearView extends BaseView {
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
-  // 🌟 [V3.6 버그 해결] 연간 데이터 일괄 저장 (서버 부하 방지 및 속도 향상)
   save() {
     if (this.isRendering) {
         alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
