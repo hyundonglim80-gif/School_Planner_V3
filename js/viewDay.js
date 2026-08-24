@@ -16,9 +16,9 @@ export class DayView extends BaseView {
         this.draggedPeriod = null; 
         
         this.myGroups = [];
-        this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
+        this.scheduleGroupId = null; 
         this.activeEventFilters = null;
-        this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택 필터)
+        this.activeScheduleFilters = null; 
     }
 
     getEventFilterHtml(instanceName) {
@@ -39,7 +39,6 @@ export class DayView extends BaseView {
         return html;
     }
 
-    // 🌟 [V3.6] 시간표 중복 선택 필터 UI 렌더러
     getScheduleFilterHtml(instanceName) {
         if (!this.activeScheduleFilters) {
             this.activeScheduleFilters = ['personal'];
@@ -58,22 +57,26 @@ export class DayView extends BaseView {
         return html;
     }
 
+    // 🌟 [버그 수정 1] 다중 그룹 필터 사용 시 각각의 조사표가 어떤 그룹 소속인지 꼬리표(groupId) 붙이기
     async loadEvaluationsForDay(dateStr) {
         let allEvals = [];
-        // 에디터 모드일 때는 선택된 워크스페이스만, 뷰어 모드일 때는 활성화된 필터들 모두 가져오기
+        
         if (store.mode === 'editor') {
             const scheduleEvals = await dbAPI.loadEvaluations(dateStr, this.scheduleGroupId) || [];
+            scheduleEvals.forEach(e => e.groupId = this.scheduleGroupId);
             allEvals = scheduleEvals.filter(e => e.context?.source === 'schedule');
         } else {
             const filtersToLoad = this.activeScheduleFilters || ['personal'];
             for (const f of filtersToLoad) {
                 const gid = f === 'personal' ? null : f;
                 const evals = await dbAPI.loadEvaluations(dateStr, gid) || [];
+                evals.forEach(e => e.groupId = gid);
                 allEvals = allEvals.concat(evals.filter(e => e.context?.source === 'schedule'));
             }
         }
 
         const journalEvals = await dbAPI.loadEvaluations(dateStr, null) || [];
+        journalEvals.forEach(e => e.groupId = null);
         allEvals = allEvals.concat(journalEvals.filter(e => e.context?.source === 'journal'));
 
         const uniqueEvals = [];
@@ -84,6 +87,7 @@ export class DayView extends BaseView {
         return uniqueEvals;
     }
 
+    // 🌟 [버그 수정 2] 클릭 시 현재 환경의 scheduleGroupId가 아닌, 해당 조사표 고유의 groupId를 열도록 매핑
     generateEvalBadgesHtml(source, period = null) {
         const evals = this.currentEvalList.filter(e => {
             const eSource = e.context?.source || (e.periodStr ? 'schedule' : 'journal');
@@ -109,8 +113,9 @@ export class DayView extends BaseView {
             else if (e.type === 'memo') badgeType = '메모';
             else badgeType = '기타';
 
+            const gId = e.groupId || '';
             return `
-                <div onclick="window.EvaluationManager.currentGroupId = '${source === 'schedule' ? (this.scheduleGroupId || '') : ''}'; window.EvaluationManager.openViewer('${this.dateStr}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 입력/보기">
+                <div onclick="window.EvaluationManager.currentGroupId = '${gId}'; window.EvaluationManager.openViewer('${this.dateStr}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 열기">
                     📊 [${badgeType}] ${e.title}
                 </div>
             `;
@@ -182,7 +187,6 @@ export class DayView extends BaseView {
                 content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
             }));
 
-        // 🌟 모든 그룹의 시간표 데이터를 불러와 딕셔너리에 저장
         const allSchedules = {};
         const pSchedDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
         allSchedules['personal'] = pSchedDoc.exists() ? (pSchedDoc.data().periods || {}) : {};
@@ -197,7 +201,6 @@ export class DayView extends BaseView {
         const journalDoc = await getDoc(doc(getUserCol('journals'), dateStr));
         const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
 
-        // 🌟 여러 시간표가 선택되었을 때 셀을 나누어 렌더링하는 로직
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
             const p = i + 1;
             const periodName = store.periodNames[i] || p + '교시';
@@ -356,7 +359,6 @@ export class DayView extends BaseView {
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
-        // 🌟 에디터에서는 '단일 선택' 워크스페이스 유지
         const wsSelectHtml = `
             <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
                 <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
@@ -486,6 +488,7 @@ export class DayView extends BaseView {
         window.dayViewInstance.draggedPeriod = null;
     }
 
+    // 🌟 [버그 수정 3] 드래그로 시간표 위치 바꿀 때, 조사표 DB가 섞이지 않도록 완벽 분리
     handlePeriodDrop(event, targetPeriod) {
         event.preventDefault();
         event.stopPropagation();
@@ -597,7 +600,14 @@ export class DayView extends BaseView {
         }
 
         if (evalChanged) {
-            dbAPI.saveEvaluations(this.dateStr, this.currentEvalList, this.scheduleGroupId).catch(e => console.warn(e));
+            // 시간표 조사표와 개인 기록 조사표 분리 저장 (믹서기 버그 해결)
+            const scheduleEvals = this.currentEvalList.filter(e => e.context?.source === 'schedule');
+            const journalEvals = this.currentEvalList.filter(e => e.context?.source === 'journal');
+            
+            dbAPI.saveEvaluations(this.dateStr, scheduleEvals, this.scheduleGroupId).catch(e => console.warn(e));
+            if (journalEvals.length > 0) {
+                dbAPI.saveEvaluations(this.dateStr, journalEvals, null).catch(e => console.warn(e));
+            }
         }
         
         if (typeof window.saveCurrentViewData === 'function') {
@@ -900,7 +910,6 @@ Object.assign(window, {
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
 
-// 🌟 [V3.6] 전역 이벤트 필터 토글 기능 (모든 화면 공통)
 if (!window.toggleEventFilter) {
     window.toggleEventFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
@@ -915,13 +924,12 @@ if (!window.toggleEventFilter) {
     };
 }
 
-// 🌟 [V3.6] 시간표 중복 필터 토글 기능 (뷰어 전용)
 if (!window.toggleScheduleFilter) {
     window.toggleScheduleFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
         if (!instance || !instance.activeScheduleFilters) return;
         if (instance.activeScheduleFilters.includes(filterId)) {
-            if (instance.activeScheduleFilters.length > 1) { // 최소 1개는 선택 유지
+            if (instance.activeScheduleFilters.length > 1) { 
                 instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
             }
         } else {
