@@ -2,10 +2,9 @@
 
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '../core/utils.js';
-import { getUserCol, getGroupCol, db } from '../firebase.js'; // 🌟 그룹 DB 함수 추가
+import { getUserCol, getGroupCol, db } from '../firebase.js'; 
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
-// 🌟 글로벌 진행 상태창 (z-index 99999)
 window.ProgressModal = {
     modalEl: null,
     show: function(title) {
@@ -116,7 +115,6 @@ export const BackupManager = {
                     <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 내 개인 데이터 및 가입된 <strong>모든 그룹의 데이터</strong>를 한 번에 백업합니다. <br>(단, 가져오기(복원) 시에는 그룹 보호를 위해 개인 데이터로만 복원됩니다)</p>
                 </div>
 
-                <!-- 1단계: 기간 선택 -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 기간 선택</label>
                     <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
@@ -137,7 +135,6 @@ export const BackupManager = {
                     </div>
                 </div>
 
-                <!-- 2단계: 대상 정보 -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">2. 대상 정보</label>
                     <div style="display:flex; flex-wrap:wrap; gap:15px; background:#f8fafc; padding:12px 15px; border-radius:8px; border:1px solid #e2e8f0; font-weight:bold; color:#1e293b;">
@@ -149,7 +146,6 @@ export const BackupManager = {
                     </div>
                 </div>
 
-                <!-- 3단계: 방식 선택 -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">3. 동기화 방식 (가져오기/내보내기)</label>
                     <div style="background:#fef2f2; padding:15px; border-radius:8px; border:1px solid #fca5a5;">
@@ -173,11 +169,10 @@ export const BackupManager = {
                     </div>
                 </div>
 
-                <!-- 4단계: 플랫폼 대상 -->
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">4. 대상 (플랫폼)</label>
                     <div style="display:flex; gap:10px;">
-                        <label style="flex:1; cursor:pointer; text-align:center; display:none;"> <!-- V3.6: 캘린더 동기화 임시 숨김 -->
+                        <label style="flex:1; cursor:pointer; text-align:center; display:none;">
                             <input type="radio" name="backup-target" value="calendar" style="display:none;" onchange="window.BackupManager.onTargetChange()">
                             <div class="target-card" id="target-card-calendar" style="padding:15px 5px; border:2px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#64748b; font-weight:bold; transition:0.2s;">
                                 📅 구글 캘린더
@@ -360,7 +355,6 @@ export const BackupManager = {
         return spreadsheetId;
     },
 
-    // 🌟 [V3.6 수정] 개인 데이터 + 그룹 데이터를 병합하여 2차원 배열(CSV 형태)로 가공
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -376,7 +370,6 @@ export const BackupManager = {
 
         const evMap = {}; const scMap = {}; const joMap = {}; const elMap = {};
 
-        // 1. 개인 데이터 로드
         if (incEvent) {
             const snap = await getDocs(query(window.getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => evMap[d.id] = { eventList: d.data().eventList || (d.data().eventText ? window.parseRawEventTextToEventList(d.data().eventText) : []) });
@@ -394,7 +387,6 @@ export const BackupManager = {
             snap.forEach(d => elMap[d.id] = { evalList: d.data().evalList || [] });
         }
 
-        // 2. 🌟 그룹 데이터 병합 (그룹 이름 뱃지 붙이기)
         for (const g of myGroups) {
             if (incEvent) {
                 const snap = await getDocs(query(window.getGroupCol(g.id, 'events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
@@ -535,7 +527,6 @@ export const BackupManager = {
             curr.setDate(curr.getDate() + 1);
         }
         
-        // 조사표 하위 시트 생성 로직
         const evalSheetsData = {};
         for (const [sheetName, evals] of Object.entries(evalMapBySheet)) {
             const studentMap = new Map();
@@ -621,7 +612,6 @@ export const BackupManager = {
         return { scheduleRows: rows, evalSheetsData: evalSheetsData };
     },
 
-    // 🌟 [V3.6 수정] 개인 메모 + 그룹 메모 병합 내보내기
     getMemoDataArray: async function() {
         const rows = [["데이터분류", "ID", "내용/이름", "완료여부(O/X)", "라벨", "주소/URL", "생성일자(타임스탬프)"]];
         
@@ -631,14 +621,12 @@ export const BackupManager = {
             links.forEach((l, idx) => rows.push(['LINK', `LINK_${idx}`, l.name || '', '', '', l.url || '', '']));
         }
 
-        // 개인 메모
         const snap = await getDocs(query(getUserCol('tasks'), orderBy('createdAt')));
         snap.forEach(docSnap => {
             const d = docSnap.data();
             rows.push([ 'MEMO', docSnap.id, d.text || '', d.completed ? 'O' : 'X', (d.labels || []).join(','), d.imageUrl || '', d.createdAt || Date.now() ]);
         });
 
-        // 그룹 메모 병합
         let myGroups = [];
         try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
         for (const g of myGroups) {
@@ -651,7 +639,6 @@ export const BackupManager = {
         return rows;
     },
 
-    // 🌟 [가져오기 락] 무조건 getUserCol (개인 데이터)에만 복원됨
     processScheduleRows: async function(rows, mode, matrixUpdates = []) {
         if (rows.length < 2) return;
         
@@ -903,13 +890,17 @@ export const BackupManager = {
                     });
                 }
 
+                // 🌟 [V3.6 버그 픽스] 복원 시 데이터 병합 과정에서 작성자 권한(authorId)이 누락되는 현상 보완
                 if (existing) {
                     existing.completed = item.completed; 
                     existing.source = item.source || existing.source;
                     if (!existing.id && item.id) existing.id = item.id;
+                    if (!existing.authorId && item.authorId) existing.authorId = item.authorId;
                     if (!existing.forwardChainId && item.forwardChainId) existing.forwardChainId = item.forwardChainId;
                     if (!existing.groupId && item.groupId) existing.groupId = item.groupId;
                     if (!existing.originalDate && item.originalDate) existing.originalDate = item.originalDate;
+                    if (!existing.sharedGroupId && item.sharedGroupId) existing.sharedGroupId = item.sharedGroupId;
+                    if (!existing.groupName && item.groupName) existing.groupName = item.groupName;
                 } else {
                     merged.push({ ...item }); 
                 }
@@ -1009,7 +1000,6 @@ export const BackupManager = {
         store.hasUnsavedChanges = false;
     },
 
-    // 🌟 [가져오기 락] 무조건 getUserCol (개인 데이터)에만 복원됨
     processMemoRows: async function(rows, mode) {
         if (rows.length < 2) return;
         const batchPromises = [];
@@ -1047,9 +1037,11 @@ export const BackupManager = {
                 const imageUrl = r[5] || '';
                 const createdAt = parseInt(r[6], 10) || Date.now();
 
+                // 🌟 [V3.6 버그 픽스] 메모 복원 시 본인의 authorId 소유권 부여
                 batch.set(doc(getUserCol('tasks'), id), {
                     text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
-                    createdAt: createdAt, updatedAt: Date.now(), order: -createdAt 
+                    createdAt: createdAt, updatedAt: Date.now(), order: -createdAt,
+                    authorId: window.auth?.currentUser?.uid 
                 }, { merge: true });
                 
                 opCount++;
