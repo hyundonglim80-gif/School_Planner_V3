@@ -185,6 +185,7 @@ export class YearView extends BaseView {
         let boxesHtml = '';
         let hasClass = false;
 
+        // 🌟 [V3.6] 중복 시간표 필터 적용 렌더링
         for (let p = 1; p <= this.maxPeriod; p++) {
           let pTexts = [];
           this.activeScheduleFilters.forEach(filterId => {
@@ -246,7 +247,7 @@ export class YearView extends BaseView {
       `;
 
       let skeletonHtml = `
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
+          <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 10px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
              ${this.getEventFilterHtml('yearViewInstance')}
              <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
           </div>
@@ -386,12 +387,9 @@ export class YearView extends BaseView {
     // 🌟 [V3.6] 지연 로딩을 위한 에디터 스켈레톤 HTML
     this.container.innerHTML = `
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-            <h3 style="margin:0; color:#1e293b; font-size:var(--font-header-title);">📅 ${currentYear}학년도 편집 시트</h3>
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                ${this.getEventFilterHtml('yearViewInstance')}
-                <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-            </div>
+        <div style="position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 12px; margin: -12px -12px 12px -12px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            ${this.getEventFilterHtml('yearViewInstance')}
+            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
         </div>
         ${progressHtml}
         <table style="width:100%; border-collapse:collapse; text-align:center;">
