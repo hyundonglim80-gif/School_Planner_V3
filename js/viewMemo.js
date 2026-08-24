@@ -20,7 +20,6 @@ export class MemoView extends BaseView {
     this.isUploading = false;
 
     this.myGroups = [];
-    // 🌟 [V3.6] 새 메모 작성 시 선택된 공유 대상을 기억
     this.currentNewMemoGroupId = null; 
   }
 
@@ -314,7 +313,6 @@ export class MemoView extends BaseView {
         `;
     }
 
-    // 🌟 undefined 및 null 커버를 위해 !this.currentNewMemoGroupId 조건 사용
     const newMemoGroupChipsHtml = `
         <div style="display:inline-flex; background:#f1f5f9; padding:3px; border-radius:8px; border:1px solid #cbd5e1; align-items:center; margin-right:8px;">
             <div class="new-memo-group-chip" data-value="personal" onclick="window.memoViewInstance.setNewMemoGroup(null)" style="padding:4px 10px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.currentNewMemoGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
@@ -420,19 +418,25 @@ export class MemoView extends BaseView {
   }
 
   generateMemoHTML(item, isCompleted) {
-    const deleteBtnHtml = `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.3rem; cursor:pointer; padding:0; margin-left:4px;" title="삭제">🗑️</button>`;
+    const uid = window.auth?.currentUser?.uid;
+    // 🌟 [V3.6] 작성자 권한 체크 (본인이 작성했거나, 오프라인이거나)
+    const isAuthor = !item.authorId || !uid || item.authorId === uid;
+
+    const deleteBtnHtml = isAuthor 
+        ? `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" style="background:transparent; border:none; font-size:1.3rem; cursor:pointer; padding:0; margin-left:4px;" title="삭제">🗑️</button>` 
+        : '';
 
     let dragHandleHtml = '';
     let dragAttributes = '';
     
-    if (!isCompleted && this.currentFilter === '전체') {
+    if (!isCompleted && this.currentFilter === '전체' && isAuthor) {
       dragAttributes = `draggable="true" ondragstart="window.memoViewInstance.handleDragStart(event, '${item.firestoreId}')" ondragover="window.memoViewInstance.handleDragOver(event)" ondrop="window.memoViewInstance.handleDrop(event, '${item.firestoreId}')"`;
       dragHandleHtml = `<span style="cursor:grab; font-size:1.8rem; color:#94a3b8; padding-right:8px; line-height:1;" title="드래그하여 순서 변경">≡</span>`;
-    } else if (!isCompleted) {
-      dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="필터 적용 중에는 순서 변경 불가">≡</span>`;
+    } else {
+      dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${!isAuthor ? '읽기 전용 메모는 순서 변경 불가' : '필터 적용 중에는 순서 변경 불가'}">≡</span>`;
     }
 
-    const editableAttr = isCompleted ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
 
     const labels = item.labels || [];
     const palette = window.LABEL_PALETTE || {};
@@ -447,10 +451,10 @@ export class MemoView extends BaseView {
         const activeStyle = isActive 
             ? `background-color: ${colorStyle.bg}; color: ${colorStyle.text}; border-color: ${colorStyle.border}; font-weight: bold;` 
             : `background-color: #f8fafc; color: #94a3b8; border-color: #e2e8f0; opacity: 0.5;`;
-        const clickAction = isCompleted ? '' : `onclick="window.memoViewInstance.toggleMemoItemLabel('${item.firestoreId}', '${lName}')"`;
-        const cursorStyle = isCompleted ? 'cursor: default;' : 'cursor: pointer;';
+        const clickAction = (isCompleted || !isAuthor) ? '' : `onclick="window.memoViewInstance.toggleMemoItemLabel('${item.firestoreId}', '${lName}')"`;
+        const cursorStyle = (isCompleted || !isAuthor) ? 'cursor: default;' : 'cursor: pointer;';
         
-        return `<div class="label-chip ${isActive ? 'active' : ''}" ${clickAction} style="padding: 2px 8px; font-size: 0.8rem; min-width: auto; ${activeStyle} ${cursorStyle}" title="${isCompleted ? '' : '클릭하여 라벨 변경'}">${lName}</div>`;
+        return `<div class="label-chip ${isActive ? 'active' : ''}" ${clickAction} style="padding: 2px 8px; font-size: 0.8rem; min-width: auto; ${activeStyle} ${cursorStyle}" title="${(isCompleted || !isAuthor) ? '' : '클릭하여 라벨 변경'}">${lName}</div>`;
     }).join('');
 
     unknownLabels.forEach(lName => {
@@ -463,13 +467,18 @@ export class MemoView extends BaseView {
         </div>
     `;
 
-    // 🌟 undefined 및 null 커버를 위해 !item.groupId 조건 사용
-    const groupButtonsHtml = `
-        <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-            <div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!item.groupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-            ${this.myGroups.map(g => `<div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${item.groupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-        </div>
-    `;
+    // 🌟 [V3.6] 권한에 따른 그룹 표시 UI (버튼형 토글 or 읽기 전용 뱃지)
+    let groupButtonsHtml = '';
+    if (isAuthor) {
+        groupButtonsHtml = `
+            <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
+                <div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!item.groupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+                ${this.myGroups.map(g => `<div onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${item.groupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+            </div>
+        `;
+    } else {
+        groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${item.groupName} (읽기전용)</div>`;
+    }
         
     const imageHtml = item.imageUrl 
         ? `<div style="margin-top: 8px;">
@@ -477,15 +486,18 @@ export class MemoView extends BaseView {
            </div>` 
         : '';
 
+    const textBaseStyle = isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; padding:2px 4px; border-radius:4px;';
+    const textStyle = !isAuthor && !isCompleted ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
+
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item" ${dragAttributes} style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; padding: 12px 0; border-bottom: 1px dashed #f1f5f9; transition: background-color 0.2s;">
         <div style="display:flex; align-items:flex-start; gap:8px; flex: 1; padding-right: 10px; margin: 0; min-height: 24px;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
-          <input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
+          <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
           
           <div style="flex: 1; display: flex; flex-direction: column;">
              ${labelsContainerHtml}
-             <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; display:block; min-height:1.5rem; width:100%; ${isCompleted ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b; font-weight:500; cursor:text; padding:2px 4px; border-radius:4px;'} " onfocus="this.style.backgroundColor='#f1f5f9'" onblur="this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText)">${item.text}</span>
+             <span ${editableAttr} style="font-size:1.5rem; word-break: break-all; white-space: pre-wrap; line-height:1.4; outline:none; display:block; min-height:1.5rem; width:100%; ${textStyle} ${isAuthor && !isCompleted ? 'cursor:text;' : ''}" onfocus="if(${isAuthor}) this.style.backgroundColor='#f1f5f9'" onblur="if(${isAuthor}) { this.style.backgroundColor='transparent'; window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText); }">${item.text}</span>
              ${imageHtml}
           </div>
         </div>
@@ -514,7 +526,8 @@ export class MemoView extends BaseView {
           createdAt: item.createdAt,
           updatedAt: Date.now(),
           labels: item.labels || [],
-          imageUrl: item.imageUrl || ''
+          imageUrl: item.imageUrl || '',
+          authorId: item.authorId || window.auth?.currentUser?.uid // 작성자 정보 유지
       };
 
       if (item.completedAt) dataToMove.completedAt = item.completedAt;
@@ -602,13 +615,15 @@ export class MemoView extends BaseView {
 
     const targetGroupId = this.currentNewMemoGroupId; 
 
+    // 🌟 [V3.6] 작성자 ID 기록
     const newMemo = { 
         text: text, 
         completed: false, 
         order: -Date.now(), 
         createdAt: Date.now(),
         labels: [...this.currentNewLabels],
-        imageUrl: this.pendingImageUrl
+        imageUrl: this.pendingImageUrl,
+        authorId: window.auth?.currentUser?.uid
     };
     
     input.value = "";
@@ -647,10 +662,19 @@ export class MemoView extends BaseView {
     const completedMemos = this.memoItems.filter(m => m.completed);
     if (completedMemos.length === 0) return;
     
-    if(confirm(`완료된 업무 ${completedMemos.length}개를 모두 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) {
-      this.memoItems = this.memoItems.filter(m => !m.completed);
+    // 권한이 있는 내 완료 메모만 필터링해서 비우기
+    const uid = window.auth?.currentUser?.uid;
+    const myCompletedMemos = completedMemos.filter(m => !m.authorId || !uid || m.authorId === uid);
+
+    if (myCompletedMemos.length === 0) {
+        alert("비울 수 있는 완료된 본인 메모가 없습니다.");
+        return;
+    }
+    
+    if(confirm(`완료된 내 업무 ${myCompletedMemos.length}개를 모두 삭제하시겠습니까?\n(타인이 작성한 공유 메모는 삭제되지 않습니다)`)) {
+      this.memoItems = this.memoItems.filter(m => !myCompletedMemos.includes(m));
       this._drawHTML();
-      completedMemos.forEach(memo => dbAPI.deleteMemo(memo.firestoreId, memo.groupId).catch(e=>console.warn(e)));
+      myCompletedMemos.forEach(memo => dbAPI.deleteMemo(memo.firestoreId, memo.groupId).catch(e=>console.warn(e)));
     }
   }
 
