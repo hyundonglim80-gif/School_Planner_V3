@@ -16,11 +16,11 @@ export class DayView extends BaseView {
         this.draggedPeriod = null; 
         
         this.myGroups = [];
-        this.scheduleGroupId = null; 
-        this.activeEventFilters = null; // 🌟 [V3.6] 일정 보기 필터 상태
+        this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
+        this.activeEventFilters = null;
+        this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택 필터)
     }
 
-    // 🌟 [V3.6] 상단 일정 필터 버튼 렌더러
     getEventFilterHtml(instanceName) {
         if (!this.activeEventFilters) {
             this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
@@ -39,17 +39,49 @@ export class DayView extends BaseView {
         return html;
     }
 
-    async loadEvaluationsForDay(dateStr) {
-        const scheduleEvals = await dbAPI.loadEvaluations(dateStr, this.scheduleGroupId) || [];
-        const journalEvals = await dbAPI.loadEvaluations(dateStr, null) || [];
-
-        if (!this.scheduleGroupId) {
-            return scheduleEvals;
-        } else {
-            const sEvals = scheduleEvals.filter(e => e.context?.source === 'schedule');
-            const jEvals = journalEvals.filter(e => e.context?.source === 'journal');
-            return [...sEvals, ...jEvals];
+    // 🌟 [V3.6] 시간표 중복 선택 필터 UI 렌더러
+    getScheduleFilterHtml(instanceName) {
+        if (!this.activeScheduleFilters) {
+            this.activeScheduleFilters = ['personal'];
         }
+        const isPersonalActive = this.activeScheduleFilters.includes('personal');
+        let html = `
+            <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
+                <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
+                <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+        `;
+        this.myGroups.forEach(g => {
+            const isActive = this.activeScheduleFilters.includes(g.id);
+            html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+        });
+        html += `</div>`;
+        return html;
+    }
+
+    async loadEvaluationsForDay(dateStr) {
+        let allEvals = [];
+        // 에디터 모드일 때는 선택된 워크스페이스만, 뷰어 모드일 때는 활성화된 필터들 모두 가져오기
+        if (store.mode === 'editor') {
+            const scheduleEvals = await dbAPI.loadEvaluations(dateStr, this.scheduleGroupId) || [];
+            allEvals = scheduleEvals.filter(e => e.context?.source === 'schedule');
+        } else {
+            const filtersToLoad = this.activeScheduleFilters || ['personal'];
+            for (const f of filtersToLoad) {
+                const gid = f === 'personal' ? null : f;
+                const evals = await dbAPI.loadEvaluations(dateStr, gid) || [];
+                allEvals = allEvals.concat(evals.filter(e => e.context?.source === 'schedule'));
+            }
+        }
+
+        const journalEvals = await dbAPI.loadEvaluations(dateStr, null) || [];
+        allEvals = allEvals.concat(journalEvals.filter(e => e.context?.source === 'journal'));
+
+        const uniqueEvals = [];
+        const ids = new Set();
+        allEvals.forEach(e => {
+            if (!ids.has(e.id)) { ids.add(e.id); uniqueEvals.push(e); }
+        });
+        return uniqueEvals;
     }
 
     generateEvalBadgesHtml(source, period = null) {
@@ -117,9 +149,7 @@ export class DayView extends BaseView {
             this.save(); 
         }
         this.scheduleGroupId = newGroupId || null;
-        
-        if (store.mode === 'editor') this.renderEditor();
-        else this.renderViewer();
+        this.renderEditor();
     }
 
     async renderViewer() {
@@ -128,9 +158,8 @@ export class DayView extends BaseView {
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
         
-        if (!this.activeEventFilters) {
-            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
-        }
+        if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
 
         let allEvents = [];
         const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
@@ -146,7 +175,6 @@ export class DayView extends BaseView {
             allEvents = allEvents.concat(gEvents);
         }
         
-        // 🌟 [V3.6] 필터 적용 및 공유 일정 뱃지 UI 삽입
         const viewableEvents = allEvents
             .filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'))
             .map(e => ({
@@ -154,41 +182,58 @@ export class DayView extends BaseView {
                 content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
             }));
 
-        let scheduleDoc;
-        if (this.scheduleGroupId) {
-            scheduleDoc = await getDoc(doc(getGroupCol(this.scheduleGroupId, 'schedules'), dateStr));
-        } else {
-            scheduleDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
+        // 🌟 모든 그룹의 시간표 데이터를 불러와 딕셔너리에 저장
+        const allSchedules = {};
+        const pSchedDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
+        allSchedules['personal'] = pSchedDoc.exists() ? (pSchedDoc.data().periods || {}) : {};
+
+        for (const g of this.myGroups) {
+            const gSchedDoc = await getDoc(doc(getGroupCol(g.id, 'schedules'), dateStr));
+            allSchedules[g.id] = gSchedDoc.exists() ? (gSchedDoc.data().periods || {}) : {};
         }
-        const periods = scheduleDoc.exists() ? (scheduleDoc.data().periods || {}) : {};
         
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
         
         const journalDoc = await getDoc(doc(getUserCol('journals'), dateStr));
         const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
 
-        const wsSelectHtml = `
-            <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-                <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
-                ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 시간표</div>`).join('')}
-            </div>
-        `;
-
+        // 🌟 여러 시간표가 선택되었을 때 셀을 나누어 렌더링하는 로직
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
             const p = i + 1;
-            const pObj = periods[p] || {};
             const periodName = store.periodNames[i] || p + '교시';
             
-            const evalBadges = this.generateEvalBadgesHtml('schedule', p);
+            let subjectHtml = '';
+            let memoHtml = '';
+            let suppliesHtml = '';
             
+            this.activeScheduleFilters.forEach((filterId, idx) => {
+                const pObj = allSchedules[filterId]?.[p] || {};
+                const isLast = idx === this.activeScheduleFilters.length - 1;
+                const borderStyle = isLast ? '' : 'border-bottom: 1px dashed #cbd5e1; padding-bottom:8px; margin-bottom:8px;';
+                
+                let badge = '';
+                if (this.activeScheduleFilters.length > 1) {
+                    const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
+                    const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
+                    const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
+                    badge = `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-bottom:4px; font-weight:bold;">${groupName}</div><br>`;
+                }
+
+                subjectHtml += `<div style="${borderStyle} min-height:24px; font-weight:bold; color:#0f172a;">${pObj.subject ? badge + pObj.subject : badge}</div>`;
+                memoHtml += `<div style="${borderStyle} min-height:24px; text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div>`;
+                suppliesHtml += `<div style="${borderStyle} min-height:24px; color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>`;
+            });
+            
+            const evalBadges = this.generateEvalBadgesHtml('schedule', p);
+
             return `
                 <tr data-period="${p}">
-                    <td style="font-weight:900; color:#475569; background:#f8fafc;">${periodName}</td>
-                    <td style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</td>
-                    <td style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</td>
-                    <td style="color: #d97706; font-weight: 600; text-align: left; vertical-align:top;">
-                        <div style="white-space:pre-wrap; margin-bottom:4px;">${pObj.supplies || ''}</div>
-                        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <td style="font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle;">${periodName}</td>
+                    <td style="vertical-align:top; padding:10px 8px;">${subjectHtml}</td>
+                    <td style="vertical-align:top; padding:10px 8px;">${memoHtml}</td>
+                    <td style="vertical-align:top; padding:10px 8px;">
+                        ${suppliesHtml}
+                        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
                             <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
                                 ${evalBadges}
                             </div>
@@ -199,7 +244,6 @@ export class DayView extends BaseView {
 
         const journalsHtml = journals.length > 0 ? journals.map(j => {
             const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
-            
             const chipsHtml = lNames.map(lName => {
                 const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
                 return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
@@ -224,7 +268,7 @@ export class DayView extends BaseView {
             
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
               <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-                  ${wsSelectHtml}
+                  ${this.getScheduleFilterHtml('dayViewInstance')}
               </div>
               <table style="text-align: center;">
                 <thead>
@@ -312,10 +356,11 @@ export class DayView extends BaseView {
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
+        // 🌟 에디터에서는 '단일 선택' 워크스페이스 유지
         const wsSelectHtml = `
             <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-                <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
-                ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 시간표</div>`).join('')}
+                <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
+                ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
             </div>
         `;
 
@@ -571,11 +616,8 @@ export class DayView extends BaseView {
         const uid = window.auth?.currentUser?.uid;
 
         container.innerHTML = this.currentEvents.map((ev, idx) => {
-            // 🌟 [V3.6] 필터에 따른 숨김 처리 (삭제되지 않고 화면에만 가려짐)
             const isVisible = this.activeEventFilters.includes(ev.sharedGroupId || 'personal');
             const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
-
-            // 🌟 [V3.6] 작성자 권한 체크 (본인이 작성했거나, 오프라인 상태이거나)
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
 
             const eLabelIds = ev.labelIds || [];
@@ -868,7 +910,23 @@ if (!window.toggleEventFilter) {
         } else {
             instance.activeEventFilters.push(filterId);
         }
-        if (store.mode === 'editor') instance.renderEditor();
+        if (window.store.mode === 'editor') instance.renderEditor();
         else instance.renderViewer();
+    };
+}
+
+// 🌟 [V3.6] 시간표 중복 필터 토글 기능 (뷰어 전용)
+if (!window.toggleScheduleFilter) {
+    window.toggleScheduleFilter = function(instanceName, filterId) {
+        const instance = window[instanceName];
+        if (!instance || !instance.activeScheduleFilters) return;
+        if (instance.activeScheduleFilters.includes(filterId)) {
+            if (instance.activeScheduleFilters.length > 1) { // 최소 1개는 선택 유지
+                instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
+            }
+        } else {
+            instance.activeScheduleFilters.push(filterId);
+        }
+        instance.renderViewer();
     };
 }
