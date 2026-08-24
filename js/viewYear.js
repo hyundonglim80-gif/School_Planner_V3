@@ -118,6 +118,7 @@ export class YearView extends BaseView {
     return { eMap, sMap };
   }
 
+  // 🌟 지연 로딩을 위한 우선순위 월 배열 생성
   getPrioritizedMonths(targetY) {
     const nextYear = targetY + 1;
     const monthsInfo = [
@@ -149,6 +150,16 @@ export class YearView extends BaseView {
     })).sort((a, b) => a.distance - b.distance);
 
     return { orderedMonths: monthsInfo, prioritizedMonths };
+  }
+
+  // 🌟 앱 헤더(1, 2번째 줄) 높이를 자동 계산하여 3번째 줄을 그 밑에 고정시키는 함수
+  applyStickyTop() {
+      const header = document.querySelector('.app-header');
+      const filterWrapper = document.getElementById('year-filter-wrapper');
+      if (header && filterWrapper) {
+          const headerHeight = Math.floor(header.getBoundingClientRect().height);
+          filterWrapper.style.top = headerHeight + 'px';
+      }
   }
 
   async renderViewer() {
@@ -244,20 +255,22 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 [뷰어 모드] 첫 줄 고정 (Sticky Header)
+      // 🌟 [뷰어 모드] 세 번째 행 (필터) 독립적 생성 (껍데기 컨테이너 밖으로 분리)
       let skeletonHtml = `
-          <div class="table-container" style="background: transparent; border: none; box-shadow: none; padding: 0;">
-            <div id="year-filter-row" style="position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: 0 0 15px 0; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-               ${this.getEventFilterHtml('yearViewInstance')}
-               <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
-            </div>
-            ${progressHtml}
-            <div class="year-grid" id="year-grid-container">
-               ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
-            </div>
+          <div id="year-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
+             ${this.getEventFilterHtml('yearViewInstance')}
+             <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
+          </div>
+          ${progressHtml}
+          <div class="year-grid" id="year-grid-container">
+             ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
           </div>
       `;
       this.container.innerHTML = skeletonHtml;
+      
+      // 🌟 높이 자동 계산 함수 실행
+      setTimeout(() => this.applyStickyTop(), 0);
+      window.addEventListener('resize', () => this.applyStickyTop());
       
       const realTodayStr = formatDate(new Date());
 
@@ -307,16 +320,19 @@ export class YearView extends BaseView {
         const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
         if (containerEl) {
             containerEl.outerHTML = cardHtml;
+            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동 (상단 고정 필터 높이 고려)
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
                     if (focusEl) {
-                        const filterRow = document.getElementById('year-filter-row');
+                        const filterRow = document.getElementById('year-filter-wrapper');
                         const offset = filterRow ? filterRow.offsetHeight : 0;
-                        const y = focusEl.getBoundingClientRect().top + window.scrollY - offset - 10;
+                        const header = document.querySelector('.app-header');
+                        const hOffset = header ? header.offsetHeight : 0;
+                        const y = focusEl.getBoundingClientRect().top + window.scrollY - offset - hOffset - 10;
                         window.scrollTo({top: y, behavior: 'smooth'});
                     }
-                }, 100);
+                }, 50);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -357,6 +373,7 @@ export class YearView extends BaseView {
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
+    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -386,27 +403,34 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [작업 모드] 첫 줄 고정 (Sticky Header), 두 번째 줄인 th(표 머리글)는 고정 방지(td 사용)
+    // 🌟 [에디터 모드] 필터 행은 컨테이너 밖으로 독립시켜 무조건 상단 고정!
+    // 🌟 [에디터 모드] 표의 머리글은 <th> 대신 <td>를 사용하여 고정 속성 원천 차단!
     this.container.innerHTML = `
-      <div class="table-container">
-        <div id="year-filter-row" style="position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px; margin: -10px -10px 15px -10px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-            ${this.getEventFilterHtml('yearViewInstance')}
-            <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-        </div>
+      <div id="year-filter-wrapper" style="position: sticky; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #e2e8f0; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px; transition: top 0.1s;">
+          ${this.getEventFilterHtml('yearViewInstance')}
+          <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
+      </div>
+      
+      <div class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
-          <tbody id="year-editor-tbody">
+          <!-- 🌟 <th> 태그를 완전히 제거하여 CSS에 의한 강제 고정을 회피합니다 -->
+          <tbody style="border-bottom: 2px solid #cbd5e1;">
             <tr style="background:#f1f5f9;">
               <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
               <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
               <td colspan="${this.maxPeriod}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
             </tr>
-            <!-- 월별 데이터가 이곳에 삽입됩니다 -->
           </tbody>
+          ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    const tbody = document.getElementById('year-editor-tbody');
+    // 🌟 높이 자동 계산 함수 실행
+    setTimeout(() => this.applyStickyTop(), 0);
+    window.addEventListener('resize', () => this.applyStickyTop());
+
+    const tbody = document.getElementById('year-editor-table');
 
     for (const mObj of prioritizedMonths) {
         if (this.renderId !== currentRenderId) return;
@@ -472,21 +496,23 @@ export class YearView extends BaseView {
             </tr>`;
         }).join('');
 
-        // 월별 데이터를 tbody에 바로 삽입
-        const tempDiv = document.createElement('tbody');
-        tempDiv.innerHTML = rowsHtml;
-        Array.from(tempDiv.children).forEach(tr => tbody.appendChild(tr));
-
-        if (mObj.distance === 0) {
-            setTimeout(() => {
-                const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
-                if (firstRow) {
-                    const filterRow = document.getElementById('year-filter-row');
-                    const offset = filterRow ? filterRow.offsetHeight : 0;
-                    const y = firstRow.getBoundingClientRect().top + window.scrollY - offset - 10;
-                    window.scrollTo({top: y, behavior: 'smooth'});
-                }
-            }, 100);
+        const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
+        if (targetTbody) {
+            targetTbody.innerHTML = rowsHtml;
+            // 🌟 1순위(현재 월)가 그려지면 스크롤을 이동하여 보여줌
+            if (mObj.distance === 0) {
+                setTimeout(() => {
+                    const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
+                    if (firstRow) {
+                        const filterRow = document.getElementById('year-filter-wrapper');
+                        const offset = filterRow ? filterRow.offsetHeight : 0;
+                        const header = document.querySelector('.app-header');
+                        const hOffset = header ? header.offsetHeight : 0;
+                        const y = firstRow.getBoundingClientRect().top + window.scrollY - offset - hOffset - 10;
+                        window.scrollTo({top: y, behavior: 'smooth'});
+                    }
+                }, 100);
+            }
         }
         await new Promise(r => setTimeout(r, 40)); 
     }
@@ -604,6 +630,158 @@ export class YearView extends BaseView {
 
           row.querySelectorAll('.edit-class-cell').forEach(cell => {
               const p = cell.getAttribute("data-p");
+              let text = cell.innerText?.trim() || "";
+              let subject = '', memo = '', supplies = '';
+
+              if (text !== '') {
+                  const allBrackets = text.match(/\[.*?\]/g);
+                  if (allBrackets && allBrackets.length >= 2) {
+                      const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
+                      supplies = lastMatch ? lastMatch[1].trim() : "";
+                      text = text.replace(/\[([^\]]+)\]\s*$/, '').trim(); 
+                  }
+                  const firstMatch = text.match(/^\[(.*?)\]/);
+                  if (firstMatch) {
+                      subject = firstMatch[1].trim();
+                      memo = text.replace(/^\[(.*?)\]\s*/, '').trim();
+                  } else {
+                      memo = text;
+                  }
+              }
+              window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
+          });
+      });
+  }
+
+  updateCompactEvent(dateStr, idx, field, value) {
+      store.hasUnsavedChanges = true;
+      if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
+  }
+
+  addCompactEvent(dateStr) {
+      this.syncCompactEventInputs(dateStr); 
+      store.hasUnsavedChanges = true;
+      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+      window[`tempEvents_${dateStr}`].push({ 
+          id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+          authorId: window.auth?.currentUser?.uid,
+          labelIds: [], content: '', completed: false, sharedGroupId: null 
+      });
+      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+  }
+
+  requestRemoveCompactEvent(dateStr, idx) {
+      this.syncCompactEventInputs(dateStr); 
+      const ev = window[`tempEvents_${dateStr}`][idx];
+      const isGrouped = !!ev.groupId; 
+      
+      const labelObjs = getEventLabels();
+      const forwardLabelId = (ev.labelIds || []).find(id => labelObjs.find(l => l.id === id)?.isForward);
+      const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
+
+      if (isGrouped && ev.groupId.startsWith('group_')) {
+          window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
+              () => window.render(), 
+              () => this.removeCompactEvent(dateStr, idx)
+          );
+      } else if (forwardLabelId && ev.forwardChainId) {
+          window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, () => window.render());
+      } else {
+          this.removeCompactEvent(dateStr, idx);
+      }
+  }
+
+  removeCompactEvent(dateStr, idx) {
+      store.hasUnsavedChanges = true;
+      window[`tempEvents_${dateStr}`].splice(idx, 1);
+      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+  }
+
+  save() {
+    if (this.isRendering) {
+        alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
+        return;
+    }
+
+    if (!this.renderedDateStrings) return;
+    this.syncScheduleInputs(); 
+    this.syncAllCompactEventInputs();
+
+    const snapshot = this.renderedDateStrings.map(dateStr => {
+        const rawList = window[`tempEvents_${dateStr}`] || [];
+        const validEvents = rawList
+            .filter(e => e.content?.trim() || e.labelIds?.length > 0)
+            .map(e => ({
+                ...e,
+                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                authorId: e.authorId || window.auth?.currentUser?.uid
+            }));
+        const periodsData = JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {}));
+        return { dateStr, validEvents, periodsData };
+    });
+
+    const masterLabels = getEventLabels();
+    let batch = writeBatch(window.db);
+    let opCount = 0;
+    let batchPromises = [];
+    
+    snapshot.forEach(item => {
+        const eventsByGroup = { 'personal': [] };
+        this.myGroups.forEach(g => eventsByGroup[g.id] = []);
+
+        item.validEvents.forEach(e => {
+            const gId = e.sharedGroupId || 'personal';
+            if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
+        });
+
+        const pEvents = eventsByGroup['personal'];
+        batch.set(doc(getUserCol('events'), item.dateStr), {
+            eventList: pEvents,
+            eventText: formatEventListToText(pEvents),
+            updatedAt: Date.now()
+        }, { merge: true });
+        opCount++;
+        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
+
+        this.myGroups.forEach(g => {
+            const gEvents = eventsByGroup[g.id];
+            batch.set(doc(getGroupCol(g.id, 'events'), item.dateStr), {
+                eventList: gEvents,
+                eventText: formatEventListToText(gEvents),
+                updatedAt: Date.now()
+            }, { merge: true });
+            opCount++;
+            if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
+        });
+
+        const isSkipDay = item.validEvents.some(e => e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
+        if (isSkipDay) {
+            Object.values(item.periodsData).forEach(p => p.subject = '');
+        }
+
+        const scheduleCol = this.scheduleGroupId ? getGroupCol(this.scheduleGroupId, 'schedules') : getUserCol('schedules');
+        batch.set(doc(scheduleCol, item.dateStr), {
+            periods: item.periodsData,
+            updatedAt: Date.now()
+        }, { merge: true });
+        opCount++;
+        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(window.db); opCount = 0; }
+    });
+
+    if (opCount > 0) batchPromises.push(batch.commit());
+    Promise.all(batchPromises).catch(e => console.warn(e));
+    
+    store.hasUnsavedChanges = false;
+  }
+}
+
+const instance = new YearView(document.getElementById("main-view"));
+Object.assign(window, {
+    yearViewInstance: instance,
+    renderYearViewer: (c) => { instance.container = c; instance.renderViewer(); },
+    renderYearEditor: (c) => { instance.container = c; instance.renderEditor(); },
+    saveYearDataFromEditor: () => instance.save()
+});
               let text = cell.innerText?.trim() || "";
               let subject = '', memo = '', supplies = '';
 
