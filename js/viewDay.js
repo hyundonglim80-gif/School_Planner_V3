@@ -17,6 +17,26 @@ export class DayView extends BaseView {
         
         this.myGroups = [];
         this.scheduleGroupId = null; 
+        this.activeEventFilters = null; // 🌟 [V3.6] 일정 보기 필터 상태
+    }
+
+    // 🌟 [V3.6] 상단 일정 필터 버튼 렌더러
+    getEventFilterHtml(instanceName) {
+        if (!this.activeEventFilters) {
+            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        }
+        const isPersonalActive = this.activeEventFilters.includes('personal');
+        let html = `
+            <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+                <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
+                <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+        `;
+        this.myGroups.forEach(g => {
+            const isActive = this.activeEventFilters.includes(g.id);
+            html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+        });
+        html += `</div>`;
+        return html;
     }
 
     async loadEvaluationsForDay(dateStr) {
@@ -108,6 +128,10 @@ export class DayView extends BaseView {
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
         
+        if (!this.activeEventFilters) {
+            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        }
+
         let allEvents = [];
         const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
         if (eventDoc.exists()) {
@@ -122,10 +146,13 @@ export class DayView extends BaseView {
             allEvents = allEvents.concat(gEvents);
         }
         
-        const viewableEvents = allEvents.map(e => ({
-            ...e,
-            content: (e.sharedGroupId ? `[👥 ${e.groupName}] ` : '') + e.content
-        }));
+        // 🌟 [V3.6] 필터 적용 및 공유 일정 뱃지 UI 삽입
+        const viewableEvents = allEvents
+            .filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'))
+            .map(e => ({
+                ...e,
+                content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
+            }));
 
         let scheduleDoc;
         if (this.scheduleGroupId) {
@@ -140,7 +167,6 @@ export class DayView extends BaseView {
         const journalDoc = await getDoc(doc(getUserCol('journals'), dateStr));
         const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
 
-        // 🌟 [V3.6] 시간표 공유 대상을 토글 칩(버튼) 스타일로 변경
         const wsSelectHtml = `
             <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
                 <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
@@ -189,7 +215,10 @@ export class DayView extends BaseView {
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <h3 style="font-size:1.2rem; color:#1e40af; margin:0; margin-bottom:10px; font-weight:bold;">📌 오늘 할 일</h3>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                  <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
+                  ${this.getEventFilterHtml('dayViewInstance')}
+              </div>
               ${window.generateEventBadgesHTML(viewableEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
@@ -230,6 +259,10 @@ export class DayView extends BaseView {
         
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
+        if (!this.activeEventFilters) {
+            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        }
+
         let allEvents = [];
         const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
         if (eventDoc.exists()) {
@@ -255,7 +288,15 @@ export class DayView extends BaseView {
             }
             return { ...e, labelIds };
         });
-        if (this.currentEvents.length === 0) this.currentEvents.push({ labelIds: [], content: '', completed: false, sharedGroupId: null });
+        
+        // 데이터가 없으면 새 배열 하나 생성 (id와 작성자 uid 포함)
+        if (this.currentEvents.length === 0) {
+            this.currentEvents.push({ 
+                id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                authorId: window.auth?.currentUser?.uid,
+                labelIds: [], content: '', completed: false, sharedGroupId: null 
+            });
+        }
 
         let scheduleDoc;
         if (this.scheduleGroupId) {
@@ -272,7 +313,6 @@ export class DayView extends BaseView {
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
-        // 🌟 [V3.6] 시간표 공유 대상을 토글 칩(버튼) 스타일로 변경
         const wsSelectHtml = `
             <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
                 <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
@@ -326,9 +366,12 @@ export class DayView extends BaseView {
 
           <div class="day-viewer-container">
             <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
                 <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
-                <button onclick="window.openEventLabelModal()" style="background:#f8fafc; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold;">⚙️ 설정</button>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    ${this.getEventFilterHtml('dayViewInstance')}
+                    <button onclick="window.openEventLabelModal()" style="background:#f8fafc; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold;">⚙️ 설정</button>
+                </div>
               </div>
               <div id="event-entries-container" style="width: 100%;"></div>
               <button onclick="window.dayViewInstance.addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
@@ -524,19 +567,33 @@ export class DayView extends BaseView {
     renderEventEntries() {
         const container = document.getElementById('event-entries-container');
         if(!container) return;
+        
         const allLabelsObj = getEventLabels();
+        const uid = window.auth?.currentUser?.uid;
 
         container.innerHTML = this.currentEvents.map((ev, idx) => {
+            // 🌟 [V3.6] 필터에 따른 숨김 처리 (삭제되지 않고 화면에만 가려짐)
+            const isVisible = this.activeEventFilters.includes(ev.sharedGroupId || 'personal');
+            const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
+
+            // 🌟 [V3.6] 작성자 권한 체크 (본인이 작성했거나, 오프라인 상태이거나)
+            const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
+
             const eLabelIds = ev.labelIds || [];
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
 
-            const groupButtonsHtml = `
-                <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                    <div onclick="window.dayViewInstance.changeEventGroup(${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!ev.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                    ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeEventGroup(${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${ev.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-                </div>
-            `;
+            let groupButtonsHtml = '';
+            if (isAuthor) {
+                groupButtonsHtml = `
+                    <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
+                        <div onclick="window.dayViewInstance.changeEventGroup(${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!ev.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+                        ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeEventGroup(${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${ev.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+                    </div>
+                `;
+            } else {
+                groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${ev.groupName} (읽기전용)</div>`;
+            }
 
             let delHandler = `window.dayViewInstance.removeEventEntry(${idx})`;
             let forwardedBadge = '';
@@ -551,19 +608,27 @@ export class DayView extends BaseView {
                 }
             }
 
+            const deleteBtnHtml = isAuthor 
+                ? `<button class="modal-delete-btn" onclick="${delHandler}" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
+                : '';
+
+            const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel(${idx}, '${lObj.id}')"` : '';
+            const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+
             const chipsHtml = allLabelsObj.map(lObj => 
-                `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleEventLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
+                `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`
             ).join('');
 
             const checkboxHtml = canComplete 
-                ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="window.dayViewInstance.updateEventStatus(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+                ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.dayViewInstance.updateEventStatus(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
                 : '';
 
-            const textStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+            const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+            const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
             return `
-            <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
+            <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
                         ${chipsHtml}
@@ -571,12 +636,12 @@ export class DayView extends BaseView {
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${groupButtonsHtml}
-                        <button class="modal-delete-btn" onclick="${delHandler}" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>
+                        ${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" placeholder="일정 내용 입력..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -673,7 +738,11 @@ export class DayView extends BaseView {
 
     addEventEntry() {
         this.syncEventInputs();
-        this.currentEvents.push({ labelIds: [], content: '', completed: false, sharedGroupId: null });
+        this.currentEvents.push({ 
+            id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+            authorId: window.auth?.currentUser?.uid,
+            labelIds: [], content: '', completed: false, sharedGroupId: null 
+        });
         this.renderEventEntries();
         store.hasUnsavedChanges = true;
     }
@@ -737,6 +806,10 @@ export class DayView extends BaseView {
 
         this.currentEvents.forEach(e => {
             if ((e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0)) {
+                // 저장 시 id, authorId 누락 방지 안전장치
+                if (!e.id) e.id = 'ev_' + Date.now() + Math.random().toString(36).substr(2,5);
+                if (!e.authorId && window.auth?.currentUser?.uid) e.authorId = window.auth.currentUser.uid;
+                
                 const gId = e.sharedGroupId || 'personal';
                 if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
             }
@@ -787,3 +860,18 @@ Object.assign(window, {
     renderDayEditor: (c) => { window.dayViewInstance.container = c; window.dayViewInstance.renderEditor(); },
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
+
+// 🌟 [V3.6] 전역 이벤트 필터 토글 기능 (모든 화면 공통)
+if (!window.toggleEventFilter) {
+    window.toggleEventFilter = function(instanceName, filterId) {
+        const instance = window[instanceName];
+        if (!instance || !instance.activeEventFilters) return;
+        if (instance.activeEventFilters.includes(filterId)) {
+            instance.activeEventFilters = instance.activeEventFilters.filter(id => id !== filterId);
+        } else {
+            instance.activeEventFilters.push(filterId);
+        }
+        if (window.store.mode === 'editor') instance.renderEditor();
+        else instance.renderViewer();
+    };
+}
