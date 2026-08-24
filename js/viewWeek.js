@@ -12,6 +12,26 @@ export class WeekView extends BaseView {
     super(container); 
     this.myGroups = [];
     this.scheduleGroupId = null; 
+    this.activeEventFilters = null; // 🌟 [V3.6] 일정 보기 필터 상태
+  }
+
+  // 🌟 [V3.6] 상단 일정 필터 버튼 렌더러
+  getEventFilterHtml(instanceName) {
+      if (!this.activeEventFilters) {
+          this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+      }
+      const isPersonalActive = this.activeEventFilters.includes('personal');
+      let html = `
+          <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+              <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
+              <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+      `;
+      this.myGroups.forEach(g => {
+          const isActive = this.activeEventFilters.includes(g.id);
+          html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+      });
+      html += `</div>`;
+      return html;
   }
 
   async changeScheduleWorkspace(newGroupId) {
@@ -79,6 +99,10 @@ export class WeekView extends BaseView {
     const { eMap, sMap } = await this.fetchWeekData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr);
     const realTodayStr = formatDate(new Date());
 
+    if (!this.activeEventFilters) {
+        this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    }
+
     const wsSelectHtml = `
         <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
             <div onclick="window.weekViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
@@ -90,10 +114,12 @@ export class WeekView extends BaseView {
       const periods = sMap[d.dateStr] || {};
       const finalEvents = eMap[d.dateStr]?.eventList || [];
       
-      const processedEvents = finalEvents.length > 0 ? finalEvents.map(e => ({ 
+      // 🌟 [V3.6] 필터 적용 및 공유 일정 뱃지 삽입
+      const filteredEvents = finalEvents.filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'));
+      const processedEvents = filteredEvents.length > 0 ? filteredEvents.map(e => ({ 
           ...e, 
           labelIds: e.labelIds || [],
-          content: (e.sharedGroupId ? `[👥 ${e.groupName}] ` : '') + e.content
+          content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
       })) : [];
       
       const eventHtml = processedEvents.length > 0 
@@ -140,8 +166,9 @@ export class WeekView extends BaseView {
 
     this.container.innerHTML = `
       <div class="clean-viewer-board">
-        <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px; ${store.showClass ? '' : 'display:none;'}">
-           ${wsSelectHtml}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:10px; flex-wrap:wrap;">
+           ${this.getEventFilterHtml('weekViewInstance')}
+           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
         </div>
         <table><tbody>${rowsHtml}</tbody></table>
       </div>`;
@@ -155,6 +182,10 @@ export class WeekView extends BaseView {
     
     const realTodayStr = formatDate(new Date());
     const masterLabels = getEventLabels(); 
+
+    if (!this.activeEventFilters) {
+        this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    }
 
     const wsSelectHtml = `
         <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
@@ -224,8 +255,9 @@ export class WeekView extends BaseView {
 
     this.container.innerHTML = `
       <div class="table-container">
-        <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px; ${store.showClass ? '' : 'display:none;'}">
-           ${wsSelectHtml}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:10px; flex-wrap:wrap;">
+           ${this.getEventFilterHtml('weekViewInstance')}
+           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
         </div>
         <table><tbody>${rowsHtml}</tbody></table>
       </div>`;
@@ -250,18 +282,29 @@ export class WeekView extends BaseView {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = getEventLabels();
       const realTodayStr = formatDate(new Date());
+      const uid = window.auth?.currentUser?.uid;
       
       return list.map((e, idx) => {
+          // 🌟 [V3.6] 필터 및 소유권 검사
+          const isVisible = this.activeEventFilters.includes(e.sharedGroupId || 'personal');
+          const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
+          const isAuthor = !e.authorId || !uid || e.authorId === uid;
+
           const eLabelIds = e.labelIds || [];
           const isCompleted = !!e.completed;
           const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
           
-          const groupButtonsHtml = `
-              <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                  <div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                  ${(this.myGroups || []).map(g => `<div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-              </div>
-          `;
+          let groupButtonsHtml = '';
+          if (isAuthor) {
+              groupButtonsHtml = `
+                  <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
+                      <div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
+                      ${(this.myGroups || []).map(g => `<div onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
+                  </div>
+              `;
+          } else {
+              groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${e.groupName} (읽기전용)</div>`;
+          }
 
           let warningIcon = '';
           if (canComplete) {
@@ -269,31 +312,39 @@ export class WeekView extends BaseView {
               else if (e.originalDate && e.originalDate < dateStr) warningIcon = `<span style="color:#2563eb; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">↪️ (이월됨)</span>`;
           }
 
+          const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}')"` : '';
+          const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+
           const chipsHtml = labelObjs.map(lObj => 
-              `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
+              `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`
           ).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} onchange="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+              ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
               : '';
 
-          const inputStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+          const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+          const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+          const deleteBtnHtml = isAuthor 
+                ? `<button onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                : '';
+
           return `
-          <div class="compact-event-row" data-idx="${idx}" style="border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; display:flex; flex-direction:column; gap:6px; transition:0.2s;">
+          <div class="compact-event-row" data-idx="${idx}" style="${displayStyle} border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                   <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1;">
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                       ${groupButtonsHtml}
-                      <button onclick="(window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>
+                      ${deleteBtnHtml}
                   </div>
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea placeholder="일정 내용을 입력하세요." style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${inputStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; (window.weekViewInstance || window.monthViewInstance || window.yearViewInstance).updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -362,7 +413,11 @@ export class WeekView extends BaseView {
       this.syncCompactEventInputs(dateStr); 
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-      window[`tempEvents_${dateStr}`].push({ labelIds: [], content: '', completed: false, sharedGroupId: null });
+      window[`tempEvents_${dateStr}`].push({ 
+          id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+          authorId: window.auth?.currentUser?.uid,
+          labelIds: [], content: '', completed: false, sharedGroupId: null 
+      });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
   }
 
@@ -401,7 +456,11 @@ export class WeekView extends BaseView {
         const dateStr = d.dateStr;
         const validEvents = (window[`tempEvents_${dateStr}`] || [])
             .filter(e => e.content?.trim() || e.labelIds?.length > 0)
-            .map(e => ({...e}));
+            .map(e => ({
+                ...e,
+                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                authorId: e.authorId || window.auth?.currentUser?.uid
+            }));
         return { 
             dateStr, 
             validEvents, 
