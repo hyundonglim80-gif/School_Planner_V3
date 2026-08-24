@@ -289,7 +289,6 @@ export class DayView extends BaseView {
             return { ...e, labelIds };
         });
         
-        // 데이터가 없으면 새 배열 하나 생성 (id와 작성자 uid 포함)
         if (this.currentEvents.length === 0) {
             this.currentEvents.push({ 
                 id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
@@ -612,12 +611,11 @@ export class DayView extends BaseView {
                 ? `<button class="modal-delete-btn" onclick="${delHandler}" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
                 : '';
 
-            const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel(${idx}, '${lObj.id}')"` : '';
-            const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
-
-            const chipsHtml = allLabelsObj.map(lObj => 
-                `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`
-            ).join('');
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel(${idx}, '${lObj.id}')"` : '';
+                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+                return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
+            }).join('');
 
             const checkboxHtml = canComplete 
                 ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.dayViewInstance.updateEventStatus(${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
@@ -806,7 +804,6 @@ export class DayView extends BaseView {
 
         this.currentEvents.forEach(e => {
             if ((e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0)) {
-                // 저장 시 id, authorId 누락 방지 안전장치
                 if (!e.id) e.id = 'ev_' + Date.now() + Math.random().toString(36).substr(2,5);
                 if (!e.authorId && window.auth?.currentUser?.uid) e.authorId = window.auth.currentUser.uid;
                 
@@ -871,7 +868,7 @@ if (!window.toggleEventFilter) {
         } else {
             instance.activeEventFilters.push(filterId);
         }
-        if (window.store.mode === 'editor') instance.renderEditor();
+        if (store.mode === 'editor') instance.renderEditor();
         else instance.renderViewer();
     };
 }
