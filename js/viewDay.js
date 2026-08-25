@@ -20,7 +20,7 @@ export class DayView extends BaseView {
         this.activeFilters = null; // 🌟 통합 필터 상태 관리
     }
 
-    // 🌟 [핵심 수정 1] 년간/월간과 동일한 방식의 통합 필터 생성기 (버튼 활성화 버그 해결)
+    // 🌟 년간/월간과 동일한 방식의 통합 필터 생성기 (버튼 활성화 버그 해결)
     getUnifiedFilterHtml() {
         let isPersonalActive = false;
         let activeGroupIds = [];
@@ -443,10 +443,10 @@ export class DayView extends BaseView {
           this.renderEventEntries();
           this.renderJournalEntries();
           
-          // 🌟 텍스트 상자 초기 렌더링 시점에 세로 크기 자동 맞춤
+          // 🌟 텍스트 상자 초기 렌더링 시점에 세로 크기 자동 맞춤 (여백 계산 +4px 보정 적용)
           document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
               ta.style.height = 'auto';
-              ta.style.height = ta.scrollHeight + 'px';
+              ta.style.height = (ta.scrollHeight + 4) + 'px';
           });
         }, 10);
     }
@@ -656,7 +656,7 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [핵심 수정 2] oninput 속성에서 this.style.height='auto' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
+            // 🌟 [핵심 수정 2] oninput 속성에서 (this.scrollHeight+4)+'px' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
             return `
             <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -670,7 +670,7 @@ export class DayView extends BaseView {
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -687,14 +687,14 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
-            // 🌟 [핵심 수정 2] oninput 속성에서 this.style.height='auto' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
+            // 🌟 [핵심 수정 2] oninput 속성에서 (this.scrollHeight+4)+'px' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
             </div>`;
         }).join('');
     }
@@ -730,7 +730,7 @@ export class DayView extends BaseView {
         
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
             });
         }, 10);
     }
@@ -757,7 +757,7 @@ export class DayView extends BaseView {
         
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
             });
         }, 10);
     }
@@ -790,7 +790,7 @@ export class DayView extends BaseView {
         
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
             });
         }, 10);
     }
@@ -810,7 +810,7 @@ export class DayView extends BaseView {
         
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
             });
         }, 10);
     }
