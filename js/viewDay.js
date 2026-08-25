@@ -17,41 +17,22 @@ export class DayView extends BaseView {
         
         this.myGroups = [];
         this.scheduleGroupId = null; 
-        this.activeEventFilters = null;
-        this.activeScheduleFilters = null; 
+        this.activeFilters = null; // 🌟 통합 필터 상태 관리
     }
 
-    getEventFilterHtml(instanceName) {
-        if (!this.activeEventFilters) {
-            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성기
+    getUnifiedFilterHtml(instanceName) {
+        if (!this.activeFilters) {
+            this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
         }
-        const isPersonalActive = this.activeEventFilters.includes('personal');
+        const isPersonalActive = this.activeFilters.includes('personal');
         let html = `
-            <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
-                <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
-                <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+            <div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">
+                <div onclick="window.toggleUnifiedFilter('${instanceName}', 'personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>
         `;
         this.myGroups.forEach(g => {
-            const isActive = this.activeEventFilters.includes(g.id);
-            html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
-        });
-        html += `</div>`;
-        return html;
-    }
-
-    getScheduleFilterHtml(instanceName) {
-        if (!this.activeScheduleFilters) {
-            this.activeScheduleFilters = ['personal'];
-        }
-        const isPersonalActive = this.activeScheduleFilters.includes('personal');
-        let html = `
-            <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
-                <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
-                <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
-        `;
-        this.myGroups.forEach(g => {
-            const isActive = this.activeScheduleFilters.includes(g.id);
-            html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+            const isActive = this.activeFilters.includes(g.id);
+            html += `<div onclick="window.toggleUnifiedFilter('${instanceName}', '${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
         });
         html += `</div>`;
         return html;
@@ -65,7 +46,7 @@ export class DayView extends BaseView {
             scheduleEvals.forEach(e => e.groupId = this.scheduleGroupId);
             allEvals = scheduleEvals.filter(e => e.context?.source === 'schedule');
         } else {
-            const filtersToLoad = this.activeScheduleFilters || ['personal'];
+            const filtersToLoad = this.activeFilters || ['personal'];
             for (const f of filtersToLoad) {
                 const gid = f === 'personal' ? null : f;
                 const evals = await dbAPI.loadEvaluations(dateStr, gid) || [];
@@ -161,8 +142,7 @@ export class DayView extends BaseView {
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
         
-        if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
-        if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
+        if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
 
         let allEvents = [];
         const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
@@ -179,7 +159,7 @@ export class DayView extends BaseView {
         }
         
         const viewableEvents = allEvents
-            .filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'))
+            .filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'))
             .map(e => ({
                 ...e,
                 content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
@@ -207,13 +187,13 @@ export class DayView extends BaseView {
             let memoHtml = '';
             let suppliesHtml = '';
             
-            this.activeScheduleFilters.forEach((filterId, idx) => {
+            this.activeFilters.forEach((filterId, idx) => {
                 const pObj = allSchedules[filterId]?.[p] || {};
-                const isLast = idx === this.activeScheduleFilters.length - 1;
+                const isLast = idx === this.activeFilters.length - 1;
                 const borderStyle = isLast ? '' : 'border-bottom: 1px dashed #cbd5e1; padding-bottom:8px; margin-bottom:8px;';
                 
                 let badge = '';
-                if (this.activeScheduleFilters.length > 1) {
+                if (this.activeFilters.length > 1) {
                     const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
                     const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
                     const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
@@ -262,15 +242,11 @@ export class DayView extends BaseView {
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
                   <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
-                  ${this.getEventFilterHtml('dayViewInstance')}
               </div>
               ${window.generateEventBadgesHTML(viewableEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
-              <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-                  ${this.getScheduleFilterHtml('dayViewInstance')}
-              </div>
               <table style="text-align: center;">
                 <thead>
                   <tr>
@@ -296,6 +272,10 @@ export class DayView extends BaseView {
               <div style="display:flex; flex-direction:column;">${journalsHtml}</div>
             </div>
           </div>`;
+
+        // 🌟 통합 필터 상단 슬롯에 주입
+        const filterSlot = document.getElementById('global-unified-filter-slot');
+        if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('dayViewInstance');
     }
 
     async renderEditor() {
@@ -304,8 +284,8 @@ export class DayView extends BaseView {
         
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
-        if (!this.activeEventFilters) {
-            this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!this.activeFilters) {
+            this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
         }
 
         let allEvents = [];
@@ -413,7 +393,6 @@ export class DayView extends BaseView {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
                 <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                    ${this.getEventFilterHtml('dayViewInstance')}
                     <button onclick="window.openEventLabelModal()" style="background:#f8fafc; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold;">⚙️ 설정</button>
                 </div>
               </div>
@@ -454,6 +433,10 @@ export class DayView extends BaseView {
             </div>
           </div>`;
         
+        // 🌟 통합 필터 상단 슬롯에 주입
+        const filterSlot = document.getElementById('global-unified-filter-slot');
+        if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('dayViewInstance');
+
         setTimeout(() => {
           this.renderEventEntries();
           this.renderJournalEntries();
@@ -622,7 +605,7 @@ export class DayView extends BaseView {
         const uid = window.auth?.currentUser?.uid;
 
         container.innerHTML = this.currentEvents.map((ev, idx) => {
-            const isVisible = this.activeEventFilters.includes(ev.sharedGroupId || 'personal');
+            const isVisible = this.activeFilters.includes(ev.sharedGroupId || 'personal');
             const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
 
@@ -906,33 +889,22 @@ Object.assign(window, {
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
 
-// 🌟 [V3.6] 전역 일정 필터 토글 기능 (모든 화면 공통)
-if (!window.toggleEventFilter) {
-    window.toggleEventFilter = function(instanceName, filterId) {
+// 🌟 [핵심 변경] 단일 통합 필터 토글 전역 함수
+if (!window.toggleUnifiedFilter) {
+    window.toggleUnifiedFilter = function(instanceName, filterId) {
         const instance = window[instanceName];
-        if (!instance || !instance.activeEventFilters) return;
-        if (instance.activeEventFilters.includes(filterId)) {
-            instance.activeEventFilters = instance.activeEventFilters.filter(id => id !== filterId);
-        } else {
-            instance.activeEventFilters.push(filterId);
-        }
-        if (store.mode === 'editor') instance.renderEditor();
-        else instance.renderViewer();
-    };
-}
-
-// 🌟 [V3.6] 시간표 중복 필터 토글 기능 (뷰어 전용)
-if (!window.toggleScheduleFilter) {
-    window.toggleScheduleFilter = function(instanceName, filterId) {
-        const instance = window[instanceName];
-        if (!instance || !instance.activeScheduleFilters) return;
+        if (!instance || !instance.activeFilters) return;
         
-        if (instance.activeScheduleFilters.includes(filterId)) {
-            // 💡 기존에 있던 "최소 1개 유지(length > 1)" 제한 로직을 삭제하여 모두 해제 가능하도록 수정
-            instance.activeScheduleFilters = instance.activeScheduleFilters.filter(id => id !== filterId);
+        if (instance.activeFilters.includes(filterId)) {
+            instance.activeFilters = instance.activeFilters.filter(id => id !== filterId);
         } else {
-            instance.activeScheduleFilters.push(filterId);
+            instance.activeFilters.push(filterId);
         }
-        instance.renderViewer();
+        
+        if (store.mode === 'editor') {
+            if (typeof instance.renderEditor === 'function') instance.renderEditor();
+        } else {
+            if (typeof instance.renderViewer === 'function') instance.renderViewer();
+        }
     };
 }
