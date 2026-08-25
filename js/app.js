@@ -29,6 +29,7 @@ export const updateDateFromScroll = () => {
     
     if (dateElements.length > 0) {
         const headerOffset = document.querySelector('.app-header')?.offsetHeight || 100;
+        const viewportBottom = window.innerHeight; // 🌟 화면의 맨 아래쪽 경계선 측정
         let closestEl = null;
         let minDistance = Infinity;
 
@@ -36,6 +37,10 @@ export const updateDateFromScroll = () => {
             const rect = el.getBoundingClientRect();
             if (rect.width === 0 && rect.height === 0) continue; 
             
+            // 🚀 [최적화] 요소의 상단이 화면 맨 아래쪽보다 훨씬 밑에 있다면 
+            // 그 뒤 요소들은 볼 필요도 없으므로 즉시 반복문 탈출 (스크롤 버벅거림 해결)
+            if (rect.top > viewportBottom + 300) break;
+
             const distance = Math.abs(rect.top - headerOffset);
             if (distance < minDistance && rect.bottom > headerOffset) {
                 minDistance = distance;
@@ -293,7 +298,18 @@ export const updateButtonUI = () => {
     const viewerBtn = document.getElementById('btn-mode-viewer');
     const editorBtn = document.getElementById('btn-mode-editor');
     
+    // 🌟 보기/작성 버튼 강제 중앙 정렬
     if (viewerBtn && editorBtn) {
+        viewerBtn.style.display = 'inline-flex';
+        viewerBtn.style.justifyContent = 'center';
+        viewerBtn.style.alignItems = 'center';
+        viewerBtn.style.textAlign = 'center';
+
+        editorBtn.style.display = 'inline-flex';
+        editorBtn.style.justifyContent = 'center';
+        editorBtn.style.alignItems = 'center';
+        editorBtn.style.textAlign = 'center';
+
         viewerBtn.className = store.mode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
         if (store.mode === 'viewer') {
             editorBtn.innerHTML = '작성'; editorBtn.title = '단축키: Ctrl + ↓'; editorBtn.className = 'btn-mode';
@@ -386,7 +402,6 @@ const initApp = () => {
         }, 200);
     }, { passive: true, capture: true });
 
-    // 🌟 [최적화 2] 타이핑할 때마다 과도하게 발생하던 자동 저장 주기를 800ms -> 2500ms로 완화
     let autoSaveTimer = null;
     const markUnsaved = () => { 
         if (store.mode === 'editor') {
@@ -417,7 +432,6 @@ const initApp = () => {
         }
     });
 
-    // 🌟 [최적화 1] 모바일 스크롤 주소창 버그 해결: 화면 '너비'가 진짜 변할 때만 헤더 재계산 실행
     let lastWidth = window.innerWidth;
     let resizeDebounce = null;
     window.addEventListener('resize', () => {
