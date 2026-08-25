@@ -298,7 +298,6 @@ export const updateButtonUI = () => {
     const viewerBtn = document.getElementById('btn-mode-viewer');
     const editorBtn = document.getElementById('btn-mode-editor');
     
-    // 🌟 보기/작성 버튼 강제 중앙 정렬
     if (viewerBtn && editorBtn) {
         viewerBtn.style.display = 'inline-flex';
         viewerBtn.style.justifyContent = 'center';
