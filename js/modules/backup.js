@@ -419,7 +419,10 @@ export const BackupManager = {
                         
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
                         const pre = e.completed ? '[v] ' : '';
-                        return `${pre}[${lName}] ${e.content}`;
+                        
+                        // 🌟 [수정] 복원 시 매칭을 위해 숨김 텍스트로 고유 ID 포함
+                        const idStr = e.id ? ` {#${e.id}}` : '';
+                        return `${pre}[${lName}] ${e.content}${idStr}`;
                     }).join('\n');
                 }
                 row.push(evText);
@@ -452,7 +455,10 @@ export const BackupManager = {
 
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
                         const pre = j.completed ? '[v] ' : '';
-                        return `${pre}[${lName}] ${j.content}`;
+                        
+                        // 🌟 [수정] 복원 시 매칭을 위해 숨김 텍스트로 고유 ID 포함
+                        const idStr = j.id ? ` {#${j.id}}` : '';
+                        return `${pre}[${lName}] ${j.content}${idStr}`;
                     }).join('\n');
                 }
                 row.push(joText);
@@ -641,8 +647,16 @@ export const BackupManager = {
                 const match = t.match(/^\[(.*?)\]\s*(.*)$/);
                 if (match) {
                     let labelStr = match[1].trim();
-                    let content = match[2].trim();
+                    let rawContent = match[2].trim();
                     
+                    // 🌟 [수정] 텍스트 끝에 숨겨둔 고유 ID 추출 (중복 복제 방지용)
+                    let id = null;
+                    const idMatch = rawContent.match(/\s*{#([^}]+)}$/);
+                    if (idMatch) {
+                        id = idMatch[1];
+                        rawContent = rawContent.replace(/\s*{#([^}]+)}$/, '').trim();
+                    }
+
                     let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
                     if (labelsArray.length === 0) labelsArray = [type === 'journal' ? '기록' : '일정'];
 
@@ -665,14 +679,34 @@ export const BackupManager = {
                         mappedLabelIds.push(lObj.id);
                     });
 
-                    eventList.push({ labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: content, completed: completed });
+                    eventList.push({ 
+                        id: id || undefined, 
+                        labelIds: mappedLabelIds, 
+                        label: labelsArray[0], 
+                        labels: labelsArray, 
+                        content: rawContent, 
+                        completed: completed 
+                    });
                 } else {
                     let defaultLabelIds = [];
+                    // 🌟 [수정] 라벨 괄호가 생략된 경우에 대한 ID 파싱 처리
+                    let id = null;
+                    const idMatch = t.match(/\s*{#([^}]+)}$/);
+                    if (idMatch) {
+                        id = idMatch[1];
+                        t = t.replace(/\s*{#([^}]+)}$/, '').trim();
+                    }
+
                     if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
                         const skipLabel = targetLabels.find(l => l.isSkip);
                         if (skipLabel) defaultLabelIds = [skipLabel.id];
                     }
-                    eventList.push({ labelIds: defaultLabelIds, content: t, completed: completed });
+                    eventList.push({ 
+                        id: id || undefined, 
+                        labelIds: defaultLabelIds, 
+                        content: t, 
+                        completed: completed 
+                    });
                 }
             });
             return eventList;
@@ -821,6 +855,7 @@ export const BackupManager = {
                 const lblStr = (item.labels || []).join(',');
 
                 let existing = null;
+                // 🌟 파싱된 ID를 바탕으로 기존 데이터를 우선적으로 매칭함
                 if (item.id) {
                     existing = merged.find(e => e.id === item.id);
                 }
@@ -834,7 +869,6 @@ export const BackupManager = {
                     });
                 }
 
-                // 🌟 [V3.6 버그 픽스] 복원 시 데이터 병합 과정에서 작성자 권한(authorId)이 누락되는 현상 보완
                 if (existing) {
                     existing.completed = item.completed; 
                     existing.source = item.source || existing.source;
@@ -981,7 +1015,6 @@ export const BackupManager = {
                 const imageUrl = r[5] || '';
                 const createdAt = parseInt(r[6], 10) || Date.now();
 
-                // 🌟 [V3.6 버그 픽스] 메모 복원 시 본인의 authorId 소유권 부여
                 batch.set(doc(getUserCol('tasks'), id), {
                     text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
                     createdAt: createdAt, updatedAt: Date.now(), order: -createdAt,
