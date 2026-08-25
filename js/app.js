@@ -28,7 +28,7 @@ export const updateDateFromScroll = () => {
     }
     
     if (dateElements.length > 0) {
-        const headerOffset = document.querySelector('.app-header')?.offsetHeight || 150;
+        const headerOffset = document.querySelector('.app-header')?.offsetHeight || 100;
         let closestEl = null;
         let minDistance = Infinity;
 
@@ -71,11 +71,8 @@ export const setScope = (scope) => {
     localStorage.setItem('workCalendar_scope', scope);
     
     const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
-    if (savedDate) {
-        store.currentDate = new Date(savedDate);
-    } else {
-        store.currentDate = new Date(); 
-    }
+    if (savedDate) store.currentDate = new Date(savedDate);
+    else store.currentDate = new Date(); 
 
     render(false); 
 };
@@ -134,6 +131,7 @@ export const goToDay = (dateStr) => {
     }
 };
 
+// 🌟 [핵심 변경] Fixed 헤더에 화면이 가리지 않도록 정밀 스크롤 계산 함수 교체
 export const scrollToTodayIfExist = () => {
     let attempts = 0; 
     const todayStr = formatDate(new Date());
@@ -144,7 +142,13 @@ export const scrollToTodayIfExist = () => {
         const todayEl = document.querySelector(selector);
 
         if (todayEl) {
-            todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const header = document.querySelector('.app-header');
+            const hOffset = header ? header.offsetHeight : 0;
+            // 타겟 엘리먼트의 화면 상 위치 + 현재 스크롤 - 헤더 높이 - 여백 15px
+            const targetY = todayEl.getBoundingClientRect().top + window.scrollY - hOffset - 15;
+            
+            window.scrollTo({ top: targetY, behavior: 'smooth' });
+
             const highlightTargets = todayEl.tagName === 'TR' ? todayEl.querySelectorAll('td') : [todayEl];
             highlightTargets.forEach(el => {
                 const originalBg = el.style.backgroundColor;
@@ -222,7 +226,6 @@ export const updateTitle = () => {
         const firstDayOfMonth = new Date(y_week, m_week, 1);
         const firstDayOfWeek = firstDayOfMonth.getDay(); 
         const weekNumber = Math.ceil((target.getDate() + firstDayOfWeek) / 7);
-        
         titles.week = `${y_week}년 ${m_week + 1}월 ${weekNumber}주`;
     }
 
@@ -232,6 +235,12 @@ export const updateTitle = () => {
 export const render = (autoScrollToToday = false) => {
     const container = document.getElementById("main-view");
     if (!container) return; 
+
+    // 🌟 Fixed 헤더 때문에 내용이 가려지지 않도록 Body의 Padding Top을 동적 조절
+    const header = document.querySelector('.app-header');
+    if (header) {
+        document.body.style.paddingTop = header.offsetHeight + 'px';
+    }
 
     container.innerHTML = "";
     updateTitle();
@@ -307,20 +316,12 @@ export const saveCurrentViewData = (silent = false) => {
     }
 
     store.hasUnsavedChanges = false; 
-    
     const view = window[`${store.scope}ViewInstance`];
     
     try {
-        if (view && typeof view.save === 'function') {
-            view.save(); 
-        }
-        
-        if (window.autoForwardIncompleteEvents) {
-            window.autoForwardIncompleteEvents();
-        }
-    } catch(e) {
-        console.error("Save execution error:", e);
-    }
+        if (view && typeof view.save === 'function') view.save(); 
+        if (window.autoForwardIncompleteEvents) window.autoForwardIncompleteEvents();
+    } catch(e) { console.error("Save execution error:", e); }
 
     if (editorBtn && !silent) {
         editorBtn.innerHTML = '저장 완료';
@@ -375,11 +376,8 @@ const initApp = () => {
         if (store.mode === 'editor') {
             store.hasUnsavedChanges = true; 
             clearTimeout(autoSaveTimer); 
-            
             autoSaveTimer = setTimeout(() => {
-                if (store.hasUnsavedChanges) {
-                    saveCurrentViewData(false);
-                }
+                if (store.hasUnsavedChanges) saveCurrentViewData(false);
             }, 800);
         }
     };
@@ -394,17 +392,18 @@ const initApp = () => {
     });
 
     window.addEventListener('beforeunload', () => {
-        if (store.mode === 'editor' && store.hasUnsavedChanges) {
+        if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === 'hidden' && store.mode === 'editor' && store.hasUnsavedChanges) {
             saveCurrentViewData(true);
         }
     });
 
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === 'hidden') {
-            if (store.mode === 'editor' && store.hasUnsavedChanges) {
-                saveCurrentViewData(true);
-            }
-        }
+    window.addEventListener('resize', () => {
+        const header = document.querySelector('.app-header');
+        if (header) document.body.style.paddingTop = header.offsetHeight + 'px';
     });
 
     const appTitle = document.getElementById('app-title');
@@ -417,9 +416,6 @@ const initApp = () => {
             setTimeout(() => { appTitle.innerHTML = 'SP3.6'; }, 3000);
         }
     });
-    if (!navigator.onLine && appTitle) {
-        appTitle.innerHTML = 'SP3.6 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 끊김</span>';
-    }
 
     if (window.auth) {
         const loginBtn = document.querySelector('#login-screen button');
@@ -443,11 +439,8 @@ const initApp = () => {
                 store.scope = savedScope;
                 
                 const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
-                if (savedDate) {
-                    store.currentDate = new Date(savedDate);
-                } else {
-                    store.currentDate = new Date();
-                }
+                if (savedDate) store.currentDate = new Date(savedDate);
+                else store.currentDate = new Date();
 
                 try {
                     await loadSettings();
@@ -456,11 +449,6 @@ const initApp = () => {
                 } catch (e) { console.error("초기 로딩 에러:", e); }
 
                 render(false);
-
-                setTimeout(() => {
-                    if (localStorage.getItem('workCalendar_hideHelp_v4') !== 'true' && typeof window.openHelpModal === 'function') window.openHelpModal();
-                }, 500); 
-
             } else {
                 document.getElementById('login-screen').style.display = 'flex';
                 document.getElementById('user-info').style.display = 'none';
@@ -478,35 +466,44 @@ const initApp = () => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
 else initApp();
 
+// 🌟 [핵심 변경] 에디터/뷰어 단일 스위치 전역 함수
+window.toggleUnifiedFilter = function(filterId) {
+    const instance = window[`${store.scope}ViewInstance`];
+    if (!instance) return;
+
+    if (store.mode === 'editor') {
+        if (filterId === 'personal') instance.scheduleGroupId = null;
+        else instance.scheduleGroupId = filterId;
+        instance.renderEditor();
+    } else {
+        if (!instance.activeFilters) instance.activeFilters = ['personal', ...instance.myGroups.map(g => g.id)];
+        
+        if (instance.activeFilters.includes(filterId)) {
+            instance.activeFilters = instance.activeFilters.filter(id => id !== filterId);
+            if (instance.activeFilters.length === 0) instance.activeFilters.push(filterId);
+        } else {
+            instance.activeFilters.push(filterId);
+        }
+        instance.renderViewer();
+    }
+};
+
 export const toggleNetworkMode = async (forceMode = null) => {
     const toggleBtn = document.getElementById('network-toggle-btn');
     const manualSyncBtn = document.getElementById('manual-sync-btn');
     
     let isOfflineMode;
-
-    if (forceMode !== null) {
-        isOfflineMode = forceMode === 'offline';
-    } else {
-        const currentState = localStorage.getItem('workCalendar_offlineMode') === 'true';
-        isOfflineMode = !currentState;
-    }
+    if (forceMode !== null) isOfflineMode = forceMode === 'offline';
+    else isOfflineMode = !(localStorage.getItem('workCalendar_offlineMode') === 'true');
 
     localStorage.setItem('workCalendar_offlineMode', isOfflineMode);
 
     if (isOfflineMode) {
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '✈️';
-            toggleBtn.style.background = '#ef4444'; 
-            toggleBtn.title = '현재 오프라인 모드 (클릭 시 온라인 전환)';
-        }
+        if (toggleBtn) { toggleBtn.innerHTML = '✈️'; toggleBtn.style.background = '#ef4444'; }
         if (manualSyncBtn) manualSyncBtn.style.display = 'flex';
         await setNetworkOffline();
     } else {
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '🌐';
-            toggleBtn.style.background = '#10b981'; 
-            toggleBtn.title = '현재 온라인 모드 (클릭 시 오프라인 전환)';
-        }
+        if (toggleBtn) { toggleBtn.innerHTML = '🌐'; toggleBtn.style.background = '#10b981'; }
         if (manualSyncBtn) manualSyncBtn.style.display = 'none';
         await setNetworkOnline();
     }
