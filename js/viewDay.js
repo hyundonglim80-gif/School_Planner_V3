@@ -140,6 +140,10 @@ export class DayView extends BaseView {
         this.showLoading('클라우드 데이터를 불러오는 중...');
         const dateStr = this.dateStr;
 
+        if (this.container) {
+            this.container.style.overflow = 'visible';
+        }
+
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
         
         if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
@@ -246,18 +250,18 @@ export class DayView extends BaseView {
               ${window.generateEventBadgesHTML(viewableEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
-            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
-              <table style="text-align: center;">
-                <thead>
-                  <tr>
-                    <th style="width: 60px;">교시</th>
-                    <th style="width: 120px;">수업</th>
-                    <th>📝 수업 메모</th>
-                    <th style="width: 25%; position:relative;">📌 비고
+            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'} overflow:visible;">
+              <table style="text-align: center; width:100%; border-collapse:collapse;">
+                <tbody style="border-bottom: 2px solid #cbd5e1;">
+                  <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+                    <td style="width: 60px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">교시</td>
+                    <td style="width: 120px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">수업</td>
+                    <td style="font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📝 수업 메모</td>
+                    <td style="width: 25%; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📌 비고
                         <button onclick="window.EvaluationManager.currentGroupId = '${this.scheduleGroupId || ''}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
-                    </th>
+                    </td>
                   </tr>
-                </thead>
+                </tbody>
                 <tbody>${periodRowsHtml}</tbody>
               </table>
             </div>
@@ -282,6 +286,12 @@ export class DayView extends BaseView {
         this.showLoading('편집 화면을 준비 중...');
         const dateStr = this.dateStr;
         
+        if (this.container) {
+            this.container.style.overflow = 'visible';
+            this.container.style.overflowX = 'visible';
+            this.container.style.overflowY = 'visible';
+        }
+
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
         if (!this.activeFilters) {
@@ -336,13 +346,6 @@ export class DayView extends BaseView {
         const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
-
-        const wsSelectHtml = `
-            <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-                <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
-                ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
-            </div>
-        `;
 
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
           const p = i + 1;
@@ -400,22 +403,21 @@ export class DayView extends BaseView {
               <button onclick="window.dayViewInstance.addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>
 
-            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
+            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'} overflow:visible;">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;">
                   <div style="font-size:0.8rem; color:#64748b;">💡 왼쪽 '≡' 영역을 잡아 다른 교시로 끌어다 놓으면 해당 위치로 끼워넣어집니다.</div>
-                  <div>${wsSelectHtml}</div>
               </div>
-              <table style="text-align: center;">
-                <thead>
-                  <tr>
-                    <th style="width: 75px;">교시</th>
-                    <th style="width: 120px;">수업</th>
-                    <th>📝 수업 메모</th>
-                    <th style="width: 25%; position:relative;">📌 비고
+              <table style="text-align: center; width:100%; border-collapse:collapse;">
+                <tbody style="border-bottom: 2px solid #cbd5e1;">
+                  <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+                    <td style="width: 75px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">교시</td>
+                    <td style="width: 120px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">수업</td>
+                    <td style="font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📝 수업 메모</td>
+                    <td style="width: 25%; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📌 비고
                         <button onclick="window.EvaluationManager.currentGroupId = '${this.scheduleGroupId || ''}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
-                    </th>
+                    </td>
                   </tr>
-                </thead>
+                </tbody>
                 <tbody>${periodRowsHtml}</tbody>
               </table>
             </div>
@@ -538,7 +540,7 @@ export class DayView extends BaseView {
 
         store.hasUnsavedChanges = true;
 
-        const tbody = this.container.querySelector('tbody');
+        const tbody = this.container.querySelector('tbody:last-child');
         if (tbody) {
             tbody.innerHTML = Array.from({ length: this.maxPeriod }).map((_, i) => {
                 const p = i + 1;
@@ -603,9 +605,14 @@ export class DayView extends BaseView {
         
         const allLabelsObj = getEventLabels();
         const uid = window.auth?.currentUser?.uid;
+        
+        // 🌟 에디터 모드 통합 필터 로직 적용
+        const currentFilter = store.mode === 'editor' ? (this.scheduleGroupId || 'personal') : null;
 
         container.innerHTML = this.currentEvents.map((ev, idx) => {
-            const isVisible = this.activeFilters.includes(ev.sharedGroupId || 'personal');
+            const isVisible = store.mode === 'editor' 
+                ? ((ev.sharedGroupId || 'personal') === currentFilter) 
+                : this.activeFilters.includes(ev.sharedGroupId || 'personal');
             const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
 
@@ -810,7 +817,7 @@ export class DayView extends BaseView {
     }
 
     syncScheduleInputs() {
-        const tbody = this.container.querySelector('tbody');
+        const tbody = this.container.querySelector('tbody:last-child');
         if (!tbody) return;
         this.currentSchedules = {};
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
@@ -889,22 +896,26 @@ Object.assign(window, {
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
 
-// 🌟 [핵심 변경] 단일 통합 필터 토글 전역 함수
+// 🌟 단일 통합 필터 토글 전역 함수
 if (!window.toggleUnifiedFilter) {
-    window.toggleUnifiedFilter = function(instanceName, filterId) {
-        const instance = window[instanceName];
-        if (!instance || !instance.activeFilters) return;
-        
-        if (instance.activeFilters.includes(filterId)) {
-            instance.activeFilters = instance.activeFilters.filter(id => id !== filterId);
-        } else {
-            instance.activeFilters.push(filterId);
-        }
+    window.toggleUnifiedFilter = function(filterId) {
+        const instance = window[`${store.scope}ViewInstance`];
+        if (!instance) return;
         
         if (store.mode === 'editor') {
-            if (typeof instance.renderEditor === 'function') instance.renderEditor();
+            if (filterId === 'personal') instance.scheduleGroupId = null;
+            else instance.scheduleGroupId = filterId;
+            instance.renderEditor();
         } else {
-            if (typeof instance.renderViewer === 'function') instance.renderViewer();
+            if (!instance.activeFilters) instance.activeFilters = ['personal', ...instance.myGroups.map(g => g.id)];
+            
+            if (instance.activeFilters.includes(filterId)) {
+                instance.activeFilters = instance.activeFilters.filter(id => id !== filterId);
+                if (instance.activeFilters.length === 0) instance.activeFilters.push(filterId);
+            } else {
+                instance.activeFilters.push(filterId);
+            }
+            instance.renderViewer();
         }
     };
 }
