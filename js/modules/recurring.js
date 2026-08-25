@@ -2,8 +2,8 @@
 
 import { formatDate, parseLocalDate, getSemesterDates, isSkipLabel } from '../core/utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventUtils.js'; 
-import { getUserCol, getGroupCol, dbAPI } from '../firebase.js'; // 🌟 [V3.6] 그룹 DB 헬퍼 추가
-import { doc, getDocs, writeBatch } from "firebase/firestore"; 
+import { getUserCol, getGroupCol, dbAPI } from '../firebase.js'; 
+import { doc, getDoc, getDocs, writeBatch } from "firebase/firestore"; 
 
 export const RecurringEventModule = {
   modalInstance: null,
@@ -11,7 +11,7 @@ export const RecurringEventModule = {
   currentLabelName: '',
   currentContent: '',
   currentStartDate: '',
-  myGroups: [], // 🌟 [V3.6] 내 그룹 목록 캐싱
+  myGroups: [], 
 
   getContentHTML: function() {
     let monthDayCheckboxes = '';
@@ -23,13 +23,11 @@ export const RecurringEventModule = {
         `;
     }
 
-    // 🌟 [V3.6] 공유 대상 선택 옵션 생성
     const groupOptions = `<option value="">🔒 개인 일정으로 등록 (나만 보기)</option>` +
         this.myGroups.map(g => `<option value="${g.id}">👥 [${g.name}] 그룹에 공유</option>`).join('');
 
     return `
       <div class="modal-info-box" style="margin-top:0; background:#f8fafc; border-left-color:#2563eb; display:flex; flex-direction:column; gap:10px;">
-        <!-- 🌟 [V3.6] 공유 대상 지정 UI -->
         <div style="display:flex; gap:10px; align-items:center; background:#eff6ff; padding:8px; border-radius:6px; border:1px solid #bfdbfe;">
             <span style="font-weight:bold; width:80px; color:#1d4ed8; font-size:0.95rem;">저장 위치:</span>
             <select id="rec-shared-group" style="flex:1; padding:6px; border:1px solid #93c5fd; border-radius:4px; font-weight:bold; color:#1e40af; outline:none;">
@@ -209,7 +207,6 @@ export const RecurringEventModule = {
     const endStr = document.getElementById('rec-end-date').value;
     const skipHolidays = document.getElementById('rec-skip-holidays').checked;
     
-    // 🌟 [V3.6] 저장할 위치 (개인 또는 특정 그룹)
     const targetSharedGroupId = document.getElementById('rec-shared-group').value || null;
 
     if (!content) return alert("일정 내용을 입력해주세요.");
@@ -260,13 +257,13 @@ export const RecurringEventModule = {
     if (targetDates.length === 0) return alert("조건에 해당하는 날짜가 지정한 기간 내에 없습니다.");
     if (!confirm(`총 ${targetDates.length}일의 반복 일정을 클라우드에 등록하시겠습니까?`)) return;
 
-    // 🌟 [V3.5 하위 호환성 유지] 반복 묶음용 ID는 기존 그대로 유지
+    // 🌟 [핵심 수정] 루프 외부에서 모든 반복 일정이 고유하게 공유할 마스터 ID와 GroupID 생성
     const recurringGroupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+    const masterEventId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
 
     document.getElementById('recurring-event-modal').innerHTML = `<div style="background:#fff; padding:40px; border-radius:12px; font-weight:bold; color:#16a34a; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.2);">⏳ 클라우드에 일괄 등록 중...</div>`;
 
     try {
-      // 🌟 [V3.6] 타겟 DB 컬렉션 결정 (그룹 vs 개인)
       const targetCol = targetSharedGroupId ? getGroupCol(targetSharedGroupId, 'events') : getUserCol('events');
       const eventSnap = await getDocs(targetCol);
       
@@ -296,12 +293,14 @@ export const RecurringEventModule = {
 
         if (!list.some(ev => (ev.label === label || (ev.labels && ev.labels.includes(label))) && ev.content === content)) {
           list.push({ 
+              id: masterEventId, // 🌟 루프 밖에서 만든 마스터 ID 일괄 적용
+              authorId: window.auth?.currentUser?.uid,
               label: label, 
               labels: [label], 
               content: content, 
               completed: false,
-              groupId: recurringGroupId, // 기존의 반복 식별자 
-              sharedGroupId: targetSharedGroupId // 🌟 [V3.6] 새로운 공유 대상 식별자 추가
+              groupId: recurringGroupId, 
+              sharedGroupId: targetSharedGroupId 
           });
           const newText = formatEventListToText(list);
 
@@ -338,6 +337,68 @@ export const RecurringEventModule = {
 
 window.RecurringEventModule = RecurringEventModule;
 
-window.openRecurringModal = (startDateStr, labelName, textContent, callback) => {
-    RecurringEventModule.open(startDateStr, labelName, textContent, callback);
+window.openRecurringModal = async (startDateStr, labelName, textContent, callback, labelId) => {
+    if (window.RecurringEventModule) {
+        window.RecurringEventModule.open(startDateStr, labelName, textContent, callback);
+    }
+};
+
+export const executeGroupSave = async (labelName, callback, mode, labelId) => {
+    const isPeriod = (mode === 'period');
+    const prefix = isPeriod ? 'period' : 'recur';
+    const content = document.getElementById(`${prefix}-content`).value.trim();
+    const startStr = document.getElementById(`${prefix}-start`).value;
+    const endStr = document.getElementById(`${prefix}-end).value;
+    const excludeWeekend = isPeriod ? document.getElementById('period-exclude-weekend').checked : false;
+    const sharedGroupId = document.getElementById(`${prefix}-shared-group`)?.value || null;
+
+    if(!content) return alert("일정 내용을 입력해주세요.");
+    const startD = new Date(startStr); const endD = new Date(endStr);
+    if(startD > endD) return alert("종료일이 시작일보다 빠를 수 없습니다.");
+
+    let datesToSave = []; let curD = new Date(startD); const targetDayOfWeek = startD.getDay();
+
+    while (curD <= endD) {
+        if (isPeriod) {
+            const day = curD.getDay();
+            if (!(excludeWeekend && (day === 0 || day === 6))) datesToSave.push(formatDate(curD));
+        } else {
+            if (curD.getDay() === targetDayOfWeek) datesToSave.push(formatDate(curD));
+        }
+        curD.setDate(curD.getDate() + 1);
+    }
+
+    const totalDays = datesToSave.length;
+    let batch = writeBatch(window.db);
+    
+    // 🌟 [핵심 수정] 루프 외부에서 모든 일정이 고유하게 공유할 마스터 ID와 GroupID 생성
+    const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+    const masterEventId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
+
+    const targetCol = sharedGroupId ? getGroupCol(sharedGroupId, 'events') : getUserCol('events');
+
+    for(let i=0; i<totalDays; i++) {
+        const dStr = datesToSave[i];
+        const docRef = doc(targetCol, dStr);
+        const docSnap = await getDoc(docRef);
+        let list = docSnap.exists() ? (docSnap.data().eventList || []) : [];
+
+        list.push({ 
+            id: masterEventId, // 🌟 루프 밖에서 만든 마스터 ID 일괄 적용
+            authorId: window.auth?.currentUser?.uid,
+            labelIds: labelId ? [labelId] : [], 
+            label: labelName, labels: [labelName], 
+            content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
+            completed: false, 
+            groupId: groupId, 
+            sharedGroupId: sharedGroupId 
+        });
+        batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+    }
+
+    batch.commit().catch(e => console.warn(e));  
+    const modalEl = document.getElementById(`${prefix}-modal`);
+    if(modalEl) modalEl.remove();
+    alert(`✅ 총 ${totalDays}개의 그룹 일정이 성공적으로 등록되었습니다.`);
+    if (callback) callback(true);
 };
