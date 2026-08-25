@@ -20,7 +20,7 @@ export class DayView extends BaseView {
         this.activeFilters = null; // 🌟 통합 필터 상태 관리
     }
 
-    // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성기
+    // 🌟 단일 통합 필터 HTML 생성기
     getUnifiedFilterHtml(instanceName) {
         if (!this.activeFilters) {
             this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
@@ -126,14 +126,6 @@ export class DayView extends BaseView {
         if (docData.eventList && docData.eventList.length > 0) return docData.eventList;
         if (docData.eventText && docData.eventText.trim() !== '') return window.parseRawEventTextToEventList(docData.eventText);
         return [];
-    }
-
-    async changeScheduleWorkspace(newGroupId) {
-        if (store.hasUnsavedChanges) {
-            this.save(); 
-        }
-        this.scheduleGroupId = newGroupId || null;
-        this.renderEditor();
     }
 
     async renderViewer() {
@@ -250,18 +242,18 @@ export class DayView extends BaseView {
               ${window.generateEventBadgesHTML(viewableEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
             </div>
             
-            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'} overflow:visible;">
-              <table style="text-align: center; width:100%; border-collapse:collapse;">
-                <tbody style="border-bottom: 2px solid #cbd5e1;">
-                  <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
-                    <td style="width: 60px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">교시</td>
-                    <td style="width: 120px; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">수업</td>
-                    <td style="font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📝 수업 메모</td>
-                    <td style="width: 25%; font-weight:bold; padding:8px; position: static !important; z-index: auto !important;">📌 비고
+            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
+              <table style="text-align: center;">
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">교시</th>
+                    <th style="width: 120px;">수업</th>
+                    <th>📝 수업 메모</th>
+                    <th style="width: 25%; position:relative;">📌 비고
                         <button onclick="window.EvaluationManager.currentGroupId = '${this.scheduleGroupId || ''}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
-                    </td>
+                    </th>
                   </tr>
-                </tbody>
+                </thead>
                 <tbody>${periodRowsHtml}</tbody>
               </table>
             </div>
@@ -277,7 +269,6 @@ export class DayView extends BaseView {
             </div>
           </div>`;
 
-        // 🌟 통합 필터 상단 슬롯에 주입
         const filterSlot = document.getElementById('global-unified-filter-slot');
         if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('dayViewInstance');
     }
@@ -288,8 +279,6 @@ export class DayView extends BaseView {
         
         if (this.container) {
             this.container.style.overflow = 'visible';
-            this.container.style.overflowX = 'visible';
-            this.container.style.overflowY = 'visible';
         }
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
@@ -325,15 +314,19 @@ export class DayView extends BaseView {
         });
         
         if (this.currentEvents.length === 0) {
+            let newGroupId = null;
+            if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
+                newGroupId = this.scheduleGroupId;
+            }
             this.currentEvents.push({ 
                 id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
                 authorId: window.auth?.currentUser?.uid,
-                labelIds: [], content: '', completed: false, sharedGroupId: null 
+                labelIds: [], content: '', completed: false, sharedGroupId: newGroupId 
             });
         }
 
         let scheduleDoc;
-        if (this.scheduleGroupId) {
+        if (this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
             scheduleDoc = await getDoc(doc(getGroupCol(this.scheduleGroupId, 'schedules'), dateStr));
         } else {
             scheduleDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
@@ -347,7 +340,8 @@ export class DayView extends BaseView {
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
-        const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+        const maxP = store.periodNames ? store.periodNames.length : 6;
+        const periodRowsHtml = Array.from({ length: maxP }).map((_, i) => {
           const p = i + 1;
           const pObj = this.currentSchedules[p] || {};
           const periodName = store.periodNames[i] || p + '교시';
@@ -400,6 +394,7 @@ export class DayView extends BaseView {
                 </div>
               </div>
               <div id="event-entries-container" style="width: 100%;"></div>
+              <!-- 🌟 [요구사항 3] 함수 호출명 에러 완벽 복구 (addEventEntry로 통일) -->
               <button onclick="window.dayViewInstance.addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>
 
@@ -435,7 +430,6 @@ export class DayView extends BaseView {
             </div>
           </div>`;
         
-        // 🌟 통합 필터 상단 슬롯에 주입
         const filterSlot = document.getElementById('global-unified-filter-slot');
         if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('dayViewInstance');
 
@@ -458,7 +452,7 @@ export class DayView extends BaseView {
     }
 
     handlePeriodDragEnd(event) {
-        const tbody = window.dayViewInstance.container.querySelector('tbody');
+        const tbody = window.dayViewInstance.container.querySelector('tbody:last-child');
         if (tbody) {
             tbody.querySelectorAll('tr').forEach(tr => { 
                 tr.style.opacity = '1'; 
@@ -606,7 +600,6 @@ export class DayView extends BaseView {
         const allLabelsObj = getEventLabels();
         const uid = window.auth?.currentUser?.uid;
         
-        // 🌟 에디터 모드 통합 필터 로직 적용
         const currentFilter = store.mode === 'editor' ? (this.scheduleGroupId || 'personal') : null;
 
         container.innerHTML = this.currentEvents.map((ev, idx) => {
@@ -619,18 +612,6 @@ export class DayView extends BaseView {
             const eLabelIds = ev.labelIds || [];
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
-
-            let groupButtonsHtml = '';
-            if (isAuthor) {
-                groupButtonsHtml = `
-                    <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                        <div onclick="window.dayViewInstance.changeEventGroup(${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!ev.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                        ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeEventGroup(${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${ev.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-                    </div>
-                `;
-            } else {
-                groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${ev.groupName} (읽기전용)</div>`;
-            }
 
             let delHandler = `window.dayViewInstance.removeEventEntry(${idx})`;
             let forwardedBadge = '';
@@ -671,13 +652,13 @@ export class DayView extends BaseView {
                         ${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                        ${groupButtonsHtml}
+                        <!-- 🌟 개별 작업공간 버튼 완전 삭제 -->
                         ${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='40px'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='40px'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -694,26 +675,16 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
+            // 🌟 [요구사항 4] oninput, onfocus에서 기본높이(60px) 세팅 후 scrollHeight로 자동 늘어나도록 완벽하게 복구했습니다.
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='60px'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='60px'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
             </div>`;
         }).join('');
-    }
-
-    changeEventGroup(idx, newGroupId) {
-        this.syncEventInputs(); 
-        store.hasUnsavedChanges = true;
-        if (this.currentEvents[idx]) {
-            this.currentEvents[idx].sharedGroupId = newGroupId || null;
-            const g = this.myGroups.find(g => g.id === newGroupId);
-            this.currentEvents[idx].groupName = g ? g.name : '';
-            this.renderEventEntries(); 
-        }
     }
 
     toggleEventLabel(idx, labelId) {
@@ -774,13 +745,24 @@ export class DayView extends BaseView {
 
     addEventEntry() {
         this.syncEventInputs();
+        store.hasUnsavedChanges = true;
+        
+        // 🌟 [요구사항 1] 상단에서 선택된 통합 필터 영역에 자동으로 일정을 꽂아 넣습니다.
+        let newGroupId = null;
+        let newGroupName = '';
+        if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
+            newGroupId = this.scheduleGroupId;
+            const g = this.myGroups.find(x => x.id === newGroupId);
+            if (g) newGroupName = g.name;
+        }
+
         this.currentEvents.push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
             authorId: window.auth?.currentUser?.uid,
-            labelIds: [], content: '', completed: false, sharedGroupId: null 
+            labelIds: [], content: '', completed: false, 
+            sharedGroupId: newGroupId, groupName: newGroupName 
         });
         this.renderEventEntries();
-        store.hasUnsavedChanges = true;
     }
 
     removeEventEntry(index) {
@@ -895,27 +877,3 @@ Object.assign(window, {
     renderDayEditor: (c) => { window.dayViewInstance.container = c; window.dayViewInstance.renderEditor(); },
     saveDayDataFromEditor: () => window.dayViewInstance.save()
 });
-
-// 🌟 단일 통합 필터 토글 전역 함수
-if (!window.toggleUnifiedFilter) {
-    window.toggleUnifiedFilter = function(filterId) {
-        const instance = window[`${store.scope}ViewInstance`];
-        if (!instance) return;
-        
-        if (store.mode === 'editor') {
-            if (filterId === 'personal') instance.scheduleGroupId = null;
-            else instance.scheduleGroupId = filterId;
-            instance.renderEditor();
-        } else {
-            if (!instance.activeFilters) instance.activeFilters = ['personal', ...instance.myGroups.map(g => g.id)];
-            
-            if (instance.activeFilters.includes(filterId)) {
-                instance.activeFilters = instance.activeFilters.filter(id => id !== filterId);
-                if (instance.activeFilters.length === 0) instance.activeFilters.push(filterId);
-            } else {
-                instance.activeFilters.push(filterId);
-            }
-            instance.renderViewer();
-        }
-    };
-}
