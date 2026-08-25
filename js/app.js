@@ -1,0 +1,697 @@
+// js/app.js
+
+import { store } from './core/store.js';
+import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
+import { getUserCol, getGroupCol, setNetworkOnline, setNetworkOffline } from './firebase.js'; 
+import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
+
+// ==========================================================================
+// 🚀 1. 앱 상태 관리 및 초기화 설정
+// ==========================================================================
+const toggleState = (key) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    store[key] = !store[key];
+    localStorage.setItem(`workCalendar_${key}`, store[key]);
+    render();
+};
+
+export const toggleWeekend = () => toggleState('showWeekend');
+export const toggleClass = () => toggleState('showClass');
+
+export const updateDateFromScroll = () => {
+    if (store.scope === 'memo' || store.scope === 'day') return;
+    
+    let dateElements = [];
+    if (store.scope === 'year') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-year-date], .year-grid div[onclick^="window.goToDay"]'));
+    } else if (store.scope === 'month') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-month-date], .cal-day > div[onclick^="window.goToDay"]'));
+    } else if (store.scope === 'week') {
+        dateElements = Array.from(document.querySelectorAll('tr[data-week-date], .clean-viewer-board tr > td:first-child span[onclick^="window.goToDay"]'));
+    }
+    
+    if (dateElements.length > 0) {
+        const headerOffset = document.querySelector('.app-header')?.offsetHeight || 150;
+        let closestEl = null;
+        let minDistance = Infinity;
+
+        for (let el of dateElements) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) continue; 
+            
+            const distance = Math.abs(rect.top - headerOffset);
+            if (distance < minDistance && rect.bottom > headerOffset) {
+                minDistance = distance;
+                closestEl = el;
+            }
+        }
+
+        if (closestEl) {
+            let targetDateStr = closestEl.getAttribute('data-year-date') || 
+                                closestEl.getAttribute('data-month-date') || 
+                                closestEl.getAttribute('data-week-date');
+            
+            if (!targetDateStr) {
+                const onclickAttr = closestEl.getAttribute('onclick');
+                if (onclickAttr) {
+                    const match = onclickAttr.match(/goToDay\('([^']+)'\)/);
+                    if (match) targetDateStr = match[1];
+                }
+            }
+            
+            if (targetDateStr) {
+                const parts = targetDateStr.split('-');
+                store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            }
+        }
+    }
+};
+
+export const setScope = (scope) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    
+    store.scope = scope;
+    localStorage.setItem('workCalendar_scope', scope);
+    
+    const savedDate = localStorage.getItem(`workCalendar_date_${scope}`);
+    if (savedDate) {
+        store.currentDate = new Date(savedDate);
+    } else {
+        store.currentDate = new Date(); 
+    }
+
+    render(false); 
+};
+
+export const setMode = (mode) => {
+    if (store.mode === 'editor' && mode === 'viewer' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    store.mode = mode;
+    localStorage.setItem('workCalendar_mode', mode);
+    if (mode === 'viewer') store.hasUnsavedChanges = false;
+    render(false);
+};
+
+export const handleEditSaveClick = () => {
+    store.mode === 'viewer' ? setMode('editor') : saveCurrentViewData(false);
+};
+
+export const moveDate = (dir) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    const d = store.currentDate;
+    if (store.scope === 'day') d.setDate(d.getDate() + dir);
+    else if (store.scope === 'week') d.setDate(d.getDate() + (dir * 7));
+    else if (store.scope === 'month') {
+        const currentDay = d.getDate();
+        d.setMonth(d.getMonth() + dir);
+        if (d.getDate() < currentDay) d.setDate(0); 
+    } else if (store.scope === 'year') {
+        d.setFullYear(d.getFullYear() + dir);
+    }
+
+    if (store.scope !== 'memo') {
+        localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+    }
+
+    render();
+};
+
+export const goToToday = () => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges && window.saveCurrentViewData) window.saveCurrentViewData(true);
+    
+    store.currentDate = new Date();
+    const todayStr = formatDate(store.currentDate);
+    const y = store.currentDate.getFullYear();
+    const m = String(store.currentDate.getMonth() + 1).padStart(2, '0');
+
+    if (store.scope !== 'memo') {
+        localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+    }
+
+    updateTitle();
+
+    // 🌟 화면에 오늘 날짜(또는 해당 월)가 이미 로딩되어 있는지 유연하게 검사
+    let targetExists = false;
+    if (store.scope === 'week') {
+        targetExists = !!document.querySelector(`tr[data-week-date="${todayStr}"]`);
+    } else if (store.scope === 'month') {
+        targetExists = !!document.querySelector(`tr[data-month-date="${todayStr}"]`) || !!document.querySelector(`.cal-day.month-today-cell`);
+    } else if (store.scope === 'year') {
+        if (store.mode === 'editor') {
+            // 작성 모드에서는 정확한 날짜가 없어도 해당 '월'이 존재하면 통과시킴
+            targetExists = !!document.querySelector(`tr[data-year-date^="${y}-${m}"]`);
+        } else {
+            targetExists = !!document.querySelector(`.year-today-card`);
+        }
+    }
+
+    if (targetExists && store.scope !== 'day') {
+        // 이미 렌더링되어 있다면 새로고침(render) 생략하고 즉시 스크롤만 실행!
+        scrollToTodayIfExist();
+    } else {
+        // 화면에 없거나 다른 연/월에 있다면 새로고침(render) 진행
+        render(true);
+    }
+};
+
+export const goToDay = (dateStr) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges && window.saveCurrentViewData) {
+        window.saveCurrentViewData(true);
+    }
+    if (!dateStr) return;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        localStorage.setItem(`workCalendar_date_day`, store.currentDate.toISOString());
+        if(window.setScope) window.setScope('day'); 
+    }
+};
+
+export const scrollToTodayIfExist = () => {
+    let attempts = 0; 
+    const todayStr = formatDate(new Date());
+    const y = new Date().getFullYear();
+    const m = String(new Date().getMonth() + 1).padStart(2, '0');
+
+    const tryScroll = () => {
+        attempts++;
+        
+        let primaryTarget = null;
+        let highlightTargets = [];
+
+        if (store.scope === 'day') {
+            return; 
+        } else if (store.scope === 'week') {
+            primaryTarget = document.querySelector(`tr[data-week-date="${todayStr}"]`);
+            if (primaryTarget) {
+                highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
+                if (store.showClass) {
+                    let next1 = primaryTarget.nextElementSibling;
+                    let next2 = next1 ? next1.nextElementSibling : null;
+                    if (next1) highlightTargets.push(...Array.from(next1.querySelectorAll('td')));
+                    if (next2) highlightTargets.push(...Array.from(next2.querySelectorAll('td')));
+                }
+            }
+        } else if (store.scope === 'month') {
+            if (store.mode === 'editor') {
+                primaryTarget = document.querySelector(`tr[data-month-date="${todayStr}"]`);
+                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-month-date^="${y}-${m}"]`); // 날짜가 숨겨졌을 때의 안전장치
+                if (primaryTarget) {
+                    highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
+                    if (store.showClass) {
+                        const subRow = primaryTarget.nextElementSibling;
+                        if (subRow && subRow.hasAttribute('data-month-sub')) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
+                    }
+                }
+            } else {
+                primaryTarget = document.querySelector(`.cal-day.month-today-cell`);
+                if (primaryTarget) highlightTargets = [primaryTarget];
+            }
+        } else if (store.scope === 'year') {
+            if (store.mode === 'editor') {
+                primaryTarget = document.querySelector(`tr[data-year-date="${todayStr}"]`);
+                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-year-date^="${y}-${m}"]`); // 날짜가 숨겨졌을 때의 안전장치
+                if (primaryTarget) {
+                    highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
+                    if (store.showClass) {
+                        const subRow = primaryTarget.nextElementSibling;
+                        if (subRow && subRow.hasAttribute('data-year-sub')) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
+                    }
+                }
+            } else {
+                primaryTarget = document.querySelector(`.year-today-card`);
+                if (primaryTarget) highlightTargets = [primaryTarget];
+            }
+        }
+
+        if (primaryTarget) {
+            const appHeader = document.querySelector('.app-header');
+            const filterWrapper = document.getElementById(`${store.scope}-filter-wrapper`);
+            
+            const headerHeight = appHeader ? appHeader.offsetHeight : 0;
+            const filterHeight = filterWrapper ? filterWrapper.offsetHeight : 0;
+            
+            setTimeout(() => {
+                const rect = primaryTarget.getBoundingClientRect();
+                const absoluteY = rect.top + window.pageYOffset;
+                const targetY = absoluteY - headerHeight - filterHeight - 15; 
+                
+                // 🌟 현재 위치와 목표 위치의 거리를 계산 (1000px 이상이면 기다리지 않고 0.1초 만에 즉시 순간 이동)
+                const distance = Math.abs(window.pageYOffset - targetY);
+                const scrollBehavior = distance > 1000 ? 'auto' : 'smooth';
+                
+                window.scrollTo({ top: targetY, behavior: scrollBehavior });
+
+                if (highlightTargets.length > 0) {
+                    highlightTargets.forEach(el => {
+                        const originalBg = el.style.backgroundColor;
+                        el.style.transition = 'background-color 0.4s ease';
+                        el.style.backgroundColor = '#fef08a'; 
+                        setTimeout(() => {
+                            el.style.backgroundColor = originalBg; 
+                            setTimeout(() => { el.style.transition = ''; }, 400);
+                        }, 1200);
+                    });
+                }
+            }, 50); 
+            
+        } else if (attempts < 15) {
+            setTimeout(tryScroll, 200);
+        }
+    };
+    tryScroll();
+};
+
+export const loadSettings = async () => { 
+    try { 
+        const docSnap = await getDoc(doc(getUserCol('settings'), 'preferences')); 
+        if (docSnap.exists()) { 
+            const data = docSnap.data();
+            store.dDayList = data.dDayList || [];
+            store.selectedDDayId = data.selectedDDayId || null;
+            if (window.updateDdayUI) window.updateDdayUI();
+        } else {
+            store.dDayList = [];
+            store.selectedDDayId = null;
+        }
+
+        const ttDoc = await getDoc(doc(getUserCol('settings'), 'timetable_v5'));
+        if (ttDoc.exists()) {
+            const ttData = ttDoc.data();
+            store.semesterConfig = ttData.semesterConfig || {};
+            store.timetableTemplates = ttData.templates || {};
+            store.periodNames = ttData.currentNames || ["1", "2", "3", "4", "5", "6"];
+        } else {
+            if (docSnap.exists() && docSnap.data().periodNames) store.periodNames = docSnap.data().periodNames;
+        }
+
+        const labelDoc = await getDoc(doc(getUserCol('settings'), 'labels')); 
+        if (labelDoc.exists()) { 
+            const data = labelDoc.data();
+            if (data.eventLabels?.length > 0) localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(data.eventLabels));
+            if (data.journalLabels?.length > 0) localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(data.journalLabels));
+            if (data.memoLabels?.length > 0) localStorage.setItem('workCalendar_memoLabels', JSON.stringify(data.memoLabels));
+        }
+
+        getEventLabels();
+        window.getJournalLabels();
+
+    } catch (error) { console.warn("설정 로드 에러(오프라인 시 정상):", error); }
+};
+
+// ==========================================================================
+// 🖥️ 2. 메인 렌더링 엔진
+// ==========================================================================
+export const updateTitle = () => {
+    const titleEl = document.getElementById("date-range-text");
+    if (!titleEl) return;
+
+    const d = store.currentDate;
+    const y = d.getFullYear(), m = d.getMonth() + 1, dt = d.getDate();
+    const dayName = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+
+    const titles = {
+        day: `${y}년 ${m}월 ${dt}일 (${dayName})`,
+        month: `${y}년 ${m}월`,
+        year: `${y}학년도`,
+        memo: ''
+    };
+
+    if (store.scope === 'week') {
+        const target = new Date(d);
+        target.setDate(target.getDate() - target.getDay() + 4); 
+        const y_week = target.getFullYear();
+        const m_week = target.getMonth();
+        const firstDayOfMonth = new Date(y_week, m_week, 1);
+        const firstDayOfWeek = firstDayOfMonth.getDay(); 
+        const weekNumber = Math.ceil((target.getDate() + firstDayOfWeek) / 7);
+        
+        titles.week = `${y_week}년 ${m_week + 1}월 ${weekNumber}주`;
+    }
+
+    titleEl.textContent = titles[store.scope];
+};
+
+export const render = (autoScrollToToday = false) => {
+    const container = document.getElementById("main-view");
+    if (!container) return; 
+
+    container.innerHTML = "";
+    updateTitle();
+    updateButtonUI();
+
+    try {
+        const view = window[`${store.scope}ViewInstance`];
+        if (view) {
+            view.container = container;
+            (store.mode === 'editor' && typeof view.renderEditor === 'function') ? view.renderEditor() : view.renderViewer();
+        }
+        if (autoScrollToToday) scrollToTodayIfExist();
+    } catch (error) {
+        console.error("화면 렌더링 중 오류 발생:", error);
+        container.innerHTML = `<div style="text-align:center; padding: 50px; color:#ef4444; font-weight:bold;">데이터를 불러오는 중 오류가 발생했습니다.<br>잠시 후 다시 시도 시 F5를 눌러주세요.</div>`;
+    }
+};
+
+export const updateButtonUI = () => {
+
+	const unifiedFilter = document.getElementById('unified-filter-container');
+	if (unifiedFilter) {
+		unifiedFilter.style.display = (store.scope === 'memo') ? 'none' : 'flex';
+	}
+
+    document.querySelectorAll('.btn-scope').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-scope') === store.scope);
+    });
+
+    const dateRangeText = document.getElementById('date-range-text');
+    if (dateRangeText && dateRangeText.closest('.header-row')) {
+        dateRangeText.closest('.header-row').style.display = (store.scope === 'memo') ? 'none' : 'flex';
+    }
+
+    const weekendBtn = document.getElementById('btn-toggle-weekend');
+    if (weekendBtn) weekendBtn.innerHTML = store.showWeekend ? '주말 숨기기' : '주말 보이기';
+
+    const classBtn = document.getElementById('btn-toggle-class');
+    if (classBtn) classBtn.innerHTML = store.showClass ? '수업 숨기기' : '수업 보이기';
+
+    const viewerBtn = document.getElementById('btn-mode-viewer');
+    const editorBtn = document.getElementById('btn-mode-editor');
+    
+    if (viewerBtn && editorBtn) {
+        viewerBtn.className = store.mode === 'viewer' ? 'btn-mode active-viewer' : 'btn-mode';
+        if (store.mode === 'viewer') {
+            editorBtn.innerHTML = '작성'; editorBtn.title = '단축키: Ctrl + ↓'; editorBtn.className = 'btn-mode';
+        } else {
+            editorBtn.innerHTML = '저장'; editorBtn.title = '단축키: Ctrl + Enter'; editorBtn.className = 'btn-mode save-mode';
+        }
+    }
+
+    const searchBtn = document.getElementById('btn-search');
+    if (searchBtn) searchBtn.style.display = 'inline-block';
+
+    const moreBtn = document.getElementById('btn-more-menu');
+    if (moreBtn) moreBtn.style.display = 'inline-flex';
+
+    const swipeBtn = document.getElementById('menu-swipe-mode');
+    if (swipeBtn) {
+        const mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
+        swipeBtn.innerHTML = mode === 'date' ? '↔️ 스와이프: 날짜 이동' : '↔️ 스와이프: 화면/탭 이동';
+    }
+
+    toggleMoreMenu(true); 
+};
+
+export const toggleMoreMenu = (forceClose = false) => {
+    const dropdown = document.getElementById('more-dropdown');
+    if (dropdown) forceClose ? dropdown.classList.add('hidden') : dropdown.classList.toggle('hidden');
+};
+
+export const saveCurrentViewData = (silent = false) => {
+    const editorBtn = document.getElementById('btn-mode-editor');
+
+    if (editorBtn && !silent) {
+        editorBtn.innerHTML = "저장중..";
+        editorBtn.style.opacity = '0.7'; 
+    }
+
+    store.hasUnsavedChanges = false; 
+    
+    const view = window[`${store.scope}ViewInstance`];
+    
+    try {
+        if (view && typeof view.save === 'function') {
+            view.save(); 
+        }
+        
+        if (window.autoForwardIncompleteEvents) {
+            window.autoForwardIncompleteEvents();
+        }
+    } catch(e) {
+        console.error("Save execution error:", e);
+    }
+
+    if (editorBtn && !silent) {
+        editorBtn.innerHTML = '저장 완료';
+        editorBtn.style.opacity = '1';
+        setTimeout(() => { if (store.mode === 'editor') editorBtn.innerHTML = '저장'; }, 1500); 
+    }
+};
+
+// ==========================================================================
+// ⚙️ 3. 앱 초기화 및 전역 이벤트
+// ==========================================================================
+let hasAttachedAppEvents = false;
+
+const initApp = () => {
+    if (hasAttachedAppEvents) return;
+    hasAttachedAppEvents = true;
+
+    document.getElementById('btn-mode-viewer')?.addEventListener('click', () => setMode('viewer'));
+    document.getElementById('btn-mode-editor')?.addEventListener('click', () => store.mode === 'viewer' ? setMode('editor') : saveCurrentViewData(false));
+    document.getElementById('btn-toggle-weekend')?.addEventListener('click', toggleWeekend);
+    document.getElementById('btn-toggle-class')?.addEventListener('click', toggleClass);
+    document.getElementById('btn-search')?.addEventListener('click', () => window.openSearchModal?.());
+    document.getElementById('btn-prev-date')?.addEventListener('click', () => moveDate(-1));
+    document.getElementById('btn-next-date')?.addEventListener('click', () => moveDate(1));
+    document.getElementById('date-range-text')?.addEventListener('click', goToToday);
+
+    document.getElementById('network-toggle-btn')?.addEventListener('click', () => toggleNetworkMode());
+    document.getElementById('manual-sync-btn')?.addEventListener('click', () => executeManualSync());
+
+    document.querySelectorAll('.btn-scope').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            setScope(e.target.getAttribute('data-scope'));
+        });
+    });
+
+    let scrollDebounce = null;
+    document.addEventListener('scroll', () => {
+        if (store.scope === 'memo' || store.scope === 'day') return;
+        
+        clearTimeout(scrollDebounce);
+        scrollDebounce = setTimeout(() => {
+            const prevTime = store.currentDate.getTime();
+            updateDateFromScroll();
+            if (store.currentDate.getTime() !== prevTime) {
+                updateTitle();
+                if (store.scope && store.scope !== 'memo') {
+                    localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+                }
+            }
+        }, 200);
+    }, { passive: true, capture: true });
+
+    let autoSaveTimer = null;
+    const markUnsaved = () => { 
+        if (store.mode === 'editor') {
+            store.hasUnsavedChanges = true; 
+            clearTimeout(autoSaveTimer); 
+            
+            autoSaveTimer = setTimeout(() => {
+                if (store.hasUnsavedChanges) {
+                    saveCurrentViewData(false);
+                }
+            }, 800);
+        }
+    };
+    document.addEventListener('input', markUnsaved);
+    document.addEventListener('change', markUnsaved);
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault(); 
+        window.deferredPrompt = e; 
+        const installBtn = document.getElementById('btn-install-pwa');
+        if (installBtn) installBtn.style.display = 'block';
+    });
+
+    window.addEventListener('beforeunload', () => {
+        if (store.mode === 'editor' && store.hasUnsavedChanges) {
+            saveCurrentViewData(true);
+        }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === 'hidden') {
+            if (store.mode === 'editor' && store.hasUnsavedChanges) {
+                saveCurrentViewData(true);
+            }
+        }
+    });
+
+    const appTitle = document.getElementById('app-title');
+    window.addEventListener('offline', () => {
+        if (appTitle) appTitle.innerHTML = 'SP3.6 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 끊김</span>';
+    });
+    window.addEventListener('online', () => {
+        if (appTitle) {
+            appTitle.innerHTML = 'SP3.6 <span style="font-size:0.8rem; color:#10b981; background:#dcfce7; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">🌐 복구됨</span>';
+            setTimeout(() => { appTitle.innerHTML = 'SP3.6'; }, 3000);
+        }
+    });
+    if (!navigator.onLine && appTitle) {
+        appTitle.innerHTML = 'SP3.6 <span style="font-size:0.8rem; color:#ef4444; background:#fee2e2; padding:3px 8px; border-radius:12px; vertical-align:middle; margin-left:8px;">⚡ 끊김</span>';
+    }
+
+    if (window.auth) {
+        const loginBtn = document.querySelector('#login-screen button');
+        let originalBtnHtml = '';
+
+        if (loginBtn) {
+            originalBtnHtml = loginBtn.innerHTML;
+            loginBtn.innerHTML = '로그인 상태 확인 중...'; loginBtn.disabled = true;
+        }
+
+        window.auth.onAuthStateChanged(async user => {
+            if (user) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('user-info').style.display = 'flex';
+                if (user.photoURL) document.getElementById('user-photo').src = user.photoURL;
+
+                const savedOfflineMode = localStorage.getItem('workCalendar_offlineMode') === 'true';
+                await toggleNetworkMode(savedOfflineMode ? 'offline' : 'online');
+
+                const savedScope = localStorage.getItem('workCalendar_scope') || 'day';
+                store.scope = savedScope;
+                
+                const savedDate = localStorage.getItem(`workCalendar_date_${savedScope}`);
+                if (savedDate) {
+                    store.currentDate = new Date(savedDate);
+                } else {
+                    store.currentDate = new Date();
+                }
+
+                try {
+                    await loadSettings();
+                    if (window.autoCheckAndRunMigration) await window.autoCheckAndRunMigration();
+                    if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+                } catch (e) { console.error("초기 로딩 에러:", e); }
+
+                render(false);
+
+                setTimeout(() => {
+                    if (localStorage.getItem('workCalendar_hideHelp_v4') !== 'true' && typeof window.openHelpModal === 'function') window.openHelpModal();
+                }, 500); 
+
+            } else {
+                document.getElementById('login-screen').style.display = 'flex';
+                document.getElementById('user-info').style.display = 'none';
+                document.getElementById("main-view").innerHTML = ""; 
+
+                if (loginBtn) {
+                    loginBtn.innerHTML = originalBtnHtml || 'Google 계정으로 로그인';
+                    loginBtn.disabled = false;
+                }
+            }
+        });
+    }
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+else initApp();
+
+// ==========================================================================
+// 📡 4. 기능 및 UI 토글러 모음
+// ==========================================================================
+export const toggleNetworkMode = async (forceMode = null) => {
+    const toggleBtn = document.getElementById('network-toggle-btn');
+    const manualSyncBtn = document.getElementById('manual-sync-btn');
+    
+    let isOfflineMode;
+
+    if (forceMode !== null) {
+        isOfflineMode = forceMode === 'offline';
+    } else {
+        const currentState = localStorage.getItem('workCalendar_offlineMode') === 'true';
+        isOfflineMode = !currentState;
+    }
+
+    localStorage.setItem('workCalendar_offlineMode', isOfflineMode);
+
+    if (isOfflineMode) {
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '✈️';
+            toggleBtn.style.background = '#ef4444'; 
+            toggleBtn.title = '현재 오프라인 모드 (클릭 시 온라인 전환)';
+        }
+        if (manualSyncBtn) manualSyncBtn.style.display = 'flex';
+        await setNetworkOffline();
+    } else {
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '🌐';
+            toggleBtn.style.background = '#10b981'; 
+            toggleBtn.title = '현재 온라인 모드 (클릭 시 오프라인 전환)';
+        }
+        if (manualSyncBtn) manualSyncBtn.style.display = 'none';
+        await setNetworkOnline();
+    }
+};
+
+export const executeManualSync = async () => {
+    if (!navigator.onLine) {
+        alert("기기가 인터넷에 연결되어 있지 않습니다. 와이파이 연결을 확인해주세요.");
+        return;
+    }
+
+    const btn = document.getElementById('manual-sync-btn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳';
+    btn.style.opacity = '0.7';
+    btn.disabled = true;
+
+    try {
+        await setNetworkOnline();
+        await new Promise(resolve => setTimeout(resolve, 2500)); 
+        await loadSettings(); 
+        
+        render(false);
+        await new Promise(resolve => setTimeout(resolve, 2000)); 
+
+        alert("✅ 최신 데이터로 동기화가 완료되었습니다.");
+    } catch(e) {
+        console.error("수동 동기화 실패", e);
+        alert("❌ 동기화 중 오류가 발생했습니다.");
+    } finally {
+        await setNetworkOffline();
+        btn.innerHTML = originalText;
+        btn.style.opacity = '1';
+        btn.disabled = false;
+    }
+};
+
+export const openNativeClock = () => {
+    window.open('https://www.google.com/search?q=10%EB%B6%84+%ED%83%80%EC%9D%B4%EB%A8%B8', '_blank');
+};
+
+export const installPWA = async () => {
+    const dropdown = document.getElementById('more-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+
+    if (window.deferredPrompt) {
+        window.deferredPrompt.prompt();
+        const { outcome } = await window.deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            const installBtn = document.getElementById('btn-install-pwa');
+            if (installBtn) installBtn.style.display = 'none'; 
+        }
+        window.deferredPrompt = null;
+    } else {
+        alert("이미 기기에 설치되어 있거나, 현재 브라우저에서 자동 설치 버튼을 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치해주세요.");
+    }
+};
+
+export const toggleSwipeMode = () => {
+    let mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
+    mode = mode === 'date' ? 'scope' : 'date';
+    localStorage.setItem('workCalendar_swipeMode', mode);
+    updateButtonUI();
+    alert(`스와이프 동작이 '${mode === 'date' ? '이전/다음 날짜 이동' : '메모/년간/월간/주간/하루 화면 이동'}'(으)로 변경되었습니다.`);
+};
+
+
+Object.assign(window, {
+    toggleWeekend, toggleClass, setScope, setMode, handleEditSaveClick, 
+    moveDate, goToToday, goToDay, scrollToTodayIfExist, updateDateFromScroll, loadSettings, render, 
+    updateTitle, toggleMoreMenu, updateButtonUI, saveCurrentViewData, 
+    toggleNetworkMode, executeManualSync, openNativeClock, installPWA,
+    toggleSwipeMode 
+});
