@@ -17,10 +17,9 @@ export class DayView extends BaseView {
         
         this.myGroups = [];
         this.scheduleGroupId = null; 
-        this.activeFilters = null; // 🌟 통합 필터 상태 관리
+        this.activeFilters = null;
     }
 
-    // 🌟 년간/월간과 동일한 방식의 통합 필터 생성기 (버튼 활성화 버그 해결)
     getUnifiedFilterHtml() {
         let isPersonalActive = false;
         let activeGroupIds = [];
@@ -656,7 +655,6 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [핵심 수정 2] oninput 속성에서 (this.scrollHeight+4)+'px' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
             return `
             <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -687,7 +685,7 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
-            // 🌟 [핵심 수정 2] oninput 속성에서 (this.scrollHeight+4)+'px' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
+            // 🌟 [핵심 수정] 기록 칸도 일정과 동일하게 (this.scrollHeight+4)+'px' 공식 적용
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
@@ -755,6 +753,7 @@ export class DayView extends BaseView {
         j.labelIds = j.labelIds.includes(labelId) ? j.labelIds.filter(id => id !== labelId) : [...j.labelIds, labelId];
         this.renderJournalEntries();
         
+        // 🌟 기록 라벨 토글 후에도 높이 유지 보정
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
                 ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
@@ -808,6 +807,7 @@ export class DayView extends BaseView {
         this.renderJournalEntries();
         store.hasUnsavedChanges = true;
         
+        // 🌟 기록 추가 시에도 높이 보정
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
                 ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
