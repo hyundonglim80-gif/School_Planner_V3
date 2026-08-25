@@ -131,24 +131,48 @@ export const goToDay = (dateStr) => {
     }
 };
 
-// 🌟 [핵심 변경] Fixed 헤더에 화면이 가리지 않도록 정밀 스크롤 계산 함수 교체
+// 🌟 [핵심 변경] 브라우저 스크롤 한계 돌파 & 2차 정밀 보정 타겟팅 시스템 적용
 export const scrollToTodayIfExist = () => {
     let attempts = 0; 
     const todayStr = formatDate(new Date());
 
     const tryScroll = () => {
         attempts++;
+        
+        // 1. 현재 렌더링 중이면 타겟의 위치가 계속 변동하므로 끝날 때까지 대기
+        const scopeInstance = window[`${store.scope}ViewInstance`];
+        if (scopeInstance && scopeInstance.isRendering) {
+            if (attempts < 50) setTimeout(tryScroll, 150);
+            return;
+        }
+
         const selector = `.week-today-cell, .month-today-cell, .year-today-card, tr[data-week-date="${todayStr}"], tr[data-month-date="${todayStr}"], tr[data-year-date="${todayStr}"]`;
         const todayEl = document.querySelector(selector);
 
         if (todayEl) {
             const header = document.querySelector('.app-header');
             const hOffset = header ? header.offsetHeight : 0;
-            // 타겟 엘리먼트의 화면 상 위치 + 현재 스크롤 - 헤더 높이 - 여백 15px
+            
+            // 헤더가 가리는 공간을 빼고 목표 위치 정확히 계산 (안전거리 15px 추가)
             const targetY = todayEl.getBoundingClientRect().top + window.scrollY - hOffset - 15;
             
-            window.scrollTo({ top: targetY, behavior: 'smooth' });
+            // 2. 스크롤해야 할 거리를 측정
+            const distance = Math.abs(window.scrollY - targetY);
+            
+            // 3. 거리가 1500px 이상으로 너무 멀면, 브라우저가 스크롤하다 포기(멈춤)해버리므로 순간이동('auto')으로 대체
+            const scrollBehavior = distance > 1500 ? 'auto' : 'smooth';
+            
+            window.scrollTo({ top: targetY, behavior: scrollBehavior });
 
+            // 4. 2차 정밀 보정 (이동 후 미세하게 틀어졌으면 0.3초 뒤에 한 번 더 정확히 교정)
+            setTimeout(() => {
+                const checkY = todayEl.getBoundingClientRect().top + window.scrollY - hOffset - 15;
+                if (Math.abs(window.scrollY - checkY) > 5) {
+                    window.scrollTo({ top: checkY, behavior: 'auto' });
+                }
+            }, 300);
+
+            // 타겟을 시각적으로 눈에 띄게 깜빡여주는 하이라이트 효과
             const highlightTargets = todayEl.tagName === 'TR' ? todayEl.querySelectorAll('td') : [todayEl];
             highlightTargets.forEach(el => {
                 const originalBg = el.style.backgroundColor;
@@ -159,7 +183,8 @@ export const scrollToTodayIfExist = () => {
                     setTimeout(() => { el.style.transition = ''; }, 500);
                 }, 800);
             });
-        } else if (attempts < 15) {
+        } else if (attempts < 20) {
+            // 화면에 아직 엘리먼트가 안 그려졌다면 0.2초 뒤 재시도
             setTimeout(tryScroll, 200);
         }
     };
@@ -466,12 +491,12 @@ const initApp = () => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
 else initApp();
 
-// 🌟 [핵심 변경] 에디터/뷰어 단일 스위치 전역 함수
 window.toggleUnifiedFilter = function(filterId) {
     const instance = window[`${store.scope}ViewInstance`];
     if (!instance) return;
 
     if (store.mode === 'editor') {
+        if (store.hasUnsavedChanges) window.saveCurrentViewData(true);
         if (filterId === 'personal') instance.scheduleGroupId = null;
         else instance.scheduleGroupId = filterId;
         instance.renderEditor();
