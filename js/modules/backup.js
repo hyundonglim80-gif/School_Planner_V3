@@ -420,7 +420,6 @@ export const BackupManager = {
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
                         const pre = e.completed ? '[v] ' : '';
                         
-                        // 🌟 [수정] 복원 시 매칭을 위해 숨김 텍스트로 고유 ID 포함
                         const idStr = e.id ? ` {#${e.id}}` : '';
                         return `${pre}[${lName}] ${e.content}${idStr}`;
                     }).join('\n');
@@ -456,7 +455,6 @@ export const BackupManager = {
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
                         const pre = j.completed ? '[v] ' : '';
                         
-                        // 🌟 [수정] 복원 시 매칭을 위해 숨김 텍스트로 고유 ID 포함
                         const idStr = j.id ? ` {#${j.id}}` : '';
                         return `${pre}[${lName}] ${j.content}${idStr}`;
                     }).join('\n');
@@ -649,7 +647,6 @@ export const BackupManager = {
                     let labelStr = match[1].trim();
                     let rawContent = match[2].trim();
                     
-                    // 🌟 [수정] 텍스트 끝에 숨겨둔 고유 ID 추출 (중복 복제 방지용)
                     let id = null;
                     const idMatch = rawContent.match(/\s*{#([^}]+)}$/);
                     if (idMatch) {
@@ -679,17 +676,12 @@ export const BackupManager = {
                         mappedLabelIds.push(lObj.id);
                     });
 
-                    eventList.push({ 
-                        id: id || undefined, 
-                        labelIds: mappedLabelIds, 
-                        label: labelsArray[0], 
-                        labels: labelsArray, 
-                        content: rawContent, 
-                        completed: completed 
-                    });
+                    // 🌟 [수정됨] id가 존재할 때만 추가하여 undefined 오류 원천 차단
+                    let evObj = { labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: rawContent, completed: completed };
+                    if (id) evObj.id = id;
+                    eventList.push(evObj);
                 } else {
                     let defaultLabelIds = [];
-                    // 🌟 [수정] 라벨 괄호가 생략된 경우에 대한 ID 파싱 처리
                     let id = null;
                     const idMatch = t.match(/\s*{#([^}]+)}$/);
                     if (idMatch) {
@@ -701,12 +693,11 @@ export const BackupManager = {
                         const skipLabel = targetLabels.find(l => l.isSkip);
                         if (skipLabel) defaultLabelIds = [skipLabel.id];
                     }
-                    eventList.push({ 
-                        id: id || undefined, 
-                        labelIds: defaultLabelIds, 
-                        content: t, 
-                        completed: completed 
-                    });
+                    
+                    // 🌟 [수정됨] id가 존재할 때만 추가하여 undefined 오류 원천 차단
+                    let evObj = { labelIds: defaultLabelIds, content: t, completed: completed };
+                    if (id) evObj.id = id;
+                    eventList.push(evObj);
                 }
             });
             return eventList;
@@ -855,7 +846,6 @@ export const BackupManager = {
                 const lblStr = (item.labels || []).join(',');
 
                 let existing = null;
-                // 🌟 파싱된 ID를 바탕으로 기존 데이터를 우선적으로 매칭함
                 if (item.id) {
                     existing = merged.find(e => e.id === item.id);
                 }
