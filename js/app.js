@@ -131,7 +131,6 @@ export const goToDay = (dateStr) => {
     }
 };
 
-// 🌟 [핵심 변경] 브라우저 스크롤 한계 돌파 & 2차 정밀 보정 타겟팅 시스템 적용
 export const scrollToTodayIfExist = () => {
     let attempts = 0; 
     const todayStr = formatDate(new Date());
@@ -139,7 +138,6 @@ export const scrollToTodayIfExist = () => {
     const tryScroll = () => {
         attempts++;
         
-        // 1. 현재 렌더링 중이면 타겟의 위치가 계속 변동하므로 끝날 때까지 대기
         const scopeInstance = window[`${store.scope}ViewInstance`];
         if (scopeInstance && scopeInstance.isRendering) {
             if (attempts < 50) setTimeout(tryScroll, 150);
@@ -153,18 +151,13 @@ export const scrollToTodayIfExist = () => {
             const header = document.querySelector('.app-header');
             const hOffset = header ? header.offsetHeight : 0;
             
-            // 헤더가 가리는 공간을 빼고 목표 위치 정확히 계산 (안전거리 15px 추가)
             const targetY = todayEl.getBoundingClientRect().top + window.scrollY - hOffset - 15;
-            
-            // 2. 스크롤해야 할 거리를 측정
             const distance = Math.abs(window.scrollY - targetY);
             
-            // 3. 거리가 1500px 이상으로 너무 멀면, 브라우저가 스크롤하다 포기(멈춤)해버리므로 순간이동('auto')으로 대체
             const scrollBehavior = distance > 1500 ? 'auto' : 'smooth';
             
             window.scrollTo({ top: targetY, behavior: scrollBehavior });
 
-            // 4. 2차 정밀 보정 (이동 후 미세하게 틀어졌으면 0.3초 뒤에 한 번 더 정확히 교정)
             setTimeout(() => {
                 const checkY = todayEl.getBoundingClientRect().top + window.scrollY - hOffset - 15;
                 if (Math.abs(window.scrollY - checkY) > 5) {
@@ -172,7 +165,6 @@ export const scrollToTodayIfExist = () => {
                 }
             }, 300);
 
-            // 타겟을 시각적으로 눈에 띄게 깜빡여주는 하이라이트 효과
             const highlightTargets = todayEl.tagName === 'TR' ? todayEl.querySelectorAll('td') : [todayEl];
             highlightTargets.forEach(el => {
                 const originalBg = el.style.backgroundColor;
@@ -184,7 +176,6 @@ export const scrollToTodayIfExist = () => {
                 }, 800);
             });
         } else if (attempts < 20) {
-            // 화면에 아직 엘리먼트가 안 그려졌다면 0.2초 뒤 재시도
             setTimeout(tryScroll, 200);
         }
     };
@@ -261,7 +252,6 @@ export const render = (autoScrollToToday = false) => {
     const container = document.getElementById("main-view");
     if (!container) return; 
 
-    // 🌟 Fixed 헤더 때문에 내용이 가려지지 않도록 Body의 Padding Top을 동적 조절
     const header = document.querySelector('.app-header');
     if (header) {
         document.body.style.paddingTop = header.offsetHeight + 'px';
@@ -396,6 +386,7 @@ const initApp = () => {
         }, 200);
     }, { passive: true, capture: true });
 
+    // 🌟 [최적화 2] 타이핑할 때마다 과도하게 발생하던 자동 저장 주기를 800ms -> 2500ms로 완화
     let autoSaveTimer = null;
     const markUnsaved = () => { 
         if (store.mode === 'editor') {
@@ -403,7 +394,7 @@ const initApp = () => {
             clearTimeout(autoSaveTimer); 
             autoSaveTimer = setTimeout(() => {
                 if (store.hasUnsavedChanges) saveCurrentViewData(false);
-            }, 800);
+            }, 2500); 
         }
     };
     document.addEventListener('input', markUnsaved);
@@ -426,9 +417,18 @@ const initApp = () => {
         }
     });
 
+    // 🌟 [최적화 1] 모바일 스크롤 주소창 버그 해결: 화면 '너비'가 진짜 변할 때만 헤더 재계산 실행
+    let lastWidth = window.innerWidth;
+    let resizeDebounce = null;
     window.addEventListener('resize', () => {
-        const header = document.querySelector('.app-header');
-        if (header) document.body.style.paddingTop = header.offsetHeight + 'px';
+        if (window.innerWidth === lastWidth) return; 
+        lastWidth = window.innerWidth;
+        
+        clearTimeout(resizeDebounce);
+        resizeDebounce = setTimeout(() => {
+            const header = document.querySelector('.app-header');
+            if (header) document.body.style.paddingTop = header.offsetHeight + 'px';
+        }, 200);
     });
 
     const appTitle = document.getElementById('app-title');
