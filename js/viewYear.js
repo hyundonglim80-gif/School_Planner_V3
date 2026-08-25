@@ -334,6 +334,7 @@ export class YearView extends BaseView {
     
     this.renderedDateStrings = []; 
     const maxP = store.periodNames ? store.periodNames.length : 6;
+    const totalCols = maxP + 2; // 🌟 날짜(1) + 구분(1) + 일정내용(maxP) => 정확한 colspan 값 적용
 
     const progressHtml = `
         <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
@@ -343,16 +344,17 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 1. 12개월 <tbody> 껍데기 즉시 생성
+    // 🌟 1. 12개월 <tbody> 껍데기 즉시 생성 (colspan 값 자동 동기화로 표 찌그러짐 원천 차단)
     const tbodyHtmlMap = {};
     for (const m of orderedMonths) {
-        tbodyHtmlMap[`${m.year}-${m.month}`] = `<tr><td colspan="10" style="height:600px; padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0; text-align:center; vertical-align:middle;">${m.label} 로딩 중...</td></tr>`;
+        tbodyHtmlMap[`${m.year}-${m.month}`] = `<tr><td colspan="${totalCols}" style="height:600px; padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0; text-align:center; vertical-align:middle;">${m.label} 로딩 중...</td></tr>`;
     }
 
+    // 🌟 table-layout: fixed; 적용하여 너비를 고정하고 깜빡임 방지
     this.container.innerHTML = `
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         ${progressHtml}
-        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
+        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed; word-break:break-all;">
           <tbody style="border-bottom: 2px solid #cbd5e1;">
             <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
               <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
