@@ -11,13 +11,13 @@ export class YearView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; // 에디터 모드 전용 (단일 선택)
+    this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
     this.renderId = 0; 
     this.isRendering = false; 
     this.activeFilters = null; // 🌟 뷰어/에디터 통합 필터
   }
 
-  // 🌟 단일 통합 필터 HTML 생성 (index.html 슬롯에 그려짐)
+  // 🌟 단일 통합 필터 HTML 생성 (index.html 2번째 행 슬롯에 그려짐)
   getUnifiedFilterHtml() {
       let isPersonalActive = false;
       let activeGroupIds = [];
@@ -225,78 +225,101 @@ export class YearView extends BaseView {
 
       const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(targetY);
       const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      const realTodayStr = formatDate(new Date());
       
       const progressHtml = `
           <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
               <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-              현재 월부터 순차적으로 화면을 부드럽게 구성하고 있습니다...
+              현재 월부터 순차적으로 화면을 구성 중입니다...
           </div>
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 [뷰어 모드] 불필요한 스크롤 조작을 걷어내고 메인 컨텐츠만 깔끔하게 렌더링
+      // 🌟 [최적화 1] 개별 월(Month) 카드를 만드는 로직을 함수로 분리하여 코드 중복 제거
+      const buildViewerCard = (mObj) => {
+          const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
+          let eventListHtml = '';
+          
+          if (monthEvents.length > 0) {
+            eventListHtml = monthEvents.map(e => {
+              const parts = e.dateStr.split('-');
+              const dayNum = parseInt(parts[2], 10);
+              const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, dayNum);
+              const dayOfWeek = dayNames[dateObj.getDay()];
+              
+              const isTodayEvent = (e.dateStr === realTodayStr);
+              const eventStyle = isTodayEvent 
+                  ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
+                  : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
+
+              let dateColor = '#2563eb'; 
+              if (isRedDay(e.dateStr, e.events)) {
+                  dateColor = '#ef4444';
+              } else if (dateObj.getDay() === 6) {
+                  dateColor = '#3b82f6';
+              }
+
+              return `<div style="${eventStyle}">
+                        <div style="color:${dateColor}; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
+                        <div style="margin-top:2px;">${e.htmlOutput}</div>
+                      </div>`;
+            }).join('');
+          } else {
+            eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
+          }
+
+          const isCurrentMonthCard = (mObj.match === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-`);
+          const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
+
+          return `
+            <div id="viewer-card-${mObj.year}-${mObj.month}" class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
+              <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
+              <div style="line-height:1.4;">${eventListHtml}</div>
+            </div>`;
+      };
+
+      // 🌟 [최적화 2] 12개월의 껍데기 HTML 준비 (미리 공간 확보)
+      const cardHtmlMap = {};
+      for (const m of orderedMonths) {
+          cardHtmlMap[`${m.year}-${m.month}`] = `<div id="viewer-month-${m.year}-${m.month}" style="height:600px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`;
+      }
+
+      // 🌟 [최적화 3] 가장 중요한 1순위(현재 월)는 즉시 HTML로 완성해서 덮어씌움
+      const targetMonthObj = prioritizedMonths[0];
+      cardHtmlMap[`${targetMonthObj.year}-${targetMonthObj.month}`] = buildViewerCard(targetMonthObj);
+
       this.container.innerHTML = `
           <div id="year-main-content">
               ${progressHtml}
               <div class="year-grid" id="year-grid-container">
-                 ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
+                 ${orderedMonths.map(m => cardHtmlMap[`${m.year}-${m.month}`]).join('')}
               </div>
           </div>
       `;
 
-      // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
+      // 🌟 통합 필터 생성
       const filterSlot = document.getElementById('global-unified-filter-slot');
       if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
 
-      const realTodayStr = formatDate(new Date());
+      // 🌟 [최적화 4] 브라우저에 화면이 그려지자마자, 부드러운 스크롤 지연 없이 즉시(auto) 점프하여 깜빡임 원천 차단!
+      requestAnimationFrame(() => {
+          const focusEl = document.getElementById(`viewer-card-${targetMonthObj.year}-${targetMonthObj.month}`);
+          if (focusEl) {
+              const header = document.querySelector('.app-header');
+              const hOffset = header ? header.offsetHeight : 0;
+              const absoluteY = focusEl.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
+          }
+      });
 
-      for (const mObj of prioritizedMonths) {
-        if (this.renderId !== currentRenderId) return;
-
-        const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
-        let eventListHtml = '';
-        
-        if (monthEvents.length > 0) {
-          eventListHtml = monthEvents.map(e => {
-            const parts = e.dateStr.split('-');
-            const dayNum = parseInt(parts[2], 10);
-            const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, dayNum);
-            const dayOfWeek = dayNames[dateObj.getDay()];
-            
-            const isTodayEvent = (e.dateStr === realTodayStr);
-            const eventStyle = isTodayEvent 
-                ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
-                : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
-
-            let dateColor = '#2563eb'; 
-            if (isRedDay(e.dateStr, e.events)) {
-                dateColor = '#ef4444';
-            } else if (dateObj.getDay() === 6) {
-                dateColor = '#3b82f6';
-            }
-
-            return `<div style="${eventStyle}">
-                      <div style="color:${dateColor}; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
-                      <div style="margin-top:2px;">${e.htmlOutput}</div>
-                    </div>`;
-          }).join('');
-        } else {
-          eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
-        }
-
-        const isCurrentMonthCard = (mObj.match === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-`);
-        const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
-
-        const cardHtml = `
-          <div id="viewer-card-${mObj.year}-${mObj.month}" class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
-            <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
-            <div style="line-height:1.4;">${eventListHtml}</div>
-          </div>`;
-        
-        const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
-        if (containerEl) containerEl.outerHTML = cardHtml;
-        
-        await new Promise(r => setTimeout(r, 40)); 
+      // 🌟 나머지 11개월을 백그라운드에서 하나씩 렌더링
+      const remainingMonths = prioritizedMonths.slice(1);
+      for (const mObj of remainingMonths) {
+          if (this.renderId !== currentRenderId) return;
+          const cardHtml = buildViewerCard(mObj);
+          const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
+          if (containerEl) containerEl.outerHTML = cardHtml;
+          await new Promise(r => setTimeout(r, 40)); 
       }
 
       const progressEl = document.getElementById('year-render-progress');
@@ -356,12 +379,85 @@ export class YearView extends BaseView {
     const progressHtml = `
         <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
             <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-            현재 월부터 순차적으로 화면을 부드럽게 구성하고 있습니다...
+            현재 월부터 순차적으로 화면을 구성 중입니다...
         </div>
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [에디터 모드] 테이블 구조는 <td>를 사용하여 스크롤 시 머리글이 절대 고정되지 않게 회피함
+    // 🌟 [최적화 1] 개별 월(Month) 표를 그리는 로직을 함수로 분리
+    const buildEditorRows = (mObj) => {
+        const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
+        return chunk.map(item => {
+            const dateObj = new Date(item.year, item.month - 1, item.day);
+            const dayOfWeekNum = dateObj.getDay();
+            const dayOfWeek = dayNames[dayOfWeekNum];
+
+            if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return '';
+
+            this.renderedDateStrings.push(item.dateStr);
+
+            let eventList = item.eventData.eventList || [];
+            window[`tempEvents_${item.dateStr}`] = eventList.map(e => {
+                let labelIds = e.labelIds || [];
+                if (labelIds.length === 0 && (e.labels || e.label)) {
+                    (e.labels || [e.label]).forEach(name => {
+                        const match = masterLabels.find(l => l.name === name);
+                        if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
+                    });
+                }
+                return { ...e, labelIds, sharedGroupId: e.sharedGroupId || null, groupName: e.groupName || '' };
+            });
+            
+            const periods = item.data.periods?.[this.scheduleGroupId || 'personal'] || {};
+            window[`tempSchedules_${item.dateStr}`] = periods;
+            
+            const compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(item.dateStr)}</div>`; 
+
+            const isRed = isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`]);
+            const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
+            const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
+
+            const periodCellsHtml = Array.from({ length: maxP }).map((_, pi) => {
+                 const pObj = periods[pi + 1] || {};
+                 let cellText = "";
+                 if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+                 if (pObj.memo) cellText += pObj.memo + " ";
+                 if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+                 
+                 return `<td class="editable-cell edit-class-cell" data-p="${pi + 1}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:top; white-space:pre-wrap; text-align:left;" oninput="window.yearViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+            }).join('');
+
+            return `
+              <tr data-year-date="${item.dateStr}">
+                <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; position: static !important; z-index: auto !important; transform: none !important;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>
+                    <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
+                  </div>
+                </td>
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+                    일정<br>
+                    <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
+                </td>
+                <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
+              </tr>
+              <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
+                ${periodCellsHtml}
+              </tr>`;
+        }).join('');
+    };
+
+    // 🌟 [최적화 2] 12개월의 껍데기 HTML 준비 (스크롤 방어 높이 설정)
+    const tbodyHtmlMap = {};
+    for (const m of orderedMonths) {
+        tbodyHtmlMap[`${m.year}-${m.month}`] = `<tr><td colspan="10" style="height:600px; padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0; text-align:center; vertical-align:middle;">${m.label} 로딩 중...</td></tr>`;
+    }
+
+    // 🌟 [최적화 3] 가장 중요한 1순위(현재 월)는 즉시 HTML로 완성해서 덮어씌움
+    const targetMonthObj = prioritizedMonths[0];
+    tbodyHtmlMap[`${targetMonthObj.year}-${targetMonthObj.month}`] = buildEditorRows(targetMonthObj);
+
     this.container.innerHTML = `
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         ${progressHtml}
@@ -373,80 +469,37 @@ export class YearView extends BaseView {
               <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
             </tr>
           </tbody>
-          ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
+          ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}">${tbodyHtmlMap[`${m.year}-${m.month}`]}</tbody>`).join('')}
         </table>
       </div>`;
 
-    // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
+    // 🌟 통합 필터 상단 슬롯에 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
 
-    const tbody = document.getElementById('year-editor-table');
+    // 🌟 [최적화 4] 브라우저에 화면이 그려지자마자, 부드러운 스크롤 지연 없이 즉시(auto) 점프하여 깜빡임 원천 차단!
+    requestAnimationFrame(() => {
+        const firstRow = document.querySelector(`tr[data-year-date^="${targetMonthObj.year}-${String(targetMonthObj.month).padStart(2, '0')}"]`);
+        if (firstRow) {
+            const header = document.querySelector('.app-header');
+            const hOffset = header ? header.offsetHeight : 0;
+            const absoluteY = firstRow.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
+            
+            // 텍스트 상자 높이 보정
+            setTimeout(() => {
+                document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                    ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                });
+            }, 10);
+        }
+    });
 
-    for (const mObj of prioritizedMonths) {
+    // 🌟 나머지 11개월을 백그라운드에서 하나씩 렌더링
+    const remainingMonths = prioritizedMonths.slice(1);
+    for (const mObj of remainingMonths) {
         if (this.renderId !== currentRenderId) return;
-        const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
-
-        let rowsHtml = chunk.map(item => {
-          const dateObj = new Date(item.year, item.month - 1, item.day);
-          const dayOfWeekNum = dateObj.getDay();
-          const dayOfWeek = dayNames[dayOfWeekNum];
-
-          if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return '';
-
-          this.renderedDateStrings.push(item.dateStr);
-
-          let eventList = item.eventData.eventList || [];
-          window[`tempEvents_${item.dateStr}`] = eventList.map(e => {
-              let labelIds = e.labelIds || [];
-              if (labelIds.length === 0 && (e.labels || e.label)) {
-                  (e.labels || [e.label]).forEach(name => {
-                      const match = masterLabels.find(l => l.name === name);
-                      if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
-                  });
-              }
-              return { ...e, labelIds, sharedGroupId: e.sharedGroupId || null, groupName: e.groupName || '' };
-          });
-          
-          const periods = item.data.periods?.[this.scheduleGroupId || 'personal'] || {};
-          window[`tempSchedules_${item.dateStr}`] = periods;
-          
-          const compactEditorHtml = `<div id="compact-events-${item.dateStr}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(item.dateStr)}</div>`; 
-
-          const isRed = isRedDay(item.dateStr, window[`tempEvents_${item.dateStr}`]);
-          const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
-          const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
-
-          const periodCellsHtml = Array.from({ length: maxP }).map((_, pi) => {
-               const pObj = periods[pi + 1] || {};
-               let cellText = "";
-               if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
-               if (pObj.memo) cellText += pObj.memo + " ";
-               if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-               
-               return `<td class="editable-cell edit-class-cell" data-p="${pi + 1}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:top; white-space:pre-wrap; text-align:left;" oninput="window.yearViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
-          }).join('');
-
-          return `
-            <tr data-year-date="${item.dateStr}">
-              <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; position: static !important; z-index: auto !important; transform: none !important;">
-                <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                  <span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>
-                  <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
-                </div>
-              </td>
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
-                  일정<br>
-                  <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
-              </td>
-              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
-            </tr>
-            <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
-              ${periodCellsHtml}
-            </tr>`;
-        }).join('');
-
+        const rowsHtml = buildEditorRows(mObj);
         const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
         if (targetTbody) targetTbody.innerHTML = rowsHtml;
         await new Promise(r => setTimeout(r, 40)); 
@@ -469,6 +522,11 @@ export class YearView extends BaseView {
           const container = document.getElementById(`compact-events-${dateStr}`);
           if (container) {
               container.innerHTML = this.generateCompactEventEditor(dateStr);
+              setTimeout(() => {
+                  container.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                      ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                  });
+              }, 10);
           }
       }
   }
@@ -526,7 +584,7 @@ export class YearView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      <!-- 🌟 개별 작업공간 변경 버튼 완전히 제거 -->
+                      <!-- 개별 작업공간 버튼 UI 삭제 완료 -->
                       ${deleteBtnHtml}
                   </div>
               </div>
@@ -592,7 +650,7 @@ export class YearView extends BaseView {
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
 
-      // 🌟 [요구사항 1] 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간(통합 필터)으로 자동 할당
+      // 🌟 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간으로 자동 할당
       let newGroupId = null;
       let newGroupName = '';
       if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
@@ -608,10 +666,12 @@ export class YearView extends BaseView {
           sharedGroupId: newGroupId,
           groupName: newGroupName 
       });
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      container.innerHTML = this.generateCompactEventEditor(dateStr);
       
       setTimeout(() => {
-          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+          container.querySelectorAll('textarea.modal-input-text').forEach(ta => {
               ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
           });
       }, 10);
