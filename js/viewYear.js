@@ -14,41 +14,22 @@ export class YearView extends BaseView {
     this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
     this.renderId = 0; 
     this.isRendering = false; 
-    this.activeEventFilters = null; 
-    this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택)
+    this.activeFilters = null; // 🌟 통합 필터 상태 관리
   }
 
-  getEventFilterHtml(instanceName) {
-      if (!this.activeEventFilters) {
-          this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+  // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성기
+  getUnifiedFilterHtml(instanceName) {
+      if (!this.activeFilters) {
+          this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
       }
-      const isPersonalActive = this.activeEventFilters.includes('personal');
+      const isPersonalActive = this.activeFilters.includes('personal');
       let html = `
-          <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
-              <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+          <div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">
+              <div onclick="window.toggleUnifiedFilter('${instanceName}', 'personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>
       `;
       this.myGroups.forEach(g => {
-          const isActive = this.activeEventFilters.includes(g.id);
-          html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
-      });
-      html += `</div>`;
-      return html;
-  }
-
-  getScheduleFilterHtml(instanceName) {
-      if (!this.activeScheduleFilters) {
-          this.activeScheduleFilters = ['personal'];
-      }
-      const isPersonalActive = this.activeScheduleFilters.includes('personal');
-      let html = `
-          <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
-              <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
-      `;
-      this.myGroups.forEach(g => {
-          const isActive = this.activeScheduleFilters.includes(g.id);
-          html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+          const isActive = this.activeFilters.includes(g.id);
+          html += `<div onclick="window.toggleUnifiedFilter('${instanceName}', '${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
       });
       html += `</div>`;
       return html;
@@ -151,42 +132,6 @@ export class YearView extends BaseView {
     return { orderedMonths: monthsInfo, prioritizedMonths };
   }
 
-  // 🌟 [핵심 해결 1] 앱 전체 헤더와 필터 행을 "절대 고정(fixed)" 시키는 무적의 함수
-  applyStickyHeaderFix() {
-      const appHeader = document.querySelector('.app-header');
-      let headerHeight = 0;
-      
-      // 1. 앱 헤더(1줄, 2줄)를 화면 최상단에 절대 고정
-      if (appHeader) {
-          appHeader.style.setProperty('position', 'fixed', 'important');
-          appHeader.style.setProperty('top', '0', 'important');
-          appHeader.style.setProperty('left', '0', 'important');
-          appHeader.style.setProperty('right', '0', 'important');
-          appHeader.style.setProperty('z-index', '2000', 'important');
-          appHeader.style.setProperty('box-sizing', 'border-box', 'important');
-          headerHeight = appHeader.offsetHeight;
-          // 헤더가 가리는 공간만큼 body를 밀어내기
-          document.body.style.setProperty('padding-top', headerHeight + 'px', 'important');
-      }
-
-      // 2. 필터 영역(3줄)을 앱 헤더 바로 밑에 절대 고정
-      const filterWrapper = document.getElementById('year-filter-wrapper');
-      const mainContent = document.getElementById('year-main-content');
-      
-      if (filterWrapper && mainContent) {
-          filterWrapper.style.setProperty('position', 'fixed', 'important');
-          filterWrapper.style.setProperty('top', headerHeight + 'px', 'important');
-          filterWrapper.style.setProperty('left', '0', 'important');
-          filterWrapper.style.setProperty('right', '0', 'important');
-          filterWrapper.style.setProperty('z-index', '1999', 'important');
-          filterWrapper.style.setProperty('box-sizing', 'border-box', 'important');
-          
-          // 필터가 가리는 공간만큼 컨테이너를 아래로 밀어내기
-          const filterHeight = filterWrapper.offsetHeight;
-          mainContent.style.setProperty('margin-top', (filterHeight + 15) + 'px', 'important');
-      }
-  }
-
   async renderViewer() {
     this.renderId = Date.now();
     const currentRenderId = this.renderId;
@@ -194,9 +139,17 @@ export class YearView extends BaseView {
 
     this.showLoading('클라우드에서 연간 일정을 가져오는 중입니다...'); 
 
+    // 🌟 강제 오버플로우 해제
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
+
     if (!window.db) return;
 
     let allEvents = [];
+    const maxP = store.periodNames ? store.periodNames.length : 6;
     
     try {
       const targetY = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
@@ -207,8 +160,7 @@ export class YearView extends BaseView {
       const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
       if (this.renderId !== currentRenderId) return;
 
-      if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
-      if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
+      if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
 
       const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
 
@@ -220,12 +172,12 @@ export class YearView extends BaseView {
         let boxesHtml = '';
         let hasClass = false;
 
-        for (let p = 1; p <= this.maxPeriod; p++) {
+        for (let p = 1; p <= maxP; p++) {
           let pTexts = [];
-          this.activeScheduleFilters.forEach(filterId => {
+          this.activeFilters.forEach(filterId => {
               const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
               if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
-                  let prefix = this.activeScheduleFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
+                  let prefix = this.activeFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
                   pTexts.push(prefix + subj.trim());
               }
           });
@@ -251,7 +203,7 @@ export class YearView extends BaseView {
         }
 
         if (eMap[dateStr] && eMap[dateStr].eventList && eMap[dateStr].eventList.length > 0) {
-          const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'));
+          const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'));
           
           processedEvents = filteredEvents.map(e => ({ 
               ...e, 
@@ -280,12 +232,8 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
-      // 🌟 [뷰어 모드] 필터 행과 본문을 완전히 분리하여 고정 스크립트가 잘 적용되도록 설계
+      // 🌟 [뷰어 모드] 메인 컨텐츠만 렌더링. 필터는 index.html 영역을 활용.
       let skeletonHtml = `
-          <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-             ${this.getEventFilterHtml('yearViewInstance')}
-             <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
-          </div>
           <div id="year-main-content">
               ${progressHtml}
               <div class="year-grid" id="year-grid-container">
@@ -294,11 +242,11 @@ export class YearView extends BaseView {
           </div>
       `;
       this.container.innerHTML = skeletonHtml;
-      
-      // 🌟 화면 렌더링 즉시 절대 고정 함수 실행
-      setTimeout(() => this.applyStickyHeaderFix(), 0);
-      window.addEventListener('resize', () => this.applyStickyHeaderFix());
-      
+
+      // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
+      const filterSlot = document.getElementById('global-unified-filter-slot');
+      if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('yearViewInstance');
+
       const realTodayStr = formatDate(new Date());
 
       for (const mObj of prioritizedMonths) {
@@ -347,20 +295,17 @@ export class YearView extends BaseView {
         const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
         if (containerEl) {
             containerEl.outerHTML = cardHtml;
+            // 🌟 1순위(현재 월)가 그려지면 즉시 스크롤 이동 (상단 고정 헤더 높이 고려)
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
                     if (focusEl) {
-                        const filterRow = document.getElementById('year-filter-wrapper');
                         const header = document.querySelector('.app-header');
-                        const fOffset = filterRow ? filterRow.offsetHeight : 0;
                         const hOffset = header ? header.offsetHeight : 0;
                         const absoluteY = focusEl.getBoundingClientRect().top + window.pageYOffset;
-                        
-                        // 자동 스크롤 시 1, 2, 3번째 줄 밑에 정확히 화면이 맞춰지도록 계산
-                        window.scrollTo({top: absoluteY - hOffset - fOffset - 10, behavior: 'smooth'});
+                        window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'smooth'});
                     }
-                }, 300);
+                }, 50);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -381,6 +326,13 @@ export class YearView extends BaseView {
     this.isRendering = true;
 
     this.showLoading('연간 데이터를 가져오는 중입니다...'); 
+    
+    // 🌟 강제 오버플로우 해제
+    if (this.container) {
+        this.container.style.overflow = 'visible';
+        this.container.style.overflowX = 'visible';
+        this.container.style.overflowY = 'visible';
+    }
 
     if (!window.db) return;
 
@@ -395,8 +347,8 @@ export class YearView extends BaseView {
     const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
     if (this.renderId !== currentRenderId) return;
 
-    if (!this.activeEventFilters) {
-        this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    if (!this.activeFilters) {
+        this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
     }
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
@@ -418,8 +370,9 @@ export class YearView extends BaseView {
 
     const wsSelectHtml = `
         <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-            <div onclick="window.yearViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
-            ${this.myGroups.map(g => `<div onclick="window.yearViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
+            <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:6px;">작업공간:</span>
+            <div onclick="window.yearViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
+            ${this.myGroups.map(g => `<div onclick="window.yearViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name}</div>`).join('')}
         </div>
     `;
 
@@ -431,31 +384,29 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [에디터 모드] 필터 행은 컨테이너 밖으로 독립, 표의 머리글은 <td> 태그를 써서 절대 고정 안 됨(화면 밖으로 올라감)
+    // 🌟 [에디터 모드] 표의 머리글(th)은 CSS 강제 고정을 피하기 위해 position: static 설정. 필터 슬롯은 index.html을 사용.
     this.container.innerHTML = `
-      <div id="year-filter-wrapper" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-          ${this.getEventFilterHtml('yearViewInstance')}
-          <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-      </div>
-      
-      <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px;">
+      <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; ${store.showClass ? '' : 'display:none;'}">
+            <span style="font-size:0.9rem; font-weight:bold; color:#64748b;">💡 편집할 시간표 영역 선택:</span>
+            ${wsSelectHtml}
+        </div>
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
-          <!-- 🌟 <th> 대신 일반 <tbody>+<td> 조합을 사용하여 스크롤 시 무조건 같이 위로 밀려 올라가도록 보장 -->
           <tbody style="border-bottom: 2px solid #cbd5e1;">
-            <tr style="background:#f1f5f9;">
-              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
-              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
-              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
+            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
             </tr>
           </tbody>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    // 🌟 화면 렌더링 즉시 절대 고정 함수 실행
-    setTimeout(() => this.applyStickyHeaderFix(), 0);
-    window.addEventListener('resize', () => this.applyStickyHeaderFix());
+    // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
+    const filterSlot = document.getElementById('global-unified-filter-slot');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('yearViewInstance');
 
     const tbody = document.getElementById('year-editor-table');
 
@@ -526,21 +477,17 @@ export class YearView extends BaseView {
         const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
         if (targetTbody) {
             targetTbody.innerHTML = rowsHtml;
-            // 🌟 1순위(현재 월)가 그려지면 즉시 자동 스크롤
+            // 🌟 에디터에서 1순위(현재 월)가 렌더링되면 즉시 자동 스크롤
             if (mObj.distance === 0) {
                 setTimeout(() => {
                     const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
                     if (firstRow) {
-                        const filterRow = document.getElementById('year-filter-wrapper');
                         const header = document.querySelector('.app-header');
-                        const fOffset = filterRow ? filterRow.offsetHeight : 0;
                         const hOffset = header ? header.offsetHeight : 0;
                         const absoluteY = firstRow.getBoundingClientRect().top + window.pageYOffset;
-                        
-                        // 자동 스크롤 시 1, 2, 3번째 줄 밑에 정확히 화면이 맞춰지도록 계산
-                        window.scrollTo({top: absoluteY - hOffset - fOffset - 10, behavior: 'smooth'});
+                        window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'smooth'});
                     }
-                }, 300);
+                }, 100);
             }
         }
         await new Promise(r => setTimeout(r, 40)); 
@@ -575,7 +522,7 @@ export class YearView extends BaseView {
       const inst = 'window.yearViewInstance';
       
       return list.map((e, idx) => {
-          const isVisible = this.activeEventFilters.includes(e.sharedGroupId || 'personal');
+          const isVisible = this.activeFilters.includes(e.sharedGroupId || 'personal');
           const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
 
