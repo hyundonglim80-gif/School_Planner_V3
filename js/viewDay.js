@@ -20,19 +20,26 @@ export class DayView extends BaseView {
         this.activeFilters = null; // 🌟 통합 필터 상태 관리
     }
 
-    // 🌟 단일 통합 필터 HTML 생성기
-    getUnifiedFilterHtml(instanceName) {
-        if (!this.activeFilters) {
-            this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    // 🌟 [핵심 수정 1] 년간/월간과 동일한 방식의 통합 필터 생성기 (버튼 활성화 버그 해결)
+    getUnifiedFilterHtml() {
+        let isPersonalActive = false;
+        let activeGroupIds = [];
+
+        if (store.mode === 'editor') {
+            isPersonalActive = (this.scheduleGroupId === null || this.scheduleGroupId === 'personal');
+            if (this.scheduleGroupId && this.scheduleGroupId !== 'personal') activeGroupIds.push(this.scheduleGroupId);
+        } else {
+            if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+            isPersonalActive = this.activeFilters.includes('personal');
+            activeGroupIds = this.activeFilters;
         }
-        const isPersonalActive = this.activeFilters.includes('personal');
-        let html = `
-            <div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">
-                <div onclick="window.toggleUnifiedFilter('${instanceName}', 'personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>
-        `;
+
+        let html = `<div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">`;
+        html += `<div onclick="window.toggleUnifiedFilter('personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>`;
+
         this.myGroups.forEach(g => {
-            const isActive = this.activeFilters.includes(g.id);
-            html += `<div onclick="window.toggleUnifiedFilter('${instanceName}', '${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
+            const isActive = activeGroupIds.includes(g.id);
+            html += `<div onclick="window.toggleUnifiedFilter('${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
         });
         html += `</div>`;
         return html;
@@ -394,7 +401,6 @@ export class DayView extends BaseView {
                 </div>
               </div>
               <div id="event-entries-container" style="width: 100%;"></div>
-              <!-- 🌟 [요구사항 3] 함수 호출명 에러 완벽 복구 (addEventEntry로 통일) -->
               <button onclick="window.dayViewInstance.addEventEntry()" style="width:100%; padding:10px; margin-top:5px; background:#eff6ff; color:#2563eb; border:2px dashed #bfdbfe; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>
 
@@ -431,12 +437,18 @@ export class DayView extends BaseView {
           </div>`;
         
         const filterSlot = document.getElementById('global-unified-filter-slot');
-        if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('dayViewInstance');
+        if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
 
         setTimeout(() => {
           this.renderEventEntries();
           this.renderJournalEntries();
-        }, 0);
+          
+          // 🌟 텍스트 상자 초기 렌더링 시점에 세로 크기 자동 맞춤
+          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+              ta.style.height = 'auto';
+              ta.style.height = ta.scrollHeight + 'px';
+          });
+        }, 10);
     }
 
     handlePeriodDragStart(event, period) {
@@ -644,6 +656,7 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            // 🌟 [핵심 수정 2] oninput 속성에서 this.style.height='auto' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
             return `
             <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -652,13 +665,12 @@ export class DayView extends BaseView {
                         ${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                        <!-- 🌟 개별 작업공간 버튼 완전 삭제 -->
                         ${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='40px'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='40px'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -675,14 +687,14 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
-            // 🌟 [요구사항 4] oninput, onfocus에서 기본높이(60px) 세팅 후 scrollHeight로 자동 늘어나도록 완벽하게 복구했습니다.
+            // 🌟 [핵심 수정 2] oninput 속성에서 this.style.height='auto' 를 통해 세로 길이가 부드럽게 자동 확장되도록 복원!
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='60px'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='60px'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=this.scrollHeight+'px';" oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
             </div>`;
         }).join('');
     }
@@ -715,6 +727,12 @@ export class DayView extends BaseView {
             ev.labelIds.push(labelId);
         }
         this.renderEventEntries();
+        
+        setTimeout(() => {
+            document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+            });
+        }, 10);
     }
 
     updateEventStatus(idx, isCompleted) {
@@ -736,6 +754,12 @@ export class DayView extends BaseView {
         j.labelIds = j.labelIds || [];
         j.labelIds = j.labelIds.includes(labelId) ? j.labelIds.filter(id => id !== labelId) : [...j.labelIds, labelId];
         this.renderJournalEntries();
+        
+        setTimeout(() => {
+            document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+            });
+        }, 10);
     }
 
     updateJournalContent(idx, val) {
@@ -747,7 +771,6 @@ export class DayView extends BaseView {
         this.syncEventInputs();
         store.hasUnsavedChanges = true;
         
-        // 🌟 [요구사항 1] 상단에서 선택된 통합 필터 영역에 자동으로 일정을 꽂아 넣습니다.
         let newGroupId = null;
         let newGroupName = '';
         if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
@@ -762,7 +785,14 @@ export class DayView extends BaseView {
             labelIds: [], content: '', completed: false, 
             sharedGroupId: newGroupId, groupName: newGroupName 
         });
+        
         this.renderEventEntries();
+        
+        setTimeout(() => {
+            document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+            });
+        }, 10);
     }
 
     removeEventEntry(index) {
@@ -777,6 +807,12 @@ export class DayView extends BaseView {
         this.currentJournals.push({ labelIds: [], content: '' });
         this.renderJournalEntries();
         store.hasUnsavedChanges = true;
+        
+        setTimeout(() => {
+            document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+            });
+        }, 10);
     }
 
     removeJournalEntry(index) {
