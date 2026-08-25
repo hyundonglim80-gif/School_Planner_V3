@@ -14,29 +14,41 @@ export class YearView extends BaseView {
     this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
     this.renderId = 0; 
     this.isRendering = false; 
-    this.activeFilters = null; // 🌟 뷰어/에디터 통합 필터
+    this.activeEventFilters = null;    // 🌟 뷰어 모드 전용(중복 선택)
+    this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용(중복 선택)
   }
 
-  // 🌟 단일 통합 필터 HTML 생성
-  getUnifiedFilterHtml() {
-      let isPersonalActive = false;
-      let activeGroupIds = [];
-
-      if (store.mode === 'editor') {
-          isPersonalActive = (this.scheduleGroupId === null || this.scheduleGroupId === 'personal');
-          if (this.scheduleGroupId && this.scheduleGroupId !== 'personal') activeGroupIds.push(this.scheduleGroupId);
-      } else {
-          if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
-          isPersonalActive = this.activeFilters.includes('personal');
-          activeGroupIds = this.activeFilters;
+  getEventFilterHtml(instanceName) {
+      if (!this.activeEventFilters) {
+          this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
       }
-
-      let html = `<div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">`;
-      html += `<div onclick="window.toggleUnifiedFilter('personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>`;
-
+      const isPersonalActive = this.activeEventFilters.includes('personal');
+      let html = `
+          <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
+              <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
+              <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+      `;
       this.myGroups.forEach(g => {
-          const isActive = activeGroupIds.includes(g.id);
-          html += `<div onclick="window.toggleUnifiedFilter('${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
+          const isActive = this.activeEventFilters.includes(g.id);
+          html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+      });
+      html += `</div>`;
+      return html;
+  }
+
+  getScheduleFilterHtml(instanceName) {
+      if (!this.activeScheduleFilters) {
+          this.activeScheduleFilters = ['personal'];
+      }
+      const isPersonalActive = this.activeScheduleFilters.includes('personal');
+      let html = `
+          <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
+              <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
+              <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+      `;
+      this.myGroups.forEach(g => {
+          const isActive = this.activeScheduleFilters.includes(g.id);
+          html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
       });
       html += `</div>`;
       return html;
@@ -164,7 +176,8 @@ export class YearView extends BaseView {
       const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
       if (this.renderId !== currentRenderId) return;
 
-      if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+      if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+      if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
 
       const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
 
@@ -177,11 +190,19 @@ export class YearView extends BaseView {
 
         for (let p = 1; p <= maxP; p++) {
           let pTexts = [];
-          this.activeFilters.forEach(filterId => {
-              const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
-              if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
-                  let prefix = this.activeFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
-                  pTexts.push(prefix + subj.trim());
+          this.activeScheduleFilters.forEach(filterId => {
+              const pData = sMap[dateStr]?.[filterId]?.[p];
+              if (!pData) return;
+              const subj = pData.subject || '';
+              const memo = pData.memo || '';
+              const supplies = pData.supplies || '';
+              
+              // 🌟 [버그수정] 교과목(Subject)이 없어도 메모/준비물이 있다면 화면에 렌더링 하도록 수정!
+              if ((subj.trim() !== '' && subj.toUpperCase() !== 'X') || memo.trim() !== '' || supplies.trim() !== '') {
+                  let prefix = this.activeScheduleFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
+                  let text = subj.trim();
+                  if (!text && (memo || supplies)) text = '(메모/준비물)';
+                  pTexts.push(prefix + text);
               }
           });
 
@@ -206,15 +227,21 @@ export class YearView extends BaseView {
         }
 
         if (eMap[dateStr] && eMap[dateStr].eventList && eMap[dateStr].eventList.length > 0) {
-          const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'));
+          const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'));
           
-          processedEvents = filteredEvents.map(e => ({ 
-              ...e, 
-              labelIds: e.labelIds || [],
-              content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
-          }));
-          htmlOutput += generateEventBadgesHTML(processedEvents, dateStr, 'compact');
-          hasContent = true;
+          if (filteredEvents.length > 0) {
+              processedEvents = filteredEvents.map(e => ({ 
+                  ...e, 
+                  labelIds: e.labelIds || [],
+                  content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
+              }));
+              
+              const badgedHtml = generateEventBadgesHTML(processedEvents, dateStr, 'compact');
+              if (badgedHtml) {
+                  htmlOutput += badgedHtml;
+                  hasContent = true;
+              }
+          }
         }
         
         if (hasContent) {
@@ -228,7 +255,7 @@ export class YearView extends BaseView {
       const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
       const realTodayStr = formatDate(new Date());
 
-      // 🌟 [핵심 변경] 깜빡임(Jitter) 없이 메모리에서 12개월의 HTML을 한방에 전부 완성
+      // 🌟 [최적화] 메모리에서 12개월의 HTML을 한방에 전부 완성
       const allMonthsHtml = orderedMonths.map(mObj => {
           const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
           let eventListHtml = '';
@@ -280,11 +307,18 @@ export class YearView extends BaseView {
           </div>
       `;
 
-      // 🌟 통합 필터 상단 슬롯에 주입
+      // 🌟 주간/월간 페이지와 완벽하게 통일된 듀얼 필터 삽입
       const filterSlot = document.getElementById('global-unified-filter-slot');
-      if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+      if (filterSlot) {
+          filterSlot.innerHTML = `
+              <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+                  ${this.getEventFilterHtml('yearViewInstance')}
+                  ${this.getScheduleFilterHtml('yearViewInstance')}
+              </div>
+          `;
+      }
 
-      // 🌟 화면이 완성되자마자 부드러움(smooth) 없이 즉시(auto) 안착하여 깜빡임 원천 차단!
+      // 🌟 화면이 완성되자마자 부드러움(smooth) 없이 즉시(auto) 안착하여 깜빡임 원천 차단
       requestAnimationFrame(() => {
           const targetMonthObj = prioritizedMonths[0];
           const focusEl = document.getElementById(`viewer-card-${targetMonthObj.year}-${targetMonthObj.month}`);
@@ -326,12 +360,12 @@ export class YearView extends BaseView {
     const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
     if (this.renderId !== currentRenderId) return;
 
-    if (!this.activeFilters) {
-        this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
-    }
+    if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
+    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -347,7 +381,7 @@ export class YearView extends BaseView {
     const masterLabels = getEventLabels(); 
     const maxP = store.periodNames ? store.periodNames.length : 6;
 
-    // 🌟 [핵심 변경] 깜빡임(Jitter) 없이 메모리에서 12개월의 에디터 테이블을 한방에 전부 완성
+    // 🌟 메모리에서 12개월의 에디터 테이블을 한방에 전부 완성
     const allEditorMonthsHtml = orderedMonths.map(mObj => {
         const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
         const rowsHtml = chunk.map(item => {
@@ -413,7 +447,7 @@ export class YearView extends BaseView {
         return `<tbody id="editor-month-${mObj.year}-${mObj.month}">${rowsHtml}</tbody>`;
     }).join('');
 
-    // 🌟 단 한 번의 DOM 렌더링으로 1년 치를 화면에 띄움
+    // 🌟 단 한 번의 DOM 렌더링
     this.container.innerHTML = `
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
@@ -428,9 +462,15 @@ export class YearView extends BaseView {
         </table>
       </div>`;
 
-    // 🌟 통합 필터 상단 슬롯에 주입
+    // 🌟 작성(에디터) 모드에서는 필터 대신 '작업공간 선택 버튼'을 렌더링합니다
+    const wsSelectHtml = `
+        <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center; flex-wrap:wrap; gap:4px;">
+            <div onclick="window.yearViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 데이터 작업공간</div>
+            ${this.myGroups.map(g =>`<div onclick="window.yearViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
+        </div>
+    `;
     const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+    if (filterSlot) filterSlot.innerHTML = wsSelectHtml;
 
     // 🌟 화면이 100% 완성되자마자 부드러움 없이 즉시(auto) 스크롤하여 깜빡임 제거
     requestAnimationFrame(() => {
@@ -486,7 +526,7 @@ export class YearView extends BaseView {
       return list.map((e, idx) => {
           const isVisible = store.mode === 'editor' 
               ? ((e.sharedGroupId || 'personal') === currentFilter) 
-              : this.activeFilters.includes(e.sharedGroupId || 'personal');
+              : this.activeEventFilters.includes(e.sharedGroupId || 'personal');
               
           const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
