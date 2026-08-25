@@ -11,42 +11,23 @@ export class WeekView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; // 에디터 모드 전용 (단일 선택)
-    this.activeEventFilters = null;
-    this.activeScheduleFilters = null; // 🌟 뷰어 모드 전용 (중복 선택)
+    this.scheduleGroupId = null; 
+    this.activeFilters = null; // 🌟 통합 필터 상태
   }
 
-  getEventFilterHtml(instanceName) {
-      if (!this.activeEventFilters) {
-          this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+  // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성
+  getUnifiedFilterHtml(instanceName) {
+      if (!this.activeFilters) {
+          this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
       }
-      const isPersonalActive = this.activeEventFilters.includes('personal');
+      const isPersonalActive = this.activeFilters.includes('personal');
       let html = `
-          <div style="display:inline-flex; align-items:center; gap:6px; background:#f8fafc; padding:4px 8px; border-radius:8px; border:1px solid #e2e8f0; flex-wrap:wrap;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-right:2px;">일정 보기:</span>
-              <div onclick="window.toggleEventFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+          <div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">
+              <div onclick="window.toggleUnifiedFilter('${instanceName}', 'personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>
       `;
       this.myGroups.forEach(g => {
-          const isActive = this.activeEventFilters.includes(g.id);
-          html += `<div onclick="window.toggleEventFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
-      });
-      html += `</div>`;
-      return html;
-  }
-
-  getScheduleFilterHtml(instanceName) {
-      if (!this.activeScheduleFilters) {
-          this.activeScheduleFilters = ['personal'];
-      }
-      const isPersonalActive = this.activeScheduleFilters.includes('personal');
-      let html = `
-          <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
-              <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">시간표 보기:</span>
-              <div onclick="window.toggleScheduleFilter('${instanceName}', 'personal')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
-      `;
-      this.myGroups.forEach(g => {
-          const isActive = this.activeScheduleFilters.includes(g.id);
-          html += `<div onclick="window.toggleScheduleFilter('${instanceName}', '${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`;
+          const isActive = this.activeFilters.includes(g.id);
+          html += `<div onclick="window.toggleUnifiedFilter('${instanceName}', '${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
       });
       html += `</div>`;
       return html;
@@ -122,7 +103,6 @@ export class WeekView extends BaseView {
   async renderViewer() {
     this.showLoading('클라우드에서 주간 데이터를 불러오는 중...'); 
 
-    // 🌟 상단 고정을 위한 강제 오버플로우 해제
     if (this.container) {
         this.container.style.overflow = 'visible';
         this.container.style.overflowX = 'visible';
@@ -133,13 +113,12 @@ export class WeekView extends BaseView {
     const { eMap, sMap } = await this.fetchWeekData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr);
     const realTodayStr = formatDate(new Date());
 
-    if (!this.activeEventFilters) this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
-    if (!this.activeScheduleFilters) this.activeScheduleFilters = ['personal'];
+    if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
 
     const rowsHtml = weekDates.map(d => {
       const finalEvents = eMap[d.dateStr]?.eventList || [];
       
-      const filteredEvents = finalEvents.filter(e => this.activeEventFilters.includes(e.sharedGroupId || 'personal'));
+      const filteredEvents = finalEvents.filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'));
       const processedEvents = filteredEvents.length > 0 ? filteredEvents.map(e => ({ 
           ...e, 
           labelIds: e.labelIds || [],
@@ -162,19 +141,19 @@ export class WeekView extends BaseView {
         const p = i + 1;
         let cellContentHtml = '';
 
-        this.activeScheduleFilters.forEach((filterId, idx) => {
+        this.activeFilters.forEach((filterId, idx) => {
             const periods = sMap[d.dateStr]?.[filterId] || {};
             const pObj = periods[p] || {};
             
             let badge = '';
-            if (this.activeScheduleFilters.length > 1) {
+            if (this.activeFilters.length > 1) {
                 const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
                 const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
                 const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
                 badge = `<span style="font-size:0.65rem; color:${badgeColor}; background:${badgeBg}; padding:1px 3px; border-radius:3px; margin-right:4px;">${groupName}</span>`;
             }
 
-            const isLast = idx === this.activeScheduleFilters.length - 1;
+            const isLast = idx === this.activeFilters.length - 1;
             const borderStyle = isLast ? '' : 'border-bottom: 1px dashed #cbd5e1; padding-bottom:6px; margin-bottom:6px;';
 
             let content = '';
@@ -197,7 +176,6 @@ export class WeekView extends BaseView {
         return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height);">${cellContentHtml}</td>`;
       }).join('');
 
-      // 🌟 [뷰어 모드] 날짜, 일정, 수업 td에 static 속성 부여하여 스크롤 고정 방지
       return `
         <tr data-week-date="${d.dateStr}">
           <td rowspan="${store.showClass ? 3 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; position: static !important; z-index: auto !important; transform: none !important;">
@@ -218,21 +196,19 @@ export class WeekView extends BaseView {
       `;
     }).join('');
 
-    // 🌟 [뷰어 모드] 필터 행 독립 및 고정
     this.container.innerHTML = `
-      <div id="week-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
-         ${this.getEventFilterHtml('weekViewInstance')}
-         <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('weekViewInstance')}</div>
-      </div>
       <div class="clean-viewer-board" style="overflow: visible;">
         <table style="width:100%; border-collapse:collapse; text-align:center;"><tbody>${rowsHtml}</tbody></table>
       </div>`;
+      
+    // 🌟 통합 필터 슬롯 주입
+    const filterSlot = document.getElementById('global-unified-filter-slot');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('weekViewInstance');
   }
 
   async renderEditor() {
     this.showLoading('편집 화면을 준비 중...');
 
-    // 🌟 상단 고정을 위한 강제 오버플로우 해제
     if (this.container) {
         this.container.style.overflow = 'visible';
         this.container.style.overflowX = 'visible';
@@ -245,14 +221,15 @@ export class WeekView extends BaseView {
     const realTodayStr = formatDate(new Date());
     const masterLabels = getEventLabels(); 
 
-    if (!this.activeEventFilters) {
-        this.activeEventFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    if (!this.activeFilters) {
+        this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
     }
 
     const wsSelectHtml = `
-        <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
-            <div onclick="window.weekViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
-            ${this.myGroups.map(g => `<div onclick="window.weekViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
+        <div style="display:inline-flex; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; align-items:center; margin-bottom:8px;">
+            <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:6px;">작업공간:</span>
+            <div onclick="window.weekViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
+            ${this.myGroups.map(g => `<div onclick="window.weekViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name}</div>`).join('')}
         </div>
     `;
 
@@ -292,7 +269,6 @@ export class WeekView extends BaseView {
         return `<td class="editable-cell week-period-cell" data-p="${i + 1}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
       }).join('');
 
-      // 🌟 [작업 모드] 날짜, 일정, 수업 td에 static 속성 부여하여 스크롤 고정 방지
       return `
         <tr data-week-date="${d.dateStr}">
           <td rowspan="${store.showClass ? 3 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; position: static !important; z-index: auto !important; transform: none !important;">
@@ -304,7 +280,7 @@ export class WeekView extends BaseView {
           </td>
           <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">
               일정<br>
-              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
+              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
           </td>
           <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${compactEditorHtml}</td>
         </tr>
@@ -316,17 +292,20 @@ export class WeekView extends BaseView {
       `;
     }).join('');
 
-    // 🌟 [작업 모드] 필터 행 독립 및 고정
     this.container.innerHTML = `
-      <div id="week-filter-wrapper" style="position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 10px 15px; border-bottom: 1px solid #cbd5e1; border-radius: 8px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 15px;">
-          ${this.getEventFilterHtml('weekViewInstance')}
-          <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-      </div>
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+           <h3 style="margin:0; font-size:var(--font-header-title); color:#1e293b;"></h3>
+           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
+        </div>
         <table style="width:100%; border-collapse:collapse; text-align:center;">
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`;
+      
+    // 🌟 통합 필터 상단 슬롯에 주입
+    const filterSlot = document.getElementById('global-unified-filter-slot');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('weekViewInstance');
   }
 
   changeEventGroup(dateStr, idx, newGroupId) {
@@ -352,7 +331,7 @@ export class WeekView extends BaseView {
       const inst = 'window.weekViewInstance';
       
       return list.map((e, idx) => {
-          const isVisible = this.activeEventFilters.includes(e.sharedGroupId || 'personal');
+          const isVisible = this.activeFilters.includes(e.sharedGroupId || 'personal');
           const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
 
@@ -455,6 +434,63 @@ export class WeekView extends BaseView {
               window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
           });
       });
+  }
+
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      const scopeInstance = window[`${store.scope}ViewInstance`];
+      if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
+      store.hasUnsavedChanges = true;
+      
+      const ev = window[`tempEvents_${dateStr}`]?.[idx];
+      if (!ev) return;
+      ev.labelIds = ev.labelIds || [];
+      
+      const isActive = ev.labelIds.includes(labelId);
+      const labelObj = getEventLabels().find(l => l.id === labelId);
+
+      if (isActive) {
+          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
+      } else {
+          if (labelObj?.isPeriod || labelObj?.isRecur) {
+              const evContent = ev.content || '';
+              const backupEvent = { ...ev };
+              
+              if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
+                  scopeInstance.syncScheduleInputs();
+              }
+
+              window[`tempEvents_${dateStr}`].splice(idx, 1);
+              window.saveCurrentViewData(true);
+              
+              const callback = (isSaved) => { 
+                  if(isSaved) window.render(); 
+                  else {
+                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+                      window[`tempEvents_${dateStr}`].push(backupEvent);
+                      window.saveCurrentViewData(true);
+                      setTimeout(() => window.render(), 100);
+                  }
+              };
+
+              labelObj.isPeriod 
+                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
+                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
+              return; 
+          }
+          
+          if (labelObj?.isForward) {
+              ev.labelIds = ev.labelIds.filter(id => {
+                  const lObj = getEventLabels().find(x => x.id === id);
+                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
+              });
+          }
+          ev.labelIds.push(labelId);
+      }
+      
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      if (container && scopeInstance) {
+          container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
+      }
   }
 
   updateCompactEvent(dateStr, idx, field, value) {
@@ -570,59 +606,6 @@ Object.assign(window, {
     saveWeekDataFromEditor: () => instance.save(),
     
     handleCompactLabelClick: async (dateStr, idx, labelId) => {
-        const scopeInstance = window[`${store.scope}ViewInstance`];
-        if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
-        store.hasUnsavedChanges = true;
-        
-        const ev = window[`tempEvents_${dateStr}`]?.[idx];
-        if (!ev) return;
-        ev.labelIds = ev.labelIds || [];
-        
-        const isActive = ev.labelIds.includes(labelId);
-        const labelObj = getEventLabels().find(l => l.id === labelId);
-
-        if (isActive) {
-            ev.labelIds = ev.labelIds.filter(id => id !== labelId);
-        } else {
-            if (labelObj?.isPeriod || labelObj?.isRecur) {
-                const evContent = ev.content || '';
-                const backupEvent = { ...ev };
-                
-                if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
-                    scopeInstance.syncScheduleInputs();
-                }
-
-                window[`tempEvents_${dateStr}`].splice(idx, 1);
-                window.saveCurrentViewData(true);
-                
-                const callback = (isSaved) => { 
-                    if(isSaved) window.render(); 
-                    else {
-                        window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-                        window[`tempEvents_${dateStr}`].push(backupEvent);
-                        window.saveCurrentViewData(true);
-                        setTimeout(() => window.render(), 100);
-                    }
-                };
-
-                labelObj.isPeriod 
-                    ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
-                    : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
-                return; 
-            }
-            
-            if (labelObj?.isForward) {
-                ev.labelIds = ev.labelIds.filter(id => {
-                    const lObj = getEventLabels().find(x => x.id === id);
-                    return !(lObj && (lObj.isPeriod || lObj.isRecur));
-                });
-            }
-            ev.labelIds.push(labelId);
-        }
-        
-        const container = document.getElementById(`compact-events-${dateStr}`);
-        if (container && scopeInstance) {
-            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
-        }
+        if (window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
     }
 });
