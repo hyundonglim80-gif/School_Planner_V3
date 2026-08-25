@@ -48,9 +48,10 @@
       </div>
   </div>
 
-  <header class="app-header" style="position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(6px); border-bottom: 1px solid #cbd5e1;">
+  <!-- 🌟 앱 전체 헤더 (position: fixed 적용하여 절대 스크롤 방지) -->
+  <header class="app-header" id="global-app-header" style="position: fixed; top: 0; left: 0; right: 0; z-index: 2000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(6px); border-bottom: 1px solid #cbd5e1; padding: 10px 15px;">
     
-    <!-- 🌟 [첫째 줄] -->
+    <!-- 첫째 줄: 로고, 네트워크, D-Day, 검색, 뷰 전환, 더보기 -->
     <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <div class="title-group" style="display: flex; align-items: center; gap: 10px;">
@@ -103,8 +104,9 @@
         </div>
     </div>
 
-    <!-- 🌟 [둘째 줄] 주말/수업 버튼, 이전/날짜/다음(축소됨), 통합필터, 보기/작성 버튼 -->
-    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; padding-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+    <!-- 🌟 둘째 줄: 2행으로 완벽 압축 (숨기기버튼, 이전/다음/날짜, 필터, 보기작성버튼) -->
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; flex-wrap: wrap; gap: 8px;">
+        
         <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
             <button class="nav-btn" id="btn-toggle-weekend" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe; padding: 4px 8px;">주말 숨기기</button>
             <button class="nav-btn" id="btn-toggle-class" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold; padding: 4px 8px;">수업 숨기기</button>
@@ -117,7 +119,7 @@
         </div>
 
         <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <!-- 🌟 새로 추가된 통합 필터 영역 (보기/작성 버튼 바로 왼쪽) -->
+            <!-- 통합 필터 슬롯 (자바스크립트가 여기에 버튼을 그림) -->
             <div id="global-unified-filter-slot" style="display: flex; align-items: center;"></div>
             
             <div class="mode-group" style="display: flex; flex-wrap: wrap;">
@@ -125,9 +127,11 @@
                 <button class="btn-mode" id="btn-mode-editor" title="단축키: Ctrl + ↓" style="width: 60px;">작성</button>
             </div>
         </div>
+
     </div>
   </header>
 
+  <!-- 🌟 Fixed 헤더 높이만큼 공간을 확보하기 위해 padding 설정은 JS에서 처리함 -->
   <main class="main-container" id="main-view"></main>
 
   <script type="module" src="js/core/store.js"></script>
