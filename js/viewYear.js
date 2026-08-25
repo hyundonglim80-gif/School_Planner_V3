@@ -63,7 +63,6 @@ export class YearView extends BaseView {
       else this.renderViewer();
   }
 
-  // 🌟 [최적화 완료] 가장 빠르고 쾌적한 1회 전체 데이터 일괄 조회 방식으로 복구
   async fetchYearData(startStr, endStr) {
     try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
@@ -159,7 +158,7 @@ export class YearView extends BaseView {
     this.showLoading('클라우드에서 연간 일정을 100% 불러오는 중입니다...'); 
 
     if (this.container) {
-        this.container.style.overflow = 'visible';
+        this.container.style.overflow = 'visible'; // 🌟 스크롤 고정을 위해 visible 처리
     }
 
     if (!window.db) return;
@@ -197,7 +196,6 @@ export class YearView extends BaseView {
               const memo = pData.memo || '';
               const supplies = pData.supplies || '';
               
-              // 🌟 [버그수정] 교과목(Subject)이 없어도 메모/준비물이 있다면 화면에 렌더링 하도록 수정!
               if ((subj.trim() !== '' && subj.toUpperCase() !== 'X') || memo.trim() !== '' || supplies.trim() !== '') {
                   let prefix = this.activeScheduleFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
                   let text = subj.trim();
@@ -255,7 +253,6 @@ export class YearView extends BaseView {
       const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
       const realTodayStr = formatDate(new Date());
 
-      // 🌟 [최적화] 메모리에서 12개월의 HTML을 한방에 전부 완성
       const allMonthsHtml = orderedMonths.map(mObj => {
           const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
           let eventListHtml = '';
@@ -298,8 +295,16 @@ export class YearView extends BaseView {
             </div>`;
       }).join('');
 
-      // 🌟 단 한 번의 DOM 렌더링으로 1년 치를 화면에 띄움
+      // 🌟 스크롤 시 화면 상단에 찰싹 붙는(sticky) 필터 컨테이너
+      const filtersHtml = `
+          <div id="sticky-filter-bar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px; position:sticky; top:-1px; z-index:90; background:#fff; padding:8px 0; border-bottom:1px solid #e2e8f0;">
+             ${this.getEventFilterHtml('yearViewInstance')}
+             <div style="${store.showClass ? '' : 'display:none;'}">${this.getScheduleFilterHtml('yearViewInstance')}</div>
+          </div>
+      `;
+
       this.container.innerHTML = `
+          ${filtersHtml}
           <div id="year-main-content">
               <div class="year-grid" id="year-grid-container">
                  ${allMonthsHtml}
@@ -307,24 +312,18 @@ export class YearView extends BaseView {
           </div>
       `;
 
-      // 🌟 주간/월간 페이지와 완벽하게 통일된 듀얼 필터 삽입
+      // 기존 분리형 슬롯 사용 중지
       const filterSlot = document.getElementById('global-unified-filter-slot');
-      if (filterSlot) {
-          filterSlot.innerHTML = `
-              <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
-                  ${this.getEventFilterHtml('yearViewInstance')}
-                  ${this.getScheduleFilterHtml('yearViewInstance')}
-              </div>
-          `;
-      }
+      if (filterSlot) filterSlot.innerHTML = '';
 
-      // 🌟 화면이 완성되자마자 부드러움(smooth) 없이 즉시(auto) 안착하여 깜빡임 원천 차단
       requestAnimationFrame(() => {
           const targetMonthObj = prioritizedMonths[0];
           const focusEl = document.getElementById(`viewer-card-${targetMonthObj.year}-${targetMonthObj.month}`);
           if (focusEl) {
               const header = document.querySelector('.app-header');
-              const hOffset = header ? header.offsetHeight : 0;
+              const filterBar = document.getElementById('sticky-filter-bar');
+              const fOffset = filterBar ? filterBar.offsetHeight : 50; // 스티키 영역 높이 보정
+              const hOffset = (header ? header.offsetHeight : 0) + fOffset;
               const absoluteY = focusEl.getBoundingClientRect().top + window.scrollY;
               window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
           }
@@ -344,7 +343,7 @@ export class YearView extends BaseView {
     this.showLoading('연간 데이터를 100% 가져오는 중입니다...'); 
 
     if (this.container) {
-        this.container.style.overflow = 'visible';
+        this.container.style.overflow = 'visible'; // 🌟 스크롤 고정을 위해 visible 처리
     }
 
     if (!window.db) return;
@@ -365,7 +364,6 @@ export class YearView extends BaseView {
 
     const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
     
-    // 월별 데이터를 청크로 분리
     const monthChunksMap = {};
     for (const mObj of orderedMonths) {
         const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
@@ -381,7 +379,6 @@ export class YearView extends BaseView {
     const masterLabels = getEventLabels(); 
     const maxP = store.periodNames ? store.periodNames.length : 6;
 
-    // 🌟 메모리에서 12개월의 에디터 테이블을 한방에 전부 완성
     const allEditorMonthsHtml = orderedMonths.map(mObj => {
         const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
         const rowsHtml = chunk.map(item => {
@@ -447,8 +444,23 @@ export class YearView extends BaseView {
         return `<tbody id="editor-month-${mObj.year}-${mObj.month}">${rowsHtml}</tbody>`;
     }).join('');
 
-    // 🌟 단 한 번의 DOM 렌더링
+    // 🌟 뷰어 페이지와 완벽히 통일된 디자인의 작업공간 버튼 생성 (글자 수정됨)
+    const wsSelectHtml = `
+        <div style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; flex-wrap:wrap;">
+            <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:2px;">작업 공간:</span>
+            <div onclick="window.yearViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">🔒 개인</div>
+            ${this.myGroups.map(g => `<div onclick="window.yearViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:#e2e8f0; color:#94a3b8;'}">👥 ${g.name}</div>`).join('')}
+        </div>
+    `;
+
+    const editorFiltersHtml = `
+        <div id="sticky-filter-bar" style="display:flex; justify-content:flex-start; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px; position:sticky; top:-1px; z-index:90; background:#fff; padding:8px 0; border-bottom:1px solid #e2e8f0;">
+           ${wsSelectHtml}
+        </div>
+    `;
+
     this.container.innerHTML = `
+      ${editorFiltersHtml}
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
           <tbody style="border-bottom: 2px solid #cbd5e1;">
@@ -462,27 +474,21 @@ export class YearView extends BaseView {
         </table>
       </div>`;
 
-    // 🌟 작성(에디터) 모드에서는 필터 대신 '작업공간 선택 버튼'을 렌더링합니다
-    const wsSelectHtml = `
-        <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center; flex-wrap:wrap; gap:4px;">
-            <div onclick="window.yearViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 데이터 작업공간</div>
-            ${this.myGroups.map(g =>`<div onclick="window.yearViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
-        </div>
-    `;
+    // 기존 분리형 슬롯 사용 중지
     const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = wsSelectHtml;
+    if (filterSlot) filterSlot.innerHTML = '';
 
-    // 🌟 화면이 100% 완성되자마자 부드러움 없이 즉시(auto) 스크롤하여 깜빡임 제거
     requestAnimationFrame(() => {
         const targetMonthObj = prioritizedMonths[0];
         const firstRow = document.querySelector(`tr[data-year-date^="${targetMonthObj.year}-${String(targetMonthObj.month).padStart(2, '0')}"]`);
         if (firstRow) {
             const header = document.querySelector('.app-header');
-            const hOffset = header ? header.offsetHeight : 0;
+            const filterBar = document.getElementById('sticky-filter-bar');
+            const fOffset = filterBar ? filterBar.offsetHeight : 50; // 스티키 영역 높이 보정
+            const hOffset = (header ? header.offsetHeight : 0) + fOffset;
             const absoluteY = firstRow.getBoundingClientRect().top + window.scrollY;
             window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
             
-            // 텍스트 상자 높이 보정
             setTimeout(() => {
                 document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
                     ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
