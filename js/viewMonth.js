@@ -11,7 +11,7 @@ export class MonthView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; // 에디터 모드 전용(단일 선택)
+    this.scheduleGroupId = null; 
     this.activeFilters = null; // 🌟 뷰어/에디터 통합 필터
   }
 
@@ -28,14 +28,14 @@ export class MonthView extends BaseView {
     }
   }
 
-  // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성 (index.html 슬롯에 삽입)
+  // 🌟 단일 통합 필터 HTML 생성
   getUnifiedFilterHtml() {
       let isPersonalActive = false;
       let activeGroupIds = [];
 
       if (store.mode === 'editor') {
-          isPersonalActive = (this.scheduleGroupId === null);
-          if (this.scheduleGroupId) activeGroupIds.push(this.scheduleGroupId);
+          isPersonalActive = (this.scheduleGroupId === null || this.scheduleGroupId === 'personal');
+          if (this.scheduleGroupId && this.scheduleGroupId !== 'personal') activeGroupIds.push(this.scheduleGroupId);
       } else {
           if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
           isPersonalActive = this.activeFilters.includes('personal');
@@ -197,7 +197,7 @@ export class MonthView extends BaseView {
         <div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr);">${daysHeaderHtml}${paddingHtml}${daysHtml}</div>
     `;
 
-    // 🌟 글로벌 필터 슬롯에 필터 HTML 주입
+    // 🌟 글로벌 통합 필터 슬롯 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
   }
@@ -269,21 +269,21 @@ export class MonthView extends BaseView {
 
         return `
         <tr data-month-date="${dateStr}">
-          <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px; position: static !important; z-index: auto !important; transform: none !important;">
+          <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:80px;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateNumColor}; line-height:1; cursor:pointer;" title="${dateStr} 일 보기로 이동">${d}</span>
               <span style="font-size:1rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
               ${holidayHtml}
             </div>
           </td>
-          <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+          <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
               일정<br>
               <button onclick="window.monthViewInstance.addCompactEvent('${dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
           </td>
-          <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
+          <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
         </tr>
         <tr data-month-sub="${dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-          <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
+          <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
           ${periodCellsHtml}
         </tr>`;
     }).join('');
@@ -293,10 +293,10 @@ export class MonthView extends BaseView {
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
           <tbody style="border-bottom: 2px solid #cbd5e1;">
-            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
-              <td style="width:80px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
-              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
-              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
+            <tr style="background:#f1f5f9;">
+              <td style="width:80px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
             </tr>
           </tbody>
           <tbody>${rowsHtml}</tbody>
@@ -306,21 +306,6 @@ export class MonthView extends BaseView {
     // 🌟 글로벌 필터 슬롯에 필터 HTML 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
-  }
-
-  changeEventGroup(dateStr, idx, newGroupId) {
-      this.syncCompactEventInputs(dateStr);
-      store.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`]?.[idx]) {
-          window[`tempEvents_${dateStr}`][idx].sharedGroupId = newGroupId || null;
-          const g = (this.myGroups || []).find(x => x.id === newGroupId);
-          window[`tempEvents_${dateStr}`][idx].groupName = g ? g.name : '';
-          
-          const container = document.getElementById(`compact-events-${dateStr}`);
-          if (container) {
-              container.innerHTML = this.generateCompactEventEditor(dateStr);
-          }
-      }
   }
 
   generateCompactEventEditor(dateStr) {
@@ -345,18 +330,6 @@ export class MonthView extends BaseView {
           const isCompleted = !!e.completed;
           const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
           
-          let groupButtonsHtml = '';
-          if (isAuthor) {
-              groupButtonsHtml = `
-                  <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                      <div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                      ${(this.myGroups || []).map(g => `<div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-                  </div>
-              `;
-          } else {
-              groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${e.groupName} (읽기전용)</div>`;
-          }
-
           let warningIcon = '';
           if (canComplete) {
               if (!isCompleted && dateStr < realTodayStr) warningIcon = `<span style="color:#ef4444; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">➡️ (미완료)</span>`;
@@ -388,13 +361,13 @@ export class MonthView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      ${groupButtonsHtml}
+                      <!-- 🌟 [요구사항 1 완벽 반영] 개별 작업공간(개인/공유) 변경 버튼 UI 완전 삭제 -->
                       ${deleteBtnHtml}
                   </div>
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height='40px'; this.style.height = this.scrollHeight + 'px';" oninput="this.style.height='40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -446,67 +419,37 @@ export class MonthView extends BaseView {
   }
 
   toggleCompactEventLabel(dateStr, idx, labelId) {
-      const scopeInstance = window[`${store.scope}ViewInstance`];
-      if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
-      store.hasUnsavedChanges = true;
-      
-      const ev = window[`tempEvents_${dateStr}`]?.[idx];
-      if (!ev) return;
-      ev.labelIds = ev.labelIds || [];
-      
-      const isActive = ev.labelIds.includes(labelId);
-      const labelObj = getEventLabels().find(l => l.id === labelId);
-
-      if (isActive) {
-          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
-      } else {
-          if (labelObj?.isPeriod || labelObj?.isRecur) {
-              const evContent = ev.content || '';
-              const backupEvent = { ...ev };
-              
-              if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
-                  scopeInstance.syncScheduleInputs();
-              }
-
-              window[`tempEvents_${dateStr}`].splice(idx, 1);
-              window.saveCurrentViewData(true);
-              
-              const callback = (isSaved) => { 
-                  if(isSaved) window.render(); 
-                  else {
-                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-                      window[`tempEvents_${dateStr}`].push(backupEvent);
-                      window.saveCurrentViewData(true);
-                      setTimeout(() => window.render(), 100);
-                  }
-              };
-
-              labelObj.isPeriod 
-                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
-                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
-              return; 
-          }
-          
-          if (labelObj?.isForward) {
-              ev.labelIds = ev.labelIds.filter(id => {
-                  const lObj = getEventLabels().find(x => x.id === id);
-                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
-              });
-          }
-          ev.labelIds.push(labelId);
-      }
-      
-      const container = document.getElementById(`compact-events-${dateStr}`);
-      if (container && scopeInstance) {
-          container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
-      }
+      if(window.weekViewInstance) window.weekViewInstance.toggleCompactEventLabel(dateStr, idx, labelId);
   }
-
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
   }
   
+  addCompactEvent(dateStr) {
+      this.syncCompactEventInputs(dateStr); 
+      store.hasUnsavedChanges = true;
+      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+
+      // 🌟 [요구사항 1 완벽 반영] 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간(통합 필터)으로 자동 할당!
+      let newGroupId = null;
+      let newGroupName = '';
+      if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
+          newGroupId = this.scheduleGroupId;
+          const g = this.myGroups.find(x => x.id === newGroupId);
+          if (g) newGroupName = g.name;
+      }
+
+      window[`tempEvents_${dateStr}`].push({ 
+          id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+          authorId: window.auth?.currentUser?.uid,
+          labelIds: [], content: '', completed: false, 
+          sharedGroupId: newGroupId,
+          groupName: newGroupName 
+      });
+      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+  }
+
   requestRemoveCompactEvent(dateStr, idx) {
       this.syncCompactEventInputs(dateStr); 
       const ev = window[`tempEvents_${dateStr}`][idx];
