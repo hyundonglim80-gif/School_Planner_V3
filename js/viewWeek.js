@@ -175,19 +175,19 @@ export class WeekView extends BaseView {
 
       return `
         <tr data-week-date="${d.dateStr}">
-          <td rowspan="${store.showClass ? 3 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px;">
+          <td rowspan="${store.showClass ? 3 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; position: static !important; z-index: auto !important; transform: none !important;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
               ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
             </div>
           </td>
-          <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center;">일정</td>
+          <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">일정</td>
           <td colspan="${maxP}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${eventHtml}</td>
         </tr>
         <tr style="${store.showClass ? '' : 'display:none;'}">
-          <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center;">수업</td>
-          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center;">${name}</td>`).join('')}
+          <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
+          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
         </tr>
         <tr style="${store.showClass ? '' : 'display:none;'}">${periodCellsHtml}</tr>
       `;
@@ -198,6 +198,7 @@ export class WeekView extends BaseView {
         <table style="width:100%; border-collapse:collapse; text-align:center;"><tbody>${rowsHtml}</tbody></table>
       </div>`;
       
+    // 🌟 글로벌 필터 슬롯에 필터 HTML 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
   }
@@ -253,27 +254,27 @@ export class WeekView extends BaseView {
         if (pObj.memo) cellText += pObj.memo + " ";
         if (pObj.supplies) cellText += `[${pObj.supplies}]`;
         
-        return `<td class="editable-cell week-period-cell" data-p="${i + 1}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+        return `<td class="editable-cell edit-class-cell" data-p="${i + 1}" contenteditable="true" style="padding:6px; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5; vertical-align:top; white-space:pre-wrap; text-align:left;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
       }).join('');
 
-      // 🌟 [요구사항 2] 주간 에디터 테이블 구조를 년간/월간과 완벽하게 통일 (날짜/구분/내용 레이아웃)
+      // 🌟 [핵심 수정 2] 주간 에디터 테이블 구조를 년간/월간과 완벽하게 통일 (날짜/구분/내용 레이아웃)
       return `
         <tr data-week-date="${d.dateStr}">
-          <td rowspan="${store.showClass ? 2 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 110px; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle;">
+          <td rowspan="${store.showClass ? 2 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 110px; padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; position: static !important; z-index: auto !important; transform: none !important;">
             <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
               <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
               <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
               ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
             </div>
           </td>
-          <td style="width: 60px; padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">
+          <td style="width: 60px; padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
               일정<br>
               <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
           </td>
-          <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; border:1px solid #cbd5e1; background: #f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
+          <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; border:1px solid #cbd5e1; background: #f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
         </tr>
         <tr data-week-schedule-date="${d.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-          <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
+          <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
           ${periodCellsHtml}
         </tr>
       `;
@@ -282,7 +283,7 @@ export class WeekView extends BaseView {
     this.container.innerHTML = `
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         <table style="width:100%; border-collapse:collapse; text-align:center;">
-          <!-- 🌟 [요구사항 2] <th> 대신 일반 <tbody>+<td>를 사용하여 스크롤 시 머리글이 고정되지 않게 회피 -->
+          <!-- 🌟 [핵심 수정 2] <th> 대신 일반 <tbody>+<td>를 사용하여 스크롤 시 머리글이 절대 고정되지 않게 회피 -->
           <tbody style="border-bottom: 2px solid #cbd5e1;">
             <tr style="background:#f1f5f9;">
               <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
@@ -294,8 +295,16 @@ export class WeekView extends BaseView {
         </table>
       </div>`;
       
+    // 🌟 통합 필터 상단 슬롯에 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+    
+    // 자동 높이 조절
+    setTimeout(() => {
+        document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+            ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+        });
+    }, 10);
   }
 
   generateCompactEventEditor(dateStr) {
@@ -308,7 +317,7 @@ export class WeekView extends BaseView {
       const currentFilter = store.mode === 'editor' ? (this.scheduleGroupId || 'personal') : null;
 
       return list.map((e, idx) => {
-          // 🌟 에디터 모드에서는 선택된 작업공간만 보이도록 처리
+          // 🌟 에디터 모드에서는 선택된 작업공간만 보이도록 필터링
           const isVisible = store.mode === 'editor' 
               ? ((e.sharedGroupId || 'personal') === currentFilter) 
               : this.activeFilters.includes(e.sharedGroupId || 'personal');
@@ -327,7 +336,7 @@ export class WeekView extends BaseView {
           }
 
           const chipsHtml = labelObjs.map(lObj => {
-              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}')"` : '';
+              const chipClickAttr = isAuthor ? `onclick="window.weekViewInstance.toggleCompactEventLabel('${dateStr}', ${idx}, '${lObj.id}')"` : '';
               const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
               return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
           }).join('') + warningIcon;
@@ -351,13 +360,13 @@ export class WeekView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      <!-- 🌟 [요구사항 1 완벽 반영] 개별 작업공간(개인/공유) 변경 버튼 UI 완전 삭제 -->
+                      <!-- 🌟 개별 작업공간(개인/공유) 변경 버튼 완전 삭제 -->
                       ${deleteBtnHtml}
                   </div>
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height='40px'; this.style.height = this.scrollHeight + 'px';" oninput="this.style.height='40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height='auto'; this.style.height = this.scrollHeight + 'px';" oninput="this.style.height='auto'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -380,7 +389,7 @@ export class WeekView extends BaseView {
           const dateStr = row.getAttribute('data-week-schedule-date');
           window[`tempSchedules_${dateStr}`] = window[`tempSchedules_${dateStr}`] || {};
 
-          row.querySelectorAll('.week-period-cell').forEach(cell => {
+          row.querySelectorAll('.edit-class-cell').forEach(cell => {
               const p = cell.getAttribute('data-p');
               let text = cell.innerText?.trim() || '';
               let subject = '', memo = '', supplies = '';
@@ -405,6 +414,66 @@ export class WeekView extends BaseView {
       });
   }
 
+  toggleCompactEventLabel(dateStr, idx, labelId) {
+      this.syncCompactEventInputs(dateStr);
+      store.hasUnsavedChanges = true;
+      
+      const ev = window[`tempEvents_${dateStr}`]?.[idx];
+      if (!ev) return;
+      ev.labelIds = ev.labelIds || [];
+      
+      const isActive = ev.labelIds.includes(labelId);
+      const labelObj = getEventLabels().find(l => l.id === labelId);
+
+      if (isActive) {
+          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
+      } else {
+          if (labelObj?.isPeriod || labelObj?.isRecur) {
+              const evContent = ev.content || '';
+              const backupEvent = { ...ev };
+              
+              this.syncScheduleInputs();
+
+              window[`tempEvents_${dateStr}`].splice(idx, 1);
+              window.saveCurrentViewData(true);
+              
+              const callback = (isSaved) => { 
+                  if(isSaved) window.render(); 
+                  else {
+                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+                      window[`tempEvents_${dateStr}`].push(backupEvent);
+                      window.saveCurrentViewData(true);
+                      setTimeout(() => window.render(), 100);
+                  }
+              };
+
+              labelObj.isPeriod 
+                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
+                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
+              return; 
+          }
+          
+          if (labelObj?.isForward) {
+              ev.labelIds = ev.labelIds.filter(id => {
+                  const lObj = getEventLabels().find(x => x.id === id);
+                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
+              });
+          }
+          ev.labelIds.push(labelId);
+      }
+      
+      const container = document.getElementById(`compact-events-${dateStr}`);
+      if (container) {
+          container.innerHTML = this.generateCompactEventEditor(dateStr);
+      }
+      
+      setTimeout(() => {
+          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+              ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+          });
+      }, 10);
+  }
+
   updateCompactEvent(dateStr, idx, field, value) {
       store.hasUnsavedChanges = true;
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
@@ -415,7 +484,7 @@ export class WeekView extends BaseView {
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
 
-      // 🌟 [요구사항 1 완벽 반영] 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간(통합 필터)으로 자동 할당!
+      // 🌟 새 일정을 추가하면 현재 상단의 통합 필터 작업공간으로 자동 할당
       let newGroupId = null;
       let newGroupName = '';
       if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
@@ -432,6 +501,12 @@ export class WeekView extends BaseView {
           groupName: newGroupName 
       });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      
+      setTimeout(() => {
+          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+              ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+          });
+      }, 10);
   }
 
   requestRemoveCompactEvent(dateStr, idx) {
@@ -462,6 +537,11 @@ export class WeekView extends BaseView {
   }
 
   save() {
+    if (this.isRendering) {
+        alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
+        return;
+    }
+
     this.syncScheduleInputs();
     this.syncAllCompactEventInputs(); 
     
