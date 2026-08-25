@@ -172,7 +172,7 @@ export const BackupManager = {
                 <div>
                     <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">4. 대상 (플랫폼)</label>
                     <div style="display:flex; gap:10px;">
-                        <label style="flex:1; cursor:pointer; text-align:center; display:none;">
+                        <label style="flex:1; cursor:pointer; text-align:center;">
                             <input type="radio" name="backup-target" value="calendar" style="display:none;" onchange="window.BackupManager.onTargetChange()">
                             <div class="target-card" id="target-card-calendar" style="padding:15px 5px; border:2px solid #cbd5e1; border-radius:8px; background:#f8fafc; color:#64748b; font-weight:bold; transition:0.2s;">
                                 📅 구글 캘린더
