@@ -442,7 +442,6 @@ export class DayView extends BaseView {
           this.renderEventEntries();
           this.renderJournalEntries();
           
-          // 🌟 텍스트 상자 초기 렌더링 시점에 세로 크기 자동 맞춤 (여백 계산 +4px 보정 적용)
           document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
               ta.style.height = 'auto';
               ta.style.height = (ta.scrollHeight + 4) + 'px';
@@ -685,14 +684,20 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
-            // 🌟 [핵심 수정] 기록 칸도 일정과 동일하게 (this.scrollHeight+4)+'px' 공식 적용
+            // 🌟 [핵심 수정] 일정 칸과 완벽히 동일한 Flex Layout (row) 구조 및 oninput 이벤트(+4px) 적용
             return `
-            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
-                <div style="position:absolute; top:8px; right:8px;">
-                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+            <div style="display:flex; flex-direction:column; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; margin-bottom:12px; transition:0.2s;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                    <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
+                        ${chipsHtml}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; background:transparent; border:none; color:#be185d; font-size:1.1rem; cursor:pointer;">✖</button>
+                    </div>
                 </div>
-                <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                    <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px; background:#fff; color:#1e293b;" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                </div>
             </div>`;
         }).join('');
     }
@@ -753,7 +758,6 @@ export class DayView extends BaseView {
         j.labelIds = j.labelIds.includes(labelId) ? j.labelIds.filter(id => id !== labelId) : [...j.labelIds, labelId];
         this.renderJournalEntries();
         
-        // 🌟 기록 라벨 토글 후에도 높이 유지 보정
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
                 ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
@@ -807,7 +811,6 @@ export class DayView extends BaseView {
         this.renderJournalEntries();
         store.hasUnsavedChanges = true;
         
-        // 🌟 기록 추가 시에도 높이 보정
         setTimeout(() => {
             document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
                 ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 4) + 'px';
