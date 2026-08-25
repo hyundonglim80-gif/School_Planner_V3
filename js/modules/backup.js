@@ -112,7 +112,7 @@ export const BackupManager = {
             <div style="display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
                 
                 <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin-bottom:0;">
-                    <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 내 개인 데이터 및 가입된 <strong>모든 그룹의 데이터</strong>를 한 번에 백업합니다. <br>(단, 가져오기(복원) 시에는 그룹 보호를 위해 개인 데이터로만 복원됩니다)</p>
+                    <p style="margin:0;"><strong>[개인 데이터 백업]</strong> 내 개인 메모, 일정, 수업, 기록 데이터만 안전하게 백업합니다. <br><span style="font-size:0.85rem; color:#64748b;">(공유 그룹의 일정 및 수업 데이터는 백업 대상에서 제외됩니다)</span></p>
                 </div>
 
                 <div>
@@ -365,9 +365,6 @@ export const BackupManager = {
         const incJournal = document.getElementById('backup-chk-journal').checked;
         const incEval = document.getElementById('backup-chk-eval').checked;
 
-        let myGroups = [];
-        try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
-
         const evMap = {}; const scMap = {}; const joMap = {}; const elMap = {};
 
         if (incEvent) {
@@ -385,50 +382,6 @@ export const BackupManager = {
         if (incEval) {
             const snap = await getDocs(query(window.getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => elMap[d.id] = { evalList: d.data().evalList || [] });
-        }
-
-        for (const g of myGroups) {
-            if (incEvent) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!evMap[d.id]) evMap[d.id] = { eventList: [] };
-                    const gList = d.data().eventList || [];
-                    gList.forEach(e => {
-                        evMap[d.id].eventList.push({
-                            ...e,
-                            content: `[👥 ${g.name}] ` + (e.content || '')
-                        });
-                    });
-                });
-            }
-            if (incClass) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!scMap[d.id]) scMap[d.id] = { periods: {} };
-                    const gPeriods = d.data().periods || {};
-                    for (const p in gPeriods) {
-                        if (!scMap[d.id].periods[p]) scMap[d.id].periods[p] = { subject: '', memo: '', supplies: '' };
-                        const target = scMap[d.id].periods[p];
-                        const source = gPeriods[p];
-                        if (source.subject) target.subject = target.subject ? `${target.subject}\n[👥 ${g.name}] ${source.subject}` : `[👥 ${g.name}] ${source.subject}`;
-                        if (source.memo) target.memo = target.memo ? `${target.memo}\n[👥 ${g.name}] ${source.memo}` : `[👥 ${g.name}] ${source.memo}`;
-                        if (source.supplies) target.supplies = target.supplies ? `${target.supplies} / [👥 ${g.name}] ${source.supplies}` : `[👥 ${g.name}] ${source.supplies}`;
-                    }
-                });
-            }
-            if (incEval) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!elMap[d.id]) elMap[d.id] = { evalList: [] };
-                    const gList = d.data().evalList || [];
-                    gList.forEach(e => {
-                        elMap[d.id].evalList.push({
-                            ...e,
-                            title: `[👥 ${g.name}] ` + (e.title || '')
-                        });
-                    });
-                });
-            }
         }
 
         const masterEventLabels = getEventLabels();
@@ -627,15 +580,6 @@ export const BackupManager = {
             rows.push([ 'MEMO', docSnap.id, d.text || '', d.completed ? 'O' : 'X', (d.labels || []).join(','), d.imageUrl || '', d.createdAt || Date.now() ]);
         });
 
-        let myGroups = [];
-        try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
-        for (const g of myGroups) {
-            const gSnap = await getDocs(query(getGroupCol(g.id, 'tasks'), orderBy('createdAt')));
-            gSnap.forEach(docSnap => {
-                const d = docSnap.data();
-                rows.push([ 'MEMO', docSnap.id, `[👥 ${g.name}] ` + (d.text || ''), d.completed ? 'O' : 'X', (d.labels || []).join(','), d.imageUrl || '', d.createdAt || Date.now() ]);
-            });
-        }
         return rows;
     },
 
