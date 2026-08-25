@@ -15,9 +15,9 @@ export class YearView extends BaseView {
     this.renderId = 0; 
     this.isRendering = false; 
     this.activeFilters = null; // 🌟 뷰어/에디터 통합 필터
-    this.renderedDateStrings = [];
   }
 
+  // 🌟 단일 통합 필터 HTML 생성
   getUnifiedFilterHtml() {
       let isPersonalActive = false;
       let activeGroupIds = [];
@@ -51,8 +51,8 @@ export class YearView extends BaseView {
       else this.renderViewer();
   }
 
-  // 🌟 [최적화 1] 1년 치가 아닌, 요청한 특정 기간(1개월)의 데이터만 조회하는 함수로 변경
-  async fetchDataForRange(startStr, endStr) {
+  // 🌟 [최적화 완료] 가장 빠르고 쾌적한 1회 전체 데이터 일괄 조회 방식으로 복구
+  async fetchYearData(startStr, endStr) {
     try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
     const eMap = {}, sMap = {};
@@ -139,275 +139,218 @@ export class YearView extends BaseView {
     return { orderedMonths: monthsInfo, prioritizedMonths };
   }
 
-  async loadSingleMonthData(mObj) {
-      const y = mObj.year;
-      const m = mObj.month;
-      const lastDate = new Date(y, m, 0).getDate();
-      const startStr = `${y}-${String(m).padStart(2, '0')}-01`;
-      const endStr = `${y}-${String(m).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`;
-      return await this.fetchDataForRange(startStr, endStr);
-  }
-
-  // ==============================================================================
-  // 👁️ [뷰어 모드]
-  // ==============================================================================
   async renderViewer() {
     this.renderId = Date.now();
     const currentRenderId = this.renderId;
     this.isRendering = true;
 
-    this.showLoading('이번 달 일정을 불러오는 중입니다...'); 
+    this.showLoading('클라우드에서 연간 일정을 100% 불러오는 중입니다...'); 
 
-    if (this.container) this.container.style.overflow = 'visible';
-    if (!window.db) return;
-
-    if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
-    
-    const targetY = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
-    const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(targetY);
-    
-    // 🌟 1. 12개월의 빈 껍데기(Skeleton) UI를 즉시 생성
-    const cardHtmlMap = {};
-    for (const m of orderedMonths) {
-        cardHtmlMap[`${m.year}-${m.month}`] = `<div id="viewer-month-${m.year}-${m.month}" style="height:600px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`;
+    if (this.container) {
+        this.container.style.overflow = 'visible';
     }
 
-    const progressHtml = `
-        <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
-            <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-            나머지 월의 데이터를 백그라운드에서 불러오는 중...
-        </div>
-        <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
-    `;
+    if (!window.db) return;
 
-    this.container.innerHTML = `
-        <div id="year-main-content">
-            ${progressHtml}
-            <div class="year-grid" id="year-grid-container">
-               ${orderedMonths.map(m => cardHtmlMap[`${m.year}-${m.month}`]).join('')}
-            </div>
-        </div>
-    `;
-
-    const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
-
-    // 🌟 2. 1순위(현재 월)의 데이터만 즉시 Firebase에서 요청하여 렌더링
-    const targetMonthObj = prioritizedMonths[0];
-    const firstMonthData = await this.loadSingleMonthData(targetMonthObj);
-    if (this.renderId !== currentRenderId) return;
-
-    this.renderMonthToViewerCard(targetMonthObj, firstMonthData.eMap, firstMonthData.sMap);
+    let allEvents = [];
+    const maxP = store.periodNames ? store.periodNames.length : 6;
     
-    // 🌟 3. 현재 월이 그려지자마자 그 위치로 부드럽지 않게(auto) 즉각 스크롤
-    requestAnimationFrame(() => {
-        const focusEl = document.getElementById(`viewer-card-${targetMonthObj.year}-${targetMonthObj.month}`);
-        if (focusEl) {
-            const header = document.querySelector('.app-header');
-            const hOffset = header ? header.offsetHeight : 0;
-            const absoluteY = focusEl.getBoundingClientRect().top + window.scrollY;
-            window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
+    try {
+      const targetY = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
+      const startStr = `${targetY}-03-01`;
+      const febLastDay = new Date(targetY + 1, 2, 0).getDate();
+      const endStr = `${targetY + 1}-02-${febLastDay}`;
+
+      const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
+      if (this.renderId !== currentRenderId) return;
+
+      if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+
+      const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
+
+      allDates.forEach(dateStr => {
+        let hasContent = false;
+        let htmlOutput = '';
+        let processedEvents = [];
+        let boxesHtml = '';
+        let hasClass = false;
+
+        for (let p = 1; p <= maxP; p++) {
+          let pTexts = [];
+          this.activeFilters.forEach(filterId => {
+              const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
+              if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
+                  let prefix = this.activeFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
+                  pTexts.push(prefix + subj.trim());
+              }
+          });
+
+          if (pTexts.length > 0) {
+            hasClass = true;
+            const text = pTexts.join(' / ');
+            let fontSize = "0.75rem"; let letterSpacing = "normal";
+            if (text.length === 3) { fontSize = "0.65rem"; letterSpacing = "-0.5px"; } 
+            else if (text.length === 4) { fontSize = "0.55rem"; letterSpacing = "-1px"; } 
+            else if (text.length >= 5) { fontSize = "0.45rem"; letterSpacing = "-1.5px"; }
+
+            boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="${text}">${text}</div>`;
+          } else {
+            boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
+          }
         }
-    });
 
-    // 🌟 4. 나머지 11개월은 사용자가 눈치채지 못하게 백그라운드에서 조용히 불러옵니다.
-    this.loadRemainingMonthsViewer(prioritizedMonths.slice(1), currentRenderId);
-  }
+        let scheduleHtml = (hasClass && store.showClass) ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
+        if (scheduleHtml) {
+            htmlOutput += scheduleHtml;
+            hasContent = true;
+        }
 
-  renderMonthToViewerCard(mObj, eMap, sMap) {
-      const y = mObj.year; const m = mObj.month;
-      const lastDate = new Date(y, m, 0).getDate();
+        if (eMap[dateStr] && eMap[dateStr].eventList && eMap[dateStr].eventList.length > 0) {
+          const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'));
+          
+          processedEvents = filteredEvents.map(e => ({ 
+              ...e, 
+              labelIds: e.labelIds || [],
+              content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
+          }));
+          htmlOutput += generateEventBadgesHTML(processedEvents, dateStr, 'compact');
+          hasContent = true;
+        }
+        
+        if (hasContent) {
+          allEvents.push({ dateStr: dateStr, htmlOutput: htmlOutput, events: processedEvents }); 
+        }
+      });
+
+      allEvents.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+      const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(targetY);
       const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
       const realTodayStr = formatDate(new Date());
-      const maxP = store.periodNames ? store.periodNames.length : 6;
-      
-      let allEvents = [];
-      for (let d = 1; d <= lastDate; d++) {
-          const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          let htmlOutput = ''; let processedEvents = []; let boxesHtml = ''; let hasClass = false;
 
-          for (let p = 1; p <= maxP; p++) {
-              let pTexts = [];
-              this.activeFilters.forEach(filterId => {
-                  const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
-                  if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
-                      let prefix = this.activeFilters.length > 1 ? (filterId === 'personal' ? '🔒 ' : '👥 ') : '';
-                      pTexts.push(prefix + subj.trim());
-                  }
-              });
-
-              if (pTexts.length > 0) {
-                  hasClass = true;
-                  const text = pTexts.join(' / ');
-                  let fontSize = text.length >= 5 ? "0.45rem" : (text.length === 4 ? "0.55rem" : (text.length === 3 ? "0.65rem" : "0.75rem"));
-                  let letterSpacing = text.length >= 5 ? "-1.5px" : (text.length === 4 ? "-1px" : (text.length === 3 ? "-0.5px" : "normal"));
-                  boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="${text}">${text}</div>`;
-              } else {
-                  boxesHtml += `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
-              }
-          }
-
-          let scheduleHtml = (hasClass && store.showClass) ? `<div style="display:flex; flex-wrap:nowrap; gap:2px; margin-top:4px; margin-bottom:4px; width:100%;">${boxesHtml}</div>` : '';
-          if (scheduleHtml) htmlOutput += scheduleHtml;
-
-          if (eMap[dateStr] && eMap[dateStr].eventList && eMap[dateStr].eventList.length > 0) {
-              const filteredEvents = eMap[dateStr].eventList.filter(e => this.activeFilters.includes(e.sharedGroupId || 'personal'));
-              processedEvents = filteredEvents.map(e => ({ 
-                  ...e, labelIds: e.labelIds || [],
-                  content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
-              }));
-              if(processedEvents.length > 0) htmlOutput += generateEventBadgesHTML(processedEvents, dateStr, 'compact');
-          }
-
-          if (htmlOutput) allEvents.push({ dateStr, htmlOutput, events: processedEvents }); 
-      }
-
-      let eventListHtml = '';
-      if (allEvents.length > 0) {
-          eventListHtml = allEvents.map(e => {
+      // 🌟 [핵심 변경] 깜빡임(Jitter) 없이 메모리에서 12개월의 HTML을 한방에 전부 완성
+      const allMonthsHtml = orderedMonths.map(mObj => {
+          const monthEvents = allEvents.filter(e => e.dateStr.startsWith(mObj.match));
+          let eventListHtml = '';
+          
+          if (monthEvents.length > 0) {
+            eventListHtml = monthEvents.map(e => {
               const parts = e.dateStr.split('-');
               const dayNum = parseInt(parts[2], 10);
               const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, dayNum);
               const dayOfWeek = dayNames[dateObj.getDay()];
               
               const isTodayEvent = (e.dateStr === realTodayStr);
-              const eventStyle = isTodayEvent ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
-              
+              const eventStyle = isTodayEvent 
+                  ? 'background-color:#eff6ff; padding:8px; border-radius:6px; border:2px solid #3b82f6; margin-bottom:10px;' 
+                  : 'margin-bottom:10px; border-bottom:1px dashed #e2e8f0; padding-bottom:6px;';
+
               let dateColor = '#2563eb'; 
-              if (isRedDay(e.dateStr, e.events)) dateColor = '#ef4444';
-              else if (dateObj.getDay() === 6) dateColor = '#3b82f6';
+              if (isRedDay(e.dateStr, e.events)) {
+                  dateColor = '#ef4444';
+              } else if (dateObj.getDay() === 6) {
+                  dateColor = '#3b82f6';
+              }
 
               return `<div style="${eventStyle}">
                         <div style="color:${dateColor}; font-weight:700; display:inline-block; cursor:pointer;" onclick="window.goToDay('${e.dateStr}')" title="${e.dateStr} 일 보기로 이동">${dayNum}일(${dayOfWeek})${isTodayEvent ? '🎯 오늘' : ''}</div>
                         <div style="margin-top:2px;">${e.htmlOutput}</div>
                       </div>`;
-          }).join('');
-      } else {
-          eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
-      }
+            }).join('');
+          } else {
+            eventListHtml = `<div style="text-align:center; color:#94a3b8; font-size:0.9rem; padding-top:10px;">일정 없음</div>`;
+          }
 
-      const isCurrentMonthCard = (mObj.match === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-`);
-      const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
+          const isCurrentMonthCard = (mObj.match === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-`);
+          const cardClass = isCurrentMonthCard ? 'year-today-card' : '';
 
-      const cardHtml = `
-        <div id="viewer-card-${mObj.year}-${mObj.month}" class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
-          <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
-          <div style="line-height:1.4;">${eventListHtml}</div>
-        </div>`;
-      
-      const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
-      if (containerEl) containerEl.outerHTML = cardHtml;
+          return `
+            <div id="viewer-card-${mObj.year}-${mObj.month}" class="mini-month ${cardClass}" style="display:flex; flex-direction:column; gap:8px;">
+              <h3 style="color:#1e40af; border-bottom:2px solid #bfdbfe; padding-bottom:4px; text-align:center;">${mObj.label}</h3>
+              <div style="line-height:1.4;">${eventListHtml}</div>
+            </div>`;
+      }).join('');
+
+      // 🌟 단 한 번의 DOM 렌더링으로 1년 치를 화면에 띄움
+      this.container.innerHTML = `
+          <div id="year-main-content">
+              <div class="year-grid" id="year-grid-container">
+                 ${allMonthsHtml}
+              </div>
+          </div>
+      `;
+
+      // 🌟 통합 필터 상단 슬롯에 주입
+      const filterSlot = document.getElementById('global-unified-filter-slot');
+      if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+
+      // 🌟 화면이 완성되자마자 부드러움(smooth) 없이 즉시(auto) 안착하여 깜빡임 원천 차단!
+      requestAnimationFrame(() => {
+          const targetMonthObj = prioritizedMonths[0];
+          const focusEl = document.getElementById(`viewer-card-${targetMonthObj.year}-${targetMonthObj.month}`);
+          if (focusEl) {
+              const header = document.querySelector('.app-header');
+              const hOffset = header ? header.offsetHeight : 0;
+              const absoluteY = focusEl.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
+          }
+      });
+
+    } catch (error) {}
+    finally {
+        this.isRendering = false;
+    }
   }
 
-  async loadRemainingMonthsViewer(remainingMonths, currentRenderId) {
-      for (const mObj of remainingMonths) {
-          if (this.renderId !== currentRenderId) return;
-          const data = await this.loadSingleMonthData(mObj);
-          if (this.renderId !== currentRenderId) return;
-          this.renderMonthToViewerCard(mObj, data.eMap, data.sMap);
-          // 브라우저가 숨을 돌리도록 아주 짧은 휴식 부여 (화면 멈춤 방지)
-          await new Promise(r => setTimeout(r, 50)); 
-      }
-      const progressEl = document.getElementById('year-render-progress');
-      if (progressEl) progressEl.remove();
-      this.isRendering = false;
-  }
-
-
-  // ==============================================================================
-  // ✏️ [에디터 모드]
-  // ==============================================================================
   async renderEditor() {
     this.renderId = Date.now();
     const currentRenderId = this.renderId;
     this.isRendering = true;
 
-    this.showLoading('이번 달 편집 시트를 불러오는 중입니다...'); 
+    this.showLoading('연간 데이터를 100% 가져오는 중입니다...'); 
 
-    if (this.container) this.container.style.overflow = 'visible';
-    if (!window.db) return;
-
-    if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
-    
-    const currentYear = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
-    const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
-    
-    this.renderedDateStrings = []; 
-    const maxP = store.periodNames ? store.periodNames.length : 6;
-
-    const progressHtml = `
-        <div id="year-render-progress" style="display:flex; justify-content:center; align-items:center; padding:12px; margin-bottom:15px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:1rem; gap:10px; border:1px solid #bfdbfe;">
-            <div style="width:20px; height:20px; border:3px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 1s linear infinite;"></div>
-            나머지 월의 데이터를 백그라운드에서 불러오는 중...
-        </div>
-        <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
-    `;
-
-    // 🌟 1. 12개월 <tbody> 껍데기 즉시 생성
-    const tbodyHtmlMap = {};
-    for (const m of orderedMonths) {
-        tbodyHtmlMap[`${m.year}-${m.month}`] = `<tr><td colspan="10" style="height:600px; padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0; text-align:center; vertical-align:middle;">${m.label} 로딩 중...</td></tr>`;
+    if (this.container) {
+        this.container.style.overflow = 'visible';
     }
 
-    this.container.innerHTML = `
-      <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
-        ${progressHtml}
-        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
-          <tbody style="border-bottom: 2px solid #cbd5e1;">
-            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
-              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
-              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
-              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
-            </tr>
-          </tbody>
-          ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}">${tbodyHtmlMap[`${m.year}-${m.month}`]}</tbody>`).join('')}
-        </table>
-      </div>`;
+    if (!window.db) return;
 
-    const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+    const currentYear = this.currentDate ? this.currentDate.getFullYear() : new Date().getFullYear();
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // 🌟 2. 1순위(현재 월)의 데이터만 요청하여 HTML 테이블로 변환
-    const targetMonthObj = prioritizedMonths[0];
-    const firstMonthData = await this.loadSingleMonthData(targetMonthObj);
+    const startStr = `${currentYear}-03-01`;
+    const nextYear = currentYear + 1;
+    const febLastDay = new Date(nextYear, 2, 0).getDate();
+    const endStr = `${nextYear}-02-${febLastDay}`;
+
+    const { eMap, sMap } = await this.fetchYearData(startStr, endStr);
     if (this.renderId !== currentRenderId) return;
 
-    this.renderMonthToEditorTbody(targetMonthObj, firstMonthData.eMap, firstMonthData.sMap, maxP);
+    if (!this.activeFilters) {
+        this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+    }
 
-    // 🌟 3. 현재 월이 화면에 렌더링되자마자 즉시(auto) 스크롤
-    requestAnimationFrame(() => {
-        const firstRow = document.querySelector(`tr[data-year-date^="${targetMonthObj.year}-${String(targetMonthObj.month).padStart(2, '0')}"]`);
-        if (firstRow) {
-            const header = document.querySelector('.app-header');
-            const hOffset = header ? header.offsetHeight : 0;
-            const absoluteY = firstRow.getBoundingClientRect().top + window.scrollY;
-            window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
-            
-            setTimeout(() => {
-                document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-                    ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
-                });
-            }, 10);
+    const { orderedMonths, prioritizedMonths } = this.getPrioritizedMonths(currentYear);
+    
+    const monthChunksMap = {};
+    for (const mObj of orderedMonths) {
+        const lastDay = new Date(mObj.year, mObj.month, 0).getDate();
+        const chunk = [];
+        for (let d = 1; d <= lastDay; d++) {
+            const dateStr = `${mObj.year}-${String(mObj.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            chunk.push({ year: mObj.year, month: mObj.month, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
         }
-    });
+        monthChunksMap[`${mObj.year}-${mObj.month}`] = chunk;
+    }
 
-    // 🌟 4. 나머지 월 백그라운드 렌더링 시작
-    this.loadRemainingMonthsEditor(prioritizedMonths.slice(1), currentRenderId, maxP);
-  }
+    this.renderedDateStrings = [];
+    const masterLabels = getEventLabels(); 
+    const maxP = store.periodNames ? store.periodNames.length : 6;
 
-  renderMonthToEditorTbody(mObj, eMap, sMap, maxP) {
-      const y = mObj.year; const m = mObj.month;
-      const lastDate = new Date(y, m, 0).getDate();
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-      const masterLabels = getEventLabels(); 
-
-      const chunk = [];
-      for (let d = 1; d <= lastDate; d++) {
-          const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          chunk.push({ year: y, month: m, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
-      }
-
-      let rowsHtml = chunk.map(item => {
+    // 🌟 [핵심 변경] 깜빡임(Jitter) 없이 메모리에서 12개월의 에디터 테이블을 한방에 전부 완성
+    const allEditorMonthsHtml = orderedMonths.map(mObj => {
+        const chunk = monthChunksMap[`${mObj.year}-${mObj.month}`];
+        const rowsHtml = chunk.map(item => {
           const dateObj = new Date(item.year, item.month - 1, item.day);
           const dayOfWeekNum = dateObj.getDay();
           const dayOfWeek = dayNames[dayOfWeekNum];
@@ -449,46 +392,66 @@ export class YearView extends BaseView {
 
           return `
             <tr data-year-date="${item.dateStr}">
-              <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; position: static !important; z-index: auto !important; transform: none !important;">
+              <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
                 <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                   <span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>
                   <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
                 </div>
               </td>
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+              <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
                   일정<br>
                   <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
               </td>
-              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
+              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
             </tr>
             <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
+              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
               ${periodCellsHtml}
             </tr>`;
-      }).join('');
+        }).join('');
 
-      const targetTbody = document.getElementById(`editor-month-${y}-${m}`);
-      if (targetTbody) targetTbody.innerHTML = rowsHtml;
-  }
+        return `<tbody id="editor-month-${mObj.year}-${mObj.month}">${rowsHtml}</tbody>`;
+    }).join('');
 
-  async loadRemainingMonthsEditor(remainingMonths, currentRenderId, maxP) {
-      for (const mObj of remainingMonths) {
-          if (this.renderId !== currentRenderId) return;
-          const data = await this.loadSingleMonthData(mObj);
-          if (this.renderId !== currentRenderId) return;
-          this.renderMonthToEditorTbody(mObj, data.eMap, data.sMap, maxP);
-          await new Promise(r => setTimeout(r, 50)); 
-      }
-      
-      const progressEl = document.getElementById('year-render-progress');
-      if (progressEl) progressEl.remove();
-      this.isRendering = false;
+    // 🌟 단 한 번의 DOM 렌더링으로 1년 치를 화면에 띄움
+    this.container.innerHTML = `
+      <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+        <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
+          <tbody style="border-bottom: 2px solid #cbd5e1;">
+            <tr style="background:#f1f5f9;">
+              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
+            </tr>
+          </tbody>
+          ${allEditorMonthsHtml}
+        </table>
+      </div>`;
 
-      setTimeout(() => {
-          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
-              ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
-          });
-      }, 500);
+    // 🌟 통합 필터 상단 슬롯에 주입
+    const filterSlot = document.getElementById('global-unified-filter-slot');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
+
+    // 🌟 화면이 100% 완성되자마자 부드러움 없이 즉시(auto) 스크롤하여 깜빡임 제거
+    requestAnimationFrame(() => {
+        const targetMonthObj = prioritizedMonths[0];
+        const firstRow = document.querySelector(`tr[data-year-date^="${targetMonthObj.year}-${String(targetMonthObj.month).padStart(2, '0')}"]`);
+        if (firstRow) {
+            const header = document.querySelector('.app-header');
+            const hOffset = header ? header.offsetHeight : 0;
+            const absoluteY = firstRow.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'auto'});
+            
+            // 텍스트 상자 높이 보정
+            setTimeout(() => {
+                document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+                    ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+                });
+            }, 100);
+        }
+    });
+
+    this.isRendering = false;
   }
 
   changeEventGroup(dateStr, idx, newGroupId) {
@@ -683,7 +646,7 @@ export class YearView extends BaseView {
 
   save() {
     if (this.isRendering) {
-        alert('화면을 100% 로딩 중입니다. 잠시 후 저장해 주세요.');
+        alert('화면을 로딩 중입니다. 렌더링이 완료된 후 저장해 주세요.');
         return;
     }
 
