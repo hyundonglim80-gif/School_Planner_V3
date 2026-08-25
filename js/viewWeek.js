@@ -16,18 +16,25 @@ export class WeekView extends BaseView {
   }
 
   // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성
-  getUnifiedFilterHtml(instanceName) {
-      if (!this.activeFilters) {
-          this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+  getUnifiedFilterHtml() {
+      let isPersonalActive = false;
+      let activeGroupIds = [];
+
+      if (store.mode === 'editor') {
+          isPersonalActive = (this.scheduleGroupId === null);
+          if (this.scheduleGroupId) activeGroupIds.push(this.scheduleGroupId);
+      } else {
+          if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
+          isPersonalActive = this.activeFilters.includes('personal');
+          activeGroupIds = this.activeFilters;
       }
-      const isPersonalActive = this.activeFilters.includes('personal');
-      let html = `
-          <div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">
-              <div onclick="window.toggleUnifiedFilter('${instanceName}', 'personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>
-      `;
+
+      let html = `<div style="display:inline-flex; align-items:center; gap:4px; background:#f8fafc; padding:3px 6px; border-radius:8px; border:1px solid #e2e8f0;">`;
+      html += `<div onclick="window.toggleUnifiedFilter('personal')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isPersonalActive ? 'background:#3b82f6; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">🔒 개인</div>`;
+
       this.myGroups.forEach(g => {
-          const isActive = this.activeFilters.includes(g.id);
-          html += `<div onclick="window.toggleUnifiedFilter('${instanceName}', '${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
+          const isActive = activeGroupIds.includes(g.id);
+          html += `<div onclick="window.toggleUnifiedFilter('${g.id}')" style="padding:4px 10px; font-size:0.8rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${isActive ? 'background:#10b981; color:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.1);' : 'background:transparent; color:#64748b;'}">👥 ${g.name}</div>`;
       });
       html += `</div>`;
       return html;
@@ -105,13 +112,12 @@ export class WeekView extends BaseView {
 
     if (this.container) {
         this.container.style.overflow = 'visible';
-        this.container.style.overflowX = 'visible';
-        this.container.style.overflowY = 'visible';
     }
 
     const weekDates = this.getWeekDates();
     const { eMap, sMap } = await this.fetchWeekData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr);
     const realTodayStr = formatDate(new Date());
+    const maxP = store.periodNames ? store.periodNames.length : 6;
 
     if (!this.activeFilters) this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
 
@@ -137,7 +143,7 @@ export class WeekView extends BaseView {
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+      const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
         const p = i + 1;
         let cellContentHtml = '';
 
@@ -186,11 +192,11 @@ export class WeekView extends BaseView {
             </div>
           </td>
           <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">일정</td>
-          <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${eventHtml}</td>
+          <td colspan="${maxP}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${eventHtml}</td>
         </tr>
         <tr style="${store.showClass ? '' : 'display:none;'}">
           <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
-          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
+          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
         </tr>
         <tr style="${store.showClass ? '' : 'display:none;'}">${periodCellsHtml}</tr>
       `;
@@ -201,9 +207,9 @@ export class WeekView extends BaseView {
         <table style="width:100%; border-collapse:collapse; text-align:center;"><tbody>${rowsHtml}</tbody></table>
       </div>`;
       
-    // 🌟 통합 필터 슬롯 주입
+    // 🌟 글로벌 필터 슬롯에 필터 HTML 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('weekViewInstance');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
   }
 
   async renderEditor() {
@@ -211,8 +217,6 @@ export class WeekView extends BaseView {
 
     if (this.container) {
         this.container.style.overflow = 'visible';
-        this.container.style.overflowX = 'visible';
-        this.container.style.overflowY = 'visible';
     }
 
     const weekDates = this.getWeekDates();
@@ -220,18 +224,11 @@ export class WeekView extends BaseView {
     
     const realTodayStr = formatDate(new Date());
     const masterLabels = getEventLabels(); 
+    const maxP = store.periodNames ? store.periodNames.length : 6;
 
     if (!this.activeFilters) {
         this.activeFilters = ['personal', ...this.myGroups.map(g => g.id)];
     }
-
-    const wsSelectHtml = `
-        <div style="display:inline-flex; background:#f0fdf4; padding:4px 8px; border-radius:8px; border:1px solid #bbf7d0; align-items:center; margin-bottom:8px;">
-            <span style="font-size:0.85rem; font-weight:bold; color:#0f766e; margin-right:6px;">작업공간:</span>
-            <div onclick="window.weekViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표</div>
-            ${this.myGroups.map(g => `<div onclick="window.weekViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name}</div>`).join('')}
-        </div>
-    `;
 
     const rowsHtml = weekDates.map(d => {
       const periods = sMap[d.dateStr]?.[this.scheduleGroupId || 'personal'] || {};
@@ -259,7 +256,7 @@ export class WeekView extends BaseView {
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+      const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
         const pObj = periods[i + 1] || {};
         let cellText = "";
         if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
@@ -280,13 +277,13 @@ export class WeekView extends BaseView {
           </td>
           <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">
               일정<br>
-              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#dbeafe; color:#2563eb; border:1px dashed #93c5fd; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
+              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
           </td>
-          <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${compactEditorHtml}</td>
+          <td colspan="${maxP}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${compactEditorHtml}</td>
         </tr>
         <tr style="${store.showClass ? '' : 'display:none;'}">
           <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
-          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
+          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
         </tr>
         <tr data-week-schedule-date="${d.dateStr}" style="${store.showClass ? '' : 'display:none;'}">${periodCellsHtml}</tr>
       `;
@@ -294,18 +291,14 @@ export class WeekView extends BaseView {
 
     this.container.innerHTML = `
       <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-           <h3 style="margin:0; font-size:var(--font-header-title); color:#1e293b;"></h3>
-           <div style="${store.showClass ? '' : 'display:none;'}">${wsSelectHtml}</div>
-        </div>
         <table style="width:100%; border-collapse:collapse; text-align:center;">
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`;
       
-    // 🌟 통합 필터 상단 슬롯에 주입
+    // 🌟 글로벌 필터 슬롯에 필터 HTML 주입
     const filterSlot = document.getElementById('global-unified-filter-slot');
-    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml('weekViewInstance');
+    if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
   }
 
   changeEventGroup(dateStr, idx, newGroupId) {
@@ -330,8 +323,14 @@ export class WeekView extends BaseView {
       const uid = window.auth?.currentUser?.uid;
       const inst = 'window.weekViewInstance';
       
+      const currentFilter = store.mode === 'editor' ? (this.scheduleGroupId || 'personal') : null;
+
       return list.map((e, idx) => {
-          const isVisible = this.activeFilters.includes(e.sharedGroupId || 'personal');
+          // 🌟 에디터 모드에서는 선택된 작업공간만 보이도록 처리
+          const isVisible = store.mode === 'editor' 
+              ? ((e.sharedGroupId || 'personal') === currentFilter) 
+              : this.activeFilters.includes(e.sharedGroupId || 'personal');
+          
           const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
 
@@ -434,63 +433,6 @@ export class WeekView extends BaseView {
               window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
           });
       });
-  }
-
-  toggleCompactEventLabel(dateStr, idx, labelId) {
-      const scopeInstance = window[`${store.scope}ViewInstance`];
-      if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
-      store.hasUnsavedChanges = true;
-      
-      const ev = window[`tempEvents_${dateStr}`]?.[idx];
-      if (!ev) return;
-      ev.labelIds = ev.labelIds || [];
-      
-      const isActive = ev.labelIds.includes(labelId);
-      const labelObj = getEventLabels().find(l => l.id === labelId);
-
-      if (isActive) {
-          ev.labelIds = ev.labelIds.filter(id => id !== labelId);
-      } else {
-          if (labelObj?.isPeriod || labelObj?.isRecur) {
-              const evContent = ev.content || '';
-              const backupEvent = { ...ev };
-              
-              if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
-                  scopeInstance.syncScheduleInputs();
-              }
-
-              window[`tempEvents_${dateStr}`].splice(idx, 1);
-              window.saveCurrentViewData(true);
-              
-              const callback = (isSaved) => { 
-                  if(isSaved) window.render(); 
-                  else {
-                      window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-                      window[`tempEvents_${dateStr}`].push(backupEvent);
-                      window.saveCurrentViewData(true);
-                      setTimeout(() => window.render(), 100);
-                  }
-              };
-
-              labelObj.isPeriod 
-                  ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
-                  : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
-              return; 
-          }
-          
-          if (labelObj?.isForward) {
-              ev.labelIds = ev.labelIds.filter(id => {
-                  const lObj = getEventLabels().find(x => x.id === id);
-                  return !(lObj && (lObj.isPeriod || lObj.isRecur));
-              });
-          }
-          ev.labelIds.push(labelId);
-      }
-      
-      const container = document.getElementById(`compact-events-${dateStr}`);
-      if (container && scopeInstance) {
-          container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
-      }
   }
 
   updateCompactEvent(dateStr, idx, field, value) {
