@@ -5,9 +5,6 @@ import { formatDate, parseLocalDate, getEventLabels } from './core/utils.js';
 import { getUserCol, getGroupCol, setNetworkOnline, setNetworkOffline } from './firebase.js'; 
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
 
-// ==========================================================================
-// 🚀 1. 앱 상태 관리 및 초기화 설정
-// ==========================================================================
 const toggleState = (key) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     store[key] = !store[key];
@@ -202,9 +199,6 @@ export const loadSettings = async () => {
     } catch (error) { console.warn("설정 로드 에러(오프라인 시 정상):", error); }
 };
 
-// ==========================================================================
-// 🖥️ 2. 메인 렌더링 엔진
-// ==========================================================================
 export const updateTitle = () => {
     const titleEl = document.getElementById("date-range-text");
     if (!titleEl) return;
@@ -335,9 +329,6 @@ export const saveCurrentViewData = (silent = false) => {
     }
 };
 
-// ==========================================================================
-// ⚙️ 3. 앱 초기화 및 전역 이벤트
-// ==========================================================================
 let hasAttachedAppEvents = false;
 
 const initApp = () => {
@@ -487,9 +478,6 @@ const initApp = () => {
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
 else initApp();
 
-// ==========================================================================
-// 📡 4. 기능 및 UI 토글러 모음
-// ==========================================================================
 export const toggleNetworkMode = async (forceMode = null) => {
     const toggleBtn = document.getElementById('network-toggle-btn');
     const manualSyncBtn = document.getElementById('manual-sync-btn');
@@ -585,9 +573,6 @@ export const toggleSwipeMode = () => {
     alert(`스와이프 동작이 '${mode === 'date' ? '이전/다음 날짜 이동' : '메모/년간/월간/주간/하루 화면 이동'}'(으)로 변경되었습니다.`);
 };
 
-// ==========================================================================
-// 🚀 5. 자동 이월(Forward) 엔진
-// ==========================================================================
 export const autoForwardIncompleteEvents = async () => {
     const todayStr = formatDate(new Date()); 
     try {
@@ -658,7 +643,6 @@ export const autoForwardIncompleteEvents = async () => {
                     const existsInNext = nextList.some(n => n.forwardChainId === chainId);
                     if (!existsInNext) {
                         const sourceEv = chainEventData[chainId];
-                        // 🌟 [V3.6 버그 픽스] 이월되는 일정에 id와 authorId가 누락되는 문제 해결
                         nextList.unshift({
                             id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
                             authorId: sourceEv.authorId || window.auth?.currentUser?.uid,
@@ -796,9 +780,6 @@ export const executeForwardDelete = async (mode, baseDateStr, chainId, onConfirm
     if (onConfirm) onConfirm();
 };
 
-// ==========================================================================
-// 📅 6. 다중 일정(기간/반복) 설정 및 삭제 팝업 엔진
-// ==========================================================================
 export const openPeriodModal = async (startDateStr, labelName, textContent, callback, labelId) => {
     let myGroups = [];
     try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
@@ -885,7 +866,6 @@ export const executeGroupSave = async (labelName, callback, mode, labelId) => {
         const docSnap = await getDoc(docRef);
         let list = docSnap.exists() ? (docSnap.data().eventList || []) : [];
 
-        // 🌟 [V3.6 버그 픽스] 다중/반복 일정 생성 시 id 및 authorId 누락 문제 해결
         list.push({ 
             id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
             authorId: window.auth?.currentUser?.uid,
@@ -988,9 +968,6 @@ export const executeGroupDelete = async (mode, baseDateStr, groupId, labelIdOrNa
     if (onConfirm) onConfirm();
 };
 
-// ==========================================================================
-// 📅 7. D-Day 기능 
-// ==========================================================================
 export const toggleDdayMenu = () => {
     if (!store.dDayList?.length) return openDdaySettingsModal();
     const dropdown = document.getElementById('dday-dropdown');
