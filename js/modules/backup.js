@@ -419,9 +419,11 @@ export const BackupManager = {
                         
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
                         const pre = e.completed ? '[v] ' : '';
-                        
                         const idStr = e.id ? ` {#${e.id}}` : '';
-                        return `${pre}[${lName}] ${e.content}${idStr}`;
+                        
+                        // 🌟 [핵심 수정 1] 일정 텍스트 내부의 줄바꿈을 임시 기호로 변경하여 CSV 구조 파괴 방지
+                        const safeContent = (e.content || '').replace(/\n/g, ' ↵ ');
+                        return `${pre}[${lName}] ${safeContent}${idStr}`;
                     }).join('\n');
                 }
                 row.push(evText);
@@ -454,9 +456,11 @@ export const BackupManager = {
 
                         let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
                         const pre = j.completed ? '[v] ' : '';
-                        
                         const idStr = j.id ? ` {#${j.id}}` : '';
-                        return `${pre}[${lName}] ${j.content}${idStr}`;
+                        
+                        // 🌟 [핵심 수정 1] 기록 텍스트 내부의 줄바꿈 보호
+                        const safeContent = (j.content || '').replace(/\n/g, ' ↵ ');
+                        return `${pre}[${lName}] ${safeContent}${idStr}`;
                     }).join('\n');
                 }
                 row.push(joText);
@@ -628,6 +632,7 @@ export const BackupManager = {
 
         const parseEventText = (rawText, type) => {
             if (!rawText || !rawText.trim()) return [];
+            // 가져올 때 엔터를 기준으로 완벽하게 각 일정을 분리합니다.
             const lines = rawText.split('\n');
             const eventList = [];
             const targetLabels = type === 'journal' ? masterJournalLabels : masterLabels;
@@ -653,6 +658,9 @@ export const BackupManager = {
                         id = idMatch[1];
                         rawContent = rawContent.replace(/\s*{#([^}]+)}$/, '').trim();
                     }
+                    
+                    // 🌟 [핵심 수정 1] 임시 기호를 다시 완벽한 줄바꿈으로 복원
+                    rawContent = rawContent.replace(/ ↵ /g, '\n');
 
                     let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
                     if (labelsArray.length === 0) labelsArray = [type === 'journal' ? '기록' : '일정'];
@@ -676,7 +684,6 @@ export const BackupManager = {
                         mappedLabelIds.push(lObj.id);
                     });
 
-                    // 🌟 [수정됨] id가 존재할 때만 추가하여 undefined 오류 원천 차단
                     let evObj = { labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: rawContent, completed: completed };
                     if (id) evObj.id = id;
                     eventList.push(evObj);
@@ -688,13 +695,15 @@ export const BackupManager = {
                         id = idMatch[1];
                         t = t.replace(/\s*{#([^}]+)}$/, '').trim();
                     }
+                    
+                    // 🌟 [핵심 수정 1] 임시 기호를 다시 완벽한 줄바꿈으로 복원
+                    t = t.replace(/ ↵ /g, '\n');
 
                     if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
                         const skipLabel = targetLabels.find(l => l.isSkip);
                         if (skipLabel) defaultLabelIds = [skipLabel.id];
                     }
                     
-                    // 🌟 [수정됨] id가 존재할 때만 추가하여 undefined 오류 원천 차단
                     let evObj = { labelIds: defaultLabelIds, content: t, completed: completed };
                     if (id) evObj.id = id;
                     eventList.push(evObj);
@@ -861,7 +870,7 @@ export const BackupManager = {
 
                 if (existing) {
                     existing.completed = item.completed; 
-                    existing.source = item.source || existing.source;
+                    if (item.source !== undefined) existing.source = item.source;
                     if (!existing.id && item.id) existing.id = item.id;
                     if (!existing.authorId && item.authorId) existing.authorId = item.authorId;
                     if (!existing.forwardChainId && item.forwardChainId) existing.forwardChainId = item.forwardChainId;
@@ -891,7 +900,9 @@ export const BackupManager = {
                 
                 if (window.formatEventListToText) evText = window.formatEventListToText(newEventList);
 
-                batch.set(doc(getUserCol('events'), dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }); 
+                // 🌟 [핵심 수정 2] JSON.parse(JSON.stringify)를 통해 Firestore가 거부하는 undefined 찌꺼기 완벽 제거
+                const safePayload = JSON.parse(JSON.stringify({ eventList: newEventList, eventText: evText, updatedAt: Date.now() }));
+                batch.set(doc(getUserCol('events'), dStr), safePayload); 
                 opCount++;
             }
 
@@ -902,9 +913,12 @@ export const BackupManager = {
                     let existingPeriods = scSnap.exists() ? (scSnap.data().periods || {}) : {};
                     const newPeriods = scheduleDataMap[dStr];
                     for (let p in newPeriods) existingPeriods[p] = newPeriods[p];
-                    batch.set(scRef, { periods: existingPeriods, updatedAt: Date.now() });
+                    
+                    const safePayload = JSON.parse(JSON.stringify({ periods: existingPeriods, updatedAt: Date.now() }));
+                    batch.set(scRef, safePayload);
                 } else {
-                    batch.set(doc(getUserCol('schedules'), dStr), { periods: scheduleDataMap[dStr], updatedAt: Date.now() }); 
+                    const safePayload = JSON.parse(JSON.stringify({ periods: scheduleDataMap[dStr], updatedAt: Date.now() }));
+                    batch.set(doc(getUserCol('schedules'), dStr), safePayload); 
                 }
                 opCount++;
             }
@@ -918,7 +932,8 @@ export const BackupManager = {
                         newJournalList = getUniqueList([...existList, ...newJournalList]); 
                     }
                 }
-                batch.set(doc(getUserCol('journals'), dStr), { entries: newJournalList, updatedAt: Date.now() }); 
+                const safePayload = JSON.parse(JSON.stringify({ entries: newJournalList, updatedAt: Date.now() }));
+                batch.set(doc(getUserCol('journals'), dStr), safePayload); 
                 opCount++;
             }
 
@@ -937,7 +952,8 @@ export const BackupManager = {
                         newEvalList = combined;
                     }
                 }
-                batch.set(doc(getUserCol('evaluations'), dStr), { evalList: newEvalList, updatedAt: Date.now() }); 
+                const safePayload = JSON.parse(JSON.stringify({ evalList: newEvalList, updatedAt: Date.now() }));
+                batch.set(doc(getUserCol('evaluations'), dStr), safePayload); 
                 opCount++;
             }
 
@@ -1005,11 +1021,13 @@ export const BackupManager = {
                 const imageUrl = r[5] || '';
                 const createdAt = parseInt(r[6], 10) || Date.now();
 
-                batch.set(doc(getUserCol('tasks'), id), {
+                // 🌟 [핵심 수정 2] undefined 찌꺼기 필터링 적용
+                const payload = JSON.parse(JSON.stringify({
                     text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
                     createdAt: createdAt, updatedAt: Date.now(), order: -createdAt,
-                    authorId: window.auth?.currentUser?.uid 
-                }, { merge: true });
+                    authorId: window.auth?.currentUser?.uid || null 
+                }));
+                batch.set(doc(getUserCol('tasks'), id), payload, { merge: true });
                 
                 opCount++;
                 if (opCount > 400) {
@@ -1036,7 +1054,7 @@ export const BackupManager = {
                 });
                 newLinks = combinedLinks;
             }
-            batch.set(doc(getUserCol('settings'), 'user_links'), { links: newLinks }, { merge: true });
+            batch.set(doc(getUserCol('settings'), 'user_links'), JSON.parse(JSON.stringify({ links: newLinks })), { merge: true });
             opCount++;
         }
 
