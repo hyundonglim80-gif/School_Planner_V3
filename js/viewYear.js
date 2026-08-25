@@ -11,13 +11,13 @@ export class YearView extends BaseView {
   constructor(container) {
     super(container); 
     this.myGroups = [];
-    this.scheduleGroupId = null; 
+    this.scheduleGroupId = null; // 에디터 모드 전용 (단일 선택)
     this.renderId = 0; 
     this.isRendering = false; 
-    this.activeFilters = null; // 🌟 통합 필터 상태 관리
+    this.activeFilters = null; // 🌟 뷰어/에디터 통합 필터
   }
 
-  // 🌟 [핵심 변경] 단일 통합 필터 HTML 생성
+  // 🌟 단일 통합 필터 HTML 생성 (index.html 슬롯에 그려짐)
   getUnifiedFilterHtml() {
       let isPersonalActive = false;
       let activeGroupIds = [];
@@ -234,6 +234,7 @@ export class YearView extends BaseView {
           <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
       `;
 
+      // 🌟 [뷰어 모드] 불필요한 스크롤 조작을 걷어내고 메인 컨텐츠만 깔끔하게 렌더링
       this.container.innerHTML = `
           <div id="year-main-content">
               ${progressHtml}
@@ -243,7 +244,7 @@ export class YearView extends BaseView {
           </div>
       `;
 
-      // 🌟 통합 필터 상단 슬롯에 주입
+      // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
       const filterSlot = document.getElementById('global-unified-filter-slot');
       if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
 
@@ -293,20 +294,8 @@ export class YearView extends BaseView {
           </div>`;
         
         const containerEl = document.getElementById(`viewer-month-${mObj.year}-${mObj.month}`);
-        if (containerEl) {
-            containerEl.outerHTML = cardHtml;
-            if (mObj.distance === 0) {
-                setTimeout(() => {
-                    const focusEl = document.getElementById(`viewer-card-${mObj.year}-${mObj.month}`);
-                    if (focusEl) {
-                        const header = document.querySelector('.app-header');
-                        const hOffset = header ? header.offsetHeight : 0;
-                        const absoluteY = focusEl.getBoundingClientRect().top + window.scrollY;
-                        window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'smooth'});
-                    }
-                }, 100);
-            }
-        }
+        if (containerEl) containerEl.outerHTML = cardHtml;
+        
         await new Promise(r => setTimeout(r, 40)); 
       }
 
@@ -372,23 +361,23 @@ export class YearView extends BaseView {
         <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
     `;
 
-    // 🌟 [에디터 모드] 테이블 구조는 <td>를 사용하여 스크롤 시 머리글이 고정되지 않게 회피함
+    // 🌟 [에디터 모드] 테이블 구조는 <td>를 사용하여 스크롤 시 머리글이 절대 고정되지 않게 회피함
     this.container.innerHTML = `
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
         ${progressHtml}
         <table id="year-editor-table" style="width:100%; border-collapse:collapse; text-align:center;">
           <tbody style="border-bottom: 2px solid #cbd5e1;">
-            <tr style="background:#f1f5f9;">
-              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td>
-              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td>
-              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td>
+            <tr style="background:#f1f5f9; position: static !important; transform: none !important;">
+              <td style="width:110px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">날짜</td>
+              <td style="width:60px; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">구분</td>
+              <td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b; position: static !important; top: auto !important; z-index: auto !important;">📌 내용 (직접 수정)</td>
             </tr>
           </tbody>
           ${orderedMonths.map(m => `<tbody id="editor-month-${m.year}-${m.month}"><tr><td colspan="10" style="padding:40px; color:#94a3b8; font-weight:bold; background:#f8fafc; border:1px solid #e2e8f0;">${m.label} 로딩 중...</td></tr></tbody>`).join('')}
         </table>
       </div>`;
 
-    // 🌟 통합 필터 슬롯 주입
+    // 🌟 통합 필터 상단 슬롯에 주입 (index.html 연동)
     const filterSlot = document.getElementById('global-unified-filter-slot');
     if (filterSlot) filterSlot.innerHTML = this.getUnifiedFilterHtml();
 
@@ -440,39 +429,26 @@ export class YearView extends BaseView {
 
           return `
             <tr data-year-date="${item.dateStr}">
-              <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
+              <td rowspan="${store.showClass ? 2 : 1}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px; position: static !important; z-index: auto !important; transform: none !important;">
                 <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                   <span onclick="window.goToDay('${item.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${item.dateStr} 일 보기로 이동">${item.month}월 ${item.day}일</span>
                   <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
                 </div>
               </td>
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
+              <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
                   일정<br>
                   <button onclick="window.yearViewInstance.addCompactEvent('${item.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
               </td>
-              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
+              <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; position: static !important; z-index: auto !important; transform: none !important;">${compactEditorHtml}</td>
             </tr>
             <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
+              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
               ${periodCellsHtml}
             </tr>`;
         }).join('');
 
         const targetTbody = document.getElementById(`editor-month-${mObj.year}-${mObj.month}`);
-        if (targetTbody) {
-            targetTbody.innerHTML = rowsHtml;
-            if (mObj.distance === 0) {
-                setTimeout(() => {
-                    const firstRow = document.querySelector(`tr[data-year-date^="${mObj.year}-${String(mObj.month).padStart(2, '0')}"]`);
-                    if (firstRow) {
-                        const header = document.querySelector('.app-header');
-                        const hOffset = header ? header.offsetHeight : 0;
-                        const absoluteY = firstRow.getBoundingClientRect().top + window.scrollY;
-                        window.scrollTo({top: absoluteY - hOffset - 15, behavior: 'smooth'});
-                    }
-                }, 100);
-            }
-        }
+        if (targetTbody) targetTbody.innerHTML = rowsHtml;
         await new Promise(r => setTimeout(r, 40)); 
     }
 
@@ -480,6 +456,21 @@ export class YearView extends BaseView {
     if (progressEl) progressEl.remove();
 
     this.isRendering = false;
+  }
+
+  changeEventGroup(dateStr, idx, newGroupId) {
+      this.syncCompactEventInputs(dateStr);
+      store.hasUnsavedChanges = true;
+      if (window[`tempEvents_${dateStr}`]?.[idx]) {
+          window[`tempEvents_${dateStr}`][idx].sharedGroupId = newGroupId || null;
+          const g = (this.myGroups || []).find(x => x.id === newGroupId);
+          window[`tempEvents_${dateStr}`][idx].groupName = g ? g.name : '';
+          
+          const container = document.getElementById(`compact-events-${dateStr}`);
+          if (container) {
+              container.innerHTML = this.generateCompactEventEditor(dateStr);
+          }
+      }
   }
 
   generateCompactEventEditor(dateStr) {
@@ -492,7 +483,7 @@ export class YearView extends BaseView {
       const currentFilter = store.mode === 'editor' ? (this.scheduleGroupId || 'personal') : null;
 
       return list.map((e, idx) => {
-          // 🌟 에디터 모드에서는 현재 선택된 작업공간만 보이도록 처리
+          // 🌟 에디터 모드에서는 현재 선택된 작업공간만 보이도록 필터링
           const isVisible = store.mode === 'editor' 
               ? ((e.sharedGroupId || 'personal') === currentFilter) 
               : this.activeFilters.includes(e.sharedGroupId || 'personal');
@@ -535,13 +526,13 @@ export class YearView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      <!-- 🌟 [요구사항 1 완벽 반영] 개별 작업공간(개인/공유) 변경 버튼 UI 완전 삭제 -->
+                      <!-- 🌟 개별 작업공간 변경 버튼 완전히 제거 -->
                       ${deleteBtnHtml}
                   </div>
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height='40px'; this.style.height = this.scrollHeight + 'px';" oninput="this.style.height='40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height='auto'; this.style.height = this.scrollHeight + 'px';" oninput="this.style.height='auto'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -601,7 +592,7 @@ export class YearView extends BaseView {
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
 
-      // 🌟 [요구사항 1 완벽 반영] 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간(통합 필터)으로 자동 할당!
+      // 🌟 [요구사항 1] 새 일정을 추가하면 현재 상단의 2행 선택된 작업 공간(통합 필터)으로 자동 할당
       let newGroupId = null;
       let newGroupName = '';
       if (store.mode === 'editor' && this.scheduleGroupId && this.scheduleGroupId !== 'personal') {
@@ -618,6 +609,12 @@ export class YearView extends BaseView {
           groupName: newGroupName 
       });
       document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      
+      setTimeout(() => {
+          document.querySelectorAll('textarea.modal-input-text').forEach(ta => {
+              ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+          });
+      }, 10);
   }
 
   requestRemoveCompactEvent(dateStr, idx) {
