@@ -154,16 +154,16 @@ export const executeGoogleExport = async function() {
             });
 
             const [eSnap, sSnap, jSnap, elSnap] = await Promise.all([
-                getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))),
-                getDocs(query(getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))),
-                getDocs(query(getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))),
-                syncEval ? getDocs(query(getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))) : { forEach: () => {} }
+                syncEvent ? getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))) : Promise.resolve(null),
+                syncClass ? getDocs(query(getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))) : Promise.resolve(null),
+                syncJournal ? getDocs(query(getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))) : Promise.resolve(null),
+                syncEval ? getDocs(query(getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))) : Promise.resolve(null)
             ]);
 
-            const eMap = {}; eSnap.forEach(d => eMap[d.id] = d.data());
-            const sMap = {}; sSnap.forEach(d => sMap[d.id] = d.data());
-            const jMap = {}; jSnap.forEach(d => jMap[d.id] = d.data());
-            const elMap = {}; elSnap.forEach(d => elMap[d.id] = d.data());
+            const eMap = {}; if (eSnap) eSnap.forEach(d => eMap[d.id] = d.data());
+            const sMap = {}; if (sSnap) sSnap.forEach(d => sMap[d.id] = d.data());
+            const jMap = {}; if (jSnap) jSnap.forEach(d => jMap[d.id] = d.data());
+            const elMap = {}; if (elSnap) elSnap.forEach(d => elMap[d.id] = d.data());
 
             let datesToSync = [];
             let curD = new Date(startD);
