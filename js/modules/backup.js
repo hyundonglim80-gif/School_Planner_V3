@@ -361,7 +361,6 @@ export const BackupManager = {
         return spreadsheetId;
     },
 
-    // 🌟 메타데이터(groupId 등)를 포함하여 완벽하게 내보내도록 수정
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -401,12 +400,14 @@ export const BackupManager = {
         if (incJournal) header.push("기록");
         if (incEval) header.push("조사표");
         
-        // 🌟 메타데이터 전용 컬럼을 맨 뒤로 추가
         if (incEvent) header.push("일정 메타데이터 (수정금지)");
         if (incJournal) header.push("기록 메타데이터 (수정금지)");
 
         const rows = [header]; 
         const evalMapBySheet = {};
+        
+        // 🌟 [자동 복구 엔진] DB 원본을 영구적으로 수정하기 위한 일괄 업데이트 배열
+        const dbAutoUpdates = [];
 
         let curr = new Date(startStr);
         const end = new Date(endStr);
@@ -414,12 +415,22 @@ export const BackupManager = {
         while(curr <= end) {
             const dStr = formatDate(curr);
             let rowObj = { date: dStr, evText: '', cls: [], joText: '', elText: '', evMeta: '', joMeta: '' };
+            let needsDbUpdateEvent = false;
+            let needsDbUpdateJournal = false;
 
             if (incEvent && evMap[dStr] && evMap[dStr].eventList) {
                 const textLines = []; 
                 const metaList = [];
                 evMap[dStr].eventList.forEach(e => {
-                    if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                    // 🌟 ID가 없는 과거 데이터 발견 시, 즉시 영구 ID를 발급하고 DB 원본 업데이트 플래그 활성화
+                    if (!e.id) {
+                        e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                        needsDbUpdateEvent = true; 
+                    }
+                    if (!e.authorId && window.auth?.currentUser?.uid) {
+                        e.authorId = window.auth.currentUser.uid;
+                        needsDbUpdateEvent = true;
+                    }
 
                     let labelNames = [];
                     if (e.labelIds && e.labelIds.length > 0) {
@@ -434,15 +445,29 @@ export const BackupManager = {
                     const pre = e.completed ? '[v] ' : '';
                     textLines.push(`${pre}[${lName}] ${e.content}`);
                     
-                    // 🌟 ID 뿐만 아니라 groupId, forwardChainId 등 모든 핵심 연결고리를 저장
+                    // 🌟 단순 ID만 내보내는 것이 아니라 연결고리(그룹, 체인, 작성자 등) 통째로 보존
                     metaList.push({ 
                         id: e.id, 
-                        groupId: e.groupId, 
-                        forwardChainId: e.forwardChainId, 
-                        authorId: e.authorId,
-                        originalDate: e.originalDate 
+                        groupId: e.groupId || null, 
+                        forwardChainId: e.forwardChainId || null, 
+                        authorId: e.authorId || null,
+                        originalDate: e.originalDate || null 
                     });
                 });
+                
+                // 원본 DB 업데이트 배열에 적립
+                if (needsDbUpdateEvent) {
+                    dbAutoUpdates.push({
+                        col: getUserCol('events'),
+                        docId: dStr,
+                        data: {
+                            eventList: evMap[dStr].eventList,
+                            eventText: window.formatEventListToText ? window.formatEventListToText(evMap[dStr].eventList) : '',
+                            updatedAt: Date.now()
+                        }
+                    });
+                }
+                
                 rowObj.evText = textLines.join('\n');
                 rowObj.evMeta = JSON.stringify(metaList);
             }
@@ -463,7 +488,15 @@ export const BackupManager = {
                 const textLines = []; 
                 const metaList = [];
                 joMap[dStr].entries.forEach(j => {
-                    if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                    // 🌟 기록 데이터도 동일하게 과거 데이터 복구
+                    if (!j.id) {
+                        j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+                        needsDbUpdateJournal = true;
+                    }
+                    if (!j.authorId && window.auth?.currentUser?.uid) {
+                        j.authorId = window.auth.currentUser.uid;
+                        needsDbUpdateJournal = true;
+                    }
 
                     let labelNames = [];
                     if (j.labelIds && j.labelIds.length > 0) {
@@ -478,8 +511,20 @@ export const BackupManager = {
                     const pre = j.completed ? '[v] ' : '';
                     textLines.push(`${pre}[${lName}] ${j.content}`);
                     
-                    metaList.push({ id: j.id, authorId: j.authorId });
+                    metaList.push({ id: j.id, authorId: j.authorId || null });
                 });
+                
+                if (needsDbUpdateJournal) {
+                    dbAutoUpdates.push({
+                        col: getUserCol('journals'),
+                        docId: dStr,
+                        data: {
+                            entries: joMap[dStr].entries,
+                            updatedAt: Date.now()
+                        }
+                    });
+                }
+                
                 rowObj.joText = textLines.join('\n');
                 rowObj.joMeta = JSON.stringify(metaList);
             }
@@ -507,6 +552,25 @@ export const BackupManager = {
 
             rows.push(row);
             curr.setDate(curr.getDate() + 1);
+        }
+        
+        // 🌟 [자동 복구 엔진 실행] 내보내기 배열을 만들기 전에, ID가 누락되었던 과거 DB 원본들을 일괄 저장합니다.
+        if (dbAutoUpdates.length > 0) {
+            window.ProgressModal.update("과거 데이터 영구 최적화 중...", 40);
+            let updateBatch = writeBatch(db);
+            let uCount = 0;
+            const uPromises = [];
+            dbAutoUpdates.forEach(u => {
+                updateBatch.set(doc(u.col, u.docId), u.data, { merge: true });
+                uCount++;
+                if (uCount > 400) {
+                    uPromises.push(updateBatch.commit());
+                    updateBatch = writeBatch(db);
+                    uCount = 0;
+                }
+            });
+            if (uCount > 0) uPromises.push(updateBatch.commit());
+            await Promise.all(uPromises);
         }
         
         const evalSheetsData = {};
@@ -612,7 +676,6 @@ export const BackupManager = {
         return rows;
     },
 
-    // 🌟 메타데이터를 파싱하여 반복 속성 등 숨겨진 연결고리를 완벽하게 복원
     processScheduleRows: async function(rows, mode, matrixUpdates = []) {
         if (rows.length < 2) return;
         
@@ -656,7 +719,6 @@ export const BackupManager = {
         const masterJournalLabels = getJournalLabels();
         let labelsChanged = false;
 
-        // 🌟 텍스트 내용과 메타데이터 JSON을 결합하여 완벽한 객체로 복원하는 파서
         const parseEventTextWithMeta = (rawText, rawMetaStr, type) => {
             if (!rawText || !rawText.trim()) return [];
             const lines = rawText.split('\n');
