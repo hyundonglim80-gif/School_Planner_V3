@@ -167,11 +167,11 @@ export class WeekView extends BaseView {
 
           filters.forEach((fId) => {
               const isPersonal = fId === 'personal';
-              const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
-              const badgeColor = isPersonal ? '#2563eb' : '#059669';
-              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
-
+          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
+          const badgeColor = isPersonal ? '#2563eb' : '#059669';
+          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
               const periods = sMap[d.dateStr]?.[fId] || {};
               const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                   const p = i + 1;
@@ -262,10 +262,11 @@ export class WeekView extends BaseView {
       // 1. 일정(Events) 영역 분리 렌더링
       filters.forEach((fId, idx) => {
           const isPersonal = fId === 'personal';
-          const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
           const badgeColor = isPersonal ? '#2563eb' : '#059669';
           const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
+          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
           const eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(d.dateStr, fId)}</div>`;
           const addBtnHtml = `<button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
@@ -308,11 +309,11 @@ export class WeekView extends BaseView {
 
           filters.forEach((fId) => {
               const isPersonal = fId === 'personal';
-              const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
-              const badgeColor = isPersonal ? '#2563eb' : '#059669';
-              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
-
+          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
+          const badgeColor = isPersonal ? '#2563eb' : '#059669';
+          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
               const periods = window[`tempSchedules_${d.dateStr}`][fId];
               const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                   const p = i + 1;
