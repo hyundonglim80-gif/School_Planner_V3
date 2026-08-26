@@ -14,7 +14,7 @@ export class DayView extends BaseView {
         this.draggedFilterId = null;
         
         this.myGroups = [];
-        this.dayData = {}; // 🌟 다중 워크스페이스 상태를 통합 관리하는 객체
+        this.dayData = {}; 
     }
 
     autoResize(textarea) {
@@ -83,6 +83,7 @@ export class DayView extends BaseView {
         }).join('');
     }
 
+    // 🌟 뱃지 갱신 로직 (변경된 DOM 구조 반영)
     async refreshEvalBadges() {
         this.currentEvalList = await this.loadEvaluationsForDay(this.dateStr);
         
@@ -101,7 +102,7 @@ export class DayView extends BaseView {
             const periodRows = this.container.querySelectorAll('tr[data-period]');
             periodRows.forEach(row => {
                 const p = row.getAttribute('data-period');
-                const badgeContainer = row.querySelector('.eval-badges-container');
+                const badgeContainer = this.container.querySelector(`.eval-badges-container[data-badge-period="${p}"]`);
                 if (badgeContainer) badgeContainer.innerHTML = this.generateEvalBadgesHtml('schedule', p, null);
             });
         }
@@ -159,48 +160,68 @@ export class DayView extends BaseView {
         const journalDoc = await getDoc(doc(getUserCol('journals'), dateStr));
         const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
 
+        // 🌟 [수정됨] 표 높이 완벽 정렬을 위해 rowspan을 적용하여 각 그룹을 완전히 분리된 <tr>로 생성
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
             const p = i + 1;
             const periodName = store.periodNames[i] || p + '교시';
+            const evalBadges = this.generateEvalBadgesHtml('schedule', p, null);
             
-            let subjectHtml = '';
-            let memoHtml = '';
-            let suppliesHtml = '';
+            let rowsHtml = '';
+            const filters = window.activeUnifiedFilters;
+            const filterCount = filters.length;
             
-            window.activeUnifiedFilters.forEach((filterId, idx) => {
+            filters.forEach((filterId, idx) => {
                 const pObj = allSchedules[filterId]?.[p] || {};
-                const isLast = idx === window.activeUnifiedFilters.length - 1;
-                const borderStyle = isLast ? '' : 'border-bottom: 1px dashed #cbd5e1; padding-bottom:8px; margin-bottom:8px;';
+                const isLast = idx === filterCount - 1;
+                const borderStyle = isLast ? 'border-bottom: 1px solid #cbd5e1;' : 'border-bottom: 1px dashed #cbd5e1;';
                 
                 let badge = '';
-                if (window.activeUnifiedFilters.length > 1) {
+                if (filterCount > 1) {
                     const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
                     const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
                     const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
                     badge = `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-bottom:4px; font-weight:bold;">${groupName}</div><br>`;
                 }
 
-                subjectHtml += `<div style="${borderStyle} min-height:24px; font-weight:bold; color:#0f172a;">${pObj.subject ? badge + pObj.subject : badge}</div>`;
-                memoHtml += `<div style="${borderStyle} min-height:24px; text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div>`;
-                suppliesHtml += `<div style="${borderStyle} min-height:24px; color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>`;
-            });
-            
-            const evalBadges = this.generateEvalBadgesHtml('schedule', p, null);
-
-            return `
-                <tr data-period="${p}">
-                    <td style="font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle;">${periodName}</td>
-                    <td style="vertical-align:top; padding:10px 8px;">${subjectHtml}</td>
-                    <td style="vertical-align:top; padding:10px 8px;">${memoHtml}</td>
-                    <td style="vertical-align:top; padding:10px 8px;">
-                        ${suppliesHtml}
+                const subjectContent = `<div style="font-weight:bold; color:#0f172a;">${pObj.subject ? badge + pObj.subject : badge}</div>`;
+                const memoContent = `<div style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div>`;
+                const suppliesContent = `<div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>`;
+                
+                let badgeHtml = '';
+                if (isLast) {
+                    badgeHtml = `
                         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                            <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
                                 ${evalBadges}
                             </div>
-                        </div>
-                    </td>
-                </tr>`;
+                        </div>`;
+                }
+
+                if (idx === 0) {
+                    rowsHtml += `
+                    <tr data-period="${p}">
+                        <td rowspan="${filterCount}" style="font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${subjectContent}</td>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${memoContent}</td>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">
+                            ${suppliesContent}
+                            ${badgeHtml}
+                        </td>
+                    </tr>`;
+                } else {
+                    rowsHtml += `
+                    <tr>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${subjectContent}</td>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${memoContent}</td>
+                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">
+                            ${suppliesContent}
+                            ${badgeHtml}
+                        </td>
+                    </tr>`;
+                }
+            });
+            
+            return rowsHtml;
         }).join('');
 
         const journalsHtml = journals.length > 0 ? journals.map(j => {
@@ -227,13 +248,13 @@ export class DayView extends BaseView {
             </div>
             
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
-              <table style="text-align: center;">
+              <table style="text-align: center; border-collapse: collapse; width: 100%;">
                 <thead>
-                  <tr>
-                    <th style="width: 60px;">교시</th>
-                    <th style="width: 120px;">수업</th>
-                    <th>📝 수업 메모</th>
-                    <th style="width: 25%; position:relative;">📌 비고</th>
+                  <tr style="border-bottom: 1px solid #cbd5e1;">
+                    <th style="width: 60px; padding: 10px;">교시</th>
+                    <th style="width: 120px; padding: 10px;">수업</th>
+                    <th style="padding: 10px;">📝 수업 메모</th>
+                    <th style="width: 25%; position:relative; padding: 10px;">📌 비고</th>
                   </tr>
                 </thead>
                 <tbody>${periodRowsHtml}</tbody>
@@ -244,15 +265,14 @@ export class DayView extends BaseView {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                   <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.8rem; color:#f472b6; font-weight:normal;">(🔒 비공개)</span></h3>
               </div>
-              <div class="journal-eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal') ? '' : 'display:none;'}">
-                  ${this.generateEvalBadgesHtml('journal')}
+              <div class="journal-eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, null) ? '' : 'display:none;'}">
+                  ${this.generateEvalBadgesHtml('journal', null, null)}
               </div>
               <div style="display:flex; flex-direction:column;">${journalsHtml}</div>
             </div>
           </div>`;
     }
 
-    // 🌟 [전면 개편] 활성화된 다중 그룹을 동시에 편집 화면에 렌더링
     async renderEditor() {
         this.showLoading('편집 화면을 다중 작업공간으로 준비 중...');
         const dateStr = this.dateStr;
@@ -267,11 +287,9 @@ export class DayView extends BaseView {
         const filters = window.activeUnifiedFilters;
         const masterLabels = getEventLabels();
 
-        // 선택된 모든 필터에 대해 데이터를 독립적으로 불러옴
         for (const fId of filters) {
             this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
-            // 할 일 데이터
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
             const evDoc = await getDoc(doc(evCol, dateStr));
             let eList = [];
@@ -292,12 +310,10 @@ export class DayView extends BaseView {
             if (eList.length === 0) eList.push(this.createEmptyEvent(fId));
             this.dayData[fId].events = eList;
 
-            // 수업 데이터
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
             const scDoc = await getDoc(doc(scCol, dateStr));
             this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
 
-            // 기록 데이터
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
             const jrDoc = await getDoc(doc(jrCol, dateStr));
             let jList = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
@@ -312,7 +328,6 @@ export class DayView extends BaseView {
         let schedulesHtml = '';
         let journalsHtml = '';
 
-        // 🌟 요청하신 배열 순서대로(이벤트 그룹 -> 수업 그룹 -> 기록 그룹) 분리 렌더링
         filters.forEach(fId => {
             const isPersonal = fId === 'personal';
             const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
@@ -323,7 +338,6 @@ export class DayView extends BaseView {
             const jBgColor = isPersonal ? '#fdf2f8' : '#fce7f3';
             const jBColor = isPersonal ? '#fbcfe8' : '#f9a8d4';
 
-            // 할 일 HTML 블록
             eventsHtml += `
             <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${themeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
@@ -336,7 +350,6 @@ export class DayView extends BaseView {
               <button onclick="window.dayViewInstance.addEventEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${bgColor}; color:${themeColor}; border:2px dashed ${bColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>`;
 
-            // 수업 HTML 블록
             const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                 const p = i + 1;
                 const pObj = this.dayData[fId].schedules[p] || {};
@@ -396,7 +409,6 @@ export class DayView extends BaseView {
               </table>
             </div>`;
 
-            // 기록 HTML 블록
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
@@ -478,7 +490,6 @@ export class DayView extends BaseView {
         try { sourcePeriodStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
         
         const sourcePeriod = parseInt(sourcePeriodStr, 10) || window.dayViewInstance.draggedPeriod;
-        // 다른 테이블끼리의 이동 차단
         if (!sourcePeriod || sourcePeriod === targetPeriod || window.dayViewInstance.draggedFilterId !== filterId) return;
 
         window.dayViewInstance.executeClassInsert(sourcePeriod, targetPeriod, filterId);
