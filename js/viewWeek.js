@@ -97,87 +97,105 @@ export class WeekView extends BaseView {
     window.currentMyGroups = this.myGroups;
     if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
     if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
-    if (store.mode === 'editor') this.scheduleGroupId = window.activeUnifiedFilters.includes('personal') ? null : window.activeUnifiedFilters[0];
+
+    const filters = window.activeUnifiedFilters;
+    const filterCount = filters.length;
+    const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
 
     const rowsHtml = weekDates.map(d => {
-      const finalEvents = eMap[d.dateStr]?.eventList || [];
-      
-      const filteredEvents = finalEvents.filter(e => window.activeUnifiedFilters.includes(e.sharedGroupId || 'personal'));
-      const processedEvents = filteredEvents.length > 0 ? filteredEvents.map(e => ({ 
-          ...e, 
-          labelIds: e.labelIds || [],
-          content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
-      })) : [];
-      
-      const eventHtml = processedEvents.length > 0 
-          ? generateEventBadgesHTML(processedEvents, d.dateStr) 
-          : '<span style="color:#94a3b8;">-</span>';
-
       const isToday = (d.dateStr === realTodayStr);
-      const isRed = isRedDay(d.dateStr, processedEvents);
+      const isRed = isRedDay(d.dateStr, eMap[d.dateStr]?.eventList || []);
       const isSat = d.dayOfWeekNum === 6;
-
       const dateColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#1e40af');
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-        const p = i + 1;
-        let cellContentHtml = '';
+      let rowsHtmlForDate = '';
 
-        window.activeUnifiedFilters.forEach((filterId, idx) => {
-            const periods = sMap[d.dateStr]?.[filterId] || {};
-            const pObj = periods[p] || {};
-            
-            let badge = '';
-            if (window.activeUnifiedFilters.length > 1) {
-                const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
-                const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
-                const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
-                badge = `<span style="font-size:0.65rem; color:${badgeColor}; background:${badgeBg}; padding:1px 3px; border-radius:3px; margin-right:4px;">${groupName}</span>`;
-            }
+      // 1. 일정(Events) 영역 분리 렌더링
+      filters.forEach((fId, idx) => {
+          const isPersonal = fId === 'personal';
+          const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+          const badgeColor = isPersonal ? '#2563eb' : '#059669';
+          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
 
-            const isLast = idx === window.activeUnifiedFilters.length - 1;
-            const borderStyle = isLast ? '' : 'border-bottom: 1px dashed #cbd5e1; padding-bottom:6px; margin-bottom:6px;';
+          const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+          const processedEvents = fEvents.map(e => ({
+              ...e, labelIds: e.labelIds || [], content: e.content
+          }));
+          const eventContent = processedEvents.length > 0 
+              ? generateEventBadgesHTML(processedEvents, d.dateStr) 
+              : '<span style="color:#94a3b8;">-</span>';
 
-            let content = '';
-            if (pObj.subject && pObj.subject.toUpperCase() !== 'X') {
-                content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${badge}<span class="badge-tag">${pObj.subject}</span></div>`;
-            } else if (badge && (pObj.memo || pObj.supplies)) {
-                content += `<div style="margin-bottom: 4px;">${badge}</div>`;
-            }
+          if (idx === 0) {
+              rowsHtmlForDate += `
+              <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
+                <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
+                    <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
+                    ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
+                  </div>
+                </td>
+                <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                    일정${badgeHtml}
+                </td>
+                <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
+              </tr>`;
+          } else {
+              rowsHtmlForDate += `
+              <tr class="week-row-${d.dateStr}">
+                <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                    일정${badgeHtml}
+                </td>
+                <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
+              </tr>`;
+          }
+      });
 
-            if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-            if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
-            
-            if(content || badge) {
-                cellContentHtml += `<div style="${borderStyle}">${content}</div>`;
-            } else if (!isLast) {
-                cellContentHtml += `<div style="${borderStyle} min-height:10px;"></div>`;
-            }
-        });
+      // 2. 수업(Schedules) 영역 분리 렌더링
+      if (store.showClass) {
+          const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
+          
+          rowsHtmlForDate += `
+          <tr class="week-row-${d.dateStr}">
+            <td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>
+            ${pNamesHtml}
+          </tr>`;
 
-        return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height);">${cellContentHtml}</td>`;
-      }).join('');
+          filters.forEach((fId) => {
+              const isPersonal = fId === 'personal';
+              const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeColor = isPersonal ? '#2563eb' : '#059669';
+              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
 
-      return `
-        <tr data-week-date="${d.dateStr}">
-          <td rowspan="${store.showClass ? 3 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; position: static !important; z-index: auto !important; transform: none !important;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
-              <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
-              ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
-            </div>
-          </td>
-          <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">일정</td>
-          <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc;">${eventHtml}</td>
-        </tr>
-        <tr style="${store.showClass ? '' : 'display:none;'}">
-          <td rowspan="2" style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">수업</td>
-          ${(store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('')}
-        </tr>
-        <tr style="${store.showClass ? '' : 'display:none;'}">${periodCellsHtml}</tr>
-      `;
+              const periods = sMap[d.dateStr]?.[fId] || {};
+              const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                  const p = i + 1;
+                  const pObj = periods[p] || {};
+                  let content = '';
+                  
+                  if (pObj.subject && pObj.subject.toUpperCase() !== 'X') {
+                      content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
+                  }
+                  if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                  if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                  
+                  return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
+              }).join('');
+
+              rowsHtmlForDate += `
+              <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+                    수업${badgeHtml}
+                </td>
+                ${periodCellsHtml}
+              </tr>`;
+          });
+      }
+      return rowsHtmlForDate;
     }).join('');
 
     this.container.innerHTML = `
@@ -204,66 +222,118 @@ export class WeekView extends BaseView {
     window.currentMyGroups = this.myGroups;
     if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
     if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
-    if (store.mode === 'editor') this.scheduleGroupId = window.activeUnifiedFilters.includes('personal') ? null : window.activeUnifiedFilters[0];
 
+    const filters = window.activeUnifiedFilters;
+    const filterCount = filters.length;
     const maxP = store.periodNames ? store.periodNames.length : 6;
+    const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
 
     const rowsHtml = weekDates.map(d => {
-      const periods = sMap[d.dateStr]?.[this.scheduleGroupId || 'personal'] || {};
-      const eventList = eMap[d.dateStr]?.eventList || [];
-      
-      window[`tempEvents_${d.dateStr}`] = eventList.map(e => {
-          let labelIds = e.labelIds || [];
-          if (labelIds.length === 0 && (e.labels || e.label)) {
-              (e.labels || [e.label]).forEach(name => {
-                  const match = masterLabels.find(l => l.name === name);
-                  if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
-              });
-          }
-          return { ...e, labelIds, sharedGroupId: e.sharedGroupId || null, groupName: e.groupName || '' };
+      window[`tempEvents_${d.dateStr}`] = [];
+      window[`tempSchedules_${d.dateStr}`] = {};
+
+      filters.forEach(fId => {
+          const periods = sMap[d.dateStr]?.[fId] || {};
+          window[`tempSchedules_${d.dateStr}`][fId] = periods;
+
+          const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+          fEvents.forEach(e => {
+              let labelIds = e.labelIds || [];
+              if (labelIds.length === 0 && (e.labels || e.label)) {
+                  (e.labels || [e.label]).forEach(name => {
+                      const match = masterLabels.find(l => l.name === name);
+                      if (match && match.id && !labelIds.includes(match.id)) labelIds.push(match.id);
+                  });
+              }
+              window[`tempEvents_${d.dateStr}`].push({ ...e, labelIds, sharedGroupId: fId === 'personal' ? null : fId });
+          });
       });
-      window[`tempSchedules_${d.dateStr}`] = periods;
-      
-      const compactEditorHtml = `<div id="compact-events-${d.dateStr}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(d.dateStr)}</div>`; 
 
       const isToday = (d.dateStr === realTodayStr);
       const isRed = isRedDay(d.dateStr, window[`tempEvents_${d.dateStr}`]);
       const isSat = d.dayOfWeekNum === 6;
-
       const dateColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#1e40af');
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
-        const pObj = periods[i + 1] || {};
-        let cellText = "";
-        if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
-        if (pObj.memo) cellText += pObj.memo + " ";
-        if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-        
-        return `<td class="editable-cell week-period-cell" data-p="${i + 1}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
-      }).join('');
+      let rowsHtmlForDate = '';
 
-      return `
-        <tr data-week-date="${d.dateStr}">
-          <td rowspan="${store.showClass ? 2 : 1}" class="${isToday ? 'week-today-cell' : ''}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-              <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
-              <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
-              ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
-            </div>
-          </td>
-          <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
-              일정<br>
-              <button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>
-          </td>
-          <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
-        </tr>
-        <tr data-week-schedule-date="${d.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-          <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">수업</td>
-          ${periodCellsHtml}
-        </tr>
-      `;
+      // 1. 일정(Events) 영역 분리 렌더링
+      filters.forEach((fId, idx) => {
+          const isPersonal = fId === 'personal';
+          const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+          const badgeColor = isPersonal ? '#2563eb' : '#059669';
+          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
+
+          const eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+          const addBtnHtml = `<button onclick="window.weekViewInstance.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
+
+          if (idx === 0) {
+              rowsHtmlForDate += `
+              <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
+                <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
+                    <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
+                    ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
+                  </div>
+                </td>
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
+                    일정${badgeHtml}<br>${addBtnHtml}
+                </td>
+                <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+              </tr>`;
+          } else {
+              rowsHtmlForDate += `
+              <tr class="week-row-${d.dateStr}">
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">
+                    일정${badgeHtml}<br>${addBtnHtml}
+                </td>
+                <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+              </tr>`;
+          }
+      });
+
+      // 2. 수업(Schedules) 영역 분리 렌더링
+      if (store.showClass) {
+          const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
+          
+          rowsHtmlForDate += `
+          <tr class="week-row-${d.dateStr}">
+            <td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>
+            ${pNamesHtml}
+          </tr>`;
+
+          filters.forEach((fId) => {
+              const isPersonal = fId === 'personal';
+              const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeColor = isPersonal ? '#2563eb' : '#059669';
+              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
+
+              const periods = window[`tempSchedules_${d.dateStr}`][fId];
+              const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                  const p = i + 1;
+                  const pObj = periods[p] || {};
+                  let cellText = "";
+                  if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+                  if (pObj.memo) cellText += pObj.memo + " ";
+                  if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+                  
+                  return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+              }).join('');
+
+              rowsHtmlForDate += `
+              <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
+                <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">
+                    수업${badgeHtml}
+                </td>
+                ${periodCellsHtml}
+              </tr>`;
+          });
+      }
+      return rowsHtmlForDate;
     }).join('');
 
     const colgroupHtml = `
@@ -290,16 +360,17 @@ export class WeekView extends BaseView {
       </div>`;
   }
 
-  generateCompactEventEditor(dateStr) {
-      const list = window[`tempEvents_${dateStr}`] || [];
+  generateCompactEventEditor(dateStr, fId) {
+      const allEvents = window[`tempEvents_${dateStr}`] || [];
+      const list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+      
       const labelObjs = getEventLabels();
       const realTodayStr = formatDate(new Date());
       const uid = window.auth?.currentUser?.uid;
       const inst = 'window.weekViewInstance';
       
-      return list.map((e, idx) => {
-          const isVisible = window.activeUnifiedFilters.includes(e.sharedGroupId || 'personal');
-          const displayStyle = isVisible ? 'display:flex;' : 'display:none;';
+      return list.map((e) => {
+          const idx = allEvents.indexOf(e);
           const isAuthor = !e.authorId || !uid || e.authorId === uid;
 
           const eLabelIds = e.labelIds || [];
@@ -313,13 +384,13 @@ export class WeekView extends BaseView {
           }
 
           const chipsHtml = labelObjs.map(lObj => {
-              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}')"` : '';
+              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}', '${fId}')"` : '';
               const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
               return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
           }).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
           const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -327,11 +398,11 @@ export class WeekView extends BaseView {
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           const deleteBtnHtml = isAuthor 
-                ? `<button onclick="${inst}.requestRemoveCompactEvent('${dateStr}', ${idx})" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                ? `<button onclick="${inst}.requestRemoveCompactEvent('${dateStr}', ${idx}, '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                 : '';
 
           return `
-          <div class="compact-event-row" data-idx="${idx}" style="${displayStyle} border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
+          <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                   <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1;">
                       ${chipsHtml}
@@ -342,17 +413,20 @@ export class WeekView extends BaseView {
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea data-idx="${idx}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
   }
 
   syncCompactEventInputs(dateStr) {
-      const container = document.getElementById(`compact-events-${dateStr}`);
-      if (!container) return;
-      container.querySelectorAll('textarea').forEach((ta, idx) => {
-          if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx].content = ta.value;
+      window.activeUnifiedFilters.forEach(fId => {
+          const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
+          if (!container) return;
+          container.querySelectorAll('textarea').forEach(ta => {
+              const idx = ta.getAttribute('data-idx');
+              if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx].content = ta.value;
+          });
       });
   }
 
@@ -363,7 +437,10 @@ export class WeekView extends BaseView {
   syncScheduleInputs() {
       document.querySelectorAll(`tr[data-week-schedule-date]`).forEach(row => {
           const dateStr = row.getAttribute('data-week-schedule-date');
+          const fId = row.getAttribute('data-fid');
+          
           window[`tempSchedules_${dateStr}`] = window[`tempSchedules_${dateStr}`] || {};
+          window[`tempSchedules_${dateStr}`][fId] = window[`tempSchedules_${dateStr}`][fId] || {};
 
           row.querySelectorAll('.week-period-cell').forEach(cell => {
               const p = cell.getAttribute('data-p');
@@ -385,7 +462,7 @@ export class WeekView extends BaseView {
                       memo = text;
                   }
               }
-              window[`tempSchedules_${dateStr}`][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
+              window[`tempSchedules_${dateStr}`][fId][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
           });
       });
   }
@@ -395,19 +472,19 @@ export class WeekView extends BaseView {
       if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
   }
 
-  addCompactEvent(dateStr) {
+  addCompactEvent(dateStr, fId) {
       this.syncCompactEventInputs(dateStr); 
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
       window[`tempEvents_${dateStr}`].push({ 
           id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
           authorId: window.auth?.currentUser?.uid,
-          labelIds: [], content: '', completed: false, sharedGroupId: null 
+          labelIds: [], content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
       });
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
   }
 
-  requestRemoveCompactEvent(dateStr, idx) {
+  requestRemoveCompactEvent(dateStr, idx, fId) {
       this.syncCompactEventInputs(dateStr); 
       const ev = window[`tempEvents_${dateStr}`][idx];
       const isGrouped = !!ev.groupId; 
@@ -419,19 +496,19 @@ export class WeekView extends BaseView {
       if (isGrouped && ev.groupId.startsWith('group_')) {
           window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
               () => window.render(), 
-              () => this.removeCompactEvent(dateStr, idx)
+              () => this.removeCompactEvent(dateStr, idx, fId)
           );
       } else if (forwardLabelId && ev.forwardChainId) {
           window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, () => window.render());
       } else {
-          this.removeCompactEvent(dateStr, idx);
+          this.removeCompactEvent(dateStr, idx, fId);
       }
   }
 
-  removeCompactEvent(dateStr, idx) {
+  removeCompactEvent(dateStr, idx, fId) {
       store.hasUnsavedChanges = true;
       window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}`).innerHTML = this.generateCompactEventEditor(dateStr);
+      document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
   }
 
   save() {
@@ -445,12 +522,13 @@ export class WeekView extends BaseView {
             .map(e => ({
                 ...e,
                 id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || window.auth?.currentUser?.uid
+                authorId: e.authorId || window.auth?.currentUser?.uid,
+                sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { 
             dateStr, 
             validEvents, 
-            periodsData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) 
+            schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) 
         };
     });
 
@@ -461,7 +539,7 @@ export class WeekView extends BaseView {
         this.myGroups.forEach(g => eventsByGroup[g.id] = []);
 
         item.validEvents.forEach(e => {
-            const gId = e.sharedGroupId || 'personal';
+            const gId = e.sharedGroupId === 'personal' ? 'personal' : (e.sharedGroupId || 'personal');
             if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
         });
 
@@ -481,15 +559,19 @@ export class WeekView extends BaseView {
             }, { merge: true }).catch(e => console.warn(e));
         });
 
-        const scheduleCol = this.scheduleGroupId ? getGroupCol(this.scheduleGroupId, 'schedules') : getUserCol('schedules');
-        const isSkipDay = item.validEvents.some(e => e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
-        if (isSkipDay) {
-            Object.values(item.periodsData).forEach(p => p.subject = '');
-        }
-        
-        setDoc(doc(scheduleCol, item.dateStr), { 
-            periods: item.periodsData, updatedAt: Date.now() 
-        }, { merge: true }).catch(e => console.warn(e));
+        window.activeUnifiedFilters.forEach(fId => {
+            const periods = item.schedulesData[fId] || {};
+            const scheduleCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+            
+            const isSkipDay = item.validEvents.some(e => (e.sharedGroupId || 'personal') === fId && e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
+            if (isSkipDay) {
+                Object.values(periods).forEach(p => p.subject = '');
+            }
+            
+            setDoc(doc(scheduleCol, item.dateStr), { 
+                periods: periods, updatedAt: Date.now() 
+            }, { merge: true }).catch(e => console.warn(e));
+        });
     });
   }
 }
@@ -502,7 +584,7 @@ Object.assign(window, {
     renderWeekEditor: (c) => { instance.container = c; instance.renderEditor(); },
     saveWeekDataFromEditor: () => instance.save(),
     
-    handleCompactLabelClick: async (dateStr, idx, labelId) => {
+    handleCompactLabelClick: async (dateStr, idx, labelId, fId) => {
         const scopeInstance = window[`${store.scope}ViewInstance`];
         if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
         store.hasUnsavedChanges = true;
@@ -553,9 +635,9 @@ Object.assign(window, {
             ev.labelIds.push(labelId);
         }
         
-        const container = document.getElementById(`compact-events-${dateStr}`);
+        const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
         if (container && scopeInstance) {
-            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr);
+            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr, fId);
         }
     }
 });
