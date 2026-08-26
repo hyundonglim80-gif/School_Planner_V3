@@ -361,7 +361,7 @@ export const BackupManager = {
         return spreadsheetId;
     },
 
-    // 🌟 내보내기 배열 구성 (그룹 데이터 완전 제외 & 일정/기록 ID 추가)
+    // 🌟 메타데이터(groupId 등)를 포함하여 완벽하게 내보내도록 수정
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -374,7 +374,6 @@ export const BackupManager = {
 
         const evMap = {}; const scMap = {}; const joMap = {}; const elMap = {};
 
-        // 🌟 철저히 개인 데이터(getUserCol)만 불러오도록 변경
         if (incEvent) {
             const snap = await getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => evMap[d.id] = { eventList: d.data().eventList || (d.data().eventText ? window.parseRawEventTextToEventList(d.data().eventText) : []) });
@@ -402,12 +401,11 @@ export const BackupManager = {
         if (incJournal) header.push("기록");
         if (incEval) header.push("조사표");
         
-        // 🌟 보기 싫은 ID 컬럼들은 오른쪽 끝으로 배치
-        if (incEvent) header.push("일정 ID (수정금지)");
-        if (incJournal) header.push("기록 ID (수정금지)");
+        // 🌟 메타데이터 전용 컬럼을 맨 뒤로 추가
+        if (incEvent) header.push("일정 메타데이터 (수정금지)");
+        if (incJournal) header.push("기록 메타데이터 (수정금지)");
 
         const rows = [header]; 
-
         const evalMapBySheet = {};
 
         let curr = new Date(startStr);
@@ -415,11 +413,14 @@ export const BackupManager = {
         
         while(curr <= end) {
             const dStr = formatDate(curr);
-            let rowObj = { date: dStr, evText: '', cls: [], joText: '', elText: '', evIds: '', joIds: '' };
+            let rowObj = { date: dStr, evText: '', cls: [], joText: '', elText: '', evMeta: '', joMeta: '' };
 
             if (incEvent && evMap[dStr] && evMap[dStr].eventList) {
-                const textLines = []; const idLines = [];
+                const textLines = []; 
+                const metaList = [];
                 evMap[dStr].eventList.forEach(e => {
+                    if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+
                     let labelNames = [];
                     if (e.labelIds && e.labelIds.length > 0) {
                         labelNames = e.labelIds.map(id => {
@@ -432,10 +433,18 @@ export const BackupManager = {
                     let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
                     const pre = e.completed ? '[v] ' : '';
                     textLines.push(`${pre}[${lName}] ${e.content}`);
-                    idLines.push(e.id || '');
+                    
+                    // 🌟 ID 뿐만 아니라 groupId, forwardChainId 등 모든 핵심 연결고리를 저장
+                    metaList.push({ 
+                        id: e.id, 
+                        groupId: e.groupId, 
+                        forwardChainId: e.forwardChainId, 
+                        authorId: e.authorId,
+                        originalDate: e.originalDate 
+                    });
                 });
                 rowObj.evText = textLines.join('\n');
-                rowObj.evIds = idLines.join('\n');
+                rowObj.evMeta = JSON.stringify(metaList);
             }
 
             if (incClass) {
@@ -451,8 +460,11 @@ export const BackupManager = {
             }
 
             if (incJournal && joMap[dStr] && joMap[dStr].entries) {
-                const textLines = []; const idLines = [];
+                const textLines = []; 
+                const metaList = [];
                 joMap[dStr].entries.forEach(j => {
+                    if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+
                     let labelNames = [];
                     if (j.labelIds && j.labelIds.length > 0) {
                         labelNames = j.labelIds.map(id => {
@@ -465,10 +477,11 @@ export const BackupManager = {
                     let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
                     const pre = j.completed ? '[v] ' : '';
                     textLines.push(`${pre}[${lName}] ${j.content}`);
-                    idLines.push(j.id || '');
+                    
+                    metaList.push({ id: j.id, authorId: j.authorId });
                 });
                 rowObj.joText = textLines.join('\n');
-                rowObj.joIds = idLines.join('\n');
+                rowObj.joMeta = JSON.stringify(metaList);
             }
 
             if (incEval && elMap[dStr] && elMap[dStr].evalList) {
@@ -484,14 +497,13 @@ export const BackupManager = {
                 });
             }
 
-            // 배열에 설정된 순서대로 push (ID는 끝쪽으로)
             let row = [rowObj.date];
             if (incEvent) row.push(rowObj.evText);
             if (incClass) rowObj.cls.forEach(c => row.push(c));
             if (incJournal) row.push(rowObj.joText);
             if (incEval) row.push(rowObj.elText);
-            if (incEvent) row.push(rowObj.evIds);
-            if (incJournal) row.push(rowObj.joIds);
+            if (incEvent) row.push(rowObj.evMeta);
+            if (incJournal) row.push(rowObj.joMeta);
 
             rows.push(row);
             curr.setDate(curr.getDate() + 1);
@@ -582,7 +594,6 @@ export const BackupManager = {
         return { scheduleRows: rows, evalSheetsData: evalSheetsData };
     },
 
-    // 🌟 내보내기 배열 구성 (그룹 데이터 완전 제외)
     getMemoDataArray: async function() {
         const rows = [["데이터분류", "ID", "내용/이름", "완료여부(O/X)", "라벨", "주소/URL", "생성일자(타임스탬프)"]];
         
@@ -592,7 +603,6 @@ export const BackupManager = {
             links.forEach((l, idx) => rows.push(['LINK', `LINK_${idx}`, l.name || '', '', '', l.url || '', '']));
         }
 
-        // 🌟 철저히 개인 메모만 추출
         const snap = await getDocs(query(getUserCol('tasks'), orderBy('createdAt')));
         snap.forEach(docSnap => {
             const d = docSnap.data();
@@ -602,7 +612,7 @@ export const BackupManager = {
         return rows;
     },
 
-    // 🌟 가져오기 복원 (ID 기반 정밀 병합 및 그룹 로직 제거)
+    // 🌟 메타데이터를 파싱하여 반복 속성 등 숨겨진 연결고리를 완벽하게 복원
     processScheduleRows: async function(rows, mode, matrixUpdates = []) {
         if (rows.length < 2) return;
         
@@ -621,12 +631,11 @@ export const BackupManager = {
         const header = rows[0];
         const dateIdx = header.findIndex(h => typeof h === 'string' && h.includes("날짜"));
         
-        // ID 컬럼의 위치를 우선 찾기
-        const eventIdIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정 ID")) : -1;
-        const journalIdIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록 ID")) : -1;
+        const eventMetaIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정 메타")) : -1;
+        const journalMetaIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록 메타")) : -1;
 
-        const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정") && !h.includes("ID")) : -1;
-        const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록") && !h.includes("ID")) : -1;
+        const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정") && !h.includes("메타")) : -1;
+        const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록") && !h.includes("메타")) : -1;
         const evalIdx = incEval ? header.findIndex(h => typeof h === 'string' && h.includes("조사표")) : -1;
 
         const doEvent = incEvent && eventIdx !== -1;
@@ -637,7 +646,7 @@ export const BackupManager = {
         const periodIndices = [];
         if (doClass) {
             for (let i = 0; i < header.length; i++) {
-                if (i !== dateIdx && i !== eventIdx && i !== journalIdx && i !== evalIdx && i !== eventIdIdx && i !== journalIdIdx) {
+                if (i !== dateIdx && i !== eventIdx && i !== journalIdx && i !== evalIdx && i !== eventMetaIdx && i !== journalMetaIdx) {
                     periodIndices.push({ index: i, pNum: periodIndices.length + 1 });
                 }
             }
@@ -647,11 +656,15 @@ export const BackupManager = {
         const masterJournalLabels = getJournalLabels();
         let labelsChanged = false;
 
-        // 🌟 ID와 Text를 동기화하여 읽어들이는 스마트 파서
-        const parseEventTextWithIds = (rawText, rawIds, type) => {
+        // 🌟 텍스트 내용과 메타데이터 JSON을 결합하여 완벽한 객체로 복원하는 파서
+        const parseEventTextWithMeta = (rawText, rawMetaStr, type) => {
             if (!rawText || !rawText.trim()) return [];
             const lines = rawText.split('\n');
-            const ids = rawIds ? rawIds.split('\n') : [];
+            let metaArray = [];
+            if (rawMetaStr && rawMetaStr.trim() !== '') {
+                try { metaArray = JSON.parse(rawMetaStr); } catch(e) {}
+            }
+
             const eventList = [];
             const targetLabels = type === 'journal' ? masterJournalLabels : masterLabels;
 
@@ -699,10 +712,14 @@ export const BackupManager = {
                     if (skipLabel) defaultLabelIds = [skipLabel.id];
                 }
 
-                const existingId = ids[idx] ? ids[idx].trim() : undefined;
+                const meta = metaArray[idx] || {};
 
                 eventList.push({
-                    id: existingId || ('ev_' + Date.now() + Math.random().toString(36).substr(2,5)),
+                    id: meta.id || ((type === 'journal' ? 'jr_' : 'ev_') + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5)),
+                    groupId: meta.groupId || null,
+                    forwardChainId: meta.forwardChainId || null,
+                    authorId: meta.authorId || window.auth?.currentUser?.uid,
+                    originalDate: meta.originalDate || null,
                     labelIds: mappedLabelIds.length > 0 ? mappedLabelIds : defaultLabelIds,
                     label: labelsArray[0],
                     labels: labelsArray,
@@ -726,8 +743,8 @@ export const BackupManager = {
 
             if (doEvent) {
                 const evText = row[eventIdx] || "";
-                const evIds = eventIdIdx !== -1 ? (row[eventIdIdx] || "") : "";
-                parsedDaysMap[dStr] = { eventList: parseEventTextWithIds(evText, evIds, 'event') };
+                const evMetaStr = eventMetaIdx !== -1 ? (row[eventMetaIdx] || "") : "";
+                parsedDaysMap[dStr] = { eventList: parseEventTextWithMeta(evText, evMetaStr, 'event') };
             } else {
                 parsedDaysMap[dStr] = { eventList: [] };
             }
@@ -768,8 +785,8 @@ export const BackupManager = {
 
             if (doJournal) {
                 const joText = row[journalIdx] || "";
-                const joIds = journalIdIdx !== -1 ? (row[journalIdIdx] || "") : "";
-                journalDataMap[dStr] = parseEventTextWithIds(joText, joIds, 'journal');
+                const joMetaStr = journalMetaIdx !== -1 ? (row[journalMetaIdx] || "") : "";
+                journalDataMap[dStr] = parseEventTextWithMeta(joText, joMetaStr, 'journal');
             }
 
             if (doEval) {
@@ -852,7 +869,6 @@ export const BackupManager = {
         const totalDays = sortedDates.length;
         let processedCount = 0;
 
-        // 🌟 ID 기반 업데이트가 가능하도록 개선된 병합 함수
         const getUniqueList = (list) => {
             const merged = [];
             for (const item of list) {
@@ -872,7 +888,6 @@ export const BackupManager = {
                 }
 
                 if (existing) {
-                    // ID가 일치하면 새 시트 데이터로 내용 덮어쓰기 (업데이트)
                     Object.assign(existing, item);
                 } else {
                     merged.push({ ...item }); 
