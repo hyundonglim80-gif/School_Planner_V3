@@ -817,14 +817,21 @@ window.goToDay = (dateStr) => {
             });
         }
 
-        // 저장 버튼 동작
-        document.getElementById('day-modal-save-btn').onclick = () => {
-            if (window.dayViewInstance) {
-                // 저장이 끝날 때까지 대기하도록 수정
-        		await window.dayViewInstance.save();
-            }
-            dayModal.close();
-        };
+        // js/app.js 내의 day-modal-save-btn 클릭 이벤트 부분
+		document.getElementById('day-modal-save-btn').onclick = async () => {
+		    if (window.dayViewInstance) {
+		        try {
+		            // 저장이 완전히 끝날 때까지 대기
+		            await window.dayViewInstance.save();
+		            dayModal.close();
+		        } catch (err) {
+		            console.error("저장 중 에러 발생:", err);
+		            alert("저장 중 오류가 발생했습니다: " + err.message);
+		        }
+		    } else {
+		        dayModal.close();
+		    }
+		};
         
         // 취소 버튼 동작
         document.getElementById('day-modal-cancel-btn').onclick = () => {
