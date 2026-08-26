@@ -134,7 +134,6 @@ export class YearView extends BaseView {
 
     this.showLoading('클라우드에서 연간 일정을 가져오는 중입니다...'); 
 
-    // 🌟 [핵심 수정 1] 스크롤 잠김(Trap) 현상을 막기 위한 전역 오버플로우 해제
     if (this.container) {
         this.container.style.overflow = 'visible';
         this.container.style.overflowX = 'visible';
@@ -296,6 +295,7 @@ export class YearView extends BaseView {
                         const header = document.querySelector('.app-header');
                         const hOffset = header ? header.offsetHeight : 0;
                         const absoluteY = focusEl.getBoundingClientRect().top + window.pageYOffset;
+                        
                         window.scrollTo({top: absoluteY - hOffset - 10, behavior: 'auto'});
                     }
                 }, 300);
@@ -320,7 +320,6 @@ export class YearView extends BaseView {
 
     this.showLoading('연간 데이터를 가져오는 중입니다...'); 
 
-    // 🌟 [핵심 수정 2] 스크롤 잠김(Trap) 현상을 막기 위한 전역 오버플로우 해제
     if (this.container) {
         this.container.style.overflow = 'visible';
         this.container.style.overflowX = 'visible';
@@ -378,7 +377,6 @@ export class YearView extends BaseView {
         </colgroup>
     `;
 
-    // 🌟 [핵심 수정 3] table-container의 overflow:visible 속성으로 완벽한 스크롤 해제
     this.container.innerHTML = `
       <div id="year-main-content" class="table-container" style="background:#fff; padding:12px; border-radius:8px; margin-top:15px; overflow:visible;">
         ${progressHtml}
@@ -459,7 +457,7 @@ export class YearView extends BaseView {
               <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top;">${compactEditorHtml}</td>
             </tr>
             <tr data-year-sub="${item.dateStr}" style="${store.showClass ? '' : 'display:none;'}">
-              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">수업</td>
+              <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">수업</td>
               ${periodCellsHtml}
             </tr>`;
         }).join('');
@@ -495,21 +493,6 @@ export class YearView extends BaseView {
     this.isRendering = false;
   }
 
-  changeEventGroup(dateStr, idx, newGroupId) {
-      this.syncCompactEventInputs(dateStr);
-      store.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`]?.[idx]) {
-          window[`tempEvents_${dateStr}`][idx].sharedGroupId = newGroupId || null;
-          const g = (this.myGroups || []).find(x => x.id === newGroupId);
-          window[`tempEvents_${dateStr}`][idx].groupName = g ? g.name : '';
-          
-          const container = document.getElementById(`compact-events-${dateStr}`);
-          if (container) {
-              container.innerHTML = this.generateCompactEventEditor(dateStr);
-          }
-      }
-  }
-
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = getEventLabels();
@@ -525,18 +508,6 @@ export class YearView extends BaseView {
           const eLabelIds = e.labelIds || [];
           const isCompleted = !!e.completed;
           const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
-          
-          let groupButtonsHtml = '';
-          if (isAuthor) {
-              groupButtonsHtml = `
-                  <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                      <div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                      ${(this.myGroups || []).map(g => `<div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-                  </div>
-              `;
-          } else {
-              groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${e.groupName} (읽기전용)</div>`;
-          }
 
           let warningIcon = '';
           if (canComplete) {
@@ -569,7 +540,6 @@ export class YearView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      ${groupButtonsHtml}
                       ${deleteBtnHtml}
                   </div>
               </div>
