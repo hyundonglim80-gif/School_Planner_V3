@@ -2,7 +2,7 @@
 
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getSemesterDates } from '../core/utils.js';
-import { getUserCol, getGroupCol, db } from '../firebase.js'; 
+import { getUserCol, db } from '../firebase.js'; 
 import { doc, getDoc, getDocs, setDoc, deleteDoc, query, where, documentId, orderBy, writeBatch } from "firebase/firestore"; 
 
 window.ProgressModal = {
@@ -112,7 +112,7 @@ export const BackupManager = {
             <div style="display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto; padding-right:5px; margin-bottom:15px;">
                 
                 <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin-bottom:0;">
-                    <p style="margin:0;"><strong>[데이터 통합 관리]</strong> 내 개인 데이터 및 가입된 <strong>모든 그룹의 데이터</strong>를 한 번에 백업합니다. <br>(단, 가져오기(복원) 시에는 그룹 보호를 위해 개인 데이터로만 복원됩니다)</p>
+                    <p style="margin:0;"><strong>[데이터 안전 관리]</strong> 내 <strong>개인 데이터</strong>만을 안전하게 백업 및 복원합니다. <br>(데이터 충돌 방지를 위해 공유 그룹 데이터는 백업 대상에서 제외됩니다)</p>
                 </div>
 
                 <div>
@@ -153,14 +153,14 @@ export const BackupManager = {
                             <input type="radio" name="import-mode" value="merge" checked style="margin-top:3px; accent-color:#059669;">
                             <div>
                                 <span style="font-weight:bold; color:#059669; font-size:0.95rem;">병합 (기존 데이터 보호 및 최신화)</span><br>
-                                <span style="font-size:0.8rem; color:#64748b;">기존에 작성된 데이터는 그대로 유지하면서 새로 추가/수정된 내용만 스마트하게 반영합니다.</span>
+                                <span style="font-size:0.8rem; color:#64748b;">기존에 작성된 데이터는 그대로 유지하면서 시트에 추가/수정된 내용만 스마트하게 반영합니다.</span>
                             </div>
                         </label>
                         <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
                             <input type="radio" name="import-mode" value="overwrite" style="margin-top:3px; accent-color:#ef4444;">
                             <div>
                                 <span style="font-weight:bold; color:#ef4444; font-size:0.95rem;">완전 교체 (모두 지우고 덮어쓰기)</span><br>
-                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 개인 데이터를 모두 싹 지우고 지정한 데이터로 완전히 교체합니다.</span>
+                                <span style="font-size:0.8rem; color:#64748b;">선택된 기간의 개인 데이터를 모두 싹 지우고 외부 데이터로 완전히 교체합니다.</span>
                             </div>
                         </label>
                         <div style="margin-top:8px; font-size:0.75rem; color:#94a3b8; border-top: 1px dashed #fca5a5; padding-top:6px;">
@@ -229,30 +229,28 @@ export const BackupManager = {
     },
 
     executeExport: async function() {
-		const target = document.querySelector('input[name="backup-target"]:checked').value;
-		if (target === 'sheets') {
-			await this.exportToSheets();
-		} else if (target === 'csv') {
-			await this.handleDownload();
-		} else if (target === 'calendar') {
-			// 🌟 [추가됨] sync.js에 구현된 캘린더 내보내기 엔진 호출
-			if (typeof window.executeGoogleExport === 'function') await window.executeGoogleExport();
-			else alert("동기화 모듈을 불러올 수 없습니다. 화면을 새로고침 해주세요.");
-		}
-	},
+        const target = document.querySelector('input[name="backup-target"]:checked').value;
+        if (target === 'sheets') {
+            await this.exportToSheets();
+        } else if (target === 'csv') {
+            await this.handleDownload();
+        } else if (target === 'calendar') {
+            if (typeof window.executeGoogleExport === 'function') await window.executeGoogleExport();
+            else alert("동기화 모듈을 불러올 수 없습니다. 화면을 새로고침 해주세요.");
+        }
+    },
 
-	executeImport: async function() {
-		const target = document.querySelector('input[name="backup-target"]:checked').value;
-		if (target === 'sheets') {
-			await this.importFromSheets();
-		} else if (target === 'csv') {
-			document.getElementById('backup-upload-file').click();
-		} else if (target === 'calendar') {
-			// 🌟 [추가됨] sync.js에 구현된 캘린더 가져오기 엔진 호출
-			if (typeof window.executeGoogleImport === 'function') await window.executeGoogleImport();
-			else alert("동기화 모듈을 불러올 수 없습니다. 화면을 새로고침 해주세요.");
-		}
-	},
+    executeImport: async function() {
+        const target = document.querySelector('input[name="backup-target"]:checked').value;
+        if (target === 'sheets') {
+            await this.importFromSheets();
+        } else if (target === 'csv') {
+            document.getElementById('backup-upload-file').click();
+        } else if (target === 'calendar') {
+            if (typeof window.executeGoogleImport === 'function') await window.executeGoogleImport();
+            else alert("동기화 모듈을 불러올 수 없습니다. 화면을 새로고침 해주세요.");
+        }
+    },
 
     setDefaultDates: function() {
         const select = document.getElementById('backup-period-select');
@@ -363,6 +361,7 @@ export const BackupManager = {
         return spreadsheetId;
     },
 
+    // 🌟 내보내기 배열 구성 (그룹 데이터 완전 제외 & 일정/기록 ID 추가)
     getScheduleDataArray: async function() {
         let startStr = document.getElementById('backup-start-date').value;
         let endStr = document.getElementById('backup-end-date').value;
@@ -373,70 +372,24 @@ export const BackupManager = {
         const incJournal = document.getElementById('backup-chk-journal').checked;
         const incEval = document.getElementById('backup-chk-eval').checked;
 
-        let myGroups = [];
-        try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
-
         const evMap = {}; const scMap = {}; const joMap = {}; const elMap = {};
 
+        // 🌟 철저히 개인 데이터(getUserCol)만 불러오도록 변경
         if (incEvent) {
-            const snap = await getDocs(query(window.getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
+            const snap = await getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => evMap[d.id] = { eventList: d.data().eventList || (d.data().eventText ? window.parseRawEventTextToEventList(d.data().eventText) : []) });
         }
         if (incClass) {
-            const snap = await getDocs(query(window.getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
+            const snap = await getDocs(query(getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => scMap[d.id] = { periods: d.data().periods || {} });
         }
         if (incJournal) {
-            const snap = await getDocs(query(window.getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
+            const snap = await getDocs(query(getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => joMap[d.id] = { entries: d.data().entries || [] });
         }
         if (incEval) {
-            const snap = await getDocs(query(window.getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
+            const snap = await getDocs(query(getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
             snap.forEach(d => elMap[d.id] = { evalList: d.data().evalList || [] });
-        }
-
-        for (const g of myGroups) {
-            if (incEvent) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!evMap[d.id]) evMap[d.id] = { eventList: [] };
-                    const gList = d.data().eventList || [];
-                    gList.forEach(e => {
-                        evMap[d.id].eventList.push({
-                            ...e,
-                            content: `[👥 ${g.name}] ` + (e.content || '')
-                        });
-                    });
-                });
-            }
-            if (incClass) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!scMap[d.id]) scMap[d.id] = { periods: {} };
-                    const gPeriods = d.data().periods || {};
-                    for (const p in gPeriods) {
-                        if (!scMap[d.id].periods[p]) scMap[d.id].periods[p] = { subject: '', memo: '', supplies: '' };
-                        const target = scMap[d.id].periods[p];
-                        const source = gPeriods[p];
-                        if (source.subject) target.subject = target.subject ? `${target.subject}\n[👥 ${g.name}] ${source.subject}` : `[👥 ${g.name}] ${source.subject}`;
-                        if (source.memo) target.memo = target.memo ? `${target.memo}\n[👥 ${g.name}] ${source.memo}` : `[👥 ${g.name}] ${source.memo}`;
-                        if (source.supplies) target.supplies = target.supplies ? `${target.supplies} / [👥 ${g.name}] ${source.supplies}` : `[👥 ${g.name}] ${source.supplies}`;
-                    }
-                });
-            }
-            if (incEval) {
-                const snap = await getDocs(query(window.getGroupCol(g.id, 'evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)));
-                snap.forEach(d => {
-                    if (!elMap[d.id]) elMap[d.id] = { evalList: [] };
-                    const gList = d.data().evalList || [];
-                    gList.forEach(e => {
-                        elMap[d.id].evalList.push({
-                            ...e,
-                            title: `[👥 ${g.name}] ` + (e.title || '')
-                        });
-                    });
-                });
-            }
         }
 
         const masterEventLabels = getEventLabels();
@@ -448,6 +401,11 @@ export const BackupManager = {
         if (incClass) pNames.forEach(p => header.push(p));
         if (incJournal) header.push("기록");
         if (incEval) header.push("조사표");
+        
+        // 🌟 보기 싫은 ID 컬럼들은 오른쪽 끝으로 배치
+        if (incEvent) header.push("일정 ID (수정금지)");
+        if (incJournal) header.push("기록 ID (수정금지)");
+
         const rows = [header]; 
 
         const evalMapBySheet = {};
@@ -457,27 +415,27 @@ export const BackupManager = {
         
         while(curr <= end) {
             const dStr = formatDate(curr);
-            let row = [dStr];
+            let rowObj = { date: dStr, evText: '', cls: [], joText: '', elText: '', evIds: '', joIds: '' };
 
-            if (incEvent) {
-                let evText = "";
-                if (evMap[dStr] && evMap[dStr].eventList) {
-                    evText = evMap[dStr].eventList.map(e => {
-                        let labelNames = [];
-                        if (e.labelIds && e.labelIds.length > 0) {
-                            labelNames = e.labelIds.map(id => {
-                                const match = masterEventLabels.find(l => l.id === id || l.name === id);
-                                return match ? match.name : id;
-                            });
-                        } else if (e.labels && e.labels.length > 0) labelNames = e.labels;
-                        else if (e.label) labelNames = [e.label];
-                        
-                        let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
-                        const pre = e.completed ? '[v] ' : '';
-                        return `${pre}[${lName}] ${e.content}`;
-                    }).join('\n');
-                }
-                row.push(evText);
+            if (incEvent && evMap[dStr] && evMap[dStr].eventList) {
+                const textLines = []; const idLines = [];
+                evMap[dStr].eventList.forEach(e => {
+                    let labelNames = [];
+                    if (e.labelIds && e.labelIds.length > 0) {
+                        labelNames = e.labelIds.map(id => {
+                            const match = masterEventLabels.find(l => l.id === id || l.name === id);
+                            return match ? match.name : id;
+                        });
+                    } else if (e.labels && e.labels.length > 0) labelNames = e.labels;
+                    else if (e.label) labelNames = [e.label];
+                    
+                    let lName = labelNames.length > 0 ? labelNames.join(', ') : '일정';
+                    const pre = e.completed ? '[v] ' : '';
+                    textLines.push(`${pre}[${lName}] ${e.content}`);
+                    idLines.push(e.id || '');
+                });
+                rowObj.evText = textLines.join('\n');
+                rowObj.evIds = idLines.join('\n');
             }
 
             if (incClass) {
@@ -488,48 +446,52 @@ export const BackupManager = {
                     if(pData.subject && pData.subject.trim() !== '') pText += `[${pData.subject.trim()}] `;
                     if(pData.memo && pData.memo.trim() !== '') pText += pData.memo.trim();
                     if(pData.supplies && pData.supplies.trim() !== '') pText += ` [${pData.supplies.trim()}]`;
-                    row.push(pText.trim());
+                    rowObj.cls.push(pText.trim());
                 }
             }
 
-            if (incJournal) {
-                let joText = "";
-                if (joMap[dStr] && joMap[dStr].entries) {
-                    joText = joMap[dStr].entries.map(j => {
-                        let labelNames = [];
-                        if (j.labelIds && j.labelIds.length > 0) {
-                            labelNames = j.labelIds.map(id => {
-                                const match = masterJournalLabels.find(l => l.id === id || l.name === id);
-                                return match ? match.name : id;
-                            });
-                        } else if (j.labels && j.labels.length > 0) labelNames = j.labels;
-                        else if (j.label) labelNames = [j.label];
+            if (incJournal && joMap[dStr] && joMap[dStr].entries) {
+                const textLines = []; const idLines = [];
+                joMap[dStr].entries.forEach(j => {
+                    let labelNames = [];
+                    if (j.labelIds && j.labelIds.length > 0) {
+                        labelNames = j.labelIds.map(id => {
+                            const match = masterJournalLabels.find(l => l.id === id || l.name === id);
+                            return match ? match.name : id;
+                        });
+                    } else if (j.labels && j.labels.length > 0) labelNames = j.labels;
+                    else if (j.label) labelNames = [j.label];
 
-                        let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
-                        const pre = j.completed ? '[v] ' : '';
-                        return `${pre}[${lName}] ${j.content}`;
-                    }).join('\n');
-                }
-                row.push(joText);
+                    let lName = labelNames.length > 0 ? labelNames.join(', ') : '기록';
+                    const pre = j.completed ? '[v] ' : '';
+                    textLines.push(`${pre}[${lName}] ${j.content}`);
+                    idLines.push(j.id || '');
+                });
+                rowObj.joText = textLines.join('\n');
+                rowObj.joIds = idLines.join('\n');
             }
 
-            if (incEval) {
-                let elText = "";
-                if (elMap[dStr] && elMap[dStr].evalList) {
-                    elText = JSON.stringify(elMap[dStr].evalList);
-                    
-                    elMap[dStr].evalList.forEach(ev => {
-                        let sheetName = '조사표_기타';
-                        if (ev.rosterMeta && ev.rosterMeta.year) {
-                            sheetName = `조사표_${ev.rosterMeta.year}-${ev.rosterMeta.grade}-${ev.rosterMeta.classNum}`;
-                        }
-                        if (!evalMapBySheet[sheetName]) evalMapBySheet[sheetName] = [];
-                        if (!ev.dateStr) ev.dateStr = dStr;
-                        evalMapBySheet[sheetName].push(ev);
-                    });
-                }
-                row.push(elText);
+            if (incEval && elMap[dStr] && elMap[dStr].evalList) {
+                rowObj.elText = JSON.stringify(elMap[dStr].evalList);
+                elMap[dStr].evalList.forEach(ev => {
+                    let sheetName = '조사표_기타';
+                    if (ev.rosterMeta && ev.rosterMeta.year) {
+                        sheetName = `조사표_${ev.rosterMeta.year}-${ev.rosterMeta.grade}-${ev.rosterMeta.classNum}`;
+                    }
+                    if (!evalMapBySheet[sheetName]) evalMapBySheet[sheetName] = [];
+                    if (!ev.dateStr) ev.dateStr = dStr;
+                    evalMapBySheet[sheetName].push(ev);
+                });
             }
+
+            // 배열에 설정된 순서대로 push (ID는 끝쪽으로)
+            let row = [rowObj.date];
+            if (incEvent) row.push(rowObj.evText);
+            if (incClass) rowObj.cls.forEach(c => row.push(c));
+            if (incJournal) row.push(rowObj.joText);
+            if (incEval) row.push(rowObj.elText);
+            if (incEvent) row.push(rowObj.evIds);
+            if (incJournal) row.push(rowObj.joIds);
 
             rows.push(row);
             curr.setDate(curr.getDate() + 1);
@@ -620,6 +582,7 @@ export const BackupManager = {
         return { scheduleRows: rows, evalSheetsData: evalSheetsData };
     },
 
+    // 🌟 내보내기 배열 구성 (그룹 데이터 완전 제외)
     getMemoDataArray: async function() {
         const rows = [["데이터분류", "ID", "내용/이름", "완료여부(O/X)", "라벨", "주소/URL", "생성일자(타임스탬프)"]];
         
@@ -629,24 +592,17 @@ export const BackupManager = {
             links.forEach((l, idx) => rows.push(['LINK', `LINK_${idx}`, l.name || '', '', '', l.url || '', '']));
         }
 
+        // 🌟 철저히 개인 메모만 추출
         const snap = await getDocs(query(getUserCol('tasks'), orderBy('createdAt')));
         snap.forEach(docSnap => {
             const d = docSnap.data();
             rows.push([ 'MEMO', docSnap.id, d.text || '', d.completed ? 'O' : 'X', (d.labels || []).join(','), d.imageUrl || '', d.createdAt || Date.now() ]);
         });
 
-        let myGroups = [];
-        try { myGroups = await window.dbAPI.loadMyGroups(); } catch(e) {}
-        for (const g of myGroups) {
-            const gSnap = await getDocs(query(getGroupCol(g.id, 'tasks'), orderBy('createdAt')));
-            gSnap.forEach(docSnap => {
-                const d = docSnap.data();
-                rows.push([ 'MEMO', docSnap.id, `[👥 ${g.name}] ` + (d.text || ''), d.completed ? 'O' : 'X', (d.labels || []).join(','), d.imageUrl || '', d.createdAt || Date.now() ]);
-            });
-        }
         return rows;
     },
 
+    // 🌟 가져오기 복원 (ID 기반 정밀 병합 및 그룹 로직 제거)
     processScheduleRows: async function(rows, mode, matrixUpdates = []) {
         if (rows.length < 2) return;
         
@@ -664,8 +620,13 @@ export const BackupManager = {
 
         const header = rows[0];
         const dateIdx = header.findIndex(h => typeof h === 'string' && h.includes("날짜"));
-        const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정")) : -1;
-        const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록")) : -1;
+        
+        // ID 컬럼의 위치를 우선 찾기
+        const eventIdIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정 ID")) : -1;
+        const journalIdIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록 ID")) : -1;
+
+        const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정") && !h.includes("ID")) : -1;
+        const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록") && !h.includes("ID")) : -1;
         const evalIdx = incEval ? header.findIndex(h => typeof h === 'string' && h.includes("조사표")) : -1;
 
         const doEvent = incEvent && eventIdx !== -1;
@@ -676,7 +637,7 @@ export const BackupManager = {
         const periodIndices = [];
         if (doClass) {
             for (let i = 0; i < header.length; i++) {
-                if (i !== dateIdx && i !== eventIdx && i !== journalIdx && i !== evalIdx) {
+                if (i !== dateIdx && i !== eventIdx && i !== journalIdx && i !== evalIdx && i !== eventIdIdx && i !== journalIdIdx) {
                     periodIndices.push({ index: i, pNum: periodIndices.length + 1 });
                 }
             }
@@ -686,13 +647,15 @@ export const BackupManager = {
         const masterJournalLabels = getJournalLabels();
         let labelsChanged = false;
 
-        const parseEventText = (rawText, type) => {
+        // 🌟 ID와 Text를 동기화하여 읽어들이는 스마트 파서
+        const parseEventTextWithIds = (rawText, rawIds, type) => {
             if (!rawText || !rawText.trim()) return [];
             const lines = rawText.split('\n');
+            const ids = rawIds ? rawIds.split('\n') : [];
             const eventList = [];
             const targetLabels = type === 'journal' ? masterJournalLabels : masterLabels;
 
-            lines.forEach(line => {
+            lines.forEach((line, idx) => {
                 let t = line.trim();
                 if(!t) return;
                 
@@ -702,42 +665,50 @@ export const BackupManager = {
                     t = t.substring(3).trim();
                 }
 
+                let labelsArray = [];
+                let content = t;
                 const match = t.match(/^\[(.*?)\]\s*(.*)$/);
                 if (match) {
                     let labelStr = match[1].trim();
-                    let content = match[2].trim();
-                    
-                    let labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
-                    if (labelsArray.length === 0) labelsArray = [type === 'journal' ? '기록' : '일정'];
-
-                    let mappedLabelIds = [];
-                    
-                    labelsArray.forEach(lbl => {
-                        let lObj = targetLabels.find(l => l.name === lbl);
-                        if (!lObj) {
-                            lObj = {
-                                id: (type === 'journal' ? 'lbl_jr_' : 'lbl_ev_') + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
-                                name: lbl,
-                                color: 'blue'
-                            };
-                            if (type === 'event') {
-                                lObj.isSkip = false; lObj.isForward = false; lObj.isPeriod = false; lObj.isRecur = false; lObj.isSystem = false;
-                            }
-                            targetLabels.push(lObj);
-                            labelsChanged = true;
-                        }
-                        mappedLabelIds.push(lObj.id);
-                    });
-
-                    eventList.push({ labelIds: mappedLabelIds, label: labelsArray[0], labels: labelsArray, content: content, completed: completed });
-                } else {
-                    let defaultLabelIds = [];
-                    if (type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
-                        const skipLabel = targetLabels.find(l => l.isSkip);
-                        if (skipLabel) defaultLabelIds = [skipLabel.id];
-                    }
-                    eventList.push({ labelIds: defaultLabelIds, content: t, completed: completed });
+                    content = match[2].trim();
+                    labelsArray = labelStr.split(',').map(s => s.trim()).filter(Boolean);
                 }
+                if (labelsArray.length === 0) labelsArray = [type === 'journal' ? '기록' : '일정'];
+
+                let mappedLabelIds = [];
+                labelsArray.forEach(lbl => {
+                    let lObj = targetLabels.find(l => l.name === lbl);
+                    if (!lObj) {
+                        lObj = {
+                            id: (type === 'journal' ? 'lbl_jr_' : 'lbl_ev_') + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
+                            name: lbl,
+                            color: 'blue'
+                        };
+                        if (type === 'event') {
+                            lObj.isSkip = false; lObj.isForward = false; lObj.isPeriod = false; lObj.isRecur = false; lObj.isSystem = false;
+                        }
+                        targetLabels.push(lObj);
+                        labelsChanged = true;
+                    }
+                    mappedLabelIds.push(lObj.id);
+                });
+
+                let defaultLabelIds = [];
+                if (!match && type === 'event' && (t.includes('(휴일)') || t.includes('(행사)'))) {
+                    const skipLabel = targetLabels.find(l => l.isSkip);
+                    if (skipLabel) defaultLabelIds = [skipLabel.id];
+                }
+
+                const existingId = ids[idx] ? ids[idx].trim() : undefined;
+
+                eventList.push({
+                    id: existingId || ('ev_' + Date.now() + Math.random().toString(36).substr(2,5)),
+                    labelIds: mappedLabelIds.length > 0 ? mappedLabelIds : defaultLabelIds,
+                    label: labelsArray[0],
+                    labels: labelsArray,
+                    content: content,
+                    completed: completed
+                });
             });
             return eventList;
         };
@@ -755,9 +726,10 @@ export const BackupManager = {
 
             if (doEvent) {
                 const evText = row[eventIdx] || "";
-                parsedDaysMap[dStr] = { eventList: parseEventText(evText, 'event'), eventText: evText };
+                const evIds = eventIdIdx !== -1 ? (row[eventIdIdx] || "") : "";
+                parsedDaysMap[dStr] = { eventList: parseEventTextWithIds(evText, evIds, 'event') };
             } else {
-                parsedDaysMap[dStr] = { eventList: [], eventText: "" };
+                parsedDaysMap[dStr] = { eventList: [] };
             }
 
             if (doClass) {
@@ -795,8 +767,9 @@ export const BackupManager = {
             }
 
             if (doJournal) {
-                const joText = row[journalIdx] || ""; 
-                journalDataMap[dStr] = parseEventText(joText, 'journal');
+                const joText = row[journalIdx] || "";
+                const joIds = journalIdIdx !== -1 ? (row[journalIdIdx] || "") : "";
+                journalDataMap[dStr] = parseEventTextWithIds(joText, joIds, 'journal');
             }
 
             if (doEval) {
@@ -879,11 +852,10 @@ export const BackupManager = {
         const totalDays = sortedDates.length;
         let processedCount = 0;
 
+        // 🌟 ID 기반 업데이트가 가능하도록 개선된 병합 함수
         const getUniqueList = (list) => {
             const merged = [];
             for (const item of list) {
-                const lblStr = (item.labels || []).join(',');
-
                 let existing = null;
                 if (item.id) {
                     existing = merged.find(e => e.id === item.id);
@@ -891,24 +863,17 @@ export const BackupManager = {
                 if (!existing && item.forwardChainId) {
                     existing = merged.find(e => e.forwardChainId === item.forwardChainId && e.content === item.content);
                 }
-                if (!existing) {
+                if (!existing && !item.id) {
+                    const lblStr = (item.labels || []).join(',');
                     existing = merged.find(e => {
                         const eLblStr = (e.labels || []).join(',');
                         return e.content === item.content && eLblStr === lblStr && (!e.id || !item.id); 
                     });
                 }
 
-                // 🌟 [V3.6 버그 픽스] 복원 시 데이터 병합 과정에서 작성자 권한(authorId)이 누락되는 현상 보완
                 if (existing) {
-                    existing.completed = item.completed; 
-                    existing.source = item.source || existing.source;
-                    if (!existing.id && item.id) existing.id = item.id;
-                    if (!existing.authorId && item.authorId) existing.authorId = item.authorId;
-                    if (!existing.forwardChainId && item.forwardChainId) existing.forwardChainId = item.forwardChainId;
-                    if (!existing.groupId && item.groupId) existing.groupId = item.groupId;
-                    if (!existing.originalDate && item.originalDate) existing.originalDate = item.originalDate;
-                    if (!existing.sharedGroupId && item.sharedGroupId) existing.sharedGroupId = item.sharedGroupId;
-                    if (!existing.groupName && item.groupName) existing.groupName = item.groupName;
+                    // ID가 일치하면 새 시트 데이터로 내용 덮어쓰기 (업데이트)
+                    Object.assign(existing, item);
                 } else {
                     merged.push({ ...item }); 
                 }
@@ -919,8 +884,6 @@ export const BackupManager = {
         for (const dStr of sortedDates) {
             if (doEvent) {
                 let newEventList = parsedDaysMap[dStr].eventList;
-                let evText = parsedDaysMap[dStr].eventText;
-                
                 if (mode === 'merge') {
                     const existDoc = await getDoc(doc(getUserCol('events'), dStr));
                     if (existDoc.exists()) {
@@ -928,9 +891,7 @@ export const BackupManager = {
                         newEventList = getUniqueList([...existList, ...newEventList]); 
                     }
                 }
-                
-                if (window.formatEventListToText) evText = window.formatEventListToText(newEventList);
-
+                const evText = window.formatEventListToText ? window.formatEventListToText(newEventList) : '';
                 batch.set(doc(getUserCol('events'), dStr), { eventList: newEventList, eventText: evText, updatedAt: Date.now() }); 
                 opCount++;
             }
@@ -1045,7 +1006,6 @@ export const BackupManager = {
                 const imageUrl = r[5] || '';
                 const createdAt = parseInt(r[6], 10) || Date.now();
 
-                // 🌟 [V3.6 버그 픽스] 메모 복원 시 본인의 authorId 소유권 부여
                 batch.set(doc(getUserCol('tasks'), id), {
                     text: r[2], completed: completed, labels: labels, imageUrl: imageUrl,
                     createdAt: createdAt, updatedAt: Date.now(), order: -createdAt,
