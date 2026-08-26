@@ -181,7 +181,6 @@ export const scrollToTodayIfExist = () => {
         if (store.scope === 'day') {
             return; 
         } else if (store.scope === 'week') {
-            // 🌟 [수정됨] 주간 뷰의 공통 클래스(.week-row-YYYY-MM-DD)를 이용해 흩어진 모든 행을 찾아냄
             primaryTarget = document.querySelector(`tr[data-week-date="${todayStr}"]`);
             if (primaryTarget) {
                 const allRows = document.querySelectorAll(`tr.week-row-${todayStr}`);
@@ -191,14 +190,15 @@ export const scrollToTodayIfExist = () => {
             }
         } else if (store.scope === 'month') {
             if (store.mode === 'editor') {
+                // 🌟 [수정됨] 월간 뷰의 공통 클래스(.month-row-YYYY-MM-DD)를 이용해 흩어진 모든 행 하이라이트
                 primaryTarget = document.querySelector(`tr[data-month-date="${todayStr}"]`);
                 if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-month-date^="${y}-${m}"]`);
                 if (primaryTarget) {
-                    highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
-                    if (store.showClass) {
-                        const subRow = primaryTarget.nextElementSibling;
-                        if (subRow && subRow.hasAttribute('data-month-sub')) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
-                    }
+                    const targetDateStr = primaryTarget.getAttribute('data-month-date') || todayStr;
+                    const allRows = document.querySelectorAll(`tr.month-row-${targetDateStr}`);
+                    allRows.forEach(row => {
+                        highlightTargets.push(...Array.from(row.querySelectorAll('td')));
+                    });
                 }
             } else {
                 primaryTarget = document.querySelector(`.cal-day.month-today-cell`);
