@@ -19,6 +19,13 @@ export class DayView extends BaseView {
         this.scheduleGroupId = null; 
     }
 
+    // 🌟 [추가됨] 텍스트 에리어 높이를 내용에 맞게 자동으로 조절하는 함수
+    autoResize(textarea) {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight + 2) + 'px';
+    }
+
     async loadEvaluationsForDay(dateStr) {
         let allEvals = [];
         
@@ -318,6 +325,13 @@ export class DayView extends BaseView {
         this.currentJournals = journals.map(j => ({ ...j, labelIds: j.labelIds || [] }));
         if (this.currentJournals.length === 0) this.currentJournals.push({ labelIds: [], content: '' });
 
+        const wsSelectHtml = `
+            <div style="display:inline-flex; background:#f0fdf4; padding:3px; border-radius:8px; border:1px solid #bbf7d0; align-items:center;">
+                <div onclick="window.dayViewInstance.changeScheduleWorkspace(null)" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${!this.scheduleGroupId ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">🔒 개인 시간표 작업공간</div>
+                ${this.myGroups.map(g => `<div onclick="window.dayViewInstance.changeScheduleWorkspace('${g.id}')" style="padding:4px 12px; font-size:0.85rem; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; ${this.scheduleGroupId === g.id ? 'background:#fff; color:#0f766e; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#94a3b8;'}">👥 ${g.name} 편집</div>`).join('')}
+            </div>
+        `;
+
         const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
           const p = i + 1;
           const pObj = this.currentSchedules[p] || {};
@@ -377,6 +391,7 @@ export class DayView extends BaseView {
             <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;">
                   <div style="font-size:0.8rem; color:#64748b;">💡 왼쪽 '≡' 영역을 잡아 다른 교시로 끌어다 놓으면 해당 위치로 끼워넣어집니다.</div>
+                  <div>${wsSelectHtml}</div>
               </div>
               <table style="text-align: center;">
                 <thead>
@@ -625,6 +640,7 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            // 🌟 [변경됨] 일정 입력칸에 autoResize 함수 연결
             return `
             <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -639,10 +655,15 @@ export class DayView extends BaseView {
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent(${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
+
+        // 🌟 [추가됨] 화면 렌더링 직후 높이 자동 맞춤 실행
+        setTimeout(() => {
+            container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta));
+        }, 0);
     }
 
     renderJournalEntries() {
@@ -656,15 +677,21 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
+            // 🌟 [변경됨] 오늘 기록 입력칸에 autoResize 함수 연결
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px';" oninput="this.style.height='auto'; this.style.height=(this.scrollHeight+4)+'px'; window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
             </div>`;
         }).join('');
+
+        // 🌟 [추가됨] 화면 렌더링 직후 높이 자동 맞춤 실행
+        setTimeout(() => {
+            container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta));
+        }, 0);
     }
 
     changeEventGroup(idx, newGroupId) {
