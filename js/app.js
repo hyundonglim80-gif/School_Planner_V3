@@ -181,20 +181,28 @@ export const scrollToTodayIfExist = () => {
         if (store.scope === 'day') {
             return; 
         } else if (store.scope === 'week') {
+            // 🌟 [수정됨] 주간 뷰의 보기 모드와 에디터 모드의 줄(row) 갯수 차이를 완벽히 구분
             primaryTarget = document.querySelector(`tr[data-week-date="${todayStr}"]`);
             if (primaryTarget) {
                 highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
                 if (store.showClass) {
-                    let next1 = primaryTarget.nextElementSibling;
-                    let next2 = next1 ? next1.nextElementSibling : null;
-                    if (next1) highlightTargets.push(...Array.from(next1.querySelectorAll('td')));
-                    if (next2) highlightTargets.push(...Array.from(next2.querySelectorAll('td')));
+                    if (store.mode === 'editor') {
+                        // 에디터 모드: 정확히 해당 날짜의 수업(schedule) 줄만 선택
+                        const subRow = document.querySelector(`tr[data-week-schedule-date="${todayStr}"]`);
+                        if (subRow) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
+                    } else {
+                        // 보기(Viewer) 모드: 헤더 포함 2줄을 추가로 선택
+                        let next1 = primaryTarget.nextElementSibling;
+                        let next2 = next1 ? next1.nextElementSibling : null;
+                        if (next1) highlightTargets.push(...Array.from(next1.querySelectorAll('td')));
+                        if (next2) highlightTargets.push(...Array.from(next2.querySelectorAll('td')));
+                    }
                 }
             }
         } else if (store.scope === 'month') {
             if (store.mode === 'editor') {
                 primaryTarget = document.querySelector(`tr[data-month-date="${todayStr}"]`);
-                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-month-date^="${y}-${m}"]`); // 날짜가 숨겨졌을 때의 안전장치
+                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-month-date^="${y}-${m}"]`);
                 if (primaryTarget) {
                     highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
                     if (store.showClass) {
@@ -209,7 +217,7 @@ export const scrollToTodayIfExist = () => {
         } else if (store.scope === 'year') {
             if (store.mode === 'editor') {
                 primaryTarget = document.querySelector(`tr[data-year-date="${todayStr}"]`);
-                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-year-date^="${y}-${m}"]`); // 날짜가 숨겨졌을 때의 안전장치
+                if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-year-date^="${y}-${m}"]`); 
                 if (primaryTarget) {
                     highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
                     if (store.showClass) {
@@ -235,7 +243,6 @@ export const scrollToTodayIfExist = () => {
                 const absoluteY = rect.top + window.pageYOffset;
                 const targetY = absoluteY - headerHeight - filterHeight - 15; 
                 
-                // 🌟 현재 위치와 목표 위치의 거리를 계산 (1000px 이상이면 기다리지 않고 0.1초 만에 즉시 순간 이동)
                 const distance = Math.abs(window.pageYOffset - targetY);
                 const scrollBehavior = distance > 1000 ? 'auto' : 'smooth';
                 
