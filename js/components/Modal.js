@@ -25,12 +25,33 @@ export class ModalManager {
 }
 
 // ==========================================================================
+// 🚀 모든 팝업(레거시 포함) z-index 자동 최상단 끌어올리기 엔진 (팝업 겹침 완벽 해결)
+// ==========================================================================
+const zIndexObserver = new MutationObserver((mutations) => {
+    mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+            if (node.nodeType === 1) {
+                const isModal = node.classList.contains('modal-overlay') || 
+                                node.id === 'help-modal' || 
+                                node.id === 'link-modal' || 
+                                node.id === 'image-viewer-modal';
+                if (isModal) {
+                    const allModals = document.querySelectorAll('.modal-overlay, #help-modal, #link-modal, #image-viewer-modal');
+                    // 항상 기존 모달들보다 높은 z-index 부여 (100000 단위부터 시작)
+                    node.style.setProperty('z-index', 100000 + allModals.length, 'important');
+                }
+            }
+        });
+    });
+});
+zIndexObserver.observe(document.body, { childList: true });
+
+// ==========================================================================
 // 🌐 전역 팝업(모달) 안전 종료 엔진 (ESC 키 & 바깥 영역 클릭 완벽 제어)
 // ==========================================================================
 
 // 1. 바깥 영역(어두운 배경) 클릭 시 닫기
 document.addEventListener('mousedown', (e) => {
-    // 🌟 정식 팝업(.modal-overlay)과 수동 팝업(help-modal 등)의 배경 영역을 모두 감지합니다.
     const isOverlay = e.target.classList.contains('modal-overlay') || 
                       e.target.id === 'help-modal' || 
                       e.target.id === 'link-modal' ||
@@ -54,8 +75,13 @@ document.addEventListener('mousedown', (e) => {
         // ③ 로그인 창은 바깥을 클릭해도 닫히면 안 되므로 예외 처리
         if (e.target.id === 'login-screen') return;
 
-        // ④ 나머지 수동으로 HTML이 주입된 모든 팝업들은 DOM에서 즉시 삭제하여 닫기
-        e.target.remove();
+        // ④ [버그 픽스] 레거시 팝업의 경우 HTML만 지우면 변수 초기화가 안 되므로 닫기 버튼을 찾아서 클릭 이벤트를 발생시킴
+        const closeBtn = e.target.querySelector('.btn-close-modal, .close-btn, button[onclick*="close"]');
+        if (closeBtn) {
+            closeBtn.click();
+        } else {
+            e.target.remove();
+        }
     }
 });
 
@@ -77,7 +103,10 @@ document.addEventListener('keydown', (e) => {
                 topOverlay.classList.add('hidden');
                 topOverlay.style.display = 'none';
             } else {
-                topOverlay.remove();
+                // [버그 픽스] ESC 종료 시에도 닫기 버튼을 클릭하여 시스템 정상 종료 유도
+                const closeBtn = topOverlay.querySelector('.btn-close-modal, .close-btn, button[onclick*="close"]');
+                if (closeBtn) closeBtn.click();
+                else topOverlay.remove();
             }
         }
     }
@@ -99,13 +128,15 @@ export class Modal {
     create() {
         if (document.getElementById(this.id)) {
             this.element = document.getElementById(this.id);
+            // 기존 팝업 재사용 시 내용(content) 최신화 보장
+            const body = this.element.querySelector('.modal-body');
+            if(body) body.innerHTML = this.content;
             return;
         }
 
         const overlay = document.createElement('div');
         overlay.id = this.id;
         overlay.className = 'modal-overlay hidden';
-        // z-index는 open() 시점에 동적으로 자동 계산되어 부여됩니다.
         overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center;';
 
         overlay.innerHTML = `
@@ -133,17 +164,15 @@ export class Modal {
         if (!this.element) this.create();
         
         ModalManager.push(this);
-        // 🌟 팝업창 여러 개가 겹칠 경우, 가장 마지막에 뜬 창이 맨 위로 올라오도록 스택 깊이에 비례하여 z-index 자동 할당
-        this.element.style.zIndex = 10005 + ModalManager.stack.length; 
-        
         this.element.classList.remove('hidden');
         this.element.style.display = 'flex';
     }
 
     close() {
         if (this.element) {
-            this.element.classList.add('hidden');
-            this.element.style.display = 'none';
+            // [버그 픽스] 다음번 렌더링 시 최신 데이터를 보장하기 위해 아예 삭제
+            this.element.remove();
+            this.element = null;
         }
         if (this.onClose) this.onClose();
         ModalManager.pop(this);
