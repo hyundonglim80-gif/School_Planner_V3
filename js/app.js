@@ -695,33 +695,41 @@ Object.assign(window, {
 
 
 // ============================================================================
-// 🌟 [추가 기능 1] 스코프(탭) 변경 시 기본 모드(보기/작성) 자동 설정
+// 🌟 [추가 기능 1 완벽 개선] 스코프(탭) 변경 시 기본 모드(보기/작성) 자동 설정 (단축키 지원)
 // ============================================================================
-document.addEventListener('click', (e) => {
-    // 화면의 탭 버튼(scope 변경 요소)을 클릭했을 때 감지
-    const target = e.target.closest('[onclick*="Scope("], [data-scope]');
-    if (target) {
-        let clickedScope = '';
-        if (target.dataset.scope) clickedScope = target.dataset.scope;
-        else if (target.getAttribute('onclick')) {
-            const match = target.getAttribute('onclick').match(/Scope\(['"]([^'"]+)['"]\)/);
-            if (match) clickedScope = match[1];
-        }
-        
-        // 하루 탭은 '작성(editor)', 나머지는 '보기(viewer)'로 기본값 자동 설정
-        if (clickedScope === 'day') {
-            store.mode = 'editor';
-        } else if (['year', 'month', 'week'].includes(clickedScope)) {
-            store.mode = 'viewer';
-        }
-        
-        // 상단 모드 토글 스위치 UI 체크 상태 동기화 (버튼 ID나 클래스 자동 감지)
-        const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
-        if (modeToggle && modeToggle.checked !== undefined) {
-            modeToggle.checked = (store.mode === 'editor');
-        }
+(function() {
+    let previousScope = store.scope;
+    
+    // 앱의 핵심 화면 렌더링(render) 함수를 가로채어 실행합니다.
+    const originalRender = window.render;
+    
+    if (originalRender) {
+        window.render = async function() {
+            // 화면이 새로 그려지기 직전에 현재 탭(scope)이 이전과 달라졌는지 확인 (단축키 무조건 감지)
+            if (store.scope !== previousScope) {
+                
+                // 하루 탭은 '작성(editor)', 나머지는 '보기(viewer)'로 기본값 자동 설정
+                if (store.scope === 'day' && store.mode !== 'editor') {
+                    store.mode = 'editor';
+                } else if (['year', 'month', 'week'].includes(store.scope) && store.mode !== 'viewer') {
+                    store.mode = 'viewer';
+                }
+                
+                // 상단 모드 토글 스위치 UI 체크 상태 동기화
+                const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
+                if (modeToggle && modeToggle.checked !== undefined) {
+                    modeToggle.checked = (store.mode === 'editor');
+                }
+                
+                // 변경된 탭 기록 저장
+                previousScope = store.scope;
+            }
+            
+            // 모드 설정이 완료된 후 원래의 렌더링 동작을 정상적으로 실행
+            return originalRender.apply(this, arguments);
+        };
     }
-}, true); // 캡처링 단계에서 미리 모드를 변경함
+})();
 
 
 // ============================================================================
