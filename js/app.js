@@ -820,7 +820,8 @@ window.goToDay = (dateStr) => {
         // 저장 버튼 동작
         document.getElementById('day-modal-save-btn').onclick = () => {
             if (window.dayViewInstance) {
-                window.dayViewInstance.save();
+                // 저장이 끝날 때까지 대기하도록 수정
+        		await window.dayViewInstance.save();
             }
             dayModal.close();
         };
