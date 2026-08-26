@@ -236,16 +236,18 @@ export class MemoView extends BaseView {
     let activeMemos = filteredMemos.filter(m => !m.completed).sort((a, b) => a.order - b.order);
     let completedMemos = filteredMemos.filter(m => m.completed).sort((a, b) => b.completedAt - a.completedAt);
 
-    // 🌟 카운트 계산 (전체 대비)
-    const allCount = this.memoItems.length;
+    // 🌟 카운트 계산 (진행 중인 메모만 집계하도록 변경)
+    const allActiveMemos = this.memoItems.filter(m => !m.completed);
+    
+    const allCount = allActiveMemos.length;
     const labelCounts = {};
     this.AVAILABLE_LABELS.forEach(lObj => {
-        labelCounts[lObj.name] = this.memoItems.filter(m => m.labels && m.labels.includes(lObj.name)).length;
+        labelCounts[lObj.name] = allActiveMemos.filter(m => m.labels && m.labels.includes(lObj.name)).length;
     });
 
     const groupCounts = { personal: 0 };
     this.myGroups.forEach(g => groupCounts[g.id] = 0);
-    this.memoItems.forEach(m => {
+    allActiveMemos.forEach(m => {
         const gId = m.groupId || 'personal';
         if (groupCounts[gId] !== undefined) groupCounts[gId]++;
     });
