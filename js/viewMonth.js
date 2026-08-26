@@ -125,37 +125,28 @@ export class MonthView extends BaseView {
         const finalEvents = eMap[dateStr]?.eventList || [];
         const filteredEvents = finalEvents.filter(e => window.activeUnifiedFilters.includes(e.sharedGroupId || 'personal'));
         
-        // 🌟 달력 그리드 보기 모드에서도 아이콘 배지 적용
-        const processedEvents = filteredEvents.length > 0 ? filteredEvents.map(e => {
-            const isPersonal = !e.sharedGroupId;
-            const gIcon = isPersonal ? '🔒' : '👥';
-            const gName = isPersonal ? '개인' : e.groupName;
-            const badgeColor = isPersonal ? '#2563eb' : '#059669';
-            const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-            const iconHtml = filterCount > 1 ? `<span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; font-size:0.75rem; border-radius:4px; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}; margin-right:4px; vertical-align:middle; cursor:help;" title="${gName}">${gIcon}</span>` : '';
-            return { 
-                ...e, 
-                labelIds: e.labelIds || [],
-                content: iconHtml + e.content
-            };
-        }) : [];
+        let contentHtml = '';
         
-        const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:4px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+        // 🌟 선택된 그룹별로 구역(위/아래)을 분리하여 생성
+        filters.forEach((fId, idx) => {
+            const isPersonal = fId === 'personal';
+            const gIcon = isPersonal ? '🔒' : '👥';
+            const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+            const iconColor = isPersonal ? '#2563eb' : '#059669';
+            const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
-        // 🌟 시간표 보기 모드에서도 그룹별로 줄 바꿈 처리
-        let scheduleHtml = '';
-        if (store.showClass) {
-            filters.forEach((filterId, idx) => {
-                const isPersonal = filterId === 'personal';
-                const gIcon = isPersonal ? '🔒' : '👥';
-                const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === filterId)?.name || '그룹');
-                const badgeColor = isPersonal ? '#2563eb' : '#059669';
-                const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+            // 1. 해당 구역의 일정(Event) 추출
+            const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+            const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+            const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
+            // 2. 해당 구역의 수업(Schedule) 추출
+            let scheduleHtml = '';
+            if (store.showClass) {
                 let hasClass = false;
                 let boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
                     const p = pi + 1;
-                    const subj = sMap[dateStr]?.[filterId]?.[p]?.subject;
+                    const subj = sMap[dateStr]?.[fId]?.[p]?.subject;
                     if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
                         hasClass = true;
                         const text = subj.trim();
@@ -167,13 +158,25 @@ export class MonthView extends BaseView {
                 }).join('');
 
                 if (hasClass) {
-                    const iconBadge = filterCount > 1 ? `<div style="display:flex; align-items:center; justify-content:center; width:22px; height:22px; box-sizing:border-box; border:1px solid ${badgeColor}; border-radius:4px; background:${badgeBg}; color:${badgeColor}; font-size:0.9rem; cursor:help; flex-shrink:0; margin-right:2px;" title="${gName}">${gIcon}</div>` : '';
-                    scheduleHtml += `<div style="display:flex; flex-wrap:nowrap; align-items:center; width:100%; margin-top:4px; margin-bottom:4px;">${iconBadge}<div style="display:flex; flex-wrap:nowrap; gap:2px; flex:1; min-width:0;">${boxesHtml}</div></div>`;
+                    scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; width:100%; margin-top:2px; margin-bottom:2px;">${boxesHtml}</div>`;
                 }
-            });
-        }
+            }
 
-        const isRed = isRedDay(dateStr, processedEvents);
+            // 3. 내용이 있을 경우에만 구역 렌더링
+            if (eventHtml || scheduleHtml) {
+                const topBorder = contentHtml !== '' ? 'border-top: 1px dashed #cbd5e1; padding-top: 6px; margin-top: 4px;' : 'margin-top: 4px;';
+                const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:0.85rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:4px; cursor:help;" title="${gName}">${gIcon}</div>` : '';
+                
+                contentHtml += `
+                <div style="${topBorder} display:flex; flex-direction:column; align-items:stretch; width:100%;">
+                    ${iconBadge}
+                    ${scheduleHtml}
+                    ${eventHtml}
+                </div>`;
+            }
+        });
+
+        const isRed = isRedDay(dateStr, filteredEvents);
         const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#334155');
         const holidayName = getHolidayName(dateStr);
         const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
@@ -182,8 +185,7 @@ export class MonthView extends BaseView {
         return `
           <div class="cal-day ${todayClass}">
               <div style="font-weight:700; color:${dateColor}; font-size:1.1rem; display:inline-block; cursor:pointer;" onclick="window.goToDay('${dateStr}')" title="${dateStr} 일 보기로 이동">${d}${holidayHtml}</div>
-              ${scheduleHtml}
-              ${eventHtml}
+              ${contentHtml}
           </div>`;
     }).join('');
 
