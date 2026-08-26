@@ -289,7 +289,7 @@ export const EvaluationManager = {
 
         const newEval = {
             id: 'eval_' + Date.now().toString(36),
-            authorId: window.auth?.currentUser?.uid, // 🌟 [V3.6] 작성자 권한 기록 추가
+            authorId: window.auth?.currentUser?.uid,
             title, subject, type, methodObj, steps, groups,
             dateStr, periodStr: finalPeriod,
             context: { source: finalSource, period: finalPeriod },
@@ -310,6 +310,20 @@ export const EvaluationManager = {
         this.openViewer(dateStr, newEval.id);
     },
 
+    // 🌟 조사표 전체 일괄 적용 엔진 추가
+    applyToAll: function(field, value) {
+        const table = document.getElementById('eval-viewer-table');
+        if (!table) return;
+        const inputs = table.querySelectorAll(`tbody [data-field="${field}"]`);
+        inputs.forEach(inp => {
+            if (inp.type === 'checkbox') {
+                inp.checked = value;
+            } else {
+                inp.value = value;
+            }
+        });
+    },
+
     openViewer: async function(dateStr, evalId) {
         this.currentDateStr = dateStr;
         this.currentEvalList = await dbAPI.loadEvaluations(dateStr, this.currentGroupId);
@@ -317,7 +331,6 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
 
-        // 🌟 [V3.6] 작성자 권한 확인 (본인이 작성했거나, 그룹 공유가 아닐 때)
         const uid = window.auth?.currentUser?.uid;
         const isAuthor = !this.currentGroupId || !ev.authorId || !uid || ev.authorId === uid;
 
@@ -358,27 +371,43 @@ export const EvaluationManager = {
         });
 
         let headersHtml = `<th style="padding:8px; border:1px solid #cbd5e1; width:40px;">번호</th><th style="padding:8px; border:1px solid #cbd5e1; width:80px;">이름</th>`;
+        let applyAllHtml = `<tr style="background:#e0f2fe; box-shadow: 0 2px 4px rgba(0,0,0,0.05);"><td colspan="2" style="padding:6px; font-weight:bold; color:#0369a1; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;">💡 전체 적용 ➡️</td>`;
+
         if (isEval) {
-            if (isGroup) headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">조</th><th style="padding:8px; border:1px solid #cbd5e1;">조별</th>`;
-            if (isIndiv) headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별</th>`;
+            if (isGroup) {
+                headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">조</th><th style="padding:8px; border:1px solid #cbd5e1;">조별</th>`;
+                applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><input type="text" placeholder="조이름" style="width:40px; padding:4px; text-align:center;" onchange="window.EvaluationManager.applyToAll('groupName', this.value)"></td>`;
+                applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><select onchange="window.EvaluationManager.applyToAll('groupScore', this.value)" style="padding:4px;"><option value="">선택</option>${ev.steps.map(s => `<option value="${s}">${s}</option>`).join('')}</select></td>`;
+            }
+            if (isIndiv) {
+                headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별</th>`;
+                applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><select onchange="window.EvaluationManager.applyToAll('indivScore', this.value)" style="padding:4px;"><option value="">선택</option>${ev.steps.map(s => `<option value="${s}">${s}</option>`).join('')}</select></td>`;
+            }
             headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">사유/메모</th>`;
+            applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><input type="text" placeholder="일괄입력 후 Enter" onchange="window.EvaluationManager.applyToAll('reason', this.value)" style="width:90%; padding:4px;"></td>`;
         } else if (isCheck) {
             headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">체크(O)</th><th style="padding:8px; border:1px solid #cbd5e1;">사유/메모</th>`;
+            applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><button onclick="window.EvaluationManager.applyToAll('checked', true)" style="padding:3px 8px; margin-right:4px; background:#059669; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">모두 O</button><button onclick="window.EvaluationManager.applyToAll('checked', false)" style="padding:3px 8px; background:#ef4444; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">모두 X</button></td>`;
+            applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><input type="text" placeholder="일괄입력 후 Enter" onchange="window.EvaluationManager.applyToAll('reason', this.value)" style="width:90%; padding:4px;"></td>`;
         } else {
             headersHtml += `<th style="padding:8px; border:1px solid #cbd5e1;">개별 메모</th>`;
+            applyAllHtml += `<td style="padding:6px; border:1px solid #cbd5e1; border-bottom:2px solid #38bdf8;"><input type="text" placeholder="메모 일괄입력 후 Enter" onchange="window.EvaluationManager.applyToAll('memo', this.value)" style="width:98%; padding:4px;"></td>`;
         }
+        applyAllHtml += `</tr>`;
 
         const titleText = this.currentGroupId ? `📊 ${ev.title} [👥 공유됨${isAuthor ? '' : ' - 읽기전용'}]` : `📊 ${ev.title} [🔒 개인]`;
         
-        // 🌟 [V3.6] 읽기 전용 모드에서는 저장/삭제 버튼 숨기기
         const deleteBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" style="padding:8px 12px; background:#fee2e2; color:#ef4444; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">🗑️ 삭제</button>` : `<div></div>`;
         const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" style="padding:8px 16px; border:none; background:#2563eb; color:white; border-radius:6px; font-weight:bold; cursor:pointer;">💾 저장</button>` : '';
         const cancelText = isAuthor ? '취소' : '닫기';
 
         const html = `
             <div style="max-height:60vh; overflow-y:auto; padding-right:5px; margin-bottom:10px;">
-                <table style="width:100%; text-align:center; border-collapse:collapse;" id="eval-viewer-table">
-                    <thead style="position:sticky; top:0; z-index:2; box-shadow:0 1px 2px rgba(0,0,0,0.05);"><tr style="background:#f1f5f9; color:#1e293b;">${headersHtml}</tr></thead>
+                <table style="width:100%; text-align:center; border-collapse:separate; border-spacing:0;" id="eval-viewer-table">
+                    <thead style="position:sticky; top:0; z-index:10; background:#f1f5f9;">
+                        <tr style="color:#1e293b; background:#f1f5f9;">${headersHtml}</tr>
+                        ${isAuthor ? applyAllHtml : ''}
+                    </thead>
                     <tbody>${rowsHtml}</tbody>
                 </table>
             </div>
@@ -406,7 +435,6 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
 
-        // 🌟 [V3.6] 작성자 권한 재검증
         const uid = window.auth?.currentUser?.uid;
         if (this.currentGroupId && ev.authorId && uid && ev.authorId !== uid) {
             return alert("권한이 없습니다. 읽기 전용 조사표입니다.");
@@ -416,9 +444,10 @@ export const EvaluationManager = {
         if (!table) return;
 
         ev.records = {};
-        const inputs = table.querySelectorAll('input, select');
+        const inputs = table.querySelectorAll('tbody input, tbody select');
         inputs.forEach(inp => {
             const sNum = parseInt(inp.getAttribute('data-snum'), 10);
+            if (isNaN(sNum)) return;
             const field = inp.getAttribute('data-field');
             let val = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
 
@@ -439,7 +468,6 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
 
-        // 🌟 [V3.6] 작성자 권한 재검증
         const uid = window.auth?.currentUser?.uid;
         if (this.currentGroupId && ev.authorId && uid && ev.authorId !== uid) {
             return alert("권한이 없습니다. 본인이 작성한 조사표만 삭제할 수 있습니다.");
