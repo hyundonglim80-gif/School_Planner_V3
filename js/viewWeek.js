@@ -115,10 +115,11 @@ export class WeekView extends BaseView {
       // 1. 일정(Events) 영역 분리 렌더링
       filters.forEach((fId, idx) => {
           const isPersonal = fId === 'personal';
-          const gName = isPersonal ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
           const badgeColor = isPersonal ? '#2563eb' : '#059669';
           const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          const badgeHtml = filterCount > 1 ? `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-top:4px; font-weight:bold;">${gName}</div>` : '';
+          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
+          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
           const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
           const processedEvents = fEvents.map(e => ({
