@@ -695,40 +695,66 @@ Object.assign(window, {
 
 
 // ============================================================================
-// 🌟 [추가 기능 1 완벽 개선] 스코프(탭) 변경 시 기본 모드(보기/작성) 자동 설정 (단축키 지원)
+// 🌟 [추가 기능 1 완벽 복구] 스코프(탭) 변경 시 기본 모드(보기/작성) 자동 설정 (단축키 완벽 지원)
 // ============================================================================
 (function() {
-    let previousScope = store.scope;
-    
-    // 앱의 핵심 화면 렌더링(render) 함수를 가로채어 실행합니다.
-    const originalRender = window.render;
-    
-    if (originalRender) {
-        window.render = async function() {
-            // 화면이 새로 그려지기 직전에 현재 탭(scope)이 이전과 달라졌는지 확인 (단축키 무조건 감지)
-            if (store.scope !== previousScope) {
-                
-                // 하루 탭은 '작성(editor)', 나머지는 '보기(viewer)'로 기본값 자동 설정
-                if (store.scope === 'day' && store.mode !== 'editor') {
-                    store.mode = 'editor';
-                } else if (['year', 'month', 'week'].includes(store.scope) && store.mode !== 'viewer') {
-                    store.mode = 'viewer';
-                }
-                
-                // 상단 모드 토글 스위치 UI 체크 상태 동기화
-                const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
-                if (modeToggle && modeToggle.checked !== undefined) {
-                    modeToggle.checked = (store.mode === 'editor');
-                }
-                
-                // 변경된 탭 기록 저장
-                previousScope = store.scope;
+    // 탭이 변경될 때 올바른 모드를 강제로 적용해 주는 핵심 함수
+    function applyDefaultMode(newScope) {
+        let isModeChanged = false;
+        
+        if (newScope === 'day' && store.mode !== 'editor') {
+            store.mode = 'editor';
+            isModeChanged = true;
+        } else if (['year', 'month', 'week'].includes(newScope) && store.mode !== 'viewer') {
+            store.mode = 'viewer';
+            isModeChanged = true;
+        }
+        
+        if (isModeChanged) {
+            const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
+            if (modeToggle && modeToggle.checked !== undefined) {
+                modeToggle.checked = (store.mode === 'editor');
             }
-            
-            // 모드 설정이 완료된 후 원래의 렌더링 동작을 정상적으로 실행
-            return originalRender.apply(this, arguments);
-        };
+        }
+        return isModeChanged;
     }
+
+    // 1. 마우스 클릭 낚아채기 (이전에 완벽하게 작동했던 방식 그대로 복구)
+    document.addEventListener('click', (e) => {
+        const target = e.target.closest('[onclick*="Scope("], [data-scope]');
+        if (target) {
+            let clickedScope = '';
+            if (target.dataset.scope) clickedScope = target.dataset.scope;
+            else if (target.getAttribute('onclick')) {
+                const match = target.getAttribute('onclick').match(/Scope\(['"]([^'"]+)['"]\)/);
+                if (match) clickedScope = match[1];
+            }
+            if (clickedScope) applyDefaultMode(clickedScope);
+        }
+    }, true); // 캡처링 단계에서 화면 변경 전에 미리 모드를 바꿈
+
+    // 2. 단축키 낚아채기 (안전한 키보드 감지 방식 추가)
+    let lastScope = store.scope;
+    
+    document.addEventListener('keydown', () => {
+        // 단축키 로직이 먼저 실행될 수 있도록 아주 짧게(20ms) 기다린 후 확인
+        setTimeout(() => {
+            if (store.scope !== lastScope) {
+                const modeChanged = applyDefaultMode(store.scope);
+                lastScope = store.scope;
+                
+                // 단축키 작동 후 모드가 강제로 바뀌었다면 화면을 올바른 모드로 한번 더 새로고침
+                if (modeChanged && typeof window.render === 'function') {
+                    window.render(true);
+                }
+            }
+        }, 20);
+    }, true);
+
+    // 마우스 클릭 시에도 이전 탭 상태(lastScope)를 동기화
+    document.addEventListener('mouseup', () => {
+        lastScope = store.scope;
+    });
 })();
 
 
