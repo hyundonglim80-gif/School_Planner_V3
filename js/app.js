@@ -181,23 +181,13 @@ export const scrollToTodayIfExist = () => {
         if (store.scope === 'day') {
             return; 
         } else if (store.scope === 'week') {
-            // 🌟 [수정됨] 주간 뷰의 보기 모드와 에디터 모드의 줄(row) 갯수 차이를 완벽히 구분
+            // 🌟 [수정됨] 주간 뷰의 공통 클래스(.week-row-YYYY-MM-DD)를 이용해 흩어진 모든 행을 찾아냄
             primaryTarget = document.querySelector(`tr[data-week-date="${todayStr}"]`);
             if (primaryTarget) {
-                highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
-                if (store.showClass) {
-                    if (store.mode === 'editor') {
-                        // 에디터 모드: 정확히 해당 날짜의 수업(schedule) 줄만 선택
-                        const subRow = document.querySelector(`tr[data-week-schedule-date="${todayStr}"]`);
-                        if (subRow) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
-                    } else {
-                        // 보기(Viewer) 모드: 헤더 포함 2줄을 추가로 선택
-                        let next1 = primaryTarget.nextElementSibling;
-                        let next2 = next1 ? next1.nextElementSibling : null;
-                        if (next1) highlightTargets.push(...Array.from(next1.querySelectorAll('td')));
-                        if (next2) highlightTargets.push(...Array.from(next2.querySelectorAll('td')));
-                    }
-                }
+                const allRows = document.querySelectorAll(`tr.week-row-${todayStr}`);
+                allRows.forEach(row => {
+                    highlightTargets.push(...Array.from(row.querySelectorAll('td')));
+                });
             }
         } else if (store.scope === 'month') {
             if (store.mode === 'editor') {
