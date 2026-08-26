@@ -19,10 +19,10 @@ export class DayView extends BaseView {
         this.scheduleGroupId = null; 
     }
 
-    // 🌟 [추가됨] 텍스트 에리어 높이를 내용에 맞게 자동으로 조절하는 함수
+    // 🌟 [개선됨] 글을 지울 때도 높이가 다시 줄어들도록 완벽한 자동 높이 계산 적용
     autoResize(textarea) {
         if (!textarea) return;
-        textarea.style.height = 'auto';
+        textarea.style.height = '1px'; // 강제 축소하여 순수한 내용물 높이(scrollHeight)를 다시 측정
         textarea.style.height = (textarea.scrollHeight + 2) + 'px';
     }
 
@@ -640,7 +640,6 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [변경됨] 일정 입력칸에 autoResize 함수 연결
             return `
             <div style="${displayStyle} flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -660,7 +659,7 @@ export class DayView extends BaseView {
             </div>`;
         }).join('');
 
-        // 🌟 [추가됨] 화면 렌더링 직후 높이 자동 맞춤 실행
+        // 🌟 저장된 내용을 처음 불러올 때도 상자 높이를 내용물에 맞춤
         setTimeout(() => {
             container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta));
         }, 0);
@@ -677,18 +676,20 @@ export class DayView extends BaseView {
                 `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel(${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
             ).join('');
 
-            // 🌟 [변경됨] 오늘 기록 입력칸에 autoResize 함수 연결
+            // 🌟 [개선됨] '오늘 할 일'과 완벽히 동일한 Flexbox 래퍼(Wrapper) 구조로 변경하여 자동 높이 계산이 꼬이지 않게 함
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry(${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="width:100%; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                <div style="display:flex; align-items:flex-start; width:100%;">
+                    <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:60px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent(${idx}, this.value)">${j.content || ''}</textarea>
+                </div>
             </div>`;
         }).join('');
 
-        // 🌟 [추가됨] 화면 렌더링 직후 높이 자동 맞춤 실행
+        // 🌟 저장된 내용을 처음 불러올 때도 상자 높이를 내용물에 맞춤
         setTimeout(() => {
             container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta));
         }, 0);
