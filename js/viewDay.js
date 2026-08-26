@@ -263,7 +263,7 @@ export class DayView extends BaseView {
 
             <div class="day-journal-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.8rem; color:#f472b6; font-weight:normal;">(🔒 비공개)</span></h3>
+                  <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록</h3>
               </div>
               <div class="journal-eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, null) ? '' : 'display:none;'}">
                   ${this.generateEvalBadgesHtml('journal', null, null)}
@@ -412,7 +412,7 @@ export class DayView extends BaseView {
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록</h3>
                 <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
               </div>
               <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
