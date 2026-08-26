@@ -692,3 +692,109 @@ Object.assign(window, {
     toggleNetworkMode, executeManualSync, openNativeClock, installPWA,
     toggleSwipeMode 
 });
+
+
+// ============================================================================
+// 🌟 [추가 기능 1] 스코프(탭) 변경 시 기본 모드(보기/작성) 자동 설정
+// ============================================================================
+document.addEventListener('click', (e) => {
+    // 화면의 탭 버튼(scope 변경 요소)을 클릭했을 때 감지
+    const target = e.target.closest('[onclick*="Scope("], [data-scope]');
+    if (target) {
+        let clickedScope = '';
+        if (target.dataset.scope) clickedScope = target.dataset.scope;
+        else if (target.getAttribute('onclick')) {
+            const match = target.getAttribute('onclick').match(/Scope\(['"]([^'"]+)['"]\)/);
+            if (match) clickedScope = match[1];
+        }
+        
+        // 하루 탭은 '작성(editor)', 나머지는 '보기(viewer)'로 기본값 자동 설정
+        if (clickedScope === 'day') {
+            store.mode = 'editor';
+        } else if (['year', 'month', 'week'].includes(clickedScope)) {
+            store.mode = 'viewer';
+        }
+        
+        // 상단 모드 토글 스위치 UI 체크 상태 동기화 (버튼 ID나 클래스 자동 감지)
+        const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
+        if (modeToggle && modeToggle.checked !== undefined) {
+            modeToggle.checked = (store.mode === 'editor');
+        }
+    }
+}, true); // 캡처링 단계에서 미리 모드를 변경함
+
+
+// ============================================================================
+// 🌟 [추가 기능 2] 날짜 클릭 시 화면 이동 대신 '하루-작성 팝업(모달)' 띄우기
+// ============================================================================
+window.goToDay = (dateStr) => {
+    // 이미 '하루' 탭에 있는 경우: 팝업 대신 해당 날짜로 이동 후 '작성' 모드로 강제 전환
+    if (store.scope === 'day') {
+        store.currentDate = new Date(dateStr);
+        store.mode = 'editor';
+        const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
+        if (modeToggle) modeToggle.checked = true;
+        if (window.render) window.render(true);
+        return;
+    }
+
+    // 년간/월간/주간 탭에서 클릭한 경우: 화면 이동 없이 해당 날짜의 하루-작성 팝업 띄우기
+    store.currentDate = new Date(dateStr); 
+    
+    const modalId = 'day-editor-modal';
+    const html = `
+        <div id="day-modal-body" style="max-height: 75vh; overflow-y: auto; overflow-x: hidden; padding: 10px; background: #f8fafc; border-radius: 8px;">
+            <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
+        </div>
+        <div style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+            <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
+            <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+        </div>
+    `;
+
+    const dayModal = new window.Modal({
+        id: modalId,
+        title: `📝 ${dateStr} 일정 및 기록 작성`,
+        width: '1100px', // 다중 워크스페이스를 나란히 표시하기 위해 넉넉한 넓이 적용
+        content: html,
+        onClose: () => {
+            // 모달 닫힐 때, DayView 렌더링 컨테이너를 기존의 메인 화면(#main-view)으로 원상복구
+            if (window.dayViewInstance) {
+                window.dayViewInstance.container = document.getElementById("main-view");
+            }
+            // 메인 뷰(년간/월간/주간) 새로고침하여 방금 팝업에서 수정한 내용(배지 등) 즉시 반영
+            if (window.render) window.render(true);
+        }
+    });
+
+    dayModal.open();
+
+    // 팝업 내부에 DayView(하루 에디터 엔진) 렌더링
+    setTimeout(() => {
+        const modalContainer = document.getElementById('day-modal-body');
+        if (modalContainer && window.dayViewInstance) {
+            // 뒷 배경의 메인 화면 모드(Viewer)를 보호하기 위해 임시 전환
+            const prevMode = store.mode;
+            store.mode = 'editor';
+            
+            window.dayViewInstance.container = modalContainer;
+            window.dayViewInstance.renderEditor().then(() => {
+                store.mode = prevMode; // 렌더링 완료 후 뒷 배경 모드 원상복구
+            });
+        }
+
+        // 저장 버튼 동작
+        document.getElementById('day-modal-save-btn').onclick = () => {
+            if (window.dayViewInstance) {
+                window.dayViewInstance.save();
+            }
+            dayModal.close();
+        };
+        
+        // 취소 버튼 동작
+        document.getElementById('day-modal-cancel-btn').onclick = () => {
+            store.hasUnsavedChanges = false; 
+            dayModal.close();
+        };
+    }, 100);
+};
