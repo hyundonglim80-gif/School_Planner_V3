@@ -234,7 +234,6 @@ export class WeekView extends BaseView {
       const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
       const holidayName = getHolidayName(d.dateStr);
 
-      // 🌟 년간 레이아웃(110px) 적용 및 서식 통일
       const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
         const pObj = periods[i + 1] || {};
         let cellText = "";
@@ -267,7 +266,6 @@ export class WeekView extends BaseView {
       `;
     }).join('');
 
-    // 🌟 표 너비 고정(table-layout:fixed) 및 콜그룹(colgroup) 적용
     const colgroupHtml = `
         <colgroup>
             <col style="width: 110px;">
@@ -292,21 +290,6 @@ export class WeekView extends BaseView {
       </div>`;
   }
 
-  changeEventGroup(dateStr, idx, newGroupId) {
-      this.syncCompactEventInputs(dateStr); 
-      store.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`]?.[idx]) {
-          window[`tempEvents_${dateStr}`][idx].sharedGroupId = newGroupId || null;
-          const g = (this.myGroups || []).find(x => x.id === newGroupId);
-          window[`tempEvents_${dateStr}`][idx].groupName = g ? g.name : '';
-          
-          const container = document.getElementById(`compact-events-${dateStr}`);
-          if (container) {
-              container.innerHTML = this.generateCompactEventEditor(dateStr);
-          }
-      }
-  }
-
   generateCompactEventEditor(dateStr) {
       const list = window[`tempEvents_${dateStr}`] || [];
       const labelObjs = getEventLabels();
@@ -322,18 +305,6 @@ export class WeekView extends BaseView {
           const eLabelIds = e.labelIds || [];
           const isCompleted = !!e.completed;
           const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
-          
-          let groupButtonsHtml = '';
-          if (isAuthor) {
-              groupButtonsHtml = `
-                  <div style="display:inline-flex; background:#f1f5f9; padding:2px; border-radius:6px; border:1px solid #cbd5e1; align-items:center;">
-                      <div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, null)" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${!e.sharedGroupId ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">🔒 개인</div>
-                      ${(this.myGroups || []).map(g => `<div onclick="${inst}.changeEventGroup('${dateStr}', ${idx}, '${g.id}')" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; cursor:pointer; font-weight:bold; transition:0.2s; ${e.sharedGroupId === g.id ? 'background:#fff; color:#2563eb; box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'color:#64748b;'}">👥 ${g.name}</div>`).join('')}
-                  </div>
-              `;
-          } else {
-              groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${e.groupName} (읽기전용)</div>`;
-          }
 
           let warningIcon = '';
           if (canComplete) {
@@ -348,7 +319,7 @@ export class WeekView extends BaseView {
           }).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
           const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -366,7 +337,6 @@ export class WeekView extends BaseView {
                       ${chipsHtml}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                      ${groupButtonsHtml}
                       ${deleteBtnHtml}
                   </div>
               </div>
