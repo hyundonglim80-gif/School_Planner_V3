@@ -115,10 +115,9 @@ export class WeekView extends BaseView {
       // 1. 일정(Events) 영역 분리 렌더링
       filters.forEach((fId, idx) => {
           const isPersonal = fId === 'personal';
-          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
+          const gIcon = isPersonal ? '🔒' : '👥'; 
           const badgeColor = isPersonal ? '#2563eb' : '#059669';
           const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
           const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
           const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -167,11 +166,11 @@ export class WeekView extends BaseView {
 
           filters.forEach((fId) => {
               const isPersonal = fId === 'personal';
-          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
-          const badgeColor = isPersonal ? '#2563eb' : '#059669';
-          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
-          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              const gIcon = isPersonal ? '🔒' : '👥'; 
+              const badgeColor = isPersonal ? '#2563eb' : '#059669';
+              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              
               const periods = sMap[d.dateStr]?.[fId] || {};
               const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                   const p = i + 1;
@@ -262,10 +261,9 @@ export class WeekView extends BaseView {
       // 1. 일정(Events) 영역 분리 렌더링
       filters.forEach((fId, idx) => {
           const isPersonal = fId === 'personal';
-          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
+          const gIcon = isPersonal ? '🔒' : '👥'; 
           const badgeColor = isPersonal ? '#2563eb' : '#059669';
           const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
           const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
           const eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${this.generateCompactEventEditor(d.dateStr, fId)}</div>`;
@@ -309,11 +307,11 @@ export class WeekView extends BaseView {
 
           filters.forEach((fId) => {
               const isPersonal = fId === 'personal';
-          const gIcon = isPersonal ? '🔒' : '👥'; // 🌟 텍스트 대신 아이콘만 추출
-          const badgeColor = isPersonal ? '#2563eb' : '#059669';
-          const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-          // 🌟 아이콘 크기를 조금 키우고, 마우스를 올리면(title) 그룹명이 보이도록 수정
-          const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              const gIcon = isPersonal ? '🔒' : '👥'; 
+              const badgeColor = isPersonal ? '#2563eb' : '#059669';
+              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              
               const periods = window[`tempSchedules_${d.dateStr}`][fId];
               const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                   const p = i + 1;
@@ -372,9 +370,10 @@ export class WeekView extends BaseView {
       const inst = 'window.weekViewInstance';
       
       return list.map((e) => {
-          const idx = allEvents.indexOf(e);
-          const isAuthor = !e.authorId || !uid || e.authorId === uid;
+          // 🌟 안전장치: 혹시라도 ID가 없는 데이터면 즉시 생성
+          if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
 
+          const isAuthor = !e.authorId || !uid || e.authorId === uid;
           const eLabelIds = e.labelIds || [];
           const isCompleted = !!e.completed;
           const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
@@ -386,13 +385,14 @@ export class WeekView extends BaseView {
           }
 
           const chipsHtml = labelObjs.map(lObj => {
-              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', ${idx}, '${lObj.id}', '${fId}')"` : '';
+              // 🌟 순서번호(idx) 대신 고유 ID(e.id) 사용
+              const chipClickAttr = isAuthor ? `onclick="window.handleCompactLabelClick('${dateStr}', '${e.id}', '${lObj.id}', '${fId}')"` : '';
               const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
               return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
           }).join('') + warningIcon;
 
           const checkboxHtml = canComplete 
-              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', ${idx}, 'completed', this.checked); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
+              ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="${inst}.updateCompactEvent('${dateStr}', '${e.id}', 'completed', this.checked); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = ${inst}.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
               : '';
 
           const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -400,7 +400,7 @@ export class WeekView extends BaseView {
           const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
           const deleteBtnHtml = isAuthor 
-                ? `<button onclick="${inst}.requestRemoveCompactEvent('${dateStr}', ${idx}, '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                ? `<button onclick="${inst}.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                 : '';
 
           return `
@@ -415,7 +415,7 @@ export class WeekView extends BaseView {
               </div>
               <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                   ${checkboxHtml}
-                  <textarea data-idx="${idx}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', ${idx}, 'content', this.value)">${pureContent}</textarea>
+                  <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; ${inst}.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
               </div>
           </div>`;
       }).join('');
@@ -426,8 +426,9 @@ export class WeekView extends BaseView {
           const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
           if (!container) return;
           container.querySelectorAll('textarea').forEach(ta => {
-              const idx = ta.getAttribute('data-idx');
-              if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx].content = ta.value;
+              const eventId = ta.getAttribute('data-id');
+              const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
+              if (ev) ev.content = ta.value;
           });
       });
   }
@@ -469,9 +470,10 @@ export class WeekView extends BaseView {
       });
   }
 
-  updateCompactEvent(dateStr, idx, field, value) {
+  updateCompactEvent(dateStr, eventId, field, value) {
       store.hasUnsavedChanges = true;
-      if (window[`tempEvents_${dateStr}`]?.[idx]) window[`tempEvents_${dateStr}`][idx][field] = value;
+      const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
+      if (ev) ev[field] = value;
   }
 
   addCompactEvent(dateStr, fId) {
@@ -486,9 +488,12 @@ export class WeekView extends BaseView {
       document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
   }
 
-  requestRemoveCompactEvent(dateStr, idx, fId) {
+  requestRemoveCompactEvent(dateStr, eventId, fId) {
       this.syncCompactEventInputs(dateStr); 
-      const ev = window[`tempEvents_${dateStr}`][idx];
+      const evList = window[`tempEvents_${dateStr}`];
+      const ev = evList?.find(e => e.id === eventId);
+      if (!ev) return;
+
       const isGrouped = !!ev.groupId; 
       
       const labelObjs = getEventLabels();
@@ -498,19 +503,29 @@ export class WeekView extends BaseView {
       if (isGrouped && ev.groupId.startsWith('group_')) {
           window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
               () => window.render(), 
-              () => this.removeCompactEvent(dateStr, idx, fId)
+              () => this.removeCompactEvent(dateStr, eventId, fId)
           );
       } else if (forwardLabelId && ev.forwardChainId) {
           window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, () => window.render());
       } else {
-          this.removeCompactEvent(dateStr, idx, fId);
+          this.removeCompactEvent(dateStr, eventId, fId);
       }
   }
 
-  removeCompactEvent(dateStr, idx, fId) {
+  removeCompactEvent(dateStr, eventId, fId) {
       store.hasUnsavedChanges = true;
-      window[`tempEvents_${dateStr}`].splice(idx, 1);
-      document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
+      const evList = window[`tempEvents_${dateStr}`];
+      const evIndex = evList.findIndex(e => e.id === eventId);
+      if (evIndex !== -1) {
+          evList.splice(evIndex, 1);
+      }
+      
+      window.activeUnifiedFilters.forEach(filterId => {
+          const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
+          if (container) {
+              container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
+          }
+      });
   }
 
   save() {
@@ -586,12 +601,13 @@ Object.assign(window, {
     renderWeekEditor: (c) => { instance.container = c; instance.renderEditor(); },
     saveWeekDataFromEditor: () => instance.save(),
     
-    handleCompactLabelClick: async (dateStr, idx, labelId, fId) => {
+    handleCompactLabelClick: async (dateStr, eventId, labelId, fId) => {
         const scopeInstance = window[`${store.scope}ViewInstance`];
         if (scopeInstance) scopeInstance.syncCompactEventInputs(dateStr);
         store.hasUnsavedChanges = true;
         
-        const ev = window[`tempEvents_${dateStr}`]?.[idx];
+        const evList = window[`tempEvents_${dateStr}`];
+        const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
         
@@ -603,22 +619,20 @@ Object.assign(window, {
         } else {
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
-                const backupEvent = { ...ev };
                 
                 if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
                     scopeInstance.syncScheduleInputs();
                 }
 
-                window[`tempEvents_${dateStr}`].splice(idx, 1);
-                window.saveCurrentViewData(true);
-                
-                const callback = (isSaved) => { 
-                    if(isSaved) window.render(); 
-                    else {
-                        window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
-                        window[`tempEvents_${dateStr}`].push(backupEvent);
-                        window.saveCurrentViewData(true);
-                        setTimeout(() => window.render(), 100);
+                // 🌟 [버그 픽스] 하루 페이지처럼 팝업에서 "저장(성공)" 했을 때만 일정을 삭제
+                const callback = (success) => { 
+                    if (success) {
+                        const currentIdx = window[`tempEvents_${dateStr}`].findIndex(e => e.id === eventId);
+                        if (currentIdx !== -1) {
+                            window[`tempEvents_${dateStr}`].splice(currentIdx, 1);
+                            window.saveCurrentViewData(true);
+                            window.render();
+                        }
                     }
                 };
 
@@ -637,9 +651,13 @@ Object.assign(window, {
             ev.labelIds.push(labelId);
         }
         
-        const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
-        if (container && scopeInstance) {
-            container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr, fId);
+        if (scopeInstance) {
+            window.activeUnifiedFilters.forEach(filterId => {
+                const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
+                if (container) {
+                    container.innerHTML = scopeInstance.generateCompactEventEditor(dateStr, filterId);
+                }
+            });
         }
     }
 });
