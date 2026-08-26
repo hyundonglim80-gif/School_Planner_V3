@@ -190,7 +190,6 @@ export const scrollToTodayIfExist = () => {
             }
         } else if (store.scope === 'month') {
             if (store.mode === 'editor') {
-                // 🌟 [수정됨] 월간 뷰의 공통 클래스(.month-row-YYYY-MM-DD)를 이용해 흩어진 모든 행 하이라이트
                 primaryTarget = document.querySelector(`tr[data-month-date="${todayStr}"]`);
                 if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-month-date^="${y}-${m}"]`);
                 if (primaryTarget) {
@@ -206,14 +205,15 @@ export const scrollToTodayIfExist = () => {
             }
         } else if (store.scope === 'year') {
             if (store.mode === 'editor') {
+                // 🌟 [수정됨] 연간 뷰의 공통 클래스(.year-row-YYYY-MM-DD)를 이용해 흩어진 모든 행을 찾아냄
                 primaryTarget = document.querySelector(`tr[data-year-date="${todayStr}"]`);
                 if (!primaryTarget) primaryTarget = document.querySelector(`tr[data-year-date^="${y}-${m}"]`); 
                 if (primaryTarget) {
-                    highlightTargets = Array.from(primaryTarget.querySelectorAll('td'));
-                    if (store.showClass) {
-                        const subRow = primaryTarget.nextElementSibling;
-                        if (subRow && subRow.hasAttribute('data-year-sub')) highlightTargets.push(...Array.from(subRow.querySelectorAll('td')));
-                    }
+                    const targetDateStr = primaryTarget.getAttribute('data-year-date') || todayStr;
+                    const allRows = document.querySelectorAll(`tr.year-row-${targetDateStr}`);
+                    allRows.forEach(row => {
+                        highlightTargets.push(...Array.from(row.querySelectorAll('td')));
+                    });
                 }
             } else {
                 primaryTarget = document.querySelector(`.year-today-card`);
