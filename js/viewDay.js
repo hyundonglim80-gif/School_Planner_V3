@@ -842,8 +842,15 @@ export class DayView extends BaseView {
             }, { merge: true }).catch(e => console.warn(e));
 
             const validJournals = dData.journals.filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0));
+            
+            // 🌟 [추가됨] 기록 데이터 저장 시 고유 ID와 작성자 소유권 완벽 보장
+            validJournals.forEach(j => {
+                if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
+                if (!j.authorId && window.auth?.currentUser?.uid) j.authorId = window.auth.currentUser.uid;
+            });
+
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            setDoc(doc(jrCol, dateStr), { 
+            setDoc(doc(jrCol, dateStr), {
                 entries: validJournals, 
                 updatedAt: Date.now() 
             }, { merge: true }).catch(e => console.warn(e));
