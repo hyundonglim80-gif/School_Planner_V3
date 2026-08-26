@@ -83,29 +83,25 @@ export class DayView extends BaseView {
         }).join('');
     }
 
-    // 🌟 뱃지 갱신 로직 (변경된 DOM 구조 반영)
     async refreshEvalBadges() {
         this.currentEvalList = await this.loadEvaluationsForDay(this.dateStr);
         
-        if (store.mode === 'editor') {
-            (window.activeUnifiedFilters || []).forEach(fId => {
-                const tbody = document.getElementById(`schedule-tbody-${fId}`);
-                if (tbody) {
-                    tbody.querySelectorAll('tr[data-period]').forEach(row => {
-                        const p = row.getAttribute('data-period');
-                        const badgeContainer = row.querySelector('.eval-badges-container');
-                        if (badgeContainer) badgeContainer.innerHTML = this.generateEvalBadgesHtml('schedule', p, fId);
-                    });
-                }
-            });
-        } else {
-            const periodRows = this.container.querySelectorAll('tr[data-period]');
-            periodRows.forEach(row => {
-                const p = row.getAttribute('data-period');
-                const badgeContainer = this.container.querySelector(`.eval-badges-container[data-badge-period="${p}"]`);
-                if (badgeContainer) badgeContainer.innerHTML = this.generateEvalBadgesHtml('schedule', p, null);
-            });
-        }
+        (window.activeUnifiedFilters || []).forEach(fId => {
+            const tbody = document.getElementById(`schedule-tbody-${fId}`);
+            if (tbody) {
+                tbody.querySelectorAll('tr[data-period]').forEach(row => {
+                    const p = row.getAttribute('data-period');
+                    const badgeContainer = row.querySelector('.eval-badges-container');
+                    if (badgeContainer) badgeContainer.innerHTML = this.generateEvalBadgesHtml('schedule', p, fId);
+                });
+            }
+            const jContainer = document.querySelector(`.journal-eval-badges-container-${fId}`);
+            if (jContainer) {
+                const html = this.generateEvalBadgesHtml('journal', null, fId);
+                jContainer.innerHTML = html;
+                jContainer.style.display = html ? 'flex' : 'none';
+            }
+        });
     }
 
     parseEvents(docData) {
@@ -115,6 +111,15 @@ export class DayView extends BaseView {
         return [];
     }
 
+    async changeScheduleWorkspace(newGroupId) {
+        if (store.hasUnsavedChanges) {
+            this.save(); 
+        }
+        this.scheduleGroupId = newGroupId || null;
+        this.renderEditor();
+    }
+
+    // 🌟 [전면 개편] 하루 보기(Viewer) 모드 다중 레이아웃 렌더링
     async renderViewer() {
         this.showLoading('클라우드 데이터를 불러오는 중...');
         const dateStr = this.dateStr;
@@ -125,152 +130,139 @@ export class DayView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        let allEvents = [];
-        const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
-        if (eventDoc.exists()) {
-            let pEvents = this.parseEvents(eventDoc.data());
-            pEvents.forEach(e => { e.sharedGroupId = null; });
-            allEvents = allEvents.concat(pEvents);
-        }
-        for (const g of this.myGroups) {
-            const gData = await dbAPI.loadGroupDayData(dateStr, g.id);
-            const gEvents = gData.eventList || [];
-            gEvents.forEach(e => { e.sharedGroupId = g.id; e.groupName = g.name; });
-            allEvents = allEvents.concat(gEvents);
-        }
-        
-        const viewableEvents = allEvents
-            .filter(e => window.activeUnifiedFilters.includes(e.sharedGroupId || 'personal'))
-            .map(e => ({
-                ...e,
-                content: (e.sharedGroupId ? `<span style="display:inline-block; padding:2px 6px; font-size:0.75rem; border-radius:4px; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; margin-right:4px; vertical-align:middle; font-weight:bold;">👥 ${e.groupName}</span> ` : '') + e.content
-            }));
+        this.dayData = {};
+        const filters = window.activeUnifiedFilters;
 
-        const allSchedules = {};
-        const pSchedDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
-        allSchedules['personal'] = pSchedDoc.exists() ? (pSchedDoc.data().periods || {}) : {};
+        for (const fId of filters) {
+            this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
-        for (const g of this.myGroups) {
-            const gSchedDoc = await getDoc(doc(getGroupCol(g.id, 'schedules'), dateStr));
-            allSchedules[g.id] = gSchedDoc.exists() ? (gSchedDoc.data().periods || {}) : {};
+            const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
+            const evDoc = await getDoc(doc(evCol, dateStr));
+            let eList = [];
+            if (evDoc.exists()) {
+                eList = this.parseEvents(evDoc.data());
+                eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
+            }
+            this.dayData[fId].events = eList;
+
+            const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+            const scDoc = await getDoc(doc(scCol, dateStr));
+            this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
+
+            const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
+            const jrDoc = await getDoc(doc(jrCol, dateStr));
+            this.dayData[fId].journals = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
         }
         
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
-        
-        const journalDoc = await getDoc(doc(getUserCol('journals'), dateStr));
-        const journals = journalDoc.exists() ? journalDoc.data().entries || [] : [];
 
-        // 🌟 [수정됨] 표 높이 완벽 정렬을 위해 rowspan을 적용하여 각 그룹을 완전히 분리된 <tr>로 생성
-        const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-            const p = i + 1;
-            const periodName = store.periodNames[i] || p + '교시';
-            const evalBadges = this.generateEvalBadgesHtml('schedule', p, null);
-            
-            let rowsHtml = '';
-            const filters = window.activeUnifiedFilters;
-            const filterCount = filters.length;
-            
-            filters.forEach((filterId, idx) => {
-                const pObj = allSchedules[filterId]?.[p] || {};
-                const isLast = idx === filterCount - 1;
-                const borderStyle = isLast ? 'border-bottom: 1px solid #cbd5e1;' : 'border-bottom: 1px dashed #cbd5e1;';
-                
-                let badge = '';
-                if (filterCount > 1) {
-                    const groupName = filterId === 'personal' ? '🔒 개인' : '👥 ' + (this.myGroups.find(g => g.id === filterId)?.name || '');
-                    const badgeColor = filterId === 'personal' ? '#2563eb' : '#059669';
-                    const badgeBg = filterId === 'personal' ? '#eff6ff' : '#ecfdf5';
-                    badge = `<div style="font-size:0.7rem; color:${badgeColor}; background:${badgeBg}; padding:2px 4px; border-radius:4px; display:inline-block; margin-bottom:4px; font-weight:bold;">${groupName}</div><br>`;
-                }
+        let eventsHtml = '';
+        let schedulesHtml = '';
+        let journalsHtml = '';
 
-                const subjectContent = `<div style="font-weight:bold; color:#0f172a;">${pObj.subject ? badge + pObj.subject : badge}</div>`;
-                const memoContent = `<div style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div>`;
-                const suppliesContent = `<div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>`;
+        filters.forEach(fId => {
+            const isPersonal = fId === 'personal';
+            const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+            const themeColor = isPersonal ? '#2563eb' : '#10b981';
+            const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
+
+            // 할 일 HTML 블록 (Viewer)
+            const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({
+                ...e,
+                content: e.content
+            }));
+            const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
+
+            eventsHtml += `
+            <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${themeColor};">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#1e40af' : '#047857'}; margin:0; font-weight:bold;">📌 오늘 할 일 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+              </div>
+              ${eventBadges}
+            </div>`;
+
+            // 수업 HTML 블록 (Viewer)
+            const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                const p = i + 1;
+                const pObj = this.dayData[fId].schedules[p] || {};
+                const periodName = store.periodNames[i] || p + '교시';
+                const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 
-                let badgeHtml = '';
-                if (isLast) {
-                    badgeHtml = `
+                const subjectContent = pObj.subject || '';
+                const memoContent = pObj.memo || '';
+                const suppliesContent = pObj.supplies || '';
+
+                return `
+                <tr data-period="${p}">
+                    <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
+                    <td style="width: 120px; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="font-weight:bold; color:#0f172a;">${subjectContent}</div></td>
+                    <td style="vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="text-align: left; color:#334155; white-space:pre-wrap;">${memoContent}</div></td>
+                    <td style="width: 25%; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
+                        <div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${suppliesContent}</div>
                         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
                             <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
                                 ${evalBadges}
                             </div>
-                        </div>`;
-                }
-
-                if (idx === 0) {
-                    rowsHtml += `
-                    <tr data-period="${p}">
-                        <td rowspan="${filterCount}" style="font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${subjectContent}</td>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${memoContent}</td>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">
-                            ${suppliesContent}
-                            ${badgeHtml}
-                        </td>
-                    </tr>`;
-                } else {
-                    rowsHtml += `
-                    <tr>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${subjectContent}</td>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">${memoContent}</td>
-                        <td style="vertical-align:top; padding:10px 8px; ${borderStyle}">
-                            ${suppliesContent}
-                            ${badgeHtml}
-                        </td>
-                    </tr>`;
-                }
-            });
-            
-            return rowsHtml;
-        }).join('');
-
-        const journalsHtml = journals.length > 0 ? journals.map(j => {
-            const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
-            const chipsHtml = lNames.map(lName => {
-                const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
-                return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
+                        </div>
+                    </td>
+                </tr>`;
             }).join('');
 
-            return `
-                <div style="display:flex; align-items:flex-start; margin-bottom:8px; line-height:1.4;">
-                    <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
-                    <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1;">${j.content || ''}</div>
-                </div>`;
-        }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
-
-        this.container.innerHTML = `
-          <div class="day-viewer-container">
-            <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #2563eb;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                  <h3 style="font-size:1.2rem; color:#1e40af; margin:0; font-weight:bold;">📌 오늘 할 일</h3>
+            schedulesHtml += `
+            <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
+                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
               </div>
-              ${window.generateEventBadgesHTML(viewableEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>'}
-            </div>
-            
-            <div class="table-container" style="margin-top:10px; ${store.showClass ? '' : 'display:none;'}">
               <table style="text-align: center; border-collapse: collapse; width: 100%;">
                 <thead>
                   <tr style="border-bottom: 1px solid #cbd5e1;">
                     <th style="width: 60px; padding: 10px;">교시</th>
                     <th style="width: 120px; padding: 10px;">수업</th>
                     <th style="padding: 10px;">📝 수업 메모</th>
-                    <th style="width: 25%; position:relative; padding: 10px;">📌 비고</th>
+                    <th style="width: 25%; position:relative; padding: 10px;">📌 비고
+                        <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">+ 조사표</button>
+                    </th>
                   </tr>
                 </thead>
-                <tbody>${periodRowsHtml}</tbody>
+                <tbody id="schedule-tbody-${fId}">${periodRowsHtml}</tbody>
               </table>
-            </div>
+            </div>`;
 
-            <div class="day-journal-section" style="margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid #be185d;">
+            // 기록 HTML 블록 (Viewer)
+            const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '');
+            const jListHtml = journals.length > 0 ? journals.map(j => {
+                const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
+                const chipsHtml = lNames.map(lName => {
+                    const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
+                }).join('');
+
+                return `
+                    <div style="display:flex; align-items:flex-start; margin-bottom:8px; line-height:1.4;">
+                        <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
+                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1;">${j.content || ''}</div>
+                    </div>`;
+            }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
+
+            journalsHtml += `
+            <div class="day-journal-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <h3 style="font-size:1.2rem; color:#be185d; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.8rem; color:#f472b6; font-weight:normal;">(🔒 개인)</span></h3>
+                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
               </div>
-              <div class="journal-eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, null) ? '' : 'display:none;'}">
-                  ${this.generateEvalBadgesHtml('journal', null, null)}
+              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                  ${this.generateEvalBadgesHtml('journal', null, fId)}
               </div>
-              <div style="display:flex; flex-direction:column;">${journalsHtml}</div>
-            </div>
-          </div>`;
+              <div style="display:flex; flex-direction:column;">${jListHtml}</div>
+            </div>`;
+        });
+
+        this.container.innerHTML = `
+          <div class="day-viewer-container">
+            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
+            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
+            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
+          </div>
+        `;
     }
 
     async renderEditor() {
