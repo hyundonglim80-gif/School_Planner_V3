@@ -334,7 +334,12 @@ export const LabelManager = {
 
       if (this.unifiedModal) this.unifiedModal.close();
       alert("일정 라벨 설정이 성공적으로 저장되었습니다.");
-      if (typeof window.render === 'function') window.render(true); 
+    
+      // 🌟 수정된 새로고침 로직: 배경 메인 뷰와 열려있는 하루 팝업을 모두 즉시 업데이트
+      if (typeof window.render === 'function') window.render(false); 
+      if (document.getElementById('day-modal-body') && window.dayViewInstance) {
+          window.dayViewInstance.renderEditor();
+      } 
   },
 
   // ====================================================
@@ -463,7 +468,12 @@ export const LabelManager = {
 
       if (this.unifiedModal) this.unifiedModal.close();
       alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-      if (typeof window.render === 'function') window.render(true); 
+    
+      // 🌟 수정된 새로고침 로직 적용
+      if (typeof window.render === 'function') window.render(false); 
+      if (document.getElementById('day-modal-body') && window.dayViewInstance) {
+          window.dayViewInstance.renderEditor();
+      }
   },
 
   // ====================================================
@@ -585,10 +595,12 @@ export const LabelManager = {
     }
 
     if (this.unifiedModal) this.unifiedModal.close();
-    alert("메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-    
-    if (typeof window.render === 'function') {
-        window.render(true); 
+      alert("메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+      
+    // 🌟 메모의 경우 하루 팝업과 전용 메모 뷰 모두 대응
+    if (typeof window.render === 'function') window.render(false); 
+    if (document.getElementById('day-modal-body') && window.dayViewInstance) {
+        window.dayViewInstance.renderEditor();
     } else if (window.memoViewInstance) {
         window.memoViewInstance.renderViewer();
     }
