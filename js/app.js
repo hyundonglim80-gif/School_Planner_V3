@@ -763,11 +763,49 @@ Object.assign(window, {
         }
     }, true); // 캡처링 단계에서 화면 변경 전에 미리 모드를 바꿈
 
-    // 2. 단축키 낚아채기 (안전한 키보드 감지 방식 추가)
+    // 2. 단축키 낚아채기 (안전한 키보드 감지 및 커스텀 단축키 추가)
     let lastScope = store.scope;
     
-    document.addEventListener('keydown', () => {
-        // 단축키 로직이 먼저 실행될 수 있도록 아주 짧게(20ms) 기다린 후 확인
+    document.addEventListener('keydown', (e) => {
+        // 🌟 [추가 기능] 단축키(Shift+방향키 순서 변경, Ctrl+숫자/백틱) 가로채기
+        const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+        
+        // 입력창 밖에서만 Shift + 화살표 탭 이동 동작 (순서: 하루->주간->월간->년간->메모)
+        if (!isInput && e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+            e.preventDefault();
+            e.stopImmediatePropagation(); 
+            
+            const scopes = ['day', 'week', 'month', 'year', 'memo'];
+            let currentIndex = scopes.indexOf(store.scope);
+            
+            if (e.key === 'ArrowLeft') currentIndex = (currentIndex - 1 + scopes.length) % scopes.length;
+            else if (e.key === 'ArrowRight') currentIndex = (currentIndex + 1) % scopes.length;
+            
+            if (window.setScope) window.setScope(scopes[currentIndex]);
+        }
+        
+        // Ctrl + 1~5 및 백틱(`) 단축키 처리 (글 작성 중에 탭을 이동하는 편의성 고려하여 isInput 제한 없음)
+        if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+            let targetScope = null;
+            if (e.key === '1') targetScope = 'day';
+            else if (e.key === '2') targetScope = 'week';
+            else if (e.key === '3') targetScope = 'month';
+            else if (e.key === '4') targetScope = 'year';
+            else if (e.key === '5') targetScope = 'memo';
+            else if (e.key === '`' || e.code === 'Backquote') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (window.openSearchModal) window.openSearchModal();
+            }
+            
+            if (targetScope) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (window.setScope) window.setScope(targetScope);
+            }
+        }
+
+        // 단축키 로직이 먼저 실행될 수 있도록 아주 짧게(20ms) 기다린 후 확인 (기존 로직 유지)
         setTimeout(() => {
             if (store.scope !== lastScope) {
                 const modeChanged = applyDefaultMode(store.scope);
@@ -833,9 +871,57 @@ window.goToDay = (dateStr) => {
 
     dayModal.open();
 
+    dayModal.open();
+
     // 팝업 내부에 DayView(하루 에디터 엔진) 렌더링
     setTimeout(() => {
         const modalContainer = document.getElementById('day-modal-body');
+
+        // 🌟 [추가 기능] 모달 닫기(X) 버튼 왼쪽에 📌(전체화면/기본페이지 고정) 버튼 추가
+        if (modalContainer) {
+            const modalContent = modalContainer.closest('.modal-content');
+            if (modalContent) {
+                const modalHeader = modalContent.querySelector('.modal-header');
+                if (modalHeader) {
+                    const closeBtn = modalHeader.querySelector('button');
+                    if (closeBtn && !document.getElementById('btn-pin-day')) {
+                        // Flex 레이아웃(우측 정렬) 유지를 위해 버튼들을 감싸는 div 컨테이너 생성
+                        let btnWrapper = closeBtn.parentNode;
+                        if (btnWrapper === modalHeader) {
+                            btnWrapper = document.createElement('div');
+                            btnWrapper.style.display = 'flex';
+                            btnWrapper.style.alignItems = 'center';
+                            modalHeader.insertBefore(btnWrapper, closeBtn);
+                            btnWrapper.appendChild(closeBtn);
+                        }
+                        
+                        const pinBtn = document.createElement('button');
+                        pinBtn.id = 'btn-pin-day';
+                        pinBtn.innerHTML = '📌';
+                        pinBtn.title = '팝업창을 닫고 하루(기본) 페이지 전체화면으로 엽니다.';
+                        pinBtn.style.cssText = 'background:none; border:none; font-size:1.3rem; cursor:pointer; margin-right:12px; transition:transform 0.2s; display:flex; align-items:center; justify-content:center;';
+                        pinBtn.onmouseover = () => pinBtn.style.transform = 'scale(1.2)';
+                        pinBtn.onmouseout = () => pinBtn.style.transform = 'scale(1)';
+                        
+                        pinBtn.onclick = async () => {
+                            // 작성 중인 내용이 있다면 잃지 않도록 먼저 안전하게 DB 저장
+                            if (store.hasUnsavedChanges && window.dayViewInstance) {
+                                pinBtn.innerHTML = '⏳';
+                                await window.dayViewInstance.save();
+                            }
+                            store.hasUnsavedChanges = false; 
+                            dayModal.close();
+                            
+                            // 하루 기본 페이지로 강제 이동 및 렌더링
+                            localStorage.setItem('workCalendar_date_day', store.currentDate.toISOString());
+                            if (window.setScope) window.setScope('day');
+                        };
+                        btnWrapper.insertBefore(pinBtn, closeBtn);
+                    }
+                }
+            }
+        }
+
         if (modalContainer && window.dayViewInstance) {
             // 뒷 배경의 메인 화면 모드(Viewer)를 보호하기 위해 임시 전환
             const prevMode = store.mode;
