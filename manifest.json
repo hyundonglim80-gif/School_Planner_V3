@@ -1,6 +1,6 @@
 {
-  "name": "School Planner V3.4",
-  "short_name": "SP3.4",
+  "name": "School Planner V3.7",
+  "short_name": "SP3.7",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
