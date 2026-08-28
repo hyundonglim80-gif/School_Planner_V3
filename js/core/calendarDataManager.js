@@ -7,7 +7,8 @@ import { getEventLabels } from './utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventManager.js';
 
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
-    const eMap = {}, sMap = {};
+    // 🌟 [경제성] 기존 eMap, sMap에 더하여 jMap(기록), elMap(조사표)을 동시 처리하도록 확장
+    const eMap = {}, sMap = {}, jMap = {}, elMap = {};
     const promises = [];
 
     // 1. 개인 일정 가져오기
@@ -58,8 +59,53 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         );
     }
 
+    // 5. 개인 기록(Journal) 가져오기
+    promises.push(
+        getDocs(query(getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+            snap.forEach(docSnap => {
+                if (!jMap[docSnap.id]) jMap[docSnap.id] = {};
+                jMap[docSnap.id]['personal'] = docSnap.data().entries || [];
+            });
+        }).catch(e => console.warn(e))
+    );
+
+    // 6. 그룹 기록(Journal) 가져오기
+    for (const g of myGroups) {
+        promises.push(
+            getDocs(query(getGroupCol(g.id, 'journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+                snap.forEach(docSnap => {
+                    if (!jMap[docSnap.id]) jMap[docSnap.id] = {};
+                    jMap[docSnap.id][g.id] = docSnap.data().entries || [];
+                });
+            }).catch(e => console.warn(e))
+        );
+    }
+
+    // 7. 개인 조사표(Evaluation) 가져오기
+    promises.push(
+        getDocs(query(getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+            snap.forEach(docSnap => {
+                if (!elMap[docSnap.id]) elMap[docSnap.id] = {};
+                elMap[docSnap.id]['personal'] = docSnap.data().evalList || [];
+            });
+        }).catch(e => console.warn(e))
+    );
+
+    // 8. 그룹 조사표(Evaluation) 가져오기
+    for (const g of myGroups) {
+        promises.push(
+            getDocs(query(getGroupCol(g.id, 'evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+                snap.forEach(docSnap => {
+                    if (!elMap[docSnap.id]) elMap[docSnap.id] = {};
+                    elMap[docSnap.id][g.id] = docSnap.data().evalList || [];
+                });
+            }).catch(e => console.warn(e))
+        );
+    }
+
+    // 🌟 [신속성] 이 모든 8개의 통신을 한 번에 병렬 처리하여 딜레이 제로 달성
     await Promise.all(promises);
-    return { eMap, sMap };
+    return { eMap, sMap, jMap, elMap };
 };
 
 export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters) => {
@@ -68,21 +114,18 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
     let opCount = 0;
     let batchPromises = [];
     
-    // 🌟 [안전성 및 경제성] 화면에 켜져 있는(활성화된) 필터의 공간에만 데이터를 저장하도록 수정
     const filtersToSave = activeUnifiedFilters || ['personal'];
     
     snapshot.forEach(item => {
         const eventsByGroup = {};
         filtersToSave.forEach(fId => eventsByGroup[fId] = []);
 
-        // 화면에서 걸러진 유효한 이벤트들을 각 그룹 아이디별로 분류
         item.validEvents.forEach(e => {
             const gId = e.sharedGroupId === 'personal' ? 'personal' : (e.sharedGroupId || 'personal');
             if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
         });
 
         filtersToSave.forEach(fId => {
-            // 1. 일정 저장 (개인/그룹 통합 로직으로 묶어 경제성 극대화)
             const eList = eventsByGroup[fId];
             const eventCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
             
@@ -95,7 +138,6 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
             opCount++;
             if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
 
-            // 2. 시간표 저장 (휴일 스킵 로직 포함)
             const periods = item.schedulesData[fId] || {};
             const scheduleCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
             
