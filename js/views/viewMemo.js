@@ -225,7 +225,7 @@ export class MemoView extends BaseView {
         </div>
     `;
 
-    // 🌟 [친절성 & 경제성] 입력창 onkeydown을 '저장(executeMemoSave)'으로 변경 & 버튼 변경
+    // 🌟 [친절성 & 경제성] 입력창 onkeydown을 '저장(executeMemoSave)'으로 변경 & 버튼을 '저장'으로 통합
     let html = `
       <div class="memo-layout-container">
         <div class="memo-card-panel" style="padding: 15px 20px;">
@@ -327,7 +327,8 @@ export class MemoView extends BaseView {
       dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${titleMsg}">≡</span>`;
     }
 
-    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+    // 🌟 [친절성] 편집 중 Ctrl+Enter 단축키 적용
+    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.executeMemoSave(); }"`;
     const labels = item.labels || [];
     const palette = window.LABEL_PALETTE || {};
     const knownLabelNames = this.AVAILABLE_LABELS.map(l => l.name);
@@ -371,7 +372,7 @@ export class MemoView extends BaseView {
 
     const textStatusClass = isCompleted ? 'completed' : (isAuthor ? 'active' : 'readonly');
 
-    // 🌟 [안전성] onblur 삭제 (자동 저장 방지), 입력 시 상태 변경만 감지
+    // 🌟 [안전성] oninput으로 변경 감지 후, 자동 저장(onblur) 방지
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" ${dragAttributes}>
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -451,7 +452,7 @@ export class MemoView extends BaseView {
     this.draggedMemoId = null;
   }
 
-  // 🌟 [경제성 & 신속성] 입력창의 새 메모 + 아래 리스트의 수정된 메모를 한 번에 수집하여 DB에 저장
+  // 🌟 [경제성 & 신속성 & 안전성] 새 메모 추가와 기존 수정된 메모를 한 번에 싹 긁어 일괄 저장하는 핵심 엔진
   async executeMemoSave() {
       const btn = document.getElementById('btn-memo-save');
       if (btn) { btn.innerHTML = "⏳ 저장 중..."; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
@@ -460,7 +461,7 @@ export class MemoView extends BaseView {
       const text = input ? input.value.trim() : '';
       const updatePromises = [];
 
-      // 1. 새 메모 추가 처리
+      // 1. 새 메모 입력칸 처리
       if (text || (this.pendingAttachments && this.pendingAttachments.length > 0)) {
           const newMemo = { 
               firestoreId: 'temp_' + Date.now().toString(36),
@@ -473,7 +474,7 @@ export class MemoView extends BaseView {
           
           if (input) { input.value = ""; input.style.height = '50px'; }
           this.pendingAttachments = []; 
-          this.memoItems.push(newMemo); // 화면 즉각 렌더링을 위해 로컬에 우선 추가
+          this.memoItems.push(newMemo); 
 
           updatePromises.push(
               dbAPI.addMemo(newMemo, this.currentNewMemoGroupId).then(realId => {
@@ -485,35 +486,39 @@ export class MemoView extends BaseView {
           );
       }
 
-      // 2. 기존 작성된 메모들의 수정 여부 체크 및 저장
-      const editableSpans = this.container.querySelectorAll('.memo-text-content[contenteditable="true"]');
+      // 2. 아래 리스트에 있는 기존 메모들의 변경 사항 수집 (셀렉터 오류 완벽 방어)
+      const editableSpans = this.container.querySelectorAll('.memo-text-content');
       editableSpans.forEach(span => {
-          const firestoreId = span.getAttribute('data-id');
-          if (firestoreId) {
-              const newText = span.innerText.trim();
-              const target = this.memoItems.find(m => m.firestoreId === firestoreId);
-              
-              // 텍스트가 변경되었다면
-              if (target && target.text !== newText) {
-                  if (!newText && (!target.attachments || target.attachments.length === 0)) {
-                      // 내용이 비었으면 무시 (삭제는 휴지통 아이콘으로만 하도록 안전장치)
-                  } else {
-                      target.text = newText;
-                      updatePromises.push(dbAPI.updateMemo(firestoreId, { text: newText }, target.groupId));
+          if (span.isContentEditable) { // 편집 가능한 요소만 안전하게 필터링
+              const firestoreId = span.getAttribute('data-id');
+              if (firestoreId) {
+                  let newText = span.innerText;
+                  if (newText === undefined) newText = span.textContent; // 브라우저 호환성 방어
+                  newText = newText.trim();
+                  
+                  const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+                  
+                  // 내용이 바뀌었다면
+                  if (target && target.text !== newText) {
+                      if (!newText && (!target.attachments || target.attachments.length === 0)) {
+                          // 빈칸으로 만든 경우 무시 (삭제는 휴지통으로만)
+                      } else {
+                          target.text = newText;
+                          updatePromises.push(dbAPI.updateMemo(firestoreId, { text: newText }, target.groupId));
+                      }
                   }
               }
           }
       });
 
-      // 병렬 통신 (신속성 극대화)
+      // 변경된 모든 메모를 병렬 통신으로 초고속 저장
       if (updatePromises.length > 0) {
           await Promise.all(updatePromises).catch(e => console.warn("메모 일괄 저장 오류:", e));
       }
 
       store.hasUnsavedChanges = false;
-      this._drawHTML(); // 화면 부드럽게 새로고침 (포커스 해제)
+      this._drawHTML(); // 화면을 부드럽게 다시 그려 입력 포커스 초기화
 
-      // 버튼 피드백 (친절성)
       if (btn) { 
           btn.innerHTML = "✅ 저장 완료"; 
           btn.style.opacity = '1'; 
@@ -553,7 +558,7 @@ export class MemoView extends BaseView {
   }
 
   async save() {
-      // 이제 수동 저장 버튼 기반이므로 기존 save 로직은 executeMemoSave로 라우팅 (안전성 보장)
+      // 탭을 옮기거나 할 때 자동으로 불리는 save 함수를 일괄 저장 엔진에 라우팅
       if (store.hasUnsavedChanges) {
           await this.executeMemoSave();
       }
