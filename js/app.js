@@ -63,10 +63,21 @@ Object.assign(window, {
     generateEventBadgesHTML,
     autoForwardIncompleteEvents: () => EventManager.autoForwardIncompleteEvents(),
     showForwardDeleteModal: (...args) => EventManager.showForwardDeleteModal(...args),
+    
+    // 💡 추가됨: 공유 그룹 일정 삭제 팝업 함수 전역 바인딩 오류 방지
+    showGroupDeleteModal: (...args) => {
+        if (window.EventManager && typeof window.EventManager.showGroupDeleteModal === 'function') {
+            return window.EventManager.showGroupDeleteModal(...args);
+        }
+        // 만약 EventManager에 없다면 기본 삭제 확인 창으로 안전하게 대체
+        if (confirm("이 일정을 삭제하시겠습니까?")) {
+            if (typeof args[4] === 'function') args[4](); // 성공 콜백 실행
+        }
+    },
+
     openPeriodModal: (...args) => EventManager.openPeriodModal(...args),
     openRecurringModal: (...args) => EventManager.openRecurringModal(...args)
 });
-
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { initAppEvents(); initAuthListener(); });
 } else {
