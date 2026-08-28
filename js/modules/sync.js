@@ -127,75 +127,143 @@ export const executeHolidayImport = async function(startStr, endStr, scope) {
     if (new Date(startStr) > new Date(endStr)) return alert("시작일이 종료일보다 늦을 수 없습니다.");
     
     const scopeName = scope === 'personal' ? '개인' : '공유 그룹';
-    if (!confirm(`[${scopeName} 공간]\n${startStr} ~ ${endStr} 기간의 정부 지정 공휴일을 가져오시겠습니까?`)) return;
+    if (!confirm(`[${scopeName} 공간]\n${startStr} ~ ${endStr} 기간의 공휴일을 불러오시겠습니까?\n(기존에 등록된 공휴일은 갱신됩니다)`)) return;
 
     ProgressModal.show("🇰🇷 공휴일 가져오기");
-    ProgressModal.update("정부 API에서 공휴일 데이터를 읽어오는 중...", 30);
+    ProgressModal.update("공휴일 데이터를 확인하는 중...", 20);
 
     try {
+        const token = await getValidGoogleToken();
+        let holidaysMap = {}; // { 'YYYY-MM-DD': '공휴일이름' }
+        let sourceUsed = "";
+
+        // 1단계: 정부 공공데이터 API 시도
         const savedApiKey = localStorage.getItem('gov_holiday_api_key') || '61eKHEN9Q5rvaYiHWrtSUco3vwTEhoCiF0d8L2Zdu990gANAp3Cnc0yKKgWqOm3s%2F4Mmqa9STa6WvNHboA1RsQ%3D%3D';
         const startYear = new Date(startStr).getFullYear();
         const endYear = new Date(endStr).getFullYear();
 
-        let holidaysToInsert = [];
+        let apiSuccess = false;
         for (let y = startYear; y <= endYear; y++) {
-            const govHolidays = await fetchHolidaysFromGovApi(y, savedApiKey);
-            if (govHolidays) {
-                for (const [dStr, hName] of Object.entries(govHolidays)) {
-                    if (dStr >= startStr && dStr <= endStr) {
-                        holidaysToInsert.push({ dateStr: dStr, name: hName });
+            try {
+                const govHolidays = await fetchHolidaysFromGovApi(y, savedApiKey);
+                if (govHolidays && Object.keys(govHolidays).length > 0) {
+                    apiSuccess = true;
+                    for (const [dStr, hName] of Object.entries(govHolidays)) {
+                        if (dStr >= startStr && dStr <= endStr) {
+                            holidaysMap[dStr] = hName;
+                        }
                     }
                 }
-            }
+            } catch (err) {}
         }
 
-        if (holidaysToInsert.length === 0) {
-            ProgressModal.complete("해당 기간에 추가할 공휴일 데이터가 없습니다.");
+        if (apiSuccess && Object.keys(holidaysMap).length > 0) {
+            sourceUsed = "공공데이터 포털";
+        } else if (token) {
+            // 2단계: 공공데이터 실패 시 구글 캘린더 공휴일 달력으로 대체 시도
+            ProgressModal.update("구글 캘린더 공휴일 정보를 대체로 불러오는 중...", 40);
+            try {
+                const holidayCalId = encodeURIComponent('ko.south_korea#holiday@group.v.calendar.google.com');
+                const timeMin = new Date(startStr + 'T00:00:00+09:00').toISOString();
+                const timeMax = new Date(endStr + 'T23:59:59+09:00').toISOString();
+                
+                // 구글 API 호출
+                const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${holidayCalId}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(ev => {
+                        let dStr = ev.start?.date || (ev.start?.dateTime ? ev.start.dateTime.split('T')[0] : null);
+                        if (dStr && dStr >= startStr && dStr <= endStr) {
+                            holidaysMap[dStr] = ev.summary;
+                        }
+                    });
+                    if (Object.keys(holidaysMap).length > 0) {
+                        sourceUsed = "구글 캘린더";
+                    }
+                }
+            } catch (e) {}
+        }
+
+        if (Object.keys(holidaysMap).length === 0) {
+            ProgressModal.error("해당 기간에 가져올 수 있는 공휴일 데이터가 없습니다.");
             return;
         }
 
-        ProgressModal.update("클라우드에 공휴일 일정 등록 중...", 70);
+        ProgressModal.update("기존 공휴일 정리 및 새 정보 반영 중...", 70);
 
         const masterEventLabels = getEventLabels();
-        const holidayLabelObj = masterEventLabels.find(l => l.isSkip) || masterEventLabels.find(l => l.name === '휴일') || { id: 'lbl_holiday', name: '휴일' };
+        const holidayLabelObj = masterEventLabels.find(l => l.isSkip) || masterEventLabels.find(l => l.name === '휴일') || masterEventLabels[0];
+        const holidayLabelId = holidayLabelObj ? holidayLabelObj.id : 'lbl_holiday';
+        const holidayLabelName = holidayLabelObj ? holidayLabelObj.name : '휴일';
 
         const colRef = scope === 'personal' ? getUserCol('events') : getGroupCol(scope, 'events');
+        
+        // 날짜별 문서 순회하며 기존 source === 'holiday'만 제거 후 새 공휴일 삽입
+        let curr = new Date(startStr);
+        const endD = new Date(endStr);
         let batch = writeBatch(db);
         let count = 0;
 
-        for (const item of holidaysToInsert) {
-            const docRef = doc(colRef, item.dateStr);
+        while (curr <= endD) {
+            const dStr = formatDate(curr);
+            const docRef = doc(colRef, dStr);
             const docSnap = await getDoc(docRef);
-            let evList = docSnap.exists() ? (docSnap.data().eventList || []) : [];
 
-            const exists = evList.some(e => e.content === item.name && e.source === 'holiday');
-            if (!exists) {
-                evList.push({
+            if (docSnap.exists()) {
+                let evList = docSnap.data().eventList || [];
+                // 기존 공휴일 데이터 제거
+                let filteredList = evList.filter(e => e.source !== 'holiday');
+
+                // 해당 날짜에 새 공휴일이 존재하면 추가
+                if (holidaysMap[dStr]) {
+                    filteredList.push({
+                        id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
+                        labelIds: [holidayLabelId],
+                        label: holidayLabelName,
+                        labels: [holidayLabelName],
+                        content: holidaysMap[dStr],
+                        completed: false,
+                        source: 'holiday'
+                    });
+                }
+
+                if (filteredList.length !== evList.length || holidaysMap[dStr]) {
+                    batch.set(docRef, { eventList: filteredList, updatedAt: Date.now() }, { merge: true });
+                    count++;
+                    if (count >= 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
+                }
+            } else if (holidaysMap[dStr]) {
+                // 문서가 아예 없고 공휴일만 있는 경우 생성
+                const newList = [{
                     id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
-                    labelIds: [holidayLabelObj.id],
-                    label: holidayLabelObj.name,
-                    labels: [holidayLabelObj.name],
-                    content: item.name,
+                    labelIds: [holidayLabelId],
+                    label: holidayLabelName,
+                    labels: [holidayLabelName],
+                    content: holidaysMap[dStr],
                     completed: false,
                     source: 'holiday'
-                });
-                
-                batch.set(docRef, { eventList: evList, updatedAt: Date.now() }, { merge: true });
+                }];
+                batch.set(docRef, { eventList: newList, updatedAt: Date.now() }, { merge: true });
                 count++;
-
                 if (count >= 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
             }
+
+            curr.setDate(curr.getDate() + 1);
         }
+
         if (count > 0) await batch.commit();
 
-        ProgressModal.complete("✅ 공휴일 데이터가 성공적으로 반영되었습니다!", () => {
+        ProgressModal.complete(`✅ 공휴일 동기화 완료!\n[출처: ${sourceUsed}]에서 성공적으로 불러왔습니다.`, () => {
             store.hasUnsavedChanges = false;
-            if (typeof window.render === 'function') window.render();
+            if (typeof window.render === 'function') window.render(true);
         });
 
     } catch (error) {
         console.error("공휴일 가져오기 에러:", error);
-        ProgressModal.error("데이터를 가져오는 중 오류가 발생했습니다.\n" + error.message);
+        ProgressModal.error("공휴일을 불러오는 중 오류가 발생했습니다.\n" + error.message);
     }
 };
 
