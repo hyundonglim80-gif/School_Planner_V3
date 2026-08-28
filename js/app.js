@@ -201,7 +201,16 @@ window.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); if (window.quickGoogleSync) window.quickGoogleSync(); }
         }
         else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-            if (e.key === 'Enter') { e.preventDefault(); if (window.handleEditSaveClick) window.handleEditSaveClick(); }
+            if (e.key === 'Enter') { 
+                e.preventDefault(); 
+                // 💡 [추가됨] 메모 페이지일 때는 '추가' 버튼을 클릭하게 하고, 그 외에는 저장(handleEditSaveClick) 작동
+                if (store.scope === 'memo') {
+                    const addBtn = Array.from(document.querySelectorAll('button, [onclick]')).find(b => b.textContent.trim().includes('추가'));
+                    if (addBtn) addBtn.click();
+                } else if (window.handleEditSaveClick) {
+                    window.handleEditSaveClick(); 
+                }
+            }
             else if (e.key === 'ArrowLeft') { e.preventDefault(); if (window.moveDate) window.moveDate(-1); }
             else if (e.key === 'ArrowRight') { e.preventDefault(); if (window.moveDate) window.moveDate(1); }
             else if (e.key === 'ArrowUp') { e.preventDefault(); if (window.setMode) window.setMode('viewer'); }
@@ -313,7 +322,6 @@ function applyShortcutTooltips() {
         let existingTooltip = el.getAttribute('data-tooltip') || '';
         if (existingTooltip.includes(shortcutText)) return; 
 
-        // 💡 [버그 수정 1] 기존 흰색 글씨 무시하고 오직 "노란색 단축키 텍스트"만 깔끔하게 한 줄 출력
         let newTooltipText = `<span style="color:#fbbf24; font-size:0.85rem; font-weight:bold;">단축키: ${shortcutText}</span>`;
         
         el.setAttribute('data-tooltip', newTooltipText);
@@ -339,6 +347,8 @@ function applyShortcutTooltips() {
 
         if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
         else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
+        // 💡 [추가됨] 메모 페이지의 '추가' 버튼 단축키 알림 매칭
+        else if (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가')) attach(el, 'Ctrl + Enter');
         else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + `');
         else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
         else if (attr.includes('quickGoogleSync') || (isClickable && text.includes('동기화'))) attach(el, 'Ctrl + Shift + Enter');
