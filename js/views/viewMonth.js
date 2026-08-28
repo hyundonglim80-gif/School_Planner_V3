@@ -37,9 +37,26 @@ export class MonthView extends BaseView {
 
         const y = store.currentDate.getFullYear();
         const m = store.currentDate.getMonth();
-        const lastDate = new Date(y, m + 1, 0).getDate();
-        const startStr = `${y}-${String(m+1).padStart(2, '0')}-01`;
-        const endStr = `${y}-${String(m+1).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`;
+        
+        const firstDayOfMonth = new Date(y, m, 1);
+        const lastDayOfMonth = new Date(y, m + 1, 0);
+        
+        const firstDayOfWeek = firstDayOfMonth.getDay(); 
+        const lastDayOfWeek = lastDayOfMonth.getDay();
+        const lastDate = lastDayOfMonth.getDate();
+
+        let paddingStart = this.isWeekendVisible ? firstDayOfWeek : (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1);
+        let paddingEnd = this.isWeekendVisible ? (6 - lastDayOfWeek) : (lastDayOfWeek === 0 ? 0 : 5 - lastDayOfWeek);
+        if (paddingEnd < 0) paddingEnd = 0;
+
+        const calendarStartDate = new Date(firstDayOfMonth);
+        calendarStartDate.setDate(calendarStartDate.getDate() - paddingStart);
+        
+        const calendarEndDate = new Date(lastDayOfMonth);
+        calendarEndDate.setDate(calendarEndDate.getDate() + paddingEnd);
+
+        const startStr = formatDate(calendarStartDate);
+        const endStr = formatDate(calendarEndDate);
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
         const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
@@ -58,18 +75,23 @@ export class MonthView extends BaseView {
             return `<div class="cal-header" style="${color}">${d}</div>`;
         }).join('');
         
-        const firstDay = new Date(y, m, 1).getDay(); 
-        let padding = this.isWeekendVisible ? firstDay : (firstDay >= 1 && firstDay <= 5 ? firstDay - 1 : 0);
-        const paddingHtml = Array.from({ length: padding }).map(() => `<div class="cal-day" style="background:#f8fafc;"></div>`).join('');
-
         const realTodayStr = formatDate(new Date());
 
-        const daysHtml = Array.from({ length: lastDate }).map((_, i) => {
-            const d = i + 1;
-            const dateStr = `${y}-${String(m+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const dayOfWeekNum = new Date(y, m, d).getDay();
-            
-            if (!this.isWeekendVisible && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return '';
+        let renderDays = [];
+        let currIterDate = new Date(calendarStartDate);
+        while (currIterDate <= calendarEndDate) {
+            const dayOfWeekNum = currIterDate.getDay();
+            if (this.isWeekendVisible || (dayOfWeekNum !== 0 && dayOfWeekNum !== 6)) {
+                renderDays.push(new Date(currIterDate));
+            }
+            currIterDate.setDate(currIterDate.getDate() + 1);
+        }
+
+        const daysHtml = renderDays.map(dateObj => {
+            const dateStr = formatDate(dateObj);
+            const d = dateObj.getDate();
+            const dayOfWeekNum = dateObj.getDay();
+            const isCurrentMonth = dateObj.getMonth() === m;
 
             const finalEvents = eMap[dateStr]?.eventList || [];
             const filteredEvents = finalEvents.filter(e => window.activeUnifiedFilters.includes(e.sharedGroupId || 'personal'));
