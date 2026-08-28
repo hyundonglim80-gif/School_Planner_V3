@@ -212,41 +212,129 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ==========================================================================
-// 4. 💡 버튼 툴팁(title 속성) 단축키 자동 표시 로직
+// 4. 🚀 초고속 반투명 커스텀 툴팁 (단축키 표시 자동화)
 // ==========================================================================
-function applyShortcutTooltips() {
-    const addTooltip = (selector, shortcutText) => {
-        document.querySelectorAll(selector).forEach(el => {
-            if (!el.hasAttribute('data-shortcut-added')) {
-                let currentTitle = (el.getAttribute('title') || '').trim();
-                // 기존 툴팁이 있으면 띄어쓰기 후 추가, 없으면 단축키만 표시
-                el.setAttribute('title', currentTitle ? `${currentTitle} (${shortcutText})` : shortcutText);
-                el.setAttribute('data-shortcut-added', 'true');
+
+// 4-1. 커스텀 툴팁 CSS 및 HTML 요소 주입
+const tooltipStyle = document.createElement('style');
+tooltipStyle.innerHTML = `
+    #sp3-custom-tooltip {
+        position: fixed;
+        background: rgba(30, 41, 59, 0.85); /* 부드럽고 진한 반투명 배경 */
+        color: #f8fafc;
+        padding: 8px 12px;
+        border-radius: 8px; /* 둥근 모서리 */
+        font-size: 0.85rem;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 100000;
+        opacity: 0;
+        transform: translateY(5px) scale(0.95);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+        white-space: pre-wrap;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        line-height: 1.4;
+    }
+    #sp3-custom-tooltip.show {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+`;
+document.head.appendChild(tooltipStyle);
+
+const customTooltipEl = document.createElement('div');
+customTooltipEl.id = 'sp3-custom-tooltip';
+document.body.appendChild(customTooltipEl);
+
+// 4-2. 마우스 오버 시 즉각 반응하는 이벤트(이벤트 위임)
+let tooltipTimeout;
+document.body.addEventListener('mouseover', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (target) {
+        clearTimeout(tooltipTimeout);
+        // 0.05초(50ms) 만에 즉시 표시되도록 설정 (체감상 딜레이 없음)
+        tooltipTimeout = setTimeout(() => {
+            customTooltipEl.innerHTML = target.getAttribute('data-tooltip');
+            const rect = target.getBoundingClientRect();
+            
+            // 기본적으로 엘리먼트 아래쪽에 띄우기
+            let top = rect.bottom + 8;
+            let left = rect.left + (rect.width / 2) - (customTooltipEl.offsetWidth / 2);
+
+            // 화면 밑으로 벗어나면 엘리먼트 위쪽으로 띄우기 변경
+            if (top + customTooltipEl.offsetHeight > window.innerHeight - 10) {
+                top = rect.top - customTooltipEl.offsetHeight - 8;
             }
-        });
+            
+            // 화면 좌/우 여백 확보
+            if (left < 10) left = 10;
+            if (left + customTooltipEl.offsetWidth > window.innerWidth - 10) {
+                left = window.innerWidth - customTooltipEl.offsetWidth - 10;
+            }
+
+            customTooltipEl.style.top = `${top}px`;
+            customTooltipEl.style.left = `${left}px`;
+            customTooltipEl.classList.add('show');
+        }, 50); 
+    }
+});
+
+document.body.addEventListener('mouseout', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (target) {
+        clearTimeout(tooltipTimeout);
+        customTooltipEl.classList.remove('show');
+    }
+});
+
+// 4-3. 앱 내 버튼들에 툴팁 데이터 입히기 로직
+function applyShortcutTooltips() {
+    const attach = (el, shortcutText) => {
+        if (!el || el.hasAttribute('data-shortcut-added')) return;
+        
+        let currentTitle = (el.getAttribute('title') || '').trim();
+        // 기존 title 문구 밑에 노란색 텍스트로 단축키 추가
+        let newTooltipText = currentTitle 
+            ? `${currentTitle}<br><span style="color:#fbbf24; font-size:0.75rem; font-weight:normal;">(단축키: ${shortcutText})</span>` 
+            : `<span style="color:#fbbf24; font-size:0.75rem; font-weight:normal;">(단축키: ${shortcutText})</span>`;
+        
+        el.setAttribute('data-tooltip', newTooltipText);
+        el.removeAttribute('title'); // 느리고 못생긴 기본 툴팁 제거
+        el.setAttribute('data-shortcut-added', 'true');
     };
 
-    // 각 버튼별 DOM selector 와 매칭시킬 단축키 문자열
-    addTooltip('[onclick*="handleEditSaveClick"]', 'Ctrl+Enter 또는 Ctrl+상/하 화살표');
-    addTooltip('[onclick*="moveDate(-1)"]', 'Ctrl+좌 화살표');
-    addTooltip('[onclick*="moveDate(1)"]', 'Ctrl+우 화살표');
-    addTooltip('[onclick*="SearchUI"]', 'Shift+`');
-    addTooltip('[onclick*="setScope(\'day\')"]', 'Shift+1');
-    addTooltip('[onclick*="setScope(\'week\')"]', 'Shift+2');
-    addTooltip('[onclick*="setScope(\'month\')"]', 'Shift+3');
-    addTooltip('[onclick*="setScope(\'year\')"]', 'Shift+4');
-    addTooltip('[onclick*="setScope(\'memo\')"]', 'Shift+5');
-    addTooltip('[onclick*="goToToday"]', 'Ctrl+Space');
-    addTooltip('[onclick*="quickGoogleSync"]', 'Ctrl+Shift+Enter');
-    addTooltip('[onclick*="toggleWeekend"]', 'Shift+상/하 화살표');
-    addTooltip('[onclick*="toggleClass"]', 'Alt+상/하 화살표');
+    const addTooltipBySelector = (selector, shortcutText) => {
+        document.querySelectorAll(selector).forEach(el => attach(el, shortcutText));
+    };
+
+    // 선택자 기반 단축키 할당
+    addTooltipBySelector('[onclick*="handleEditSaveClick"]', 'Ctrl + Enter');
+    addTooltipBySelector('[onclick*="moveDate(-1)"]', 'Ctrl + ⬅️');
+    addTooltipBySelector('[onclick*="moveDate(1)"]', 'Ctrl + ➡️');
+    addTooltipBySelector('[onclick*="SearchUI"]', 'Shift + `');
+    addTooltipBySelector('[onclick*="setScope(\'day\')"]', 'Shift + 1');
+    addTooltipBySelector('[onclick*="setScope(\'week\')"]', 'Shift + 2');
+    addTooltipBySelector('[onclick*="setScope(\'month\')"]', 'Shift + 3');
+    addTooltipBySelector('[onclick*="setScope(\'year\')"]', 'Shift + 4');
+    addTooltipBySelector('[onclick*="setScope(\'memo\')"]', 'Shift + 5');
+    addTooltipBySelector('[onclick*="goToToday"]', 'Ctrl + Space');
+    addTooltipBySelector('[onclick*="quickGoogleSync"]', 'Ctrl + Shift + Enter');
+    addTooltipBySelector('[onclick*="toggleWeekend"], [onchange*="toggleWeekend"]', 'Shift + ⬆️/⬇️');
+    addTooltipBySelector('[onclick*="toggleClass"], [onchange*="toggleClass"]', 'Alt + ⬆️/⬇️');
+
+    // 💡 선택자로 잡히지 않는 '주말', '수업' 토글 버튼 강제 탐색 (글자 기반 찾기)
+    document.querySelectorAll('label, button, .toggle-container').forEach(el => {
+        const text = el.textContent.trim();
+        if (text.includes('주말') && text.length < 15) attach(el, 'Shift + ⬆️/⬇️');
+        if (text.includes('수업') && text.length < 15 && !text.includes('삭제')) attach(el, 'Alt + ⬆️/⬇️');
+    });
 }
 
-// 화면이 렌더링되거나 업데이트될 때마다 새로운 버튼에 툴팁을 입혀주기 위한 감시자(Observer)
+// 화면이 업데이트될 때마다 툴팁 다시 스캔
 const tooltipObserver = new MutationObserver(() => applyShortcutTooltips());
 tooltipObserver.observe(document.body, { childList: true, subtree: true });
 
-// 앱 최초 로드 시 실행
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyShortcutTooltips);
 } else {
