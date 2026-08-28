@@ -92,18 +92,12 @@ export const moveDate = (dir) => {
     
     if (store.scope === 'day') {
         d.setDate(d.getDate() + dir);
-        // 💡 수정됨: 주말 숨기기 상태일 경우 주말을 자동으로 건너뜀 (금 -> 월, 월 -> 금)
         if (!store.showWeekend) {
             const dayOfWeek = d.getDay();
-            if (dir > 0 && dayOfWeek === 6) { // 앞으로 가다가 토요일이면 월요일로
-                d.setDate(d.getDate() + 2);
-            } else if (dir > 0 && dayOfWeek === 0) { // 혹시 일요일이면 월요일로
-                d.setDate(d.getDate() + 1);
-            } else if (dir < 0 && dayOfWeek === 0) { // 뒤로 가다가 일요일이면 금요일로
-                d.setDate(d.getDate() - 2);
-            } else if (dir < 0 && dayOfWeek === 6) { // 뒤로 가다가 토요일이면 금요일로
-                d.setDate(d.getDate() - 1);
-            }
+            if (dir > 0 && dayOfWeek === 6) { d.setDate(d.getDate() + 2); }
+            else if (dir > 0 && dayOfWeek === 0) { d.setDate(d.getDate() + 1); }
+            else if (dir < 0 && dayOfWeek === 0) { d.setDate(d.getDate() - 2); }
+            else if (dir < 0 && dayOfWeek === 6) { d.setDate(d.getDate() - 1); }
         }
     } 
     else if (store.scope === 'week') d.setDate(d.getDate() + (dir * 7));
@@ -208,7 +202,12 @@ export const goToDay = (dateStr) => {
                 pinBtn.onmouseout = () => pinBtn.style.transform = 'scale(1)';
                 
                 pinBtn.onclick = async () => {
-                    if (store.hasUnsavedChanges && window.dayViewInstance) { pinBtn.innerHTML = '⏳'; await window.dayViewInstance.save(); }
+                    // 💡 변경됨: 핀 버튼 누를 때도 이월 엔진 작동
+                    if (store.hasUnsavedChanges && window.dayViewInstance) { 
+                        pinBtn.innerHTML = '⏳'; 
+                        await window.dayViewInstance.save(); 
+                        if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+                    }
                     store.hasUnsavedChanges = false; dayModal.close();
                     localStorage.setItem('workCalendar_date_day', store.currentDate.toISOString());
                     if (window.setScope) window.setScope('day');
@@ -230,6 +229,8 @@ export const goToDay = (dateStr) => {
                     const btn = document.getElementById('day-modal-save-btn');
                     btn.innerHTML = '💾 저장 중...'; btn.style.opacity = '0.7';
                     await window.dayViewInstance.save();
+                    // 💡 변경됨: 팝업창에서 저장할 때도 완벽하게 이월 엔진 작동
+                    if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
                     store.hasUnsavedChanges = false;
                     dayModal.close();
                 } catch (err) {
