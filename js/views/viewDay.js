@@ -233,13 +233,11 @@ export class DayView extends BaseView {
                     </div>`;
                 }).join('') + `</div>` : '';
 
+                // 🛑 [버그 수정 1] 들여쓰기 공백 완벽 제거 (white-space: pre-wrap 대응)
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
                         <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
-                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1;">
-                            ${j.content || ''}
-                            ${attachmentsHtml}
-                        </div>
+                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
                     </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 
@@ -758,7 +756,6 @@ export class DayView extends BaseView {
         }
     }
 
-    // 💡 변경됨: 라벨 중복 선택 강제 해제 장치 제거 (무한 중복 체크 허용)
     async toggleEventLabel(fId, idx, labelId) {
         this.syncEventInputs(fId);
         store.hasUnsavedChanges = true;
@@ -772,7 +769,6 @@ export class DayView extends BaseView {
             ev.labelIds = ev.labelIds.filter(id => id !== labelId);
             this.renderEventEntries(fId);
         } else {
-            // 중복 허용이되, '반복'이나 '기간' 라벨일 경우 모달창을 띄우는 로직만 유지
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
 
@@ -801,7 +797,6 @@ export class DayView extends BaseView {
                 return;
             }
 
-            // 그냥 라벨 배열에 무조건 추가
             ev.labelIds.push(labelId);
             this.renderEventEntries(fId);
         }
