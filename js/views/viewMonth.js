@@ -148,7 +148,7 @@ export class MonthView extends BaseView {
             </div>`;
         }).join('');
 
-        this.container.innerHTML = `<div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr); margin-top:15px;">${daysHeaderHtml}${paddingHtml}${daysHtml}</div>`;
+        this.container.innerHTML = `<div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr); margin-top:15px;">${daysHeaderHtml}${daysHtml}</div>`;
     } finally {
         this.isRendering = false;
     }
