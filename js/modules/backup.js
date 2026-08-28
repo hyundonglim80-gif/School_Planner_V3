@@ -63,6 +63,10 @@ export const BackupManager = {
                         <span style="font-weight:bold; color:#64748b;">~</span>
                         <input type="date" id="backup-end-date" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; color:#334155;" disabled>
                     </div>
+                    <!-- 💡 추가됨: 공휴일 가져오기 버튼 -->
+                    <div style="margin-top:5px; text-align:right;">
+                        <button onclick="window.executeHolidayImport(document.getElementById('backup-start-date').value, document.getElementById('backup-end-date').value, document.getElementById('backup-scope-select').value)" style="padding:6px 12px; font-size:0.9rem; background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; cursor:pointer; transition:0.2s;">🇰🇷 해당 기간 공휴일 가져오기</button>
+                    </div>
                 </div>
             </div>
             <div>
