@@ -294,7 +294,7 @@ function applyShortcutTooltips() {
         el.setAttribute('data-shortcut-added', 'true');
     };
 
-    document.querySelectorAll('label, button, a, div[onclick], span[onclick], .nav-item').forEach(el => {
+    document.querySelectorAll('label, button, a, div[onclick], span[onclick], h1, h2, h3, h4, [onclick], .nav-item').forEach(el => {
         if (el.hasAttribute('data-shortcut-added')) return;
         
         const text = (el.textContent || '').trim();
