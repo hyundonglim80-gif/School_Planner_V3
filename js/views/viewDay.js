@@ -433,10 +433,13 @@ export class DayView extends BaseView {
     }
 
     createEmptyEvent(fId) {
+        const masterLabels = getEventLabels();
+        const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
         return { 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
             authorId: auth?.currentUser?.uid,
-            labelIds: [], content: '', completed: false, 
+            labelIds: defaultLabelId ? [defaultLabelId] : [], 
+            content: '', completed: false, 
             sharedGroupId: fId === 'personal' ? null : fId 
         };
     }
