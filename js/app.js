@@ -35,7 +35,6 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 🌟 다운로드 안내 팝업 공통 함수 추가
 window.promptDownloadFile = function(fileName, downloadUrl) {
     if (confirm(`"${fileName}" 파일을 다운로드하시겠습니까?`)) {
         const a = document.createElement('a');
@@ -50,7 +49,7 @@ window.promptDownloadFile = function(fileName, downloadUrl) {
 
 Object.assign(window, {
     app, db, auth, storage,
-    store, // 💡 추가됨: 인라인 이벤트(onclick)에서 store 객체에 접근할 수 있도록 전역 바인딩
+    store,
     signInWithGoogle, signOut, forceRenewToken, getValidGoogleToken,
     getUserCol, getGroupCol, dbAPI, compressImage,
     setNetworkOnline, setNetworkOffline, toggleNetworkMode, executeManualSync,
@@ -85,89 +84,84 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 📜 보기 모드 한정: 상하 스크롤 끝단 자동 페이지 이동 로직 (메모 페이지 제외 완벽 대응)
+// 📜 상하 스크롤 및 키보드 단축키 페이지 이동 로직 (기능 복구 및 업데이트)
 // ==========================================================================
 
-// 가로 스와이프를 무조건 '탭 이동'으로 강제 고정
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
-
-// 위/아래 경계를 각각 독립적으로 기억하도록 수정
 let startedAtTop = false;
 let startedAtBottom = false;
-
 let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
 // 1. 마우스 휠 스크롤 이벤트 (PC 환경)
 window.addEventListener('wheel', (e) => {
-    // 💡 수정됨: 뷰어 모드가 아니거나, 메모 페이지이거나, 모달창이 열려있으면 작동하지 않음
     if (store.mode !== 'viewer' || store.scope === 'memo' || document.querySelector('.modal-overlay:not(.hidden)')) return;
     if (scrollNavTimeout) return;
 
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-    
     const atBottom = currentScroll >= scrollHeight - 10;
     const atTop = window.scrollY <= 10;
 
-    // 새로운 휠 동작이 시작될 때 위/아래 각각의 닿음 여부를 독립적으로 기록
     if (!blockWheelTimer) {
         startedAtTop = atTop;
         startedAtBottom = atBottom;
     }
-
     if (blockWheelTimer) clearTimeout(blockWheelTimer);
     blockWheelTimer = setTimeout(() => { blockWheelTimer = null; }, 150);
 
-    // 스크롤 방향과 최초 시작 경계가 일치할 때만 작동
-    if (atBottom && e.deltaY > 0 && startedAtBottom) {
-        executeScrollNav(1);
-    } else if (atTop && e.deltaY < 0 && startedAtTop) {
-        executeScrollNav(-1);
-    }
+    if (atBottom && e.deltaY > 0 && startedAtBottom) executeScrollNav(1);
+    else if (atTop && e.deltaY < 0 && startedAtTop) executeScrollNav(-1);
 });
 
 // 2. 터치 스와이프 이벤트 (스마트폰/태블릿 환경)
 window.addEventListener('touchstart', (e) => {
     touchStartY = e.touches[0].clientY;
-    
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
     
-    // 터치 시작 시 위/아래 경계 여부를 각각 기록
     touchStartedAtTop = window.scrollY <= 10;
     touchStartedAtBottom = currentScroll >= scrollHeight - 10;
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    // 💡 수정됨: 뷰어 모드가 아니거나, 메모 페이지이거나, 모달창이 열려있으면 작동하지 않음
     if (store.mode !== 'viewer' || store.scope === 'memo' || document.querySelector('.modal-overlay:not(.hidden)')) return;
     if (scrollNavTimeout) return;
 
     const touchEndY = e.changedTouches[0].clientY;
     const deltaY = touchStartY - touchEndY; 
-
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-    
     const atBottom = currentScroll >= scrollHeight - 10;
     const atTop = window.scrollY <= 10;
 
-    if (atBottom && deltaY > 50 && touchStartedAtBottom) {
-        executeScrollNav(1);
-    } else if (atTop && deltaY < -50 && touchStartedAtTop) {
-        executeScrollNav(-1);
+    if (atBottom && deltaY > 50 && touchStartedAtBottom) executeScrollNav(1);
+    else if (atTop && deltaY < -50 && touchStartedAtTop) executeScrollNav(-1);
+});
+
+// 3. 💡 키보드 단축키 이벤트 (Ctrl + 좌/우 화살표 복구)
+window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        // 글 입력 중일 때는 커서 이동을 위해 차단
+        const tag = e.target.tagName.toLowerCase();
+        const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+        
+        if (!isInput) {
+            e.preventDefault(); // 기본 브라우저 뒤로가기 등 방어
+            if (window.moveDate) {
+                window.moveDate(e.key === 'ArrowLeft' ? -1 : 1);
+            }
+        }
     }
 });
 
 function executeScrollNav(direction) {
     if (window.moveDate) {
         window.moveDate(direction); 
-        // 페이지가 연달아 넘어가는 것을 방지하는 쿨타임
         scrollNavTimeout = setTimeout(() => { scrollNavTimeout = null; }, 800); 
     }
 }
