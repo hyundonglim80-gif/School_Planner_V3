@@ -59,7 +59,9 @@ export class MonthView extends BaseView {
         const endStr = formatDate(calendarEndDate);
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        // 🌟 [안전성/경제성] jMap, elMap 병렬 구조 추출
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
 
         window.currentMyGroups = this.myGroups;
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
@@ -107,7 +109,26 @@ export class MonthView extends BaseView {
 
                 const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-                const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+                
+                let eventContent = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+
+                // 🌟 [친절성] 월간 달력 뷰어 모드: 기록 및 조사표 뱃지 추가
+                const fJournals = jMap?.[dateStr]?.[fId] || [];
+                const fEvals = elMap?.[dateStr]?.[fId] || [];
+                let extraBadgesHtml = '';
+                
+                if (fJournals.length > 0) {
+                    extraBadgesHtml += `<span onclick="window.goToDay('${dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px solid #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📔 기록 ${fJournals.length}</span>`;
+                }
+                if (fEvals.length > 0) {
+                    extraBadgesHtml += `<span onclick="window.goToDay('${dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📊 조사표 ${fEvals.length}</span>`;
+                }
+
+                if (extraBadgesHtml) {
+                    eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+                }
+                
+                const eventHtml = eventContent;
 
                 let scheduleHtml = '';
                 if (store.showClass) {
@@ -172,7 +193,9 @@ export class MonthView extends BaseView {
         const endStr = `${y}-${String(m+1).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        // 🌟 [안전성] jMap, elMap 추출
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
         
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         const realTodayStr = formatDate(new Date());
@@ -230,7 +253,24 @@ export class MonthView extends BaseView {
                 const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
                 const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-                const eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
+                let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
+                
+                // 🌟 [친절성] 월간 에디터 모드: 작성 중에도 볼 수 있는 뱃지
+                const fJournals = jMap?.[dateStr]?.[fId] || [];
+                const fEvals = elMap?.[dateStr]?.[fId] || [];
+                let extraBadgesHtml = '';
+                
+                if (fJournals.length > 0) {
+                    extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px dashed #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px;" title="하루 보기 화면에서 확인/수정 가능합니다">📔 기록 ${fJournals.length}</span>`;
+                }
+                if (fEvals.length > 0) {
+                    extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px dashed #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold;" title="하루 보기 화면에서 확인/수정 가능합니다">📊 조사표 ${fEvals.length}</span>`;
+                }
+
+                if (extraBadgesHtml) {
+                    eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+                }
+
                 const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
                 if (idx === 0) {
