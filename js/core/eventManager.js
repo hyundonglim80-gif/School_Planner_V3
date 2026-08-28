@@ -60,9 +60,22 @@ export const formatEventListToText = (eventList) => {
 
 export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'normal') => {
     if (!eventList || eventList.length === 0) return '';
-    let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
-    const realTodayStr = formatDate(new Date()); 
+    
     const masterLabels = getEventLabels();
+
+    // 💡 추가됨: 새로고침(또는 화면 렌더링) 시 배열을 라벨 설정 순서대로 정렬 (in-place 정렬 적용)
+    eventList.sort((a, b) => {
+        const getIdx = (ev) => {
+            const id = ev.labelIds?.[0];
+            const name = ev.labels?.[0] || ev.label;
+            if (id) { const idx = masterLabels.findIndex(l => l.id === id); if (idx !== -1) return idx; }
+            if (name) { const idx = masterLabels.findIndex(l => l.name === name); if (idx !== -1) return idx; }
+            return 999;
+        };
+        return getIdx(a) - getIdx(b);
+    });
+
+    let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
 
     eventList.forEach((e, index) => {
         let labelIdsToRender = e.labelIds || [];
@@ -86,13 +99,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
         const isGrouped = !!e.groupId; 
 
         let pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
-        let isMissedPast = false;
-        let isForwardedToToday = false;
-
-        if (canComplete && dateStr) {
-            if (!isCompleted && dateStr < realTodayStr) isMissedPast = true;
-            if (e.originalDate && e.originalDate < dateStr) isForwardedToToday = true;
-        }
 
         let badgesHtml = '';
         if (labelIdsToRender.length > 0) {
@@ -103,8 +109,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
                 const style = getLabelStyle(id, 'event');
                 let badgeStyle;
 
-                if (isMissedPast) badgeStyle = `background:#fee2e2; color:#ef4444; border:2px solid #ef4444;`;
-                else if (isCompleted && canComplete) badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
+                if (isCompleted && canComplete) badgeStyle = `background:#e2e8f0; color:#94a3b8; border:1px solid #cbd5e1; cursor:pointer;`;
                 else badgeStyle = `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; ${canComplete ? 'cursor:pointer;' : ''}`;
 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
@@ -116,17 +121,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
         let groupIcon = isGrouped ? `<span style="font-size:0.8rem; margin-right:3px;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
 
-        if (isMissedPast) {
-            textStyle = 'color:#ef4444; font-weight:bold;';
-            pureContent = `${pureContent} <span style="color:#ef4444; font-weight:bold; font-size:0.85rem;">➡️ (미완료)</span>`;
-        } else if (isForwardedToToday) {
-            if (isCompleted) {
-                textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
-                pureContent = `<span style="color:#94a3b8; font-weight:bold;">↪️</span> ${pureContent}`;
-            } else {
-                pureContent = `<span style="color:#2563eb; font-weight:bold;">↪️</span> ${pureContent}`;
-            }
-        } else if (isCompleted && canComplete) {
+        if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
@@ -137,7 +132,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
         html += `
         <div id="evt-row-${dateStr}-${index}" style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete && !isMissedPast && !isForwardedToToday ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
@@ -148,9 +143,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 // 2. 통합 Event Manager 코어
 // ============================================================================
 export const EventManager = {
-    // ------------------------------------------------------------------------
-    // [1] 완료 토글
-    // ------------------------------------------------------------------------
     toggleEventCompletion: function(dateStr, index, currentStatus) {
         const willBeComplete = !currentStatus;
 
@@ -166,7 +158,6 @@ export const EventManager = {
             const badges = rowEl.querySelectorAll('span[onclick*="toggleEventCompletion"]');
             badges.forEach(badge => {
                 badge.setAttribute('onclick', `event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${willBeComplete})`);
-
                 if (willBeComplete) {
                     badge.style.background = '#e2e8f0'; badge.style.color = '#94a3b8'; badge.style.border = '1px solid #cbd5e1';
                 } else {
@@ -206,15 +197,13 @@ export const EventManager = {
                     eventList[index].completed = willBeComplete;
                     const newText = formatEventListToText(eventList);
                     await setDoc(docRef, { eventList: eventList, eventText: newText, updatedAt: Date.now() }, { merge: true });
-                    if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents(); // 호환성
+                    if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents(); 
                 }
             } catch (error) { console.error("🚨 완료 상태 변경 중 오류:", error); }
         }, 0);
     },
 
-    // ------------------------------------------------------------------------
-    // [2] 자동 이월 처리 엔진
-    // ------------------------------------------------------------------------
+    // 💡 변경됨: 과거 미완료 일정 "완전 이동(Move)" 엔진으로 구조 단순화 및 재설계
     autoForwardIncompleteEvents: async function() {
         const todayStr = formatDate(new Date()); 
         try {
@@ -225,21 +214,33 @@ export const EventManager = {
             let eventsMap = {}; let allDates = [];
             eventsSnap.forEach(docSnap => { eventsMap[docSnap.id] = docSnap.data(); allDates.push(docSnap.id); });
 
+            // 오늘 날짜가 문서에 없더라도 반드시 처리하도록 추가
             if (!allDates.includes(todayStr)) allDates.push(todayStr);
             allDates.sort();
 
-            let activeChains = new Set(); let chainEventData = {}; let changedDocs = new Set();
-            const minDateStr = allDates[0] || todayStr; const maxDateStr = allDates[allDates.length - 1];
-            let curD = parseLocalDate(minDateStr); let endD = parseLocalDate(maxDateStr);
+            let changedDocs = new Set();
+            const minDateStr = allDates[0] || todayStr; 
+            const maxDateStr = allDates[allDates.length - 1];
+            let curD = parseLocalDate(minDateStr); 
+            let endD = parseLocalDate(maxDateStr);
+
+            // 다음 날로 밀어낼(이동시킬) 일정들을 임시 보관하는 배열
+            let carryOverEvents = []; 
 
             while (curD <= endD) {
                 const curStr = formatDate(curD);
-                curD.setDate(curD.getDate() + 1);
-                const nextStr = formatDate(curD);
-
                 let curData = eventsMap[curStr] || { eventList: [] };
                 let curList = curData.eventList || (curData.eventText ? parseRawEventTextToEventList(curData.eventText) : []);
-                let newCurList = []; let curChanged = false;
+                let curChanged = false;
+
+                // 어제 미완료로 남아 넘어온 일정이 있다면 오늘의 리스트에 합류
+                if (carryOverEvents.length > 0) {
+                    curList.push(...carryOverEvents);
+                    carryOverEvents = [];
+                    curChanged = true;
+                }
+
+                let newCurList = [];
 
                 curList.forEach(ev => {
                     let canComplete = false;
@@ -253,53 +254,26 @@ export const EventManager = {
                     const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                     if (ev.content !== cleanContent) { ev.content = cleanContent; curChanged = true; }
 
-                    const isOrigin = !ev.originalDate || ev.originalDate === curStr;
-
-                    if (isOrigin) {
-                        if (canComplete) {
-                            if (!ev.forwardChainId) { ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); curChanged = true; }
-                            if (!ev.originalDate) { ev.originalDate = curStr; curChanged = true; }
-
-                            if (ev.completed) activeChains.delete(ev.forwardChainId);
-                            else { activeChains.add(ev.forwardChainId); chainEventData[ev.forwardChainId] = { ...ev }; }
-                            newCurList.push(ev);
-                        } else {
-                            if (ev.forwardChainId) { delete ev.forwardChainId; delete ev.originalDate; curChanged = true; }
-                            newCurList.push(ev);
-                        }
+                    // 과거 날짜이고, 완료 라벨 속성인데, 미완료 상태라면 -> 이 날짜에서 빼고 다음날로 이동(Push)
+                    if (curStr < todayStr && canComplete && !ev.completed) {
+                        delete ev.forwardChainId; // 구버전 이월 체인 아이디 삭제
+                        delete ev.originalDate;
+                        carryOverEvents.push(ev);
+                        curChanged = true;
                     } else {
-                        if (activeChains.has(ev.forwardChainId)) {
-                            if (ev.completed) activeChains.delete(ev.forwardChainId);
-                            else chainEventData[ev.forwardChainId] = { ...ev };
-                            newCurList.push(ev);
-                        } else { curChanged = true; }
+                        // 일반 일정이거나, 이미 완료되었거나, 오늘/미래 일정이면 제자리 유지
+                        newCurList.push(ev);
                     }
                 });
 
-                let nextData = eventsMap[nextStr] || { eventList: [] };
-                let nextList = nextData.eventList || (nextData.eventText ? parseRawEventTextToEventList(nextData.eventText) : []);
-                let nextChanged = false;
-
-                if (curStr < todayStr) {
-                    activeChains.forEach(chainId => {
-                        const existsInNext = nextList.some(n => n.forwardChainId === chainId);
-                        if (!existsInNext) {
-                            const sourceEv = chainEventData[chainId];
-                            nextList.unshift({
-                                id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
-                                authorId: sourceEv.authorId || auth?.currentUser?.uid, 
-                                labelIds: [...(sourceEv.labelIds || [])], label: sourceEv.label || '', labels: [...(sourceEv.labels || [])],
-                                content: sourceEv.content, completed: false, forwardChainId: chainId, originalDate: sourceEv.originalDate,
-                                groupId: sourceEv.groupId || null, sharedGroupId: sourceEv.sharedGroupId || null, groupName: sourceEv.groupName || ''
-                            });
-                            nextChanged = true;
-                        }
-                    });
-                }
-
                 if (curList.length !== newCurList.length) curChanged = true;
-                if (curChanged) { eventsMap[curStr] = { ...curData, eventList: newCurList }; changedDocs.add(curStr); }
-                if (nextChanged) { eventsMap[nextStr] = { ...nextData, eventList: nextList }; changedDocs.add(nextStr); }
+                
+                if (curChanged) { 
+                    eventsMap[curStr] = { ...curData, eventList: newCurList }; 
+                    changedDocs.add(curStr); 
+                }
+                
+                curD.setDate(curD.getDate() + 1);
             }
 
             let batch = writeBatch(db); let opCount = 0; let batchPromises = []; 
@@ -319,108 +293,11 @@ export const EventManager = {
         } catch(e) { console.error("자동 이월 처리 에러:", e); }
     },
 
+    // 구버전 모달 유지 (기존 데이터를 위한 호환성)
     showForwardDeleteModal: function(baseDateStr, labelName, textContent, chainId, onConfirm) {
-        const modalHtml = `
-        <div id="forward-delete-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
-            <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
-                <h3 style="color:#ef4444; margin-top:0;">🗑️ 이월 일정 삭제</h3>
-                <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;">이 일정은 <b>'완료(이월)'</b> 속성으로 과거에서 넘어온 일정입니다.<br>어떻게 삭제하시겠습니까?</p>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <button id="btn-fwd-del-stop" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left; line-height:1.4;">오늘부터 삭제 및 이월 중단<br><span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(과거의 기록은 보존됩니다)</span></button>
-                    <button id="btn-fwd-del-all" style="padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; cursor:pointer; font-weight:bold; color:#b91c1c; text-align:left; line-height:1.4;">원본 포함 모든 기록 삭제<br><span style="font-size:0.8rem; font-weight:normal; color:#ef4444;">(최초 작성된 원본까지 모두 지웁니다)</span></button>
-                    <button onclick="document.getElementById('forward-delete-modal').remove()" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소</button>
-                </div>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        document.getElementById('btn-fwd-del-stop').onclick = async () => {
-            if(store.hasUnsavedChanges && window.saveCurrentViewData) window.saveCurrentViewData(true);
-            this.executeForwardDelete('stop', baseDateStr, chainId, onConfirm);
-        };
-        document.getElementById('btn-fwd-del-all').onclick = async () => {
-            if(store.hasUnsavedChanges && window.saveCurrentViewData) window.saveCurrentViewData(true);
-            this.executeForwardDelete('all', baseDateStr, chainId, onConfirm);
-        };
+        if(onConfirm) onConfirm();
     },
 
-    executeForwardDelete: async function(mode, baseDateStr, chainId, onConfirm) {
-        document.getElementById('forward-delete-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#2563eb; text-align:center;">⏳ 로컬 및 동기화 처리 중...</div>`;
-        const matchEvent = (e) => e.forwardChainId === chainId;
-
-        try {
-            let myGroups = [];
-            try { myGroups = await dbAPI.loadMyGroups(); } catch(e) {}
-            const colsToSearch = [getUserCol('events'), ...myGroups.map(g => getGroupCol(g.id, 'events'))];
-
-            if (window.dayViewInstance && window.dayViewInstance.currentEvents) {
-                if (mode === 'all' || window.dayViewInstance.dateStr >= baseDateStr) {
-                   window.dayViewInstance.currentEvents = window.dayViewInstance.currentEvents.filter(e => !matchEvent(e));
-                } else if (mode === 'stop') {
-                   window.dayViewInstance.currentEvents.forEach(e => { if (matchEvent(e)) e.completed = true; });
-                }
-            }
-            
-            Object.keys(window).forEach(key => {
-                if (key.startsWith('tempEvents_')) {
-                    const dStr = key.replace('tempEvents_', '');
-                    if (mode === 'all' || dStr >= baseDateStr) window[key] = window[key].filter(e => !matchEvent(e));
-                    else if (mode === 'stop') window[key].forEach(e => { if (matchEvent(e)) e.completed = true; });
-                }
-            });
-
-            let batch = writeBatch(db); let count = 0; let batchPromises = []; 
-
-            for (const col of colsToSearch) {
-                const snap = await getDocs(col);
-                let maxPastDateStr = '';
-                
-                if (mode === 'stop') {
-                    snap.forEach(docSnap => {
-                        if (docSnap.id < baseDateStr) {
-                            const list = docSnap.data().eventList || (docSnap.data().eventText ? parseRawEventTextToEventList(docSnap.data().eventText) : []);
-                            if (list.some(matchEvent)) { if (docSnap.id > maxPastDateStr) maxPastDateStr = docSnap.id; }
-                        }
-                    });
-                }
-
-                snap.forEach(docSnap => {
-                    let list = docSnap.data().eventList || [];
-                    const origLen = list.length; let changed = false;
-
-                    if (mode === 'all') {
-                        list = list.filter(e => !matchEvent(e));
-                        if (list.length !== origLen) changed = true;
-                    } else if (mode === 'stop') {
-                        if (docSnap.id >= baseDateStr) {
-                            list = list.filter(e => !matchEvent(e));
-                            if (list.length !== origLen) changed = true;
-                        } else if (docSnap.id === maxPastDateStr) {
-                            list.forEach(e => { if (matchEvent(e) && !e.completed) { e.completed = true; changed = true; } });
-                        }
-                    }
-
-                    if (changed) {
-                        let updateData = { eventList: list, eventText: formatEventListToText(list), updatedAt: Date.now() };
-                        batch.update(docSnap.ref, updateData);
-                        count++;
-                        if (count >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); count = 0; } 
-                    }
-                });
-            }
-            if (count > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
-
-            this.autoForwardIncompleteEvents();
-        } catch(e) { console.error("이월 삭제 오류:", e); }
-
-        document.getElementById('forward-delete-modal')?.remove();
-        if (onConfirm) onConfirm();
-    },
-
-    // ------------------------------------------------------------------------
-    // [3] 연속/기간 일정 등록 및 삭제 (multiEvent 통합)
-    // ------------------------------------------------------------------------
     openPeriodModal: function(startDateStr, labelName, textContent, callback, labelId) {
         const modalHtml = `
         <div id="period-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
@@ -586,9 +463,6 @@ export const EventManager = {
         if (onConfirm) onConfirm();
     },
 
-    // ------------------------------------------------------------------------
-    // [4] 반복 일정 (Recurring)
-    // ------------------------------------------------------------------------
     currentCallback: null,
     currentLabelName: '',
     currentContent: '',
