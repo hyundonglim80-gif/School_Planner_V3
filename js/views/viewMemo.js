@@ -225,7 +225,6 @@ export class MemoView extends BaseView {
         </div>
     `;
 
-    // 🌟 [친절성 & 경제성] 입력창 onkeydown을 '저장(executeMemoSave)'으로 변경 & 버튼을 '저장'으로 통합
     let html = `
       <div class="memo-layout-container">
         <div class="memo-card-panel" style="padding: 15px 20px;">
@@ -327,8 +326,8 @@ export class MemoView extends BaseView {
       dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${titleMsg}">≡</span>`;
     }
 
-    // 🌟 [친절성] 편집 중 Ctrl+Enter 단축키 적용
-    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.executeMemoSave(); }"`;
+    // 🌟 [친절성] 편집 중 Ctrl+Enter 단축키 적용. blur 이벤트를 강제로 발생시켜 변경 사항을 완벽하게 포착.
+    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); window.memoViewInstance.executeMemoSave(); }"`;
     const labels = item.labels || [];
     const palette = window.LABEL_PALETTE || {};
     const knownLabelNames = this.AVAILABLE_LABELS.map(l => l.name);
@@ -372,7 +371,7 @@ export class MemoView extends BaseView {
 
     const textStatusClass = isCompleted ? 'completed' : (isAuthor ? 'active' : 'readonly');
 
-    // 🌟 [안전성] oninput으로 변경 감지 후, 자동 저장(onblur) 방지
+    // 🌟 [안전성] oninput으로 변경 감지 플래그만 세움
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" ${dragAttributes}>
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -486,32 +485,30 @@ export class MemoView extends BaseView {
           );
       }
 
-      // 2. 아래 리스트에 있는 기존 메모들의 변경 사항 수집 (셀렉터 오류 완벽 방어)
-      const editableSpans = this.container.querySelectorAll('.memo-text-content');
+      // 2. 아래 리스트에 있는 기존 메모들의 변경 사항 수집 (브라우저 DOM 속성 오류 완벽 방어)
+      // 💡 [안전성] span.isContentEditable 속성은 브라우저 포커스 상실 시 false로 오작동하므로 강력한 CSS 선택자만 사용합니다.
+      const editableSpans = document.querySelectorAll('.memo-text-content[contenteditable="true"]');
       editableSpans.forEach(span => {
-          if (span.isContentEditable) { // 편집 가능한 요소만 안전하게 필터링
-              const firestoreId = span.getAttribute('data-id');
-              if (firestoreId) {
-                  let newText = span.innerText;
-                  if (newText === undefined) newText = span.textContent; // 브라우저 호환성 방어
-                  newText = newText.trim();
-                  
-                  const target = this.memoItems.find(m => m.firestoreId === firestoreId);
-                  
-                  // 내용이 바뀌었다면
-                  if (target && target.text !== newText) {
-                      if (!newText && (!target.attachments || target.attachments.length === 0)) {
-                          // 빈칸으로 만든 경우 무시 (삭제는 휴지통으로만)
-                      } else {
-                          target.text = newText;
-                          updatePromises.push(dbAPI.updateMemo(firestoreId, { text: newText }, target.groupId));
-                      }
+          const firestoreId = span.getAttribute('data-id');
+          if (firestoreId) {
+              let newText = span.innerText !== undefined ? span.innerText : span.textContent; 
+              newText = newText.trim();
+              
+              const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+              
+              // 텍스트가 변경되었다면
+              if (target && target.text !== newText) {
+                  if (!newText && (!target.attachments || target.attachments.length === 0)) {
+                      // 빈칸인 경우 무시 (삭제는 휴지통으로만)
+                  } else {
+                      target.text = newText;
+                      updatePromises.push(dbAPI.updateMemo(firestoreId, { text: newText }, target.groupId));
                   }
               }
           }
       });
 
-      // 변경된 모든 메모를 병렬 통신으로 초고속 저장
+      // 3. 병렬 통신 (신속성 극대화)
       if (updatePromises.length > 0) {
           await Promise.all(updatePromises).catch(e => console.warn("메모 일괄 저장 오류:", e));
       }
