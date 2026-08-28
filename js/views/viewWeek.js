@@ -52,7 +52,9 @@ export class WeekView extends BaseView {
 
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
+        
+        // 🌟 [안전성] jMap, elMap 병렬 구조로 확장됨에 따라 분해 할당(Destructuring) 수정
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
         
         const realTodayStr = formatDate(new Date());
         window.currentMyGroups = this.myGroups;
@@ -82,7 +84,25 @@ export class WeekView extends BaseView {
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
-              const eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
+              
+              let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '';
+
+              // 🌟 [친절성] 주간 달력에 기록(Journal)과 조사표(Evaluation) 존재 여부 뱃지 추가
+              const fJournals = jMap?.[d.dateStr]?.[fId] || [];
+              const fEvals = elMap?.[d.dateStr]?.[fId] || [];
+              let extraBadgesHtml = '';
+              
+              if (fJournals.length > 0) {
+                  extraBadgesHtml += `<span onclick="window.goToDay('${d.dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px solid #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📔 기록 ${fJournals.length}</span>`;
+              }
+              if (fEvals.length > 0) {
+                  extraBadgesHtml += `<span onclick="window.goToDay('${d.dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📊 조사표 ${fEvals.length}</span>`;
+              }
+
+              if (extraBadgesHtml) {
+                  eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+              }
+              if (!eventContent) eventContent = '<span style="color:#94a3b8;">-</span>';
 
               if (idx === 0) {
                   rowsHtmlForDate += `
@@ -156,7 +176,9 @@ export class WeekView extends BaseView {
 
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
+        
+        // 🌟 [안전성] jMap, elMap 추출
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
         
         const realTodayStr = formatDate(new Date());
 
@@ -206,7 +228,24 @@ export class WeekView extends BaseView {
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
               const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-              const eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+              let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+              
+              // 🌟 [친절성] 편집 화면에서도 뱃지를 추가하여 수정 중에도 확인 가능하게 함
+              const fJournals = jMap?.[d.dateStr]?.[fId] || [];
+              const fEvals = elMap?.[d.dateStr]?.[fId] || [];
+              let extraBadgesHtml = '';
+              
+              if (fJournals.length > 0) {
+                  extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px dashed #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px;" title="하루 보기 화면에서 확인/수정 가능합니다">📔 기록 ${fJournals.length}</span>`;
+              }
+              if (fEvals.length > 0) {
+                  extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px dashed #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold;" title="하루 보기 화면에서 확인/수정 가능합니다">📊 조사표 ${fEvals.length}</span>`;
+              }
+
+              if (extraBadgesHtml) {
+                  eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+              }
+
               const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
               if (idx === 0) {
@@ -232,7 +271,7 @@ export class WeekView extends BaseView {
           });
 
           if (store.showClass) {
-              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
+              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               
               rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>${pNamesHtml}</tr>`;
 
