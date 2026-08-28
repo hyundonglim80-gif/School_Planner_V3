@@ -294,22 +294,23 @@ function applyShortcutTooltips() {
         el.setAttribute('data-shortcut-added', 'true');
     };
 
-    document.querySelectorAll('label, button, a, div[onclick], span[onclick], h1, h2, h3, h4, [onclick], .nav-item').forEach(el => {
+    // 💡 h1, h2, h3, h4 등 어떠한 형태의 태그라도 글자나 속성으로 찾도록 탐색망 확장
+    document.querySelectorAll('label, button, a, div, span, h1, h2, h3, h4, [onclick], .nav-item').forEach(el => {
         if (el.hasAttribute('data-shortcut-added')) return;
         
         const text = (el.textContent || '').trim();
         const attr = (el.getAttribute('onclick') || '') + ' ' + (el.getAttribute('onchange') || '');
         const idClass = (el.id || '') + ' ' + (el.className || '');
 
-        // 1. 보기 / 작성 / 저장 (강력 매칭)
+        // 1. 보기 / 작성 / 저장 
         if (text === '보기' || attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")')) attach(el, 'Ctrl + ⬆️');
         else if (text === '작성' || text.includes('저장') || attr.includes('handleEditSaveClick')) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
         
-        // 2. 검색 (강력 매칭)
+        // 2. 검색 
         else if (text === '검색' || attr.includes('SearchUI') || idClass.includes('search')) attach(el, 'Shift + `');
         
-        // 3. 날짜(기간) 및 오늘 (강력 매칭)
-        else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (text.includes('년') && text.includes('월'))) attach(el, 'Ctrl + Space');
+        // 3. 💡 날짜(기간) 및 오늘 (상단 고정 2행)
+        else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
 
         // 4. 구글 동기화
         else if (attr.includes('quickGoogleSync') || text.includes('동기화')) attach(el, 'Ctrl + Shift + Enter');
