@@ -35,13 +35,19 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 💡 [버그 수정 2] PWA 브라우저 캐시 강제 갱신 (무한 로딩 및 하얀 화면 자가 치유)
+// 💡 [버그 수정 2] PWA 브라우저 캐시 강제 폭파 (설치 앱 무한 로딩 완벽 해결)
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let registration of registrations) {
-            registration.update(); 
+            registration.unregister(); // 꼬여있는 서비스워커 강제 등록 해제
         }
     });
+    // 로컬 캐시 스토리지 완전 초기화
+    if (window.caches) {
+        caches.keys().then(keys => {
+            keys.forEach(key => caches.delete(key)); 
+        });
+    }
 }
 
 window.promptDownloadFile = function(fileName, downloadUrl) {
@@ -222,7 +228,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ==========================================================================
-// 4. 🚀 초고속 반투명 커스텀 툴팁 (기본 툴팁 부활 영구 차단 & 디자인 상향)
+// 4. 🚀 초고속 반투명 커스텀 툴팁 (깔끔한 한 줄 노란색 표시)
 // ==========================================================================
 if (!document.getElementById('sp3-custom-tooltip-style')) {
     const tooltipStyle = document.createElement('style');
@@ -230,12 +236,10 @@ if (!document.getElementById('sp3-custom-tooltip-style')) {
     tooltipStyle.innerHTML = `
         #sp3-custom-tooltip {
             position: fixed;
-            background: rgba(15, 23, 42, 0.9); /* 다크 네이비 반투명 */
+            background: rgba(15, 23, 42, 0.9);
             color: #f8fafc;
             padding: 7px 12px;
             border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 600;
             pointer-events: none;
             z-index: 2147483647;
             opacity: 0;
@@ -245,7 +249,7 @@ if (!document.getElementById('sp3-custom-tooltip-style')) {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             text-align: center;
             line-height: 1.4;
-            backdrop-filter: blur(4px); /* 뒤 배경 부드럽게 흐림 처리 */
+            backdrop-filter: blur(4px);
         }
         #sp3-custom-tooltip.show {
             opacity: 1;
@@ -264,11 +268,10 @@ if (!customTooltipEl) {
 
 let tooltipTimeout;
 
-// 💡 [버그 수정 3] 브라우저 기본 툴팁 암살 & 0.03초 빛의 속도로 반응
 document.body.addEventListener('mouseover', (e) => {
     const target = e.target.closest('[data-tooltip]');
     if (target) {
-        if (target.hasAttribute('title')) target.removeAttribute('title'); // OS 기본 툴팁 즉시 강제 삭제
+        if (target.hasAttribute('title')) target.removeAttribute('title'); 
 
         clearTimeout(tooltipTimeout);
         tooltipTimeout = setTimeout(() => {
@@ -305,15 +308,13 @@ function applyShortcutTooltips() {
     const attach = (el, shortcutText) => {
         if (!el) return;
         
-        let currentTitle = (el.getAttribute('title') || '').trim();
-        if (currentTitle) el.removeAttribute('title');
+        if (el.hasAttribute('title')) el.removeAttribute('title'); 
 
         let existingTooltip = el.getAttribute('data-tooltip') || '';
-        if (existingTooltip.includes(shortcutText)) return; // 중복 추가 방지
+        if (existingTooltip.includes(shortcutText)) return; 
 
-        let newTooltipText = currentTitle 
-            ? `${currentTitle}<br><span style="color:#fbbf24; font-size:0.75rem; font-weight:normal;">(단축키: ${shortcutText})</span>` 
-            : `<span style="color:#fbbf24; font-size:0.75rem; font-weight:normal;">(단축키: ${shortcutText})</span>`;
+        // 💡 [버그 수정 1] 기존 흰색 글씨 무시하고 오직 "노란색 단축키 텍스트"만 깔끔하게 한 줄 출력
+        let newTooltipText = `<span style="color:#fbbf24; font-size:0.85rem; font-weight:bold;">단축키: ${shortcutText}</span>`;
         
         el.setAttribute('data-tooltip', newTooltipText);
         el.setAttribute('data-shortcut-added', 'true');
@@ -321,7 +322,7 @@ function applyShortcutTooltips() {
 
     document.querySelectorAll('label, button, a, div, span, h1, h2, h3, h4, [onclick], .nav-item').forEach(el => {
         if (el.hasAttribute('title') && el.hasAttribute('data-tooltip')) {
-            el.removeAttribute('title'); // 렌더링 과정에서 부활한 title 다시 암살
+            el.removeAttribute('title'); 
         }
         if (el.hasAttribute('data-shortcut-added')) return;
         
