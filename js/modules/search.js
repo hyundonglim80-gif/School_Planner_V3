@@ -1,9 +1,10 @@
-//js/modules/search.js
+// js/modules/search.js
 import { store } from '../core/store.js';
 import { parseLocalDate, formatDate, getSemesterDates, getEventLabels, getJournalLabels, getLabelStyle } from '../core/utils.js';
 import { getUserCol } from '../firebase.js';
 import { LabelManager } from './labels.js';
-import { getDocs } from "firebase/firestore";
+// 🌟 [안전성/신속성] 필요한 데이터만 쏙 뽑아오기 위해 query, where, documentId 모듈 추가
+import { getDocs, query, where, documentId } from "firebase/firestore";
 
 export const SearchModule = {
   modalInstance: null,
@@ -228,7 +229,6 @@ export const SearchModule = {
           return;
       }
       
-      // 🌟 [핵심 변경] 검색어가 비어있거나 * 이면 모든 데이터를 허용하는 특수 키워드 '*' 로 변환
       if (keyword === '' || keyword === '*') {
           keyword = '*';
       }
@@ -250,16 +250,44 @@ export const SearchModule = {
     countText.innerText = '';
 
     try {
-        const [eventSnap, scheduleSnap, journalSnap, taskSnap, evalSnap] = await Promise.all([
-            getDocs(getUserCol('events')),
-            getDocs(getUserCol('schedules')),
-            getDocs(getUserCol('journals')),
-            getDocs(getUserCol('tasks')),
-            getDocs(getUserCol('evaluations'))
-        ]);
+        const targetDatesObj = this.getSearchTargetDates();
         
-        let memoSnap = [];
-        try { memoSnap = await getDocs(getUserCol('memos')); } catch(e) {}
+        // 🌟 [안전성] 사용자가 유효하지 않은 기간을 설정했을 때 불필요한 통신 방지
+        if (targetDatesObj !== 'ALL' && targetDatesObj.length === 0) {
+            resultList.innerHTML = `<p style="text-align:center; color:#ef4444; font-size:1.1rem; padding:30px; font-weight:bold;">유효한 검색 기간이 없습니다.</p>`;
+            return;
+        }
+
+        let eventSnap, scheduleSnap, journalSnap, evalSnap;
+        
+        // 메모(Tasks)는 날짜 문서 ID 형식이 아니므로 우선 전체를 가져옵니다.
+        const taskPromise = getDocs(getUserCol('tasks'));
+        let memoPromise = Promise.resolve({ forEach: () => {} });
+        try { memoPromise = getDocs(getUserCol('memos')); } catch(e) {}
+
+        // 🌟 [경제성 & 신속성 극대화] 지정된 기간의 데이터만 안전하게 필터링하여 가져오기
+        if (targetDatesObj === 'ALL') {
+            [eventSnap, scheduleSnap, journalSnap, evalSnap] = await Promise.all([
+                getDocs(getUserCol('events')),
+                getDocs(getUserCol('schedules')),
+                getDocs(getUserCol('journals')),
+                getDocs(getUserCol('evaluations'))
+            ]);
+        } else {
+            const startStr = targetDatesObj[0].dateStr;
+            const endStr = targetDatesObj[targetDatesObj.length - 1].dateStr;
+            const rangeQuery = [where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)];
+            
+            [eventSnap, scheduleSnap, journalSnap, evalSnap] = await Promise.all([
+                getDocs(query(getUserCol('events'), ...rangeQuery)),
+                getDocs(query(getUserCol('schedules'), ...rangeQuery)),
+                getDocs(query(getUserCol('journals'), ...rangeQuery)),
+                getDocs(query(getUserCol('evaluations'), ...rangeQuery))
+            ]);
+        }
+
+        const taskSnap = await taskPromise;
+        const memoSnap = await memoPromise;
 
         const masterEventLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
@@ -384,9 +412,7 @@ export const SearchModule = {
         const evalMap = {};
         evalSnap.forEach(docSnap => { evalMap[docSnap.id] = docSnap.data().evalList || []; });
 
-        const targetDatesObj = this.getSearchTargetDates();
         let validDates = [];
-        
         if (targetDatesObj === 'ALL') {
             const allSet = new Set([...Object.keys(eventMap), ...Object.keys(scheduleMap), ...Object.keys(journalMap), ...Object.keys(evalMap)]);
             validDates = Array.from(allSet);
@@ -394,7 +420,6 @@ export const SearchModule = {
             validDates = targetDatesObj.map(item => item.dateStr);
         }
 
-        // 🌟 [핵심 변경] 검색어가 '*' 일 경우, 텍스트가 실제로 존재하기만 하면 무조건 일치 처리
         const checkMatch = (text, keyword) => {
           if (!text || text.trim() === '') return false;
           if (keyword === '*') return true;
