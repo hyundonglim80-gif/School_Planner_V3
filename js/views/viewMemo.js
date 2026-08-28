@@ -225,6 +225,7 @@ export class MemoView extends BaseView {
         </div>
     `;
 
+    // 🌟 버튼명을 '추가'에서 '저장'으로 일괄 변경, executeMemoSave 함수 연결
     let html = `
       <div class="memo-layout-container">
         <div class="memo-card-panel" style="padding: 15px 20px;">
@@ -245,13 +246,13 @@ export class MemoView extends BaseView {
           </div>
           <div class="memo-add-controls">
             <textarea id="memo-input-text" class="memo-textarea" placeholder="새 할 일이나 공유할 메모를 추가하세요" 
-                   onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
+                   onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.executeMemoSave(); }"
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
             <button onclick="document.getElementById('memo-file-upload').click()" class="memo-btn-icon" title="파일/문서 첨부">📎</button>
             <input type="file" id="memo-file-upload" style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
             
-            <button onclick="window.memoViewInstance.addMemoItem()" class="memo-btn-submit">추가</button>
+            <button id="btn-memo-save" onclick="window.memoViewInstance.executeMemoSave()" class="memo-btn-submit">저장</button>
           </div>
           ${attachmentPreviewHtml}
         </div>
@@ -326,7 +327,8 @@ export class MemoView extends BaseView {
       dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${titleMsg}">≡</span>`;
     }
 
-    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+    // 🌟 [안전성] 개별 onblur 제거, Ctrl+Enter시 일괄 저장 함수 호출, 명시적 ID 할당
+    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.executeMemoSave(); }"`;
     const labels = item.labels || [];
     const palette = window.LABEL_PALETTE || {};
     const knownLabelNames = this.AVAILABLE_LABELS.map(l => l.name);
@@ -370,6 +372,7 @@ export class MemoView extends BaseView {
 
     const textStatusClass = isCompleted ? 'completed' : (isAuthor ? 'active' : 'readonly');
 
+    // 🌟 id="memo-span-..." 추가하여 정확한 핀셋 데이터 추출 가능하도록 설계
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" ${dragAttributes}>
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -380,7 +383,7 @@ export class MemoView extends BaseView {
           <div style="padding-top:2px;">${dragHandleHtml}</div>
           <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
           <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-             <span ${editableAttr} class="memo-text-content ${textStatusClass}" ${isAuthor && !isCompleted ? 'onblur="window.memoViewInstance.updateMemoText(\'' + item.firestoreId + '\', this.innerText);"' : ''}>${item.text}</span>
+             <span id="memo-span-${item.firestoreId}" data-id="${item.firestoreId}" ${editableAttr} class="memo-text-content ${textStatusClass}" oninput="window.store.hasUnsavedChanges = true;">${item.text}</span>
              ${attachmentsHtml}
           </div>
         </div>
@@ -428,15 +431,6 @@ export class MemoView extends BaseView {
       dbAPI.updateMemo(firestoreId, { labels: labels }, item.groupId).catch(e => console.warn(e)); 
   }
 
-  updateMemoText(firestoreId, newText) {
-    const text = newText.trim();
-    const target = this.memoItems.find(m => m.firestoreId === firestoreId);
-    if (!text && target && (!target.attachments || target.attachments.length === 0)) { alert("메모 내용이나 파일은 필수입니다."); this.renderViewer(); return; }
-    if (target && target.text !== text) {
-        target.text = text; dbAPI.updateMemo(firestoreId, { text: text }, target.groupId).catch(e => console.warn(e)); 
-    }
-  }
-
   handleDragStart(event, id) { this.draggedMemoId = id; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id); }
   handleDragOver(event) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
 
@@ -458,24 +452,83 @@ export class MemoView extends BaseView {
     this.draggedMemoId = null;
   }
 
-  addMemoItem() {
-    const input = document.getElementById("memo-input-text");
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text && (!this.pendingAttachments || this.pendingAttachments.length === 0)) return;
+  // 🌟 [핵심] 브라우저 오류를 차단하는 핀셋 방식의 일괄 통합 저장 엔진
+  async executeMemoSave() {
+      const btn = document.getElementById('btn-memo-save');
+      if (btn) { btn.innerHTML = "⏳ 저장 중..."; btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none'; }
 
-    const newMemo = { 
-        text: text, completed: false, order: -Date.now(), createdAt: Date.now(),
-        labels: [...this.currentNewLabels], 
-        attachments: [...(this.pendingAttachments || [])],
-        authorId: auth?.currentUser?.uid
-    };
-    
-    input.value = ""; input.style.height = '50px'; 
-    this.pendingAttachments = []; store.hasUnsavedChanges = false; 
+      const updatePromises = [];
 
-    dbAPI.addMemo(newMemo, this.currentNewMemoGroupId).catch(e => console.warn(e));
-    setTimeout(() => this.renderViewer(), 100);
+      // 1. 기존 진행 중인 메모들의 수정 사항 스캔 (명시적 ID를 통해 확실하게 텍스트 추출)
+      this.memoItems.forEach(item => {
+          // 완료된 항목은 어차피 수정 불가능하므로 스캔 패스 (경제성)
+          if (!item.completed) {
+              const span = document.getElementById(`memo-span-${item.firestoreId}`);
+              if (span) {
+                  let newText = span.innerText;
+                  if (newText === undefined) newText = span.textContent;
+                  newText = newText.trim();
+
+                  // 텍스트가 달라졌을 때만 저장 처리
+                  if (item.text !== newText) {
+                      if (!newText && (!item.attachments || item.attachments.length === 0)) {
+                          // 빈칸 방어 (삭제는 휴지통으로만)
+                      } else {
+                          item.text = newText; // 메모리 갱신
+                          updatePromises.push(dbAPI.updateMemo(item.firestoreId, { text: newText }, item.groupId));
+                      }
+                  }
+              }
+          }
+      });
+
+      // 2. 새 메모 추가 처리
+      const input = document.getElementById("memo-input-text");
+      const newText = input ? input.value.trim() : '';
+
+      if (newText || (this.pendingAttachments && this.pendingAttachments.length > 0)) {
+          const newMemo = { 
+              firestoreId: 'temp_' + Date.now().toString(36),
+              groupId: this.currentNewMemoGroupId,
+              text: newText, completed: false, order: -Date.now(), createdAt: Date.now(),
+              labels: [...this.currentNewLabels], 
+              attachments: [...(this.pendingAttachments || [])],
+              authorId: auth?.currentUser?.uid
+          };
+          
+          if (input) { input.value = ""; input.style.height = '50px'; }
+          this.pendingAttachments = []; 
+          this.memoItems.push(newMemo); 
+
+          updatePromises.push(
+              dbAPI.addMemo(newMemo, this.currentNewMemoGroupId).then(realId => {
+                  if (realId) {
+                      const target = this.memoItems.find(m => m.firestoreId === newMemo.firestoreId);
+                      if (target) target.firestoreId = realId;
+                  }
+              }).catch(e => console.warn(e))
+          );
+      }
+
+      // 3. 통신 실행 및 UI 피드백
+      if (updatePromises.length > 0) {
+          await Promise.all(updatePromises).catch(e => console.warn("메모 일괄 저장 오류:", e));
+      }
+
+      store.hasUnsavedChanges = false;
+      this._drawHTML(); // 최신 상태로 뷰 리프레시 (입력창 초기화)
+
+      if (btn) { 
+          btn.innerHTML = "✅ 저장 완료"; 
+          btn.style.opacity = '1'; 
+          setTimeout(() => { 
+              const restoredBtn = document.getElementById('btn-memo-save');
+              if (restoredBtn) {
+                  restoredBtn.innerHTML = "저장"; 
+                  restoredBtn.style.pointerEvents = 'auto';
+              }
+          }, 1500); 
+      }
   }
 
   deleteMemoItem(firestoreId) {
@@ -503,7 +556,12 @@ export class MemoView extends BaseView {
     }
   }
 
-  save() {}
+  async save() {
+      // 탭 전환 등 기존 공통 save() 호출을 일괄 저장 엔진으로 전달
+      if (store.hasUnsavedChanges) {
+          await this.executeMemoSave();
+      }
+  }
 }
 
 window.manageMemoLabels = function() {
