@@ -68,43 +68,38 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
     let opCount = 0;
     let batchPromises = [];
     
+    // 🌟 [안전성 및 경제성] 화면에 켜져 있는(활성화된) 필터의 공간에만 데이터를 저장하도록 수정
+    const filtersToSave = activeUnifiedFilters || ['personal'];
+    
     snapshot.forEach(item => {
-        const eventsByGroup = { 'personal': [] };
-        myGroups.forEach(g => eventsByGroup[g.id] = []);
+        const eventsByGroup = {};
+        filtersToSave.forEach(fId => eventsByGroup[fId] = []);
 
+        // 화면에서 걸러진 유효한 이벤트들을 각 그룹 아이디별로 분류
         item.validEvents.forEach(e => {
             const gId = e.sharedGroupId === 'personal' ? 'personal' : (e.sharedGroupId || 'personal');
             if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
         });
 
-        // 1. 개인 일정 저장
-        const pEvents = eventsByGroup['personal'];
-        batch.set(doc(getUserCol('events'), item.dateStr), {
-            eventList: pEvents,
-            eventText: formatEventListToText(pEvents),
-            updatedAt: Date.now()
-        }, { merge: true });
-        opCount++;
-        if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
-
-        // 2. 그룹 일정 저장
-        myGroups.forEach(g => {
-            const gEvents = eventsByGroup[g.id];
-            batch.set(doc(getGroupCol(g.id, 'events'), item.dateStr), {
-                eventList: gEvents,
-                eventText: formatEventListToText(gEvents),
+        filtersToSave.forEach(fId => {
+            // 1. 일정 저장 (개인/그룹 통합 로직으로 묶어 경제성 극대화)
+            const eList = eventsByGroup[fId];
+            const eventCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
+            
+            batch.set(doc(eventCol, item.dateStr), {
+                eventList: eList,
+                eventText: formatEventListToText(eList),
                 updatedAt: Date.now()
             }, { merge: true });
+            
             opCount++;
             if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
-        });
 
-        // 3. 시간표 저장 (휴일 스킵 로직 포함)
-        (activeUnifiedFilters || ['personal']).forEach(fId => {
+            // 2. 시간표 저장 (휴일 스킵 로직 포함)
             const periods = item.schedulesData[fId] || {};
             const scheduleCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
             
-            const isSkipDay = item.validEvents.some(e => (e.sharedGroupId || 'personal') === fId && e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
+            const isSkipDay = eList.some(e => e.labelIds?.some(id => masterLabels.find(l => l.id === id)?.isSkip));
             if (isSkipDay) {
                 Object.values(periods).forEach(p => p.subject = '');
             }
@@ -112,6 +107,7 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
             batch.set(doc(scheduleCol, item.dateStr), { 
                 periods: periods, updatedAt: Date.now() 
             }, { merge: true });
+            
             opCount++;
             if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
         });
