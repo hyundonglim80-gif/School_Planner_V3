@@ -310,7 +310,11 @@ export class DayView extends BaseView {
             const jrDoc = await getDoc(doc(jrCol, dateStr));
             let jList = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
             jList = jList.map(j => ({ ...j, labelIds: j.labelIds || [], attachments: j.attachments || [] }));
-            if (jList.length === 0) jList.push({ labelIds: [], content: '', attachments: [] });
+            if (jList.length === 0) {
+                const masterJournalLabels = getJournalLabels();
+                const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
+                jList.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
+            }
             this.dayData[fId].journals = jList;
         }
 
@@ -842,7 +846,9 @@ export class DayView extends BaseView {
 
     addJournalEntry(fId) {
         this.syncJournalInputs(fId);
-        this.dayData[fId].journals.push({ labelIds: [], content: '', attachments: [] });
+        const masterJournalLabels = getJournalLabels();
+        const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
+        this.dayData[fId].journals.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
         this.renderJournalEntries(fId);
         store.hasUnsavedChanges = true;
     }
