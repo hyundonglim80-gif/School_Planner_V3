@@ -376,7 +376,9 @@ export class DayView extends BaseView {
                   <td style="text-align: left; vertical-align: top;">
                     <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
                     <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                        <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">${evalBadges}</div>
+                        <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${evalBadges}
+                        </div>
                     </div>
                   </td>
                 </tr>`;
@@ -756,6 +758,7 @@ export class DayView extends BaseView {
         }
     }
 
+    // 💡 변경됨: 라벨 중복 선택 강제 해제 장치 제거 (무한 중복 체크 허용)
     async toggleEventLabel(fId, idx, labelId) {
         this.syncEventInputs(fId);
         store.hasUnsavedChanges = true;
@@ -769,6 +772,7 @@ export class DayView extends BaseView {
             ev.labelIds = ev.labelIds.filter(id => id !== labelId);
             this.renderEventEntries(fId);
         } else {
+            // 중복 허용이되, '반복'이나 '기간' 라벨일 경우 모달창을 띄우는 로직만 유지
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
 
@@ -789,7 +793,6 @@ export class DayView extends BaseView {
                         await this.renderEditor();
                     }
 
-                    // 🌟 [수정 2] 강제 스크롤 방지
                     if (typeof window.render === 'function') window.render();
                 };
 
@@ -798,7 +801,7 @@ export class DayView extends BaseView {
                 return;
             }
 
-            if (labelObj?.isForward) ev.labelIds = ev.labelIds.filter(id => !getEventLabels().find(x => x.id === id)?.isPeriod && !getEventLabels().find(x => x.id === id)?.isRecur);
+            // 그냥 라벨 배열에 무조건 추가
             ev.labelIds.push(labelId);
             this.renderEventEntries(fId);
         }
