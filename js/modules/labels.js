@@ -266,11 +266,7 @@ export const LabelManager = {
   },
 
   removeEventLabel: function(index) {
-      const targetLabel = window.tempEditingLabels[index];
-      if (targetLabel && targetLabel.isSystem) {
-          alert("🔒 이 라벨은 시스템 작동에 필요한 [필수 라벨]이므로 삭제할 수 없습니다.");
-          return;
-      }
+      // 필수 라벨(시스템 라벨) 삭제 금지 로직을 제거하여 모든 라벨 삭제 가능
       window.tempEditingLabels.splice(index, 1);
       this.renderEventLabels(); 
   },
