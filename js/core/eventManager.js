@@ -202,12 +202,20 @@ export const EventManager = {
         }, 0);
     },
 
-    // 💡 완벽 수정됨: 무한 루프 과부하 제거 및 과거 미완료 일정 100% 당일 강제 이동
+    // 💡 완벽 수정됨: 과거 무제한 스캔 방지 쿼리 추가로 신속성 및 경제성 극대화
     autoForwardIncompleteEvents: async function() {
         const todayStr = formatDate(new Date()); 
         try {
-            // 과거 문서를 통째로 긁어옵니다. (루프 제거)
-            const eventsSnap = await getDocs(getUserCol('events'));
+            // 🌟 [신속성 최적화] 무제한 로딩 방지를 위해 딱 1년 전까지만, 그리고 오늘 이전 데이터만 가져옵니다.
+            const pastDate = new Date();
+            pastDate.setDate(pastDate.getDate() - 365);
+            const pastStr = formatDate(pastDate);
+
+            const eventsSnap = await getDocs(
+                query(getUserCol('events'), 
+                where(documentId(), '>=', pastStr), 
+                where(documentId(), '<', todayStr))
+            );
             
             let eventsToMove = [];
             let changedPastDocs = new Set();
@@ -215,8 +223,6 @@ export const EventManager = {
 
             eventsSnap.forEach(docSnap => {
                 const dateStr = docSnap.id;
-                if (dateStr >= todayStr) return; // 오늘 및 미래는 건너뜀 (과거만 탐색)
-
                 const data = docSnap.data();
                 let list = data.eventList || (data.eventText ? parseRawEventTextToEventList(data.eventText) : []);
                 let docChanged = false;
