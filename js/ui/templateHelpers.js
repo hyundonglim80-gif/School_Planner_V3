@@ -170,6 +170,7 @@ export const CompactEventHelper = {
         });
     },
 
+    // 💡 변경됨: 컴팩트 뷰에서도 라벨 강제 취소 장치 제거 (무한 중복 체크 허용)
     async handleCompactLabelClick(dateStr, eventId, labelId, fId) {
         this.syncCompactEventInputs(dateStr);
         
@@ -230,12 +231,7 @@ export const CompactEventHelper = {
                 return; 
             }
             
-            if (labelObj?.isForward) {
-                ev.labelIds = ev.labelIds.filter(id => {
-                    const lObj = getEventLabels().find(x => x.id === id);
-                    return !(lObj && (lObj.isPeriod || lObj.isRecur));
-                });
-            }
+            // 그냥 라벨 배열에 무조건 추가
             ev.labelIds.push(labelId);
             store.hasUnsavedChanges = true;
             
