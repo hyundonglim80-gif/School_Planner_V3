@@ -82,7 +82,6 @@ export const getEventLabels = () => {
     if (changed) {
         localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
         if (window.auth?.currentUser) {
-//            doc(window.getUserCol('settings'), 'labels').set({ eventLabels: labels }, { merge: true }).catch(e => console.warn(e));
             setDoc(doc(getUserCol('settings'), 'labels'), { eventLabels: labels }, { merge: true });
         }
     }
@@ -163,14 +162,19 @@ export const KOR_HOLIDAYS = {
 };
 
 export const getHolidayName = (dateStr) => {
+    // 💡 변경됨: 캘린더에서 가져온 동적 공휴일 데이터를 최우선 참조
+    if (!window.dynamicHolidays) {
+        try { window.dynamicHolidays = JSON.parse(localStorage.getItem('sp3_dynamic_holidays')) || {}; } 
+        catch(e) { window.dynamicHolidays = {}; }
+    }
     const mmdd = dateStr.substring(5);
-    return KOR_HOLIDAYS[dateStr] || KOR_HOLIDAYS[mmdd] || null;
+    return window.dynamicHolidays[dateStr] || KOR_HOLIDAYS[dateStr] || KOR_HOLIDAYS[mmdd] || null;
 };
 
 export const isRedDay = (dateStr, eventList = []) => {
     const dObj = parseLocalDate(dateStr);
     if (dObj.getDay() === 0) return true;
-    if (getHolidayName(dateStr)) return true;
+    if (getHolidayName(dateStr)) return true; // 휴일 이름이 존재하면 빨간 날로 인식
 
     const masterLabels = getEventLabels();
     return eventList.some(ev => (ev.labelIds || []).some(id => masterLabels.find(l => l.id === id)?.isSkip));
