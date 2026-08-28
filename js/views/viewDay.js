@@ -233,7 +233,6 @@ export class DayView extends BaseView {
                     </div>`;
                 }).join('') + `</div>` : '';
 
-                // 🛑 [버그 수정 1] 들여쓰기 공백 완벽 제거 (white-space: pre-wrap 대응)
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
                         <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
@@ -932,7 +931,7 @@ export class DayView extends BaseView {
         });
 
         try {
-            await fetchCalendarData(dateStr, dateStr, this.myGroups); 
+            // 🌟 [신속성 극대화] 불필요한 유령 통신(fetchCalendarData) 제거하여 DB 읽기 요금 절약 및 저장 속도 대폭 향상
             
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
