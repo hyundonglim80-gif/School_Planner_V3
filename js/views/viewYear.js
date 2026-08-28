@@ -72,7 +72,9 @@ export class YearView extends BaseView {
         const endStr = `${targetY + 1}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        // 🌟 [안전성/경제성] jMap, elMap 병렬 구조 추출
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
 
         if (this.renderId !== currentRenderId) return;
 
@@ -81,7 +83,7 @@ export class YearView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
         if (store.mode === 'editor') this.scheduleGroupId = window.activeUnifiedFilters.includes('personal') ? null : window.activeUnifiedFilters[0];
 
-        const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
+        const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap), ...Object.keys(jMap), ...Object.keys(elMap)]);
         const filters = window.activeUnifiedFilters;
         const filterCount = filters.length;
 
@@ -98,7 +100,26 @@ export class YearView extends BaseView {
                 const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
-                const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+                
+                let eventContent = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+
+                // 🌟 [친절성] 년간 달력 뷰어 모드: 기록 및 조사표 뱃지 추가
+                const fJournals = jMap?.[dateStr]?.[fId] || [];
+                const fEvals = elMap?.[dateStr]?.[fId] || [];
+                let extraBadgesHtml = '';
+                
+                if (fJournals.length > 0) {
+                    extraBadgesHtml += `<span onclick="window.goToDay('${dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px solid #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📔 기록 ${fJournals.length}</span>`;
+                }
+                if (fEvals.length > 0) {
+                    extraBadgesHtml += `<span onclick="window.goToDay('${dateStr}')" style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold; cursor:pointer;" title="클릭하여 하루 보기에서 확인하세요">📊 조사표 ${fEvals.length}</span>`;
+                }
+
+                if (extraBadgesHtml) {
+                    eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+                }
+                
+                const eventHtml = eventContent;
 
                 let scheduleHtml = '';
                 if (store.showClass) {
@@ -225,7 +246,9 @@ export class YearView extends BaseView {
         const febLastDay = new Date(nextYear, 2, 0).getDate(); const endStr = `${nextYear}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        // 🌟 [안전성] jMap, elMap 추출
+        const { eMap, sMap, jMap, elMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
 
         if (this.renderId !== currentRenderId) return;
 
@@ -312,7 +335,24 @@ export class YearView extends BaseView {
                 const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
                 const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-                const eventContent = `<div id="compact-events-${item.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(item.dateStr, fId)}</div>`;
+                let eventContent = `<div id="compact-events-${item.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(item.dateStr, fId)}</div>`;
+                
+                // 🌟 [친절성] 년간 에디터 모드: 작성 중에도 볼 수 있는 뱃지
+                const fJournals = jMap?.[item.dateStr]?.[fId] || [];
+                const fEvals = elMap?.[item.dateStr]?.[fId] || [];
+                let extraBadgesHtml = '';
+                
+                if (fJournals.length > 0) {
+                    extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#fdf2f8; color:#be185d; border:1px dashed #fbcfe8; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px;" title="하루 보기 화면에서 확인/수정 가능합니다">📔 기록 ${fJournals.length}</span>`;
+                }
+                if (fEvals.length > 0) {
+                    extraBadgesHtml += `<span style="display:inline-block; margin-top:4px; padding:2px 6px; background:#eff6ff; color:#1e40af; border:1px dashed #bfdbfe; border-radius:4px; font-size:0.75rem; font-weight:bold;" title="하루 보기 화면에서 확인/수정 가능합니다">📊 조사표 ${fEvals.length}</span>`;
+                }
+
+                if (extraBadgesHtml) {
+                    eventContent += `<div style="margin-top:2px; display:flex; flex-wrap:wrap;">${extraBadgesHtml}</div>`;
+                }
+
                 const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${item.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
                 if (idx === 0) {
