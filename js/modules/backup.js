@@ -50,7 +50,7 @@ export const BackupManager = {
                 <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">2. 기간 선택</label>
                 <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
                     <select id="backup-period-select" onchange="window.BackupManager.onPeriodChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold; color:#334155;">
-                        <option value="today" selected>오늘 (기본)</option>
+                        <option value="today" selected>오늘</option>
                         <option value="week">해당 주 (이번 주)</option>
                         <option value="month">해당 월 (이번 달)</option>
                         <option value="sem1">1학기 전체</option>
