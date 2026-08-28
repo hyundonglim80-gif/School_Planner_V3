@@ -207,10 +207,10 @@ window.addEventListener('keydown', (e) => {
         else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
             if (e.key === 'Enter') { 
                 e.preventDefault(); 
-                // 💡 [추가됨] 메모 페이지일 때는 '추가' 버튼을 클릭하게 하고, 그 외에는 저장(handleEditSaveClick) 작동
+                // 🌟 [안전성 & 친절성] 메모 페이지의 '저장' 버튼 단축키를 완벽 지원하도록 수정
                 if (store.scope === 'memo') {
-                    const addBtn = Array.from(document.querySelectorAll('button, [onclick]')).find(b => b.textContent.trim().includes('추가'));
-                    if (addBtn) addBtn.click();
+                    const saveBtn = document.getElementById('btn-memo-save') || Array.from(document.querySelectorAll('button, [onclick]')).find(b => b.textContent.trim().includes('추가') || b.textContent.trim().includes('저장'));
+                    if (saveBtn) saveBtn.click();
                 } else if (window.handleEditSaveClick) {
                     window.handleEditSaveClick(); 
                 }
@@ -351,8 +351,8 @@ function applyShortcutTooltips() {
 
         if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
         else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
-        // 💡 [추가됨] 메모 페이지의 '추가' 버튼 단축키 알림 매칭
-        else if (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가')) attach(el, 'Ctrl + Enter');
+        // 🌟 [안전성 & 친절성] 바뀐 '저장' 버튼에 단축키 툴팁이 제대로 노출되도록 보강
+        else if (idClass.includes('memo-btn-submit') || (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가'))) attach(el, 'Ctrl + Enter');
         else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + `');
         else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
         else if (attr.includes('quickGoogleSync') || (isClickable && text.includes('동기화'))) attach(el, 'Ctrl + Shift + Enter');
