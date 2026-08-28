@@ -117,10 +117,15 @@ export const CompactEventHelper = {
         this.syncCompactEventInputs(dateStr); 
         store.hasUnsavedChanges = true;
         window[`tempEvents_${dateStr}`] = window[`tempEvents_${dateStr}`] || [];
+        
+        const masterLabels = getEventLabels();
+        const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
+        
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
             authorId: window.auth?.currentUser?.uid,
-            labelIds: [], content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
+            labelIds: defaultLabelId ? [defaultLabelId] : [], 
+            content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
         });
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
