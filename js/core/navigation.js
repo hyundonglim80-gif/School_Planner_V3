@@ -64,7 +64,7 @@ export const setScope = (scope) => {
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     
-    const defaultModes = { year: 'viewer', month: 'viewer', week: 'editor', day: 'editor', memo: 'viewer' };
+    const defaultModes = { year: 'viewer', month: 'viewer', week: 'viewer', day: 'viewer', memo: 'viewer' };
     store.mode = localStorage.getItem(`workCalendar_mode_${scope}`) || defaultModes[scope] || 'viewer';
     localStorage.setItem('workCalendar_mode', store.mode);
 
