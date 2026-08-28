@@ -280,7 +280,7 @@ document.body.addEventListener('mouseout', (e) => {
     }
 });
 
-// 4-3. 💡 강력해진 툴팁 데이터 매칭 (아이디, 클래스, 텍스트, 속성 완전 교차검증)
+// 4-3. 💡 강력해진 툴팁 데이터 매칭 (아이디, 클래스, 텍스트, 속성, 태그 완전 교차검증)
 function applyShortcutTooltips() {
     const attach = (el, shortcutText) => {
         if (!el || el.hasAttribute('data-shortcut-added')) return;
@@ -294,13 +294,17 @@ function applyShortcutTooltips() {
         el.setAttribute('data-shortcut-added', 'true');
     };
 
-    // 💡 h1, h2, h3, h4 등 어떠한 형태의 태그라도 글자나 속성으로 찾도록 탐색망 확장
     document.querySelectorAll('label, button, a, div, span, h1, h2, h3, h4, [onclick], .nav-item').forEach(el => {
         if (el.hasAttribute('data-shortcut-added')) return;
         
         const text = (el.textContent || '').trim();
         const attr = (el.getAttribute('onclick') || '') + ' ' + (el.getAttribute('onchange') || '');
         const idClass = (el.id || '') + ' ' + (el.className || '');
+
+        // 🛑 [치명적 버그 수정] 일정 라벨, 완료 뱃지 등 사용자의 데이터 영역에는 툴팁이 묻지 않도록 완벽 차단!
+        if (idClass.includes('label-chip') || el.hasAttribute('data-id') || attr.includes('toggleEvent') || attr.includes('LabelClick') || attr.includes('toggleJournal')) {
+            return; 
+        }
 
         // 1. 보기 / 작성 / 저장 
         if (text === '보기' || attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")')) attach(el, 'Ctrl + ⬆️');
@@ -309,7 +313,7 @@ function applyShortcutTooltips() {
         // 2. 검색 
         else if (text === '검색' || attr.includes('SearchUI') || idClass.includes('search')) attach(el, 'Shift + `');
         
-        // 3. 💡 날짜(기간) 및 오늘 (상단 고정 2행)
+        // 3. 날짜(기간) 및 오늘
         else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
 
         // 4. 구글 동기화
