@@ -464,7 +464,10 @@ export class MemoView extends BaseView {
     const text = input.value.trim();
     if (!text && (!this.pendingAttachments || this.pendingAttachments.length === 0)) return;
 
+    // 🌟 [신속성 & 안전성] 로컬 UI 즉시 반영을 위해 임시 ID 및 현재 선택된 그룹 ID 부여
     const newMemo = { 
+        firestoreId: 'temp_' + Date.now().toString(36),
+        groupId: this.currentNewMemoGroupId,
         text: text, completed: false, order: -Date.now(), createdAt: Date.now(),
         labels: [...this.currentNewLabels], 
         attachments: [...(this.pendingAttachments || [])],
@@ -474,8 +477,16 @@ export class MemoView extends BaseView {
     input.value = ""; input.style.height = '50px'; 
     this.pendingAttachments = []; store.hasUnsavedChanges = false; 
 
-    dbAPI.addMemo(newMemo, this.currentNewMemoGroupId).catch(e => console.warn(e));
-    setTimeout(() => this.renderViewer(), 100);
+    // 🌟 [경제성 & 신속성 극대화] 서버의 모든 메모를 재요청(renderViewer)하지 않고, 메모리 배열에만 추가 후 화면만 다시 그림 (0.1초 컷)
+    this.memoItems.push(newMemo);
+    this._drawHTML();
+
+    dbAPI.addMemo(newMemo, this.currentNewMemoGroupId).then(realId => {
+        if (realId) {
+            const target = this.memoItems.find(m => m.firestoreId === newMemo.firestoreId);
+            if (target) target.firestoreId = realId;
+        }
+    }).catch(e => console.warn(e));
   }
 
   deleteMemoItem(firestoreId) {
