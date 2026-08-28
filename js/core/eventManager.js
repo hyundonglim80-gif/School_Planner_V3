@@ -210,85 +210,72 @@ export const EventManager = {
             const pastDate = new Date(parseLocalDate(todayStr));
             pastDate.setDate(pastDate.getDate() - 365); 
             
-            const eventsSnap = await getDocs(query(getUserCol('events'), where(documentId(), '>=', formatDate(pastDate))));
-            let eventsMap = {}; let allDates = [];
-            eventsSnap.forEach(docSnap => { eventsMap[docSnap.id] = docSnap.data(); allDates.push(docSnap.id); });
+            // 1. 과거 1년치 데이터 중 오늘 이전 데이터만 한 번에 호출
+            const eventsSnap = await getDocs(query(getUserCol('events'), where(documentId(), '>=', formatDate(pastDate)), where(documentId(), '<', todayStr)));
+            
+            let eventsToMove = [];
+            let changedPastDocs = new Set();
+            let eventsMap = {};
 
-            // 오늘 날짜가 문서에 없더라도 반드시 처리하도록 추가
-            if (!allDates.includes(todayStr)) allDates.push(todayStr);
-            allDates.sort();
+            // 2. 과거 일정 중 '미완료 + 완료속성 라벨'만 추출
+            eventsSnap.forEach(docSnap => {
+                const dateStr = docSnap.id;
+                const data = docSnap.data();
+                let list = data.eventList || (data.eventText ? parseRawEventTextToEventList(data.eventText) : []);
+                let newList = [];
+                let docChanged = false;
 
-            let changedDocs = new Set();
-            const minDateStr = allDates[0] || todayStr; 
-            const maxDateStr = allDates[allDates.length - 1];
-            let curD = parseLocalDate(minDateStr); 
-            let endD = parseLocalDate(maxDateStr);
-
-            // 다음 날로 밀어낼(이동시킬) 일정들을 임시 보관하는 배열
-            let carryOverEvents = []; 
-
-            while (curD <= endD) {
-                const curStr = formatDate(curD);
-                let curData = eventsMap[curStr] || { eventList: [] };
-                let curList = curData.eventList || (curData.eventText ? parseRawEventTextToEventList(curData.eventText) : []);
-                let curChanged = false;
-
-                // 어제 미완료로 남아 넘어온 일정이 있다면 오늘의 리스트에 합류
-                if (carryOverEvents.length > 0) {
-                    curList.push(...carryOverEvents);
-                    carryOverEvents = [];
-                    curChanged = true;
-                }
-
-                let newCurList = [];
-
-                curList.forEach(ev => {
+                list.forEach(ev => {
                     let canComplete = false;
                     if (ev.labelIds?.length > 0) { canComplete = ev.labelIds.some(id => getEventLabels().find(l => l.id === id)?.isForward); } 
                     else if (ev.labels || ev.label) {
                         const lName = (ev.labels?.length > 0) ? ev.labels[0] : ev.label;
-                        const lObj = getEventLabels().find(x => x.name === lName);
-                        canComplete = lObj ? lObj.isForward : false;
+                        canComplete = getEventLabels().find(x => x.name === lName)?.isForward || false;
                     }
 
-                    const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
-                    if (ev.content !== cleanContent) { ev.content = cleanContent; curChanged = true; }
-
-                    // 과거 날짜이고, 완료 라벨 속성인데, 미완료 상태라면 -> 이 날짜에서 빼고 다음날로 이동(Push)
-                    if (curStr < todayStr && canComplete && !ev.completed) {
-                        delete ev.forwardChainId; // 구버전 이월 체인 아이디 삭제
+                    if (canComplete && !ev.completed) {
+                        delete ev.forwardChainId; // 찌꺼기 삭제
                         delete ev.originalDate;
-                        carryOverEvents.push(ev);
-                        curChanged = true;
+                        const cleanContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+                        ev.content = cleanContent;
+                        
+                        eventsToMove.push(ev); // 오늘로 보낼 짐싸기
+                        docChanged = true;
                     } else {
-                        // 일반 일정이거나, 이미 완료되었거나, 오늘/미래 일정이면 제자리 유지
-                        newCurList.push(ev);
+                        newList.push(ev); // 남을 일정
                     }
                 });
 
-                if (curList.length !== newCurList.length) curChanged = true;
-                
-                if (curChanged) { 
-                    eventsMap[curStr] = { ...curData, eventList: newCurList }; 
-                    changedDocs.add(curStr); 
+                if (docChanged) {
+                    eventsMap[dateStr] = newList;
+                    changedPastDocs.add(dateStr);
                 }
-                
-                curD.setDate(curD.getDate() + 1);
-            }
-
-            let batch = writeBatch(db); let opCount = 0; let batchPromises = []; 
-
-            changedDocs.forEach(dateStr => {
-                const docRef = doc(getUserCol('events'), dateStr);
-                const evList = eventsMap[dateStr].eventList;
-                const updateData = { eventList: evList, eventText: formatEventListToText(evList), updatedAt: Date.now() };
-                batch.set(docRef, updateData, { merge: true });
-                opCount++;
-                if (opCount >= 400){ batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; } 
             });
 
-            if (opCount > 0) batchPromises.push(batch.commit());
-            Promise.all(batchPromises).catch(e => console.warn(e)); 
+            if (eventsToMove.length === 0) return; // 이동할 게 없으면 즉시 종료
+
+            let batch = writeBatch(db);
+
+            // 3. 과거 날짜들에서 이동한 일정 지우기
+            changedPastDocs.forEach(dateStr => {
+                const list = eventsMap[dateStr];
+                batch.set(doc(getUserCol('events'), dateStr), { eventList: list, eventText: formatEventListToText(list), updatedAt: Date.now() }, { merge: true });
+            });
+
+            // 4. 오늘 날짜에 한꺼번에 쏟아 넣기 (중복 방지 포함)
+            const todayDocRef = doc(getUserCol('events'), todayStr);
+            const todaySnap = await getDoc(todayDocRef);
+            let todayData = todaySnap.exists() ? todaySnap.data() : {};
+            let todayList = todayData.eventList || (todayData.eventText ? parseRawEventTextToEventList(todayData.eventText) : []);
+            
+            eventsToMove.forEach(movedEv => {
+                const isDup = todayList.some(tEv => tEv.content === movedEv.content && JSON.stringify(tEv.labelIds) === JSON.stringify(movedEv.labelIds));
+                if (!isDup) todayList.push(movedEv);
+            });
+            
+            batch.set(todayDocRef, { eventList: todayList, eventText: formatEventListToText(todayList), updatedAt: Date.now() }, { merge: true });
+            
+            await batch.commit(); // 🌟 핵심: 데이터베이스 저장이 완벽히 끝날 때까지 팝업을 닫지 않고 기다리게 만듦
 
         } catch(e) { console.error("자동 이월 처리 에러:", e); }
     },
