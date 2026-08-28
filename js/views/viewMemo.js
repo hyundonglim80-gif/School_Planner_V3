@@ -287,7 +287,7 @@ export class MemoView extends BaseView {
     `;
     this.container.innerHTML = html;
     
-    this.currentNewLabels = this.currentFilter !== '전체' ? [this.currentFilter] : [];
+    this.currentNewLabels = this.currentFilter !== '전체' ? [this.currentFilter] : (this.AVAILABLE_LABELS.length > 0 ? [this.AVAILABLE_LABELS[0].name] : []);
     this.renderLabelChips(document.getElementById('memo-add-labels'), this.currentNewLabels, (updatedLabels) => {
         this.currentNewLabels = updatedLabels;
     });
