@@ -89,13 +89,30 @@ export const handleEditSaveClick = () => { store.mode === 'viewer' ? setMode('ed
 export const moveDate = (dir) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     const d = store.currentDate;
-    if (store.scope === 'day') d.setDate(d.getDate() + dir);
+    
+    if (store.scope === 'day') {
+        d.setDate(d.getDate() + dir);
+        // 💡 수정됨: 주말 숨기기 상태일 경우 주말을 자동으로 건너뜀 (금 -> 월, 월 -> 금)
+        if (!store.showWeekend) {
+            const dayOfWeek = d.getDay();
+            if (dir > 0 && dayOfWeek === 6) { // 앞으로 가다가 토요일이면 월요일로
+                d.setDate(d.getDate() + 2);
+            } else if (dir > 0 && dayOfWeek === 0) { // 혹시 일요일이면 월요일로
+                d.setDate(d.getDate() + 1);
+            } else if (dir < 0 && dayOfWeek === 0) { // 뒤로 가다가 일요일이면 금요일로
+                d.setDate(d.getDate() - 2);
+            } else if (dir < 0 && dayOfWeek === 6) { // 뒤로 가다가 토요일이면 금요일로
+                d.setDate(d.getDate() - 1);
+            }
+        }
+    } 
     else if (store.scope === 'week') d.setDate(d.getDate() + (dir * 7));
     else if (store.scope === 'month') {
         const currentDay = d.getDate();
         d.setMonth(d.getMonth() + dir);
         if (d.getDate() < currentDay) d.setDate(0); 
-    } else if (store.scope === 'year') d.setFullYear(d.getFullYear() + dir);
+    } 
+    else if (store.scope === 'year') d.setFullYear(d.getFullYear() + dir);
 
     if (store.scope !== 'memo') localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
     render();
@@ -121,7 +138,7 @@ export const goToToday = () => {
     }
 
     if (targetExists && store.scope !== 'day') scrollToTodayIfExist();
-    else render(true); // 명시적으로 오늘 가기 버튼을 눌렀으므로 스크롤 허용
+    else render(true); 
 };
 
 export const toggleSwipeMode = () => {
@@ -141,7 +158,7 @@ export const goToDay = (dateStr) => {
         store.mode = 'editor';
         const modeToggle = document.getElementById('mode-toggle') || document.querySelector('input[type="checkbox"]');
         if (modeToggle) modeToggle.checked = true;
-        if (window.render) window.render(); // 🌟 수정됨: 강제 스크롤 방지
+        if (window.render) window.render(); 
         return;
     }
 
@@ -163,7 +180,7 @@ export const goToDay = (dateStr) => {
         content: html,
         onClose: () => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
-            if (window.render) window.render(); // 🌟 수정됨: 모달 닫힐 때 강제 스크롤 방지
+            if (window.render) window.render(); 
         }
     });
 
