@@ -84,15 +84,26 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 📜 상하 스크롤 및 키보드 단축키 페이지 이동 로직 (완전 맞춤형)
+// 📜 상하 스와이프 및 키보드 단축키 페이지 이동 로직 (완전 맞춤형)
 // ==========================================================================
 
 localStorage.setItem('workCalendar_swipeMode', 'tab');
+
+// 🛑 [버그 수정 2] 모바일에서 맨 위에서 아래로 스와이프 시 '당겨서 새로고침'되는 현상 완벽 차단!
+const preventRefreshStyle = document.createElement('style');
+preventRefreshStyle.innerHTML = `
+    html, body {
+        overscroll-behavior-y: none;
+    }
+`;
+document.head.appendChild(preventRefreshStyle);
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
 let startedAtTop = false;
 let startedAtBottom = false;
+
+let touchStartX = 0;
 let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
@@ -120,7 +131,9 @@ window.addEventListener('wheel', (e) => {
 
 // 2. 터치 스와이프 이벤트 (스마트폰/태블릿 환경)
 window.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
     
@@ -129,18 +142,41 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    if (store.mode !== 'viewer' || store.scope === 'memo' || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    if (store.mode !== 'viewer' || document.querySelector('.modal-overlay:not(.hidden)')) return;
     if (scrollNavTimeout) return;
 
+    const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
+    
+    const deltaX = touchStartX - touchEndX;
     const deltaY = touchStartY - touchEndY; 
-    const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-    const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-    const atBottom = currentScroll >= scrollHeight - 10;
-    const atTop = window.scrollY <= 10;
 
-    if (atBottom && deltaY > 50 && touchStartedAtBottom) executeScrollNav(1);
-    else if (atTop && deltaY < -50 && touchStartedAtTop) executeScrollNav(-1);
+    // 🛑 [버그 수정 1] 상하(날짜 이동) 스와이프와 좌우(페이지 전환) 스와이프 각도 구별하여 처리
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // 좌우 스와이프 (화면 Scope 전환)
+        if (Math.abs(deltaX) > 50) {
+            const scopes = ['day', 'week', 'month', 'year', 'memo'];
+            const currentIdx = scopes.indexOf(store.scope);
+            if (currentIdx !== -1 && window.setScope) {
+                // 왼쪽으로 스와이프하면 다음 페이지, 오른쪽으로 스와이프하면 이전 페이지
+                let nextIdx = deltaX > 0 ? currentIdx + 1 : currentIdx - 1;
+                if (nextIdx < 0) nextIdx = scopes.length - 1;
+                if (nextIdx >= scopes.length) nextIdx = 0;
+                window.setScope(scopes[nextIdx]);
+            }
+        }
+    } else {
+        // 상하 스와이프 (이전/다음 날짜 이동)
+        if (store.scope === 'memo') return; // 메모는 상하 이동 없음
+
+        const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+        const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
+        const atBottom = currentScroll >= scrollHeight - 10;
+        const atTop = window.scrollY <= 10;
+
+        if (atBottom && deltaY > 50 && touchStartedAtBottom) executeScrollNav(1);
+        else if (atTop && deltaY < -50 && touchStartedAtTop) executeScrollNav(-1);
+    }
 });
 
 function executeScrollNav(direction) {
@@ -160,36 +196,36 @@ window.addEventListener('keydown', (e) => {
     if (!isInput) {
         // [A] Ctrl + Shift 조합
         if (e.ctrlKey && e.shiftKey && !e.altKey) {
-            if (e.key === 'Enter') { // 캘린더 동기화
+            if (e.key === 'Enter') {
                 e.preventDefault();
                 if (window.quickGoogleSync) window.quickGoogleSync();
             }
         }
         // [B] Ctrl 전용 조합
         else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-            if (e.key === 'Enter') { // 저장
+            if (e.key === 'Enter') {
                 e.preventDefault();
                 if (window.handleEditSaveClick) window.handleEditSaveClick();
-            } else if (e.key === 'ArrowLeft') { // 이전
+            } else if (e.key === 'ArrowLeft') {
                 e.preventDefault(); 
                 if (window.moveDate) window.moveDate(-1);
-            } else if (e.key === 'ArrowRight') { // 다음
+            } else if (e.key === 'ArrowRight') {
                 e.preventDefault(); 
                 if (window.moveDate) window.moveDate(1);
-            } else if (e.key === 'ArrowUp') { // 💡 수정됨: '보기' 모드 전환
+            } else if (e.key === 'ArrowUp') { 
                 e.preventDefault();
                 if (window.setMode) window.setMode('viewer');
-            } else if (e.key === 'ArrowDown') { // 💡 수정됨: '작성' 모드 전환 (또는 저장)
+            } else if (e.key === 'ArrowDown') { 
                 e.preventDefault();
                 if (window.handleEditSaveClick) window.handleEditSaveClick();
-            } else if (e.code === 'Space') { // 💡 오늘 날짜 페이지 이동 및 스크롤
+            } else if (e.code === 'Space') { 
                 e.preventDefault();
                 if (window.goToToday) window.goToToday();
             }
         }
         // [C] Shift 전용 조합
         else if (e.shiftKey && !e.ctrlKey && !e.altKey) {
-            if (e.key === '`' || e.key === '~') { // 검색
+            if (e.key === '`' || e.key === '~') {
                 e.preventDefault(); 
                 const searchBtn = document.querySelector('[onclick*="SearchUI"]') || document.querySelector('#btn-search') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('검색'));
                 if (searchBtn) searchBtn.click();
@@ -199,14 +235,14 @@ window.addEventListener('keydown', (e) => {
             else if (e.key === '3' || e.key === '#') { e.preventDefault(); if (window.setScope) window.setScope('month'); }
             else if (e.key === '4' || e.key === '$') { e.preventDefault(); if (window.setScope) window.setScope('year'); }
             else if (e.key === '5' || e.key === '%') { e.preventDefault(); if (window.setScope) window.setScope('memo'); }
-            else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { // 주말 보이기/숨기기
+            else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { 
                 e.preventDefault();
                 if (window.toggleWeekend) window.toggleWeekend();
             }
         }
         // [D] Alt 전용 조합
         else if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { // 수업 보이기/숨기기
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (window.toggleClass) window.toggleClass();
             }
@@ -272,15 +308,19 @@ document.body.addEventListener('mouseover', (e) => {
     }
 });
 
-document.body.addEventListener('mouseout', (e) => {
+// 🛑 [버그 수정 3] 버튼 클릭(터치) 시 툴팁 즉시 숨기기 (모바일 잔상 완벽 제거)
+const hideTooltip = (e) => {
     const target = e.target.closest('[data-tooltip]');
-    if (target) {
+    if (target || e.type === 'click' || e.type === 'touchstart') {
         clearTimeout(tooltipTimeout);
         customTooltipEl.classList.remove('show');
     }
-});
+};
 
-// 4-3. 💡 강력해진 툴팁 데이터 매칭 (아이디, 클래스, 텍스트, 속성, 태그 완전 교차검증)
+document.body.addEventListener('mouseout', hideTooltip);
+document.body.addEventListener('click', hideTooltip);
+document.body.addEventListener('touchstart', hideTooltip, { passive: true });
+
 function applyShortcutTooltips() {
     const attach = (el, shortcutText) => {
         if (!el || el.hasAttribute('data-shortcut-added')) return;
@@ -300,43 +340,31 @@ function applyShortcutTooltips() {
         const text = (el.textContent || '').trim();
         const attr = (el.getAttribute('onclick') || '') + ' ' + (el.getAttribute('onchange') || '');
         const idClass = (el.id || '') + ' ' + (el.className || '');
+        const tag = el.tagName.toLowerCase();
 
-        // 🛑 [치명적 버그 수정] 일정 라벨, 완료 뱃지 등 사용자의 데이터 영역에는 툴팁이 묻지 않도록 완벽 차단!
-        if (idClass.includes('label-chip') || el.hasAttribute('data-id') || attr.includes('toggleEvent') || attr.includes('LabelClick') || attr.includes('toggleJournal')) {
+        if (idClass.includes('label-chip') || el.hasAttribute('data-id') || attr.includes('toggleEvent') || attr.includes('LabelClick') || attr.includes('toggleJournal') || idClass.includes('modal-overlay') || idClass.includes('modal-content') || idClass.includes('modal-body')) {
             return; 
         }
 
-        // 1. 보기 / 작성 / 저장 
-        if (text === '보기' || attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")')) attach(el, 'Ctrl + ⬆️');
-        else if (text === '작성' || text.includes('저장') || attr.includes('handleEditSaveClick')) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
-        
-        // 2. 검색 
-        else if (text === '검색' || attr.includes('SearchUI') || idClass.includes('search')) attach(el, 'Shift + `');
-        
-        // 3. 날짜(기간) 및 오늘
-        else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
+        const isClickable = tag === 'button' || tag === 'a' || tag === 'label' || el.hasAttribute('onclick') || idClass.includes('nav-item');
 
-        // 4. 구글 동기화
-        else if (attr.includes('quickGoogleSync') || text.includes('동기화')) attach(el, 'Ctrl + Shift + Enter');
-        
-        // 5. 이전 / 다음 이동
-        else if ((attr.includes('moveDate') && attr.includes('-1')) || text === '◀' || text === '<') attach(el, 'Ctrl + ⬅️');
-        else if ((attr.includes('moveDate') && attr.includes('1')) || text === '▶' || text === '>') attach(el, 'Ctrl + ➡️');
-        
-        // 6. 주말 / 수업 보이기 숨기기
-        else if (attr.includes('toggleWeekend') || (text.includes('주말') && text.length < 15)) attach(el, 'Shift + ⬆️/⬇️');
-        else if (attr.includes('toggleClass') || (text.includes('수업') && text.length < 15 && !text.includes('삭제'))) attach(el, 'Alt + ⬆️/⬇️');
-
-        // 7. 각 화면 (하루/주간/월간 등)
-        else if ((attr.includes('setScope') && attr.includes('day')) || text === '하루') attach(el, 'Shift + 1');
-        else if ((attr.includes('setScope') && attr.includes('week')) || text === '주간') attach(el, 'Shift + 2');
-        else if ((attr.includes('setScope') && attr.includes('month')) || text === '월간') attach(el, 'Shift + 3');
-        else if ((attr.includes('setScope') && attr.includes('year')) || text === '년간') attach(el, 'Shift + 4');
-        else if ((attr.includes('setScope') && attr.includes('memo')) || text === '메모' || text === '기록') attach(el, 'Shift + 5');
+        if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
+        else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
+        else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + `');
+        else if (attr.includes('goToToday') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
+        else if (attr.includes('quickGoogleSync') || (isClickable && text.includes('동기화'))) attach(el, 'Ctrl + Shift + Enter');
+        else if ((attr.includes('moveDate') && attr.includes('-1')) || (isClickable && (text === '◀' || text === '<'))) attach(el, 'Ctrl + ⬅️');
+        else if ((attr.includes('moveDate') && attr.includes('1')) || (isClickable && (text === '▶' || text === '>'))) attach(el, 'Ctrl + ➡️');
+        else if (attr.includes('toggleWeekend') || (isClickable && text.includes('주말') && text.length < 15)) attach(el, 'Shift + ⬆️/⬇️');
+        else if (attr.includes('toggleClass') || (isClickable && text.includes('수업') && text.length < 15 && !text.includes('삭제'))) attach(el, 'Alt + ⬆️/⬇️');
+        else if ((attr.includes('setScope') && attr.includes('day')) || (isClickable && text === '하루')) attach(el, 'Shift + 1');
+        else if ((attr.includes('setScope') && attr.includes('week')) || (isClickable && text === '주간')) attach(el, 'Shift + 2');
+        else if ((attr.includes('setScope') && attr.includes('month')) || (isClickable && text === '월간')) attach(el, 'Shift + 3');
+        else if ((attr.includes('setScope') && attr.includes('year')) || (isClickable && text === '년간')) attach(el, 'Shift + 4');
+        else if ((attr.includes('setScope') && attr.includes('memo')) || (isClickable && (text === '메모' || text === '기록'))) attach(el, 'Shift + 5');
     });
 }
 
-// 화면 내용이 바뀔 때마다 요소 추적
 const tooltipObserver = new MutationObserver(() => applyShortcutTooltips());
 tooltipObserver.observe(document.body, { childList: true, subtree: true });
 
