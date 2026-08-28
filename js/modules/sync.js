@@ -55,6 +55,8 @@ export const executeGoogleExport = async function() {
     }
 };
 
+// js/modules/sync.js 파일 내의 quickGoogleSync 함수 부분 수정
+
 export const quickGoogleSync = async function() {
     if (store.hasUnsavedChanges) {
         alert("저장되지 않은 변경사항이 있습니다. 먼저 뷰어[보기] 모드로 전환하여 저장 후 동기화해 주세요.");
@@ -96,19 +98,21 @@ export const quickGoogleSync = async function() {
     const scopeNames = { memo: '메모', day: '하루', week: '주간', month: '월간', year: '년간' };
     
     ProgressModal.show(`구글 빠른 동기화 (${scopeNames[scope]})`);
-    ProgressModal.update(`현재 화면의 데이터를 구글로 전송하는 중...`, 0);
+    ProgressModal.update(`현재 화면의 데이터를 구글과 교체(동기화)하는 중...`, 0);
 
     try {
         if (syncTasks) {
             ProgressModal.update("📝 구글 Tasks 확인 및 메모 동기화 중...", 10);
-            await exportTasksToGoogle(token, 'merge');
+            // 메모 Tasks도 상단 버튼에서는 overwrite(교체)로 동작하도록 수정
+            await exportTasksToGoogle(token, 'overwrite');
         }
 
         if (syncEvent || syncClass || syncJournal) {
-            await exportCalendarData(token, startStr, endStr, 'merge', { syncEvent, syncClass, syncJournal, syncEval: false });
+            // 💡 변경됨: 'merge' 대신 'overwrite'를 전달하여 삭제된 항목까지 구글에서 완벽히 교체/제거
+            await exportCalendarData(token, startStr, endStr, 'overwrite', { syncEvent, syncClass, syncJournal, syncEval: false });
         }
 
-        ProgressModal.complete(`✅ 구글 단방향 동기화(${scopeNames[scope]})가 완료되었습니다!`, () => {
+        ProgressModal.complete(`✅ 구글 단방향 교체 동기화(${scopeNames[scope]})가 완료되었습니다!`, () => {
             store.hasUnsavedChanges = false; 
         });
     } catch (error) {
