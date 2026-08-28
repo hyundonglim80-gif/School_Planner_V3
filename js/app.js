@@ -35,17 +35,21 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 💡 [버그 수정 2] PWA 브라우저 캐시 강제 폭파 (설치 앱 무한 로딩 완벽 해결)
+// 💡 [핵심 해결] PWA 설치 앱에서 구버전 캐시로 인해 로딩이 멈추는 현상을 막기 위한 서비스 워커 강제 차단 및 캐시 청소
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let registration of registrations) {
-            registration.unregister(); // 꼬여있는 서비스워커 강제 등록 해제
+            registration.unregister().then(() => {
+                console.log("SP3.7: 낡은 서비스 워커 강제 해제 완료");
+            });
         }
     });
-    // 로컬 캐시 스토리지 완전 초기화
     if (window.caches) {
         caches.keys().then(keys => {
-            keys.forEach(key => caches.delete(key)); 
+            keys.forEach(key => {
+                caches.delete(key);
+                console.log("SP3.7: 앱 캐시 스토리지 청소 완료:", key);
+            });
         });
     }
 }
