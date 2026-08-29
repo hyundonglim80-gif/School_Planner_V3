@@ -45,16 +45,25 @@ export const executeManualSync = async () => {
     btn.innerHTML = '⏳'; btn.style.opacity = '0.7'; btn.disabled = true;
 
     try {
+        // 1. 온라인 전환 (웹소켓 연결 시작)
         await setNetworkOnline();
-        await new Promise(resolve => setTimeout(resolve, 2500)); 
+        
+        // 2. 서버 연결(Pull)이 안정적으로 맺어질 수 있도록 아주 짧게만 대기
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+
+        // 3. 로컬에 쌓인 변경사항(Push)이 서버에 100% 기록될 때까지 기다림
+        await waitForPendingWrites(db);
+        
+        // 4. 화면 및 설정 갱신 (온라인 상태이므로 서버의 최신 데이터를 가져옴)
         if (window.loadSettings) await window.loadSettings(); 
         if (window.render) window.render(false);
-        await new Promise(resolve => setTimeout(resolve, 2000)); 
+        
         alert("✅ 최신 데이터로 동기화가 완료되었습니다.");
     } catch(e) {
         console.error("수동 동기화 실패", e);
         alert("❌ 동기화 중 오류가 발생했습니다.");
     } finally {
+        // 5. 모든 작업이 끝난 후 다시 오프라인으로 전환
         await setNetworkOffline();
         btn.innerHTML = originalText; btn.style.opacity = '1'; btn.disabled = false;
     }
