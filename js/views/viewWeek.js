@@ -91,14 +91,18 @@ export class WeekView extends BaseView {
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
-              // 💡 [기록/조사표 아이콘 추가]
+              // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               const vList = vMap[d.dateStr]?.[fId] || [];
 
+              let attachmentCount = 0;
+              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
               let metaBadges = '';
               if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
               if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
+              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:1px solid #cbd5e1;" title="첨부파일 ${attachmentCount}개">📎 ${attachmentCount}</span>`;
 
               if (metaBadges) {
                   if (processedEvents.length === 0) eventContent = '';
@@ -237,14 +241,18 @@ export class WeekView extends BaseView {
 
               let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
               
-              // 💡 [기록/조사표 아이콘 추가]
+              // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               const vList = vMap[d.dateStr]?.[fId] || [];
 
+              let attachmentCount = 0;
+              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
               let metaBadges = '';
               if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
               if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
+              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:1px solid #cbd5e1;" title="첨부파일 ${attachmentCount}개">📎 ${attachmentCount}</span>`;
 
               if (metaBadges) {
                   eventContent += `<div style="margin-top:8px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
