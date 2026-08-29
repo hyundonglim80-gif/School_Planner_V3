@@ -61,9 +61,23 @@ export const updateDateFromScroll = () => {
 
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
+    
+    // 💡 [추가됨] 탭 이동 시, 해당 탭의 특성에 맞게 주말 및 수업 표시 여부 스마트 세팅 적용
+    if (store.scope !== scope) {
+        const isBroadScope = (scope === 'year' || scope === 'month');
+        // 사용자가 명시적으로 해당 탭의 설정을 덮어쓰지 않은 경우에만 기본 스마트 세팅 적용
+        if (localStorage.getItem(`workCalendar_showWeekend_${scope}`) === null) {
+            localStorage.setItem(`workCalendar_showWeekend_${scope}`, isBroadScope ? 'true' : 'false');
+        }
+        if (localStorage.getItem(`workCalendar_showClass_${scope}`) === null) {
+            localStorage.setItem(`workCalendar_showClass_${scope}`, isBroadScope ? 'false' : 'true');
+        }
+    }
+
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     
+    // 💡 [수정] 탭 이동 시 기본 모드는 항상 'viewer(보기)'로 고정
     const defaultModes = { year: 'viewer', month: 'viewer', week: 'viewer', day: 'viewer', memo: 'viewer' };
     store.mode = localStorage.getItem(`workCalendar_mode_${scope}`) || defaultModes[scope] || 'viewer';
     localStorage.setItem('workCalendar_mode', store.mode);
@@ -202,7 +216,6 @@ export const goToDay = (dateStr) => {
                 pinBtn.onmouseout = () => pinBtn.style.transform = 'scale(1)';
                 
                 pinBtn.onclick = async () => {
-                    // 💡 변경됨: 핀 버튼 누를 때도 이월 엔진 작동
                     if (store.hasUnsavedChanges && window.dayViewInstance) { 
                         pinBtn.innerHTML = '⏳'; 
                         await window.dayViewInstance.save(); 
@@ -229,7 +242,6 @@ export const goToDay = (dateStr) => {
                     const btn = document.getElementById('day-modal-save-btn');
                     btn.innerHTML = '💾 저장 중...'; btn.style.opacity = '0.7';
                     await window.dayViewInstance.save();
-                    // 💡 변경됨: 팝업창에서 저장할 때도 완벽하게 이월 엔진 작동
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
                     store.hasUnsavedChanges = false;
                     dayModal.close();
