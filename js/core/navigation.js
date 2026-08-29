@@ -13,13 +13,12 @@ export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
 export const updateDateFromScroll = () => {
-    if (store.scope === 'memo' || store.scope === 'day') return;
+    // 💡 [버그 수정] 월간(month) 뷰에서는 페이지 내 스크롤로 날짜가 변경되지 않도록 차단 (패딩 날짜로 튕기는 현상 방지)
+    if (store.scope === 'memo' || store.scope === 'day' || store.scope === 'month') return;
     
     let dateElements = [];
     if (store.scope === 'year') {
         dateElements = Array.from(document.querySelectorAll('tr[data-year-date], .year-grid div[onclick^="window.goToDay"]'));
-    } else if (store.scope === 'month') {
-        dateElements = Array.from(document.querySelectorAll('tr[data-month-date], .cal-day > div[onclick^="window.goToDay"]'));
     } else if (store.scope === 'week') {
         dateElements = Array.from(document.querySelectorAll('tr[data-week-date], .clean-viewer-board tr > td:first-child span[onclick^="window.goToDay"]'));
     }
@@ -41,7 +40,7 @@ export const updateDateFromScroll = () => {
         }
 
         if (closestEl) {
-            let targetDateStr = closestEl.getAttribute('data-year-date') || closestEl.getAttribute('data-month-date') || closestEl.getAttribute('data-week-date');
+            let targetDateStr = closestEl.getAttribute('data-year-date') || closestEl.getAttribute('data-week-date');
             
             if (!targetDateStr) {
                 const onclickAttr = closestEl.getAttribute('onclick');
@@ -62,10 +61,8 @@ export const updateDateFromScroll = () => {
 export const setScope = (scope) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
     
-    // 💡 [추가됨] 탭 이동 시, 해당 탭의 특성에 맞게 주말 및 수업 표시 여부 스마트 세팅 적용
     if (store.scope !== scope) {
         const isBroadScope = (scope === 'year' || scope === 'month');
-        // 사용자가 명시적으로 해당 탭의 설정을 덮어쓰지 않은 경우에만 기본 스마트 세팅 적용
         if (localStorage.getItem(`workCalendar_showWeekend_${scope}`) === null) {
             localStorage.setItem(`workCalendar_showWeekend_${scope}`, isBroadScope ? 'true' : 'false');
         }
@@ -77,7 +74,6 @@ export const setScope = (scope) => {
     store.scope = scope;
     localStorage.setItem('workCalendar_scope', scope);
     
-    // 💡 [수정] 탭 이동 시 기본 모드는 항상 'viewer(보기)'로 고정
     const defaultModes = { year: 'viewer', month: 'viewer', week: 'viewer', day: 'viewer', memo: 'viewer' };
     store.mode = localStorage.getItem(`workCalendar_mode_${scope}`) || defaultModes[scope] || 'viewer';
     localStorage.setItem('workCalendar_mode', store.mode);
