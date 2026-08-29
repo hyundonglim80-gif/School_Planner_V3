@@ -157,7 +157,6 @@ export class DayView extends BaseView {
             this.dayData[fId].journals = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
         }
 
-        // 💡 [개선됨] 공통 함수를 사용하여 팝업 호출 (코드 최소화)
         if (hasCacheError) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
         }
@@ -328,7 +327,6 @@ export class DayView extends BaseView {
             this.dayData[fId].journals = jList;
         }
 
-        // 💡 [개선됨] 공통 함수를 사용하여 팝업 호출 (코드 최소화)
         if (hasCacheError) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
         }
@@ -639,12 +637,19 @@ export class DayView extends BaseView {
             let delHandler = `window.dayViewInstance.removeEventEntry('${fId}', ${idx})`;
             let forwardedBadge = '';
 
+            // 💡 [버그 해결] 백틱(`) 및 특수문자 파싱 오류(SyntaxError) 방지를 위한 안전한 문자열 치환
+            const safeContent = (ev.content || '')
+                .replace(/\\/g, '\\\\')
+                .replace(new RegExp('\`', 'g'), '\\`')
+                .replace(/\$/g, '\\$')
+                .replace(/"/g, '&quot;');
+
             if (ev.groupId || (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr))) {
                 const isRecurring = !!ev.groupId; 
                 if (isRecurring) {
-                    delHandler = `window.showGroupDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.groupId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
+                    delHandler = `window.showGroupDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${safeContent}\`, '${ev.groupId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
                 } else {
-                    delHandler = `window.showForwardDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
+                    delHandler = `window.showForwardDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${safeContent}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
                     forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
                 }
             }
