@@ -52,7 +52,14 @@ export class WeekView extends BaseView {
 
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
+        }
         
         const realTodayStr = formatDate(new Date());
         window.currentMyGroups = this.myGroups;
@@ -156,7 +163,14 @@ export class WeekView extends BaseView {
 
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
+        }
         
         const realTodayStr = formatDate(new Date());
 
