@@ -100,54 +100,10 @@ Object.assign(window, {
 // 💡 앱 초기화 및 접속 환경(PWA/브라우저)에 따른 네트워크 기본 모드 설정
 // ==========================================================================
 const applyEnvironmentNetworkMode = () => {
-    // 1. PWA(설치된 앱) 상태인지 감지
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     
-    // 2. 완전 처음 실행 여부 확인 (toggleNetworkMode가 실행되기 전에 확인해야 함)
-    const isFirstRun = localStorage.getItem('workCalendar_offlineMode') === null;
-    
     if (window.toggleNetworkMode) {
-        // 3. 브라우저든 PWA든 기본 모드 적용 (PWA는 무조건 오프라인으로 켜서 빈 화면 유도)
         window.toggleNetworkMode(isPWA ? 'offline' : 'online');
-
-        // 4. PWA이면서 데이터를 지운 직후(최초 실행)일 경우 환영 팝업 띄우기
-        if (isPWA && isFirstRun) {
-            setTimeout(async () => {
-                const modalId = 'first-run-sync-modal';
-                const html = `
-                    <div style="padding: 20px; text-align: center;">
-                        <h3 style="color:#2563eb; margin-top:0;">환영합니다! 🎉</h3>
-                        <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
-                            현재 기기에 저장된 오프라인 데이터가 없습니다.<br>
-                            <b>클라우드에 저장된 내 데이터를 불러오시겠습니까?</b>
-                        </p>
-                        <div style="display: flex; gap: 10px; justify-content: center;">
-                            <button id="btn-first-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 화면으로 시작</button>
-                            <button id="btn-first-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">데이터 불러오기</button>
-                        </div>
-                    </div>
-                `;
-                
-                let existingModal = document.getElementById(modalId);
-                if (existingModal) existingModal.remove();
-
-                const modal = new window.Modal({ id: modalId, title: '☁️ 초기 데이터 설정', width: '400px', content: html });
-                modal.open();
-
-                // [빈 화면으로 시작] 클릭 시: 팝업만 닫고 오프라인 상태 유지
-                document.getElementById('btn-first-cancel').onclick = () => {
-                    modal.close();
-                };
-
-                // [데이터 불러오기] 클릭 시: 만능 수동 동기화 함수 실행
-                document.getElementById('btn-first-sync').onclick = () => {
-                    modal.close();
-                    if (window.executeManualSync) {
-                        window.executeManualSync(); 
-                    }
-                };
-            }, 1000); // 빈 뼈대 화면이 그려진 후 1초 뒤에 팝업 띄우기
-        }
     }
 };
 
@@ -268,7 +224,6 @@ window.addEventListener('keydown', (e) => {
         else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
             if (e.key === 'Enter') { 
                 e.preventDefault(); 
-                // 💡 [추가됨] 메모 페이지일 때는 '추가' 버튼을 클릭하게 하고, 그 외에는 저장(handleEditSaveClick) 작동
                 if (store.scope === 'memo') {
                     const addBtn = Array.from(document.querySelectorAll('button, [onclick]')).find(b => b.textContent.trim().includes('추가'));
                     if (addBtn) addBtn.click();
@@ -412,7 +367,6 @@ function applyShortcutTooltips() {
 
         if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
         else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
-        // 💡 [추가됨] 메모 페이지의 '추가' 버튼 단축키 알림 매칭
         else if (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가')) attach(el, 'Ctrl + Enter');
         else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + `');
         else if (attr.includes('goToToday') || idClass.includes('date-range-text') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
@@ -439,53 +393,83 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 오프라인 캐시 누락 시 동기화 선택 팝업 공통 처리 함수
+// 💡 캐시 없음(CACHE_MISS) 발생 시: 자동 데이터 불러오기 및 안내 처리
 // ==========================================================================
-window.promptOfflineSync = async (viewInstance, renderMethodName) => {
-    const userChoice = await new Promise(resolve => {
-        const modalId = 'cache-error-modal';
+window.promptOfflineSync = async (viewInstance, renderMethod) => {
+    // 중복 실행 방지
+    if (window.isAutoSyncing) return true;
+    window.isAutoSyncing = true;
+
+    // 화면 상단에 로딩(Toast) 알림 띄우기
+    const toastId = 'auto-sync-toast';
+    let existingToast = document.getElementById(toastId);
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#3b82f6; color:white; padding:12px 24px; border-radius:8px; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-weight:bold; font-size:0.95rem; display:flex; align-items:center; gap:8px;";
+    toast.innerHTML = `<div style="width:16px; height:16px; border:3px solid white; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div> 기기에 데이터가 없어 클라우드에서 자동으로 불러옵니다... <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>`;
+    document.body.appendChild(toast);
+
+    try {
+        // 1. 임시로 온라인 모드 전환하여 DB 연결 시도
+        if (window.toggleNetworkMode) window.toggleNetworkMode('online');
+        await new Promise(r => setTimeout(r, 1500)); // 연결 안정화 대기
+        
+        // 2. 만능 수동 동기화 함수 실행 (데이터 전체 다운로드)
+        if (window.executeManualSync) {
+            await window.executeManualSync(); 
+        } else {
+            throw new Error("동기화 기능 없음");
+        }
+        
+        // 3. 성공 시 파란색 배지를 초록색 성공 배지로 변경
+        toast.style.background = '#059669';
+        toast.innerHTML = "✅ 데이터를 성공적으로 불러왔습니다.";
+        setTimeout(() => toast.remove(), 2500);
+        
+        window.isAutoSyncing = false;
+        
+        // 4. 데이터가 채워졌으므로 원래 띄우려던 화면을 다시 정상 렌더링
+        if (viewInstance && renderMethod) {
+            viewInstance[renderMethod]();
+        }
+        return true; // 렌더링 제어 완료 (오류 상태 탈출)
+
+    } catch (e) {
+        console.error("데이터 불러오기 실패:", e);
+        toast.remove();
+        
+        // 5. 실패 시 안내 모달 팝업 띄우기 (데이터베이스 연결 불가 시)
         const html = `
             <div style="padding: 20px; text-align: center;">
-                <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
-                    현재 기기(캐시)에 이 화면의 오프라인 데이터가 없습니다.<br>
-                    <b>클라우드와 동기화하여 데이터를 불러오시겠습니까?</b>
-                </p>
-                <div style="display: flex; gap: 10px; justify-content: center;">
-                    <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
-                    <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
+                <h3 style="color:#ef4444; margin-top:0; font-size:1.2rem;">⚠️ 데이터베이스 연결 안 됨</h3>
+                <div style="font-size: 0.95rem; color: #334155; margin-bottom: 20px; line-height: 1.6; text-align:left; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                    현재 인터넷(데이터베이스)에 연결할 수 없어 <b>데이터 없이 빈 페이지</b>를 띄웁니다.<br><br>
+                    💡 <b>안심하세요!</b><br>
+                    현재 빈 화면에 일정을 추가하시더라도 데이터가 날아가지 않습니다. 추후 인터넷이 연결되어 동기화가 진행될 때, 클라우드에 기존 데이터가 있다면 덮어쓰지 않고 안전하게 <b>누적(추가)</b>되어 합쳐집니다.
                 </div>
+                <button id="btn-sync-fail-ok" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; width:100%;">확인 (빈 페이지 열기)</button>
             </div>
         `;
+        
+        const modalId = 'sync-fail-modal';
         let existingModal = document.getElementById(modalId);
         if (existingModal) existingModal.remove();
-        
-        const modal = new window.Modal({ id: modalId, title: '⚠️ 오프라인 데이터 없음', width: '400px', content: html });
+
+        // Modal 객체를 띄움
+        const modal = new window.Modal({ id: modalId, title: '오프라인 접속 안내', width: '420px', content: html });
         modal.open();
+        
+        document.getElementById('btn-sync-fail-ok').onclick = () => {
+            modal.close();
+        };
 
-        document.getElementById('btn-cache-cancel').onclick = () => { modal.close(); resolve('cancel'); };
-        document.getElementById('btn-cache-sync').onclick = () => { modal.close(); resolve('sync'); };
-    });
-
-    if (userChoice === 'sync') {
-        if (!navigator.onLine) {
-            alert("기기가 인터넷에 연결되어 있지 않습니다. 와이파이 연결을 확인해주세요.");
-            return true; 
-        }
-        if (viewInstance && viewInstance.showLoading) {
-            viewInstance.showLoading('클라우드에서 데이터를 동기화 중입니다...');
-        }
-        try {
-            if (window.setNetworkOnline) await window.setNetworkOnline();
-            await new Promise(r => setTimeout(r, 1000)); 
-            if (viewInstance && typeof viewInstance[renderMethodName] === 'function') {
-                await viewInstance[renderMethodName](); 
-            }
-        } finally {
-            if (window.setNetworkOffline && localStorage.getItem('workCalendar_offlineMode') === 'true') {
-                await window.setNetworkOffline();
-            }
-        }
-        return true; // 동기화를 정상적으로 진행했음
+        // 실패했으므로 PWA 환경이면 다시 오프라인 모드로 강제 복귀
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (window.toggleNetworkMode) window.toggleNetworkMode(isPWA ? 'offline' : 'online');
+        
+        window.isAutoSyncing = false;
+        return false; // 빈 캐시 상태로 화면 렌더링 강행
     }
-    return false; // 취소를 눌러 빈 페이지로 계속 진행함
 };
