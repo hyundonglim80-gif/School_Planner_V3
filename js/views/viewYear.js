@@ -72,7 +72,14 @@ export class YearView extends BaseView {
         const endStr = `${targetY + 1}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
+        }
 
         if (this.renderId !== currentRenderId) return;
 
@@ -225,7 +232,14 @@ export class YearView extends BaseView {
         const febLastDay = new Date(nextYear, 2, 0).getDate(); const endStr = `${nextYear}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
+        }
 
         if (this.renderId !== currentRenderId) return;
 
