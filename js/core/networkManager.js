@@ -1,5 +1,5 @@
 // js/core/networkManager.js
-import { enableNetwork, disableNetwork } from "firebase/firestore";
+import { enableNetwork, disableNetwork, waitForPendingWrites } from "firebase/firestore";
 import { db } from "../api/firebaseInit.js";
 
 export const setNetworkOnline = async () => {
