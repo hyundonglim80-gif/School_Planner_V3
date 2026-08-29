@@ -2,11 +2,18 @@
 
 import { getUserCol, getGroupCol } from '../api/database.js';
 import { db } from '../api/firebaseInit.js';
-import { query, where, documentId, getDocs, doc, writeBatch } from "firebase/firestore";
+import { query, where, documentId, getDocs, getDoc, doc, writeBatch } from "firebase/firestore";
 import { getEventLabels } from './utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventManager.js';
 
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
+    // [추가된 부분] 시작 날짜를 조회해 캐시가 비어있으면 강제로 에러를 발생시킵니다.
+    try {
+        await getDoc(doc(getUserCol('events'), startStr));
+    } catch (e) {
+        throw new Error("CACHE_MISS");
+    }
+
     const eMap = {}, sMap = {};
     const promises = [];
 
