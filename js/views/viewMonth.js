@@ -116,14 +116,18 @@ export class MonthView extends BaseView {
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
-                // 💡 [기록/조사표 아이콘 추가]
+                // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
                 const jList = jMap[dateStr]?.[fId] || [];
                 const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
                 const vList = vMap[dateStr]?.[fId] || [];
 
+                let attachmentCount = 0;
+                validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
                 let metaBadges = '';
                 if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
                 if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
+                if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
                 if (metaBadges) {
                     eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
@@ -259,14 +263,18 @@ export class MonthView extends BaseView {
 
                 let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
                 
-                // 💡 [기록/조사표 아이콘 추가]
+                // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
                 const jList = jMap[dateStr]?.[fId] || [];
                 const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
                 const vList = vMap[dateStr]?.[fId] || [];
 
+                let attachmentCount = 0;
+                validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
                 let metaBadges = '';
                 if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
                 if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
+                if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
                 if (metaBadges) {
                     eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
