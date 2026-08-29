@@ -169,7 +169,7 @@ export class DayView extends BaseView {
                         </p>
                         <div style="display: flex; gap: 10px; justify-content: center;">
                             <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
-                            <button id="btn-cache-sync" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
+                            <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
                         </div>
                     </div>
                 `;
@@ -387,7 +387,7 @@ export class DayView extends BaseView {
                         </p>
                         <div style="display: flex; gap: 10px; justify-content: center;">
                             <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
-                            <button id="btn-cache-sync" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
+                            <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
                         </div>
                     </div>
                 `;
