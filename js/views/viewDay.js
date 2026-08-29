@@ -157,55 +157,9 @@ export class DayView extends BaseView {
             this.dayData[fId].journals = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
         }
 
+        // 💡 [개선됨] 공통 함수를 사용하여 팝업 호출 (코드 최소화)
         if (hasCacheError) {
-            // 1. 크롬 기본 알림창 대신 앱의 예쁜 모달(팝업) 시스템 재활용
-            const userChoice = await new Promise(resolve => {
-                const modalId = 'cache-error-modal';
-                const html = `
-                    <div style="padding: 20px; text-align: center;">
-                        <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
-                            현재 기기(캐시)에 이 날짜의 오프라인 데이터가 없습니다.<br>
-                            <b>클라우드와 동기화하여 데이터를 불러오시겠습니까?</b>
-                        </p>
-                        <div style="display: flex; gap: 10px; justify-content: center;">
-                            <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
-                            <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
-                        </div>
-                    </div>
-                `;
-                const modal = new window.Modal({ id: modalId, title: '⚠️ 오프라인 데이터 없음', width: '400px', content: html });
-                modal.open();
-
-                document.getElementById('btn-cache-cancel').onclick = () => { modal.close(); resolve('cancel'); };
-                document.getElementById('btn-cache-sync').onclick = () => { modal.close(); resolve('sync'); };
-            });
-
-            // 2. 동기화 진행 시 로직 (타이밍 문제 해결)
-            if (userChoice === 'sync') {
-                if (!navigator.onLine) {
-                    alert("기기가 인터넷에 연결되어 있지 않습니다. 와이파이 연결을 확인해주세요.");
-                    return; 
-                }
-                
-                this.showLoading('클라우드에서 데이터를 동기화 중입니다...');
-                
-                try {
-                    // 네트워크를 켜고 안정화될 때까지 1초 대기
-                    if (window.setNetworkOnline) await window.setNetworkOnline();
-                    await new Promise(r => setTimeout(r, 1000)); 
-                    
-                    // 네트워크가 켜진 상태에서 데이터를 "완벽하게" 다 가져올 때까지 기다림(await)
-                    if (store.mode === 'editor') await this.renderEditor();
-                    else await this.renderViewer();
-                    
-                } finally {
-                    // 데이터 다운로드가 끝난 후 다시 안전하게 오프라인으로 복귀
-                    if (window.setNetworkOffline && localStorage.getItem('workCalendar_offlineMode') === 'true') {
-                        await window.setNetworkOffline();
-                    }
-                }
-                return; // 에러 났던 기존 렌더링은 여기서 종료
-            }
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
         }
 
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
@@ -288,7 +242,6 @@ export class DayView extends BaseView {
                     </div>`;
                 }).join('') + `</div>` : '';
 
-                // 🛑 [버그 수정 1] 들여쓰기 공백 완벽 제거 (white-space: pre-wrap 대응)
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
                         <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
@@ -375,55 +328,9 @@ export class DayView extends BaseView {
             this.dayData[fId].journals = jList;
         }
 
+        // 💡 [개선됨] 공통 함수를 사용하여 팝업 호출 (코드 최소화)
         if (hasCacheError) {
-            // 1. 크롬 기본 알림창 대신 앱의 예쁜 모달(팝업) 시스템 재활용
-            const userChoice = await new Promise(resolve => {
-                const modalId = 'cache-error-modal';
-                const html = `
-                    <div style="padding: 20px; text-align: center;">
-                        <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
-                            현재 기기(캐시)에 이 날짜의 오프라인 데이터가 없습니다.<br>
-                            <b>클라우드와 동기화하여 데이터를 불러오시겠습니까?</b>
-                        </p>
-                        <div style="display: flex; gap: 10px; justify-content: center;">
-                            <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
-                            <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
-                        </div>
-                    </div>
-                `;
-                const modal = new window.Modal({ id: modalId, title: '⚠️ 오프라인 데이터 없음', width: '400px', content: html });
-                modal.open();
-
-                document.getElementById('btn-cache-cancel').onclick = () => { modal.close(); resolve('cancel'); };
-                document.getElementById('btn-cache-sync').onclick = () => { modal.close(); resolve('sync'); };
-            });
-
-            // 2. 동기화 진행 시 로직 (타이밍 문제 해결)
-            if (userChoice === 'sync') {
-                if (!navigator.onLine) {
-                    alert("기기가 인터넷에 연결되어 있지 않습니다. 와이파이 연결을 확인해주세요.");
-                    return; 
-                }
-                
-                this.showLoading('클라우드에서 데이터를 동기화 중입니다...');
-                
-                try {
-                    // 네트워크를 켜고 안정화될 때까지 1초 대기
-                    if (window.setNetworkOnline) await window.setNetworkOnline();
-                    await new Promise(r => setTimeout(r, 1000)); 
-                    
-                    // 네트워크가 켜진 상태에서 데이터를 "완벽하게" 다 가져올 때까지 기다림(await)
-                    if (store.mode === 'editor') await this.renderEditor();
-                    else await this.renderViewer();
-                    
-                } finally {
-                    // 데이터 다운로드가 끝난 후 다시 안전하게 오프라인으로 복귀
-                    if (window.setNetworkOffline && localStorage.getItem('workCalendar_offlineMode') === 'true') {
-                        await window.setNetworkOffline();
-                    }
-                }
-                return; // 에러 났던 기존 렌더링은 여기서 종료
-            }
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
         }
 
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
