@@ -100,12 +100,54 @@ Object.assign(window, {
 // 💡 앱 초기화 및 접속 환경(PWA/브라우저)에 따른 네트워크 기본 모드 설정
 // ==========================================================================
 const applyEnvironmentNetworkMode = () => {
-    // 1. PWA(설치된 앱) 상태인지 감지 (PC/모바일 공통 및 iOS Safari 대응)
+    // 1. PWA(설치된 앱) 상태인지 감지
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     
-    // 2. PWA면 오프라인, 브라우저면 온라인으로 모드 강제 적용
+    // 2. 완전 처음 실행 여부 확인 (toggleNetworkMode가 실행되기 전에 확인해야 함)
+    const isFirstRun = localStorage.getItem('workCalendar_offlineMode') === null;
+    
     if (window.toggleNetworkMode) {
+        // 3. 브라우저든 PWA든 기본 모드 적용 (PWA는 무조건 오프라인으로 켜서 빈 화면 유도)
         window.toggleNetworkMode(isPWA ? 'offline' : 'online');
+
+        // 4. PWA이면서 데이터를 지운 직후(최초 실행)일 경우 환영 팝업 띄우기
+        if (isPWA && isFirstRun) {
+            setTimeout(async () => {
+                const modalId = 'first-run-sync-modal';
+                const html = `
+                    <div style="padding: 20px; text-align: center;">
+                        <h3 style="color:#2563eb; margin-top:0;">환영합니다! 🎉</h3>
+                        <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
+                            현재 기기에 저장된 오프라인 데이터가 없습니다.<br>
+                            <b>클라우드에 저장된 내 데이터를 불러오시겠습니까?</b>
+                        </p>
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button id="btn-first-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 화면으로 시작</button>
+                            <button id="btn-first-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">데이터 불러오기</button>
+                        </div>
+                    </div>
+                `;
+                
+                let existingModal = document.getElementById(modalId);
+                if (existingModal) existingModal.remove();
+
+                const modal = new window.Modal({ id: modalId, title: '☁️ 초기 데이터 설정', width: '400px', content: html });
+                modal.open();
+
+                // [빈 화면으로 시작] 클릭 시: 팝업만 닫고 오프라인 상태 유지
+                document.getElementById('btn-first-cancel').onclick = () => {
+                    modal.close();
+                };
+
+                // [데이터 불러오기] 클릭 시: 만능 수동 동기화 함수 실행
+                document.getElementById('btn-first-sync').onclick = () => {
+                    modal.close();
+                    if (window.executeManualSync) {
+                        window.executeManualSync(); 
+                    }
+                };
+            }, 1000); // 빈 뼈대 화면이 그려진 후 1초 뒤에 팝업 띄우기
+        }
     }
 };
 
@@ -113,12 +155,12 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { 
         initAppEvents(); 
         initAuthListener(); 
-        applyEnvironmentNetworkMode(); // 환경 감지 함수 실행
+        applyEnvironmentNetworkMode(); 
     });
 } else {
     initAppEvents(); 
     initAuthListener();
-    applyEnvironmentNetworkMode(); // 환경 감지 함수 실행
+    applyEnvironmentNetworkMode(); 
 }
 
 // ==========================================================================
