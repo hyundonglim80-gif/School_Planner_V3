@@ -7,17 +7,17 @@ import { getEventLabels } from './utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventManager.js';
 
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
-    // [추가된 부분] 시작 날짜를 조회해 캐시가 비어있으면 강제로 에러를 발생시킵니다.
     try {
         await getDoc(doc(getUserCol('events'), startStr));
     } catch (e) {
         throw new Error("CACHE_MISS");
     }
 
-    const eMap = {}, sMap = {};
+    // 💡 [추가] 기록(jMap)과 조사표(vMap)를 함께 불러옵니다.
+    const eMap = {}, sMap = {}, jMap = {}, vMap = {};
     const promises = [];
 
-    // 1. 개인 일정 가져오기
+    // 1. 개인 일정
     promises.push(
         getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
             snap.forEach(docSnap => {
@@ -29,7 +29,7 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         }).catch(e => console.warn(e))
     );
 
-    // 2. 소속된 그룹 일정 가져오기
+    // 2. 그룹 일정
     for (const g of myGroups) {
         promises.push(
             getDocs(query(getGroupCol(g.id, 'events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
@@ -43,7 +43,7 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         );
     }
 
-    // 3. 개인 시간표 가져오기
+    // 3. 개인 시간표
     promises.push(
         getDocs(query(getUserCol('schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
             snap.forEach(docSnap => {
@@ -53,7 +53,7 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         }).catch(e => console.warn(e))
     );
 
-    // 4. 그룹 시간표 가져오기
+    // 4. 그룹 시간표
     for (const g of myGroups) {
         promises.push(
             getDocs(query(getGroupCol(g.id, 'schedules'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
@@ -65,8 +65,52 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         );
     }
 
+    // 5. 개인 기록 (journals)
+    promises.push(
+        getDocs(query(getUserCol('journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+            snap.forEach(docSnap => {
+                if (!jMap[docSnap.id]) jMap[docSnap.id] = {};
+                jMap[docSnap.id]['personal'] = docSnap.data().entries || [];
+            });
+        }).catch(e => console.warn(e))
+    );
+
+    // 6. 그룹 기록 (journals)
+    for (const g of myGroups) {
+        promises.push(
+            getDocs(query(getGroupCol(g.id, 'journals'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+                snap.forEach(docSnap => {
+                    if (!jMap[docSnap.id]) jMap[docSnap.id] = {};
+                    jMap[docSnap.id][g.id] = docSnap.data().entries || [];
+                });
+            }).catch(e => console.warn(e))
+        );
+    }
+
+    // 7. 개인 조사표 (evaluations)
+    promises.push(
+        getDocs(query(getUserCol('evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+            snap.forEach(docSnap => {
+                if (!vMap[docSnap.id]) vMap[docSnap.id] = {};
+                vMap[docSnap.id]['personal'] = docSnap.data().evalList || [];
+            });
+        }).catch(e => console.warn(e))
+    );
+
+    // 8. 그룹 조사표 (evaluations)
+    for (const g of myGroups) {
+        promises.push(
+            getDocs(query(getGroupCol(g.id, 'evaluations'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
+                snap.forEach(docSnap => {
+                    if (!vMap[docSnap.id]) vMap[docSnap.id] = {};
+                    vMap[docSnap.id][g.id] = docSnap.data().evalList || [];
+                });
+            }).catch(e => console.warn(e))
+        );
+    }
+
     await Promise.all(promises);
-    return { eMap, sMap };
+    return { eMap, sMap, jMap, vMap };
 };
 
 export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters) => {
@@ -84,7 +128,6 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
             if (eventsByGroup[gId]) eventsByGroup[gId].push(e);
         });
 
-        // 1. 개인 일정 저장
         const pEvents = eventsByGroup['personal'];
         batch.set(doc(getUserCol('events'), item.dateStr), {
             eventList: pEvents,
@@ -94,7 +137,6 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
         opCount++;
         if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
 
-        // 2. 그룹 일정 저장
         myGroups.forEach(g => {
             const gEvents = eventsByGroup[g.id];
             batch.set(doc(getGroupCol(g.id, 'events'), item.dateStr), {
@@ -106,7 +148,6 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
             if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
         });
 
-        // 3. 시간표 저장 (휴일 스킵 로직 포함)
         (activeUnifiedFilters || ['personal']).forEach(fId => {
             const periods = item.schedulesData[fId] || {};
             const scheduleCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
