@@ -96,10 +96,29 @@ Object.assign(window, {
     openRecurringModal: (...args) => EventManager.openRecurringModal(...args)
 });
 
+// ==========================================================================
+// 💡 앱 초기화 및 접속 환경(PWA/브라우저)에 따른 네트워크 기본 모드 설정
+// ==========================================================================
+const applyEnvironmentNetworkMode = () => {
+    // 1. PWA(설치된 앱) 상태인지 감지 (PC/모바일 공통 및 iOS Safari 대응)
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    
+    // 2. PWA면 오프라인, 브라우저면 온라인으로 모드 강제 적용
+    if (window.toggleNetworkMode) {
+        window.toggleNetworkMode(isPWA ? 'offline' : 'online');
+    }
+};
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { initAppEvents(); initAuthListener(); });
+    document.addEventListener('DOMContentLoaded', () => { 
+        initAppEvents(); 
+        initAuthListener(); 
+        applyEnvironmentNetworkMode(); // 환경 감지 함수 실행
+    });
 } else {
-    initAppEvents(); initAuthListener();
+    initAppEvents(); 
+    initAuthListener();
+    applyEnvironmentNetworkMode(); // 환경 감지 함수 실행
 }
 
 // ==========================================================================
