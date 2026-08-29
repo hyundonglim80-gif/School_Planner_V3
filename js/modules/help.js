@@ -64,7 +64,8 @@ export const openHelpModal = function() {
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">오늘 날짜로 즉시 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Space</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">이전 / 다음 기간 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + ⬅️ / ➡️</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">화면(탭) 이동 (하루~메모)</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + 1 ~ 5</td></tr>
-                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">검색창 열기</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + `</td></tr>
+                            <!-- 💡 백틱 기호를 파싱 오류 방지를 위해 HTML 엔티티(&#96;)로 교체했습니다. -->
+                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">검색창 열기</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + &#96; (물결표 키)</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">주말 표시 토글</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + ⬆️ / ⬇️</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">수업 표시 토글</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Alt + ⬆️ / ⬇️</td></tr>
                             <tr><td style="padding:6px;">구글 캘린더 빠른 동기화</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Shift + Enter</td></tr>
