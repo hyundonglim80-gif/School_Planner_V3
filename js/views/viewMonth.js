@@ -59,8 +59,15 @@ export class MonthView extends BaseView {
         const endStr = formatDate(calendarEndDate);
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
-
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
+        }
+        
         window.currentMyGroups = this.myGroups;
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
@@ -172,7 +179,14 @@ export class MonthView extends BaseView {
         const endStr = `${y}-${String(m+1).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
+        }
         
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         const realTodayStr = formatDate(new Date());
