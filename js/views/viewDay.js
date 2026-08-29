@@ -130,29 +130,61 @@ export class DayView extends BaseView {
         if (window.FilterUI && typeof window.FilterUI.renderUnifiedFilter === 'function') window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         this.dayData = {};
-        const filters = window.activeUnifiedFilters;
+        cconst filters = window.activeUnifiedFilters;
+        let hasCacheError = false; // 💡 캐시 에러 감지용 플래그 추가
 
         for (const fId of filters) {
             this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
+            // 1. 일정 데이터 호출
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            const evDoc = await getDoc(doc(evCol, dateStr));
+            let evDoc = null;
+            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
+            
             let eList = [];
-            if (evDoc.exists()) {
+            if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
+            
+            // (Editor 모드일 경우 빈 이벤트 생성 로직이 이 자리에 있음)
+            if (this.createEmptyEvent && eList.length === 0 && store.mode === 'editor') {
+                eList.push(this.createEmptyEvent(fId));
+            }
             this.dayData[fId].events = eList;
 
+            // 2. 시간표 데이터 호출
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            const scDoc = await getDoc(doc(scCol, dateStr));
-            this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
+            let scDoc = null;
+            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
+            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
 
+            // 3. 기록 데이터 호출
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            const jrDoc = await getDoc(doc(jrCol, dateStr));
-            this.dayData[fId].journals = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
+            let jrDoc = null;
+            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
+            
+            // (Viewer와 Editor에 따라 jList 처리 방식이 약간 다르지만 기본 원리는 동일)
+            let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
+            this.dayData[fId].journals = jList;
         }
-        
+
+        // 💡 팝업 선택창 띄우기 로직 추가
+        if (hasCacheError) {
+            const doSync = confirm(
+                "현재 기기(캐시)에 이 날짜의 오프라인 데이터가 없습니다.\n클라우드와 동기화하여 데이터를 불러오시겠습니까?\n\n" +
+                "[확인] 온라인 동기화 진행\n" +
+                "[취소] 빈 페이지로 계속 작업"
+            );
+            
+            if (doSync) {
+                // 사용자가 동기화를 원하면 수동 동기화 실행 후 화면 렌더링 중단
+                if (window.executeManualSync) window.executeManualSync();
+                return; 
+            }
+            // 취소를 누르면 return 되지 않고 아래쪽 로직(빈 페이지 렌더링)으로 자연스럽게 넘어갑니다.
+        }
+
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
 
         let eventsHtml = '';
