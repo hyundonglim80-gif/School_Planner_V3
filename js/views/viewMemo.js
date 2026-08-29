@@ -120,11 +120,19 @@ export class MemoView extends BaseView {
 
   async fetchAllMemos() {
       try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
-      let allMemos = await dbAPI.loadMemos(); 
-      for (const group of this.myGroups) {
-          const groupMemos = await dbAPI.loadGroupMemos(group.id);
-          groupMemos.forEach(m => { m.groupName = group.name; });
-          allMemos = allMemos.concat(groupMemos);
+      let allMemos = [];
+      try {
+          allMemos = await dbAPI.loadMemos(); 
+          for (const group of this.myGroups) {
+              const groupMemos = await dbAPI.loadGroupMemos(group.id);
+              groupMemos.forEach(m => { m.groupName = group.name; });
+              allMemos = allMemos.concat(groupMemos);
+          }
+      } catch (e) {
+          // 에러 발생 시 팝업 호출
+          if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) {
+              return null; // 동기화 완료 신호
+          }
       }
       return allMemos;
   }
@@ -141,10 +149,13 @@ export class MemoView extends BaseView {
 
     if (!this.memoItems || this.memoItems.length === 0) {
         this.showLoading('클라우드에서 데이터(개인 및 공유)를 불러오는 중입니다...');
-        this.memoItems = await this.fetchAllMemos();
+        const data = await this.fetchAllMemos();
+        if (data === null) return; // 💡 팝업에서 동기화를 진행하여 화면이 다시 그려졌으므로 여기서 종료
+        this.memoItems = data;
         this.loadMemoLabels(); this._drawHTML();
     } else {
         this.fetchAllMemos().then(data => {
+            if (data === null) return; // 💡 동기화 진행 시 무시
             this.memoItems = data; this.loadMemoLabels();
             if (!this.isUploading) this._drawHTML(); 
         });
