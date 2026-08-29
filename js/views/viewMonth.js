@@ -60,10 +60,10 @@ export class MonthView extends BaseView {
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
         
-        let eMap = {}, sMap = {};
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
         try {
             const res = await fetchCalendarData(startStr, endStr, this.myGroups);
-            eMap = res.eMap; sMap = res.sMap;
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
         } catch (e) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
         }
@@ -114,7 +114,20 @@ export class MonthView extends BaseView {
 
                 const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
-                const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+
+                // 💡 [기록/조사표 아이콘 추가]
+                const jList = jMap[dateStr]?.[fId] || [];
+                const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+                const vList = vMap[dateStr]?.[fId] || [];
+
+                let metaBadges = '';
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
+
+                if (metaBadges) {
+                    eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+                }
 
                 let scheduleHtml = '';
                 if (store.showClass) {
@@ -180,10 +193,10 @@ export class MonthView extends BaseView {
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
         
-        let eMap = {}, sMap = {};
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
         try {
             const res = await fetchCalendarData(startStr, endStr, this.myGroups);
-            eMap = res.eMap; sMap = res.sMap;
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
         } catch (e) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
         }
@@ -244,7 +257,21 @@ export class MonthView extends BaseView {
                 const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
                 const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-                const eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
+                let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
+                
+                // 💡 [기록/조사표 아이콘 추가]
+                const jList = jMap[dateStr]?.[fId] || [];
+                const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+                const vList = vMap[dateStr]?.[fId] || [];
+
+                let metaBadges = '';
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
+
+                if (metaBadges) {
+                    eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+                }
+
                 const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
                 if (idx === 0) {
@@ -271,7 +298,7 @@ export class MonthView extends BaseView {
 
             if (store.showClass) {
                 const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
-                rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
+                rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical- middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
 
                 filters.forEach((fId) => {
                     const isPersonal = fId === 'personal';
