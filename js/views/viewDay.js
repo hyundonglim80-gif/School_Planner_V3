@@ -290,14 +290,16 @@ export class DayView extends BaseView {
         this.dayData = {};
         const filters = window.activeUnifiedFilters;
         const masterLabels = getEventLabels();
+        let hasCacheError = false;
 
         for (const fId of filters) {
             this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            const evDoc = await getDoc(doc(evCol, dateStr));
+            let evDoc = null;
+            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
             let eList = [];
-            if (evDoc.exists()) {
+            if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
@@ -315,12 +317,14 @@ export class DayView extends BaseView {
             this.dayData[fId].events = eList;
 
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            const scDoc = await getDoc(doc(scCol, dateStr));
-            this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
+            let scDoc = null;
+            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
+            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
 
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            const jrDoc = await getDoc(doc(jrCol, dateStr));
-            let jList = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
+            let jrDoc = null;
+            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
+            let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
             jList = jList.map(j => ({ ...j, labelIds: j.labelIds || [], attachments: j.attachments || [] }));
             if (jList.length === 0) {
                 const masterJournalLabels = getJournalLabels();
@@ -328,6 +332,16 @@ export class DayView extends BaseView {
                 jList.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
             }
             this.dayData[fId].journals = jList;
+        }
+
+        if (hasCacheError) {
+            const doSync = confirm(
+                "현재 기기(캐시)에 이 날짜의 오프라인 데이터가 없습니다.\n클라우드와 동기화하여 데이터를 불러오시겠습니까?\n\n[확인] 온라인 동기화 진행\n[취소] 빈 페이지로 계속 작업"
+            );
+            if (doSync) {
+                if (window.executeManualSync) window.executeManualSync();
+                return; 
+            }
         }
 
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
