@@ -53,10 +53,10 @@ export class WeekView extends BaseView {
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
         
-        let eMap = {}, sMap = {};
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
         try {
             const res = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups);
-            eMap = res.eMap; sMap = res.sMap;
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
         } catch (e) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
         }
@@ -89,7 +89,22 @@ export class WeekView extends BaseView {
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
-              const eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
+              let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
+
+              // 💡 [기록/조사표 아이콘 추가]
+              const jList = jMap[d.dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              const vList = vMap[d.dateStr]?.[fId] || [];
+
+              let metaBadges = '';
+              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
+              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
+
+              if (metaBadges) {
+                  if (processedEvents.length === 0) eventContent = '';
+                  eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+              }
+              if (!eventContent) eventContent = '<span style="color:#94a3b8;">-</span>';
 
               if (idx === 0) {
                   rowsHtmlForDate += `
@@ -164,10 +179,10 @@ export class WeekView extends BaseView {
         const weekDates = this.getWeekDates();
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
         
-        let eMap = {}, sMap = {};
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
         try {
             const res = await fetchCalendarData(weekDates[0].dateStr, weekDates[weekDates.length - 1].dateStr, this.myGroups);
-            eMap = res.eMap; sMap = res.sMap;
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
         } catch (e) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
         }
@@ -220,7 +235,21 @@ export class WeekView extends BaseView {
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
               const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-              const eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+              let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+              
+              // 💡 [기록/조사표 아이콘 추가]
+              const jList = jMap[d.dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              const vList = vMap[d.dateStr]?.[fId] || [];
+
+              let metaBadges = '';
+              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
+              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
+
+              if (metaBadges) {
+                  eventContent += `<div style="margin-top:8px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+              }
+
               const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
               if (idx === 0) {
