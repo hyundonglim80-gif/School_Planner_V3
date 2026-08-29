@@ -395,3 +395,55 @@ if (document.readyState === 'loading') {
 } else {
     applyShortcutTooltips();
 }
+
+// ==========================================================================
+// 💡 오프라인 캐시 누락 시 동기화 선택 팝업 공통 처리 함수
+// ==========================================================================
+window.promptOfflineSync = async (viewInstance, renderMethodName) => {
+    const userChoice = await new Promise(resolve => {
+        const modalId = 'cache-error-modal';
+        const html = `
+            <div style="padding: 20px; text-align: center;">
+                <p style="font-size: 1.05rem; color: #334155; margin-bottom: 25px; line-height: 1.5;">
+                    현재 기기(캐시)에 이 화면의 오프라인 데이터가 없습니다.<br>
+                    <b>클라우드와 동기화하여 데이터를 불러오시겠습니까?</b>
+                </p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btn-cache-cancel" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">빈 페이지로 계속</button>
+                    <button id="btn-cache-sync" data-shortcut-added="true" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">온라인 동기화 진행</button>
+                </div>
+            </div>
+        `;
+        let existingModal = document.getElementById(modalId);
+        if (existingModal) existingModal.remove();
+        
+        const modal = new window.Modal({ id: modalId, title: '⚠️ 오프라인 데이터 없음', width: '400px', content: html });
+        modal.open();
+
+        document.getElementById('btn-cache-cancel').onclick = () => { modal.close(); resolve('cancel'); };
+        document.getElementById('btn-cache-sync').onclick = () => { modal.close(); resolve('sync'); };
+    });
+
+    if (userChoice === 'sync') {
+        if (!navigator.onLine) {
+            alert("기기가 인터넷에 연결되어 있지 않습니다. 와이파이 연결을 확인해주세요.");
+            return true; 
+        }
+        if (viewInstance && viewInstance.showLoading) {
+            viewInstance.showLoading('클라우드에서 데이터를 동기화 중입니다...');
+        }
+        try {
+            if (window.setNetworkOnline) await window.setNetworkOnline();
+            await new Promise(r => setTimeout(r, 1000)); 
+            if (viewInstance && typeof viewInstance[renderMethodName] === 'function') {
+                await viewInstance[renderMethodName](); 
+            }
+        } finally {
+            if (window.setNetworkOffline && localStorage.getItem('workCalendar_offlineMode') === 'true') {
+                await window.setNetworkOffline();
+            }
+        }
+        return true; // 동기화를 정상적으로 진행했음
+    }
+    return false; // 취소를 눌러 빈 페이지로 계속 진행함
+};
