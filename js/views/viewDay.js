@@ -660,9 +660,18 @@ export class DayView extends BaseView {
                 : '';
 
             const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = eLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'event'); // 🎨 고유 색상 불러오기
+                
                 const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
                 const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
-                return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
+                
+                // 💡 동적 스타일 적용 (선택 시 진한 톤/흰 글자, 미선택 시 연한 톤)
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; ${chipCursorStyle} ${dynamicStyle}">${lObj.name}</div>`;
             }).join('');
 
             const checkboxHtml = canComplete 
