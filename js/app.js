@@ -96,9 +96,9 @@ Object.assign(window, {
 });
 
 const applyEnvironmentNetworkMode = () => {
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    // PWA 환경 여부와 상관없이 무조건 온라인을 기본으로 사용
     if (window.toggleNetworkMode) {
-        window.toggleNetworkMode(isPWA ? 'offline' : 'online');
+        window.toggleNetworkMode('online');
     }
 };
 
@@ -447,33 +447,13 @@ window.promptOfflineSync = async (viewInstance, renderMethod) => {
 
     } catch (e) {
         console.error("데이터 불러오기 실패:", e);
-        toast.remove();
         
-        const html = `
-            <div style="padding: 20px; text-align: center;">
-                <h3 style="color:#ef4444; margin-top:0; font-size:1.2rem;">⚠️ 데이터베이스 연결 안 됨</h3>
-                <div style="font-size: 0.95rem; color: #334155; margin-bottom: 20px; line-height: 1.6; text-align:left; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                    현재 인터넷(데이터베이스)에 연결할 수 없어 <b>데이터 없이 빈 페이지</b>를 띄웁니다.<br><br>
-                    💡 <b>안심하세요!</b><br>
-                    현재 빈 화면에 일정을 추가하시더라도 데이터가 날아가지 않습니다. 추후 인터넷이 연결되어 동기화가 진행될 때, 클라우드에 기존 데이터가 있다면 덮어쓰지 않고 안전하게 <b>누적(추가)</b>되어 합쳐집니다.
-                </div>
-                <button id="btn-sync-fail-ok" class="modal-btn-primary" style="background:#2563eb; color:#fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; width:100%;">확인 (빈 페이지 열기)</button>
-            </div>
-        `;
+        toast.style.background = '#ef4444';
+        toast.innerHTML = "⚠️ 오프라인 상태입니다. 빈 페이지로 엽니다.";
+        setTimeout(() => toast.remove(), 3000);
         
-        const modalId = 'sync-fail-modal';
-        let existingModal = document.getElementById(modalId);
-        if (existingModal) existingModal.remove();
-
-        const modal = new window.Modal({ id: modalId, title: '오프라인 접속 안내', width: '420px', content: html });
-        modal.open();
-        
-        document.getElementById('btn-sync-fail-ok').onclick = () => {
-            modal.close();
-        };
-
-        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-        if (window.toggleNetworkMode) window.toggleNetworkMode(isPWA ? 'offline' : 'online');
+        // 에러가 발생해도 온라인 모드(네트워크 시도 상태)를 유지
+        if (window.toggleNetworkMode) window.toggleNetworkMode('online'); 
         
         window.isAutoSyncing = false;
         return false; 
