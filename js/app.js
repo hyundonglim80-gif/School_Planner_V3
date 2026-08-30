@@ -35,7 +35,7 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 💡 [핵심 해결] PWA 설치 앱에서 구버전 캐시로 인해 로딩이 멈추는 현상을 막기 위한 서비스 워커 강제 차단 및 캐시 청소
+// 💡 PWA 설치 앱에서 구버전 캐시로 인해 로딩이 멈추는 현상을 막기 위한 서비스 워커 강제 차단 및 캐시 청소
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let registration of registrations) {
@@ -120,7 +120,22 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 📜 상하 스와이프 및 키보드 단축키 페이지 이동 로직
+// 💡 [핵심 추가] 팝업창(모달) 활성화 여부 확인 헬퍼 함수
+// ==========================================================================
+const isModalOpen = () => {
+    // 1. 공통 Modal 객체로 생성된 팝업 확인
+    const overlay = document.querySelector('.modal-overlay:not(.hidden)');
+    if (overlay && window.getComputedStyle(overlay).display !== 'none') return true;
+    
+    // 2. 수동으로 띄운 특수 팝업(설명서 등) 확인
+    const helpModal = document.getElementById('help-modal');
+    if (helpModal && window.getComputedStyle(helpModal).display !== 'none') return true;
+
+    return false;
+};
+
+// ==========================================================================
+// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
@@ -139,7 +154,10 @@ let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
 window.addEventListener('wheel', (e) => {
-    if (store.mode !== 'viewer' || store.scope === 'memo' || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    // 💡 [버그 해결] 팝업창이 떠있으면 스크롤 화면 이동 로직을 완전히 차단합니다.
+    if (isModalOpen()) return; 
+
+    if (store.mode !== 'viewer' || store.scope === 'memo') return;
     if (scrollNavTimeout) return;
 
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -159,6 +177,9 @@ window.addEventListener('wheel', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
+    // 💡 [버그 해결] 팝업창이 떠있으면 터치 스와이프 감지 시작을 차단합니다.
+    if (isModalOpen()) return;
+
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
@@ -170,7 +191,10 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    if (store.mode !== 'viewer' || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    // 💡 [버그 해결] 팝업창이 떠있으면 스와이프 페이지 이동을 차단합니다.
+    if (isModalOpen()) return;
+
+    if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
 
     const touchEndX = e.changedTouches[0].clientX;
@@ -214,6 +238,9 @@ function executeScrollNav(direction) {
 // 3. 💡 맞춤형 키보드 단축키 이벤트 세트
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
+    // 💡 [버그 해결] 팝업창이 떠있을 때는 단축키를 완전히 비활성화합니다.
+    if (isModalOpen()) return;
+
     const tag = e.target.tagName.toLowerCase();
     const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
     
@@ -396,11 +423,9 @@ if (document.readyState === 'loading') {
 // 💡 캐시 없음(CACHE_MISS) 발생 시: 자동 데이터 불러오기 및 안내 처리
 // ==========================================================================
 window.promptOfflineSync = async (viewInstance, renderMethod) => {
-    // 중복 실행 방지
     if (window.isAutoSyncing) return true;
     window.isAutoSyncing = true;
 
-    // 화면 상단에 로딩(Toast) 알림 띄우기
     const toastId = 'auto-sync-toast';
     let existingToast = document.getElementById(toastId);
     if (existingToast) existingToast.remove();
@@ -412,35 +437,30 @@ window.promptOfflineSync = async (viewInstance, renderMethod) => {
     document.body.appendChild(toast);
 
     try {
-        // 1. 임시로 온라인 모드 전환하여 DB 연결 시도
         if (window.toggleNetworkMode) window.toggleNetworkMode('online');
-        await new Promise(r => setTimeout(r, 1500)); // 연결 안정화 대기
+        await new Promise(r => setTimeout(r, 1500)); 
         
-        // 2. 만능 수동 동기화 함수 실행 (데이터 전체 다운로드)
         if (window.executeManualSync) {
             await window.executeManualSync(); 
         } else {
             throw new Error("동기화 기능 없음");
         }
         
-        // 3. 성공 시 파란색 배지를 초록색 성공 배지로 변경
         toast.style.background = '#059669';
         toast.innerHTML = "✅ 데이터를 성공적으로 불러왔습니다.";
         setTimeout(() => toast.remove(), 2500);
         
         window.isAutoSyncing = false;
         
-        // 4. 데이터가 채워졌으므로 원래 띄우려던 화면을 다시 정상 렌더링
         if (viewInstance && renderMethod) {
             viewInstance[renderMethod]();
         }
-        return true; // 렌더링 제어 완료 (오류 상태 탈출)
+        return true; 
 
     } catch (e) {
         console.error("데이터 불러오기 실패:", e);
         toast.remove();
         
-        // 5. 실패 시 안내 모달 팝업 띄우기 (데이터베이스 연결 불가 시)
         const html = `
             <div style="padding: 20px; text-align: center;">
                 <h3 style="color:#ef4444; margin-top:0; font-size:1.2rem;">⚠️ 데이터베이스 연결 안 됨</h3>
@@ -457,7 +477,6 @@ window.promptOfflineSync = async (viewInstance, renderMethod) => {
         let existingModal = document.getElementById(modalId);
         if (existingModal) existingModal.remove();
 
-        // Modal 객체를 띄움
         const modal = new window.Modal({ id: modalId, title: '오프라인 접속 안내', width: '420px', content: html });
         modal.open();
         
@@ -465,11 +484,10 @@ window.promptOfflineSync = async (viewInstance, renderMethod) => {
             modal.close();
         };
 
-        // 실패했으므로 PWA 환경이면 다시 오프라인 모드로 강제 복귀
         const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         if (window.toggleNetworkMode) window.toggleNetworkMode(isPWA ? 'offline' : 'online');
         
         window.isAutoSyncing = false;
-        return false; // 빈 캐시 상태로 화면 렌더링 강행
+        return false; 
     }
 };
