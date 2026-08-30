@@ -91,7 +91,6 @@ export class WeekView extends BaseView {
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
-              // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               const vList = vMap[d.dateStr]?.[fId] || [];
@@ -241,7 +240,6 @@ export class WeekView extends BaseView {
 
               let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
               
-              // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               const vList = vMap[d.dateStr]?.[fId] || [];
@@ -353,8 +351,11 @@ export class WeekView extends BaseView {
         const validEvents = (window[`tempEvents_${dateStr}`] || [])
             .filter(e => e.content?.trim() || e.labelIds?.length > 0)
             .map(e => ({
-                ...e, id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || auth?.currentUser?.uid, sharedGroupId: e.sharedGroupId || 'personal'
+                ...e, 
+                // 💡 [버그 해결] 라벨 ID 등 기존 메타데이터가 덮어씌워지지 않고 보존됩니다.
+                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                authorId: e.authorId || auth?.currentUser?.uid, 
+                sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) };
     });
