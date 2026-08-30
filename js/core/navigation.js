@@ -167,42 +167,83 @@ export const goToDay = (dateStr) => {
 
     store.currentDate = new Date(dateStr); 
     
-    // 💡 [디자인 핵심] 안쪽 공간 여백 최적화 (24px padding), 하단 버튼바 분리
+    // 💡 [UI 핵심] 상단 타이틀 영역에 이전(◀) / 다음(▶) 네비게이션 버튼과 단축키 툴팁 적용
+    const titleHtml = `
+        <div style="display:flex; align-items:center; gap:12px;">
+            <button id="day-modal-prev-btn" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1rem; color:#475569; transition:all 0.2s;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>이전 날짜 (Ctrl + ⬅️)</span>">◀</button>
+            <span style="font-weight:800; letter-spacing:-0.5px;">📝 ${dateStr}</span>
+            <button id="day-modal-next-btn" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1rem; color:#475569; transition:all 0.2s;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>다음 날짜 (Ctrl + ➡️)</span>">▶</button>
+        </div>
+    `;
+
+    // 💡 [UI 핵심] 하단에 주말 보이기/숨기기 버튼 추가 및 단축키 툴팁 세팅
     const html = `
         <div style="display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0;">
             <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; background: #f8fafc;">
                 <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
             </div>
-            <div style="flex-shrink: 0; padding: 16px 24px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'">
-                    🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
-                </button>
+            <div style="flex-shrink: 0; padding: 16px 24px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:10px;">
+                <div style="display: flex; gap: 10px;">
+                    <button id="day-modal-toggle-weekend-btn" style="background: #fdf4ff; color: #b45309; border: 1px dashed #fde68a; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fdf4ff'" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Shift + ⬆️/⬇️</span>">
+                        📅 주말 ${store.showWeekend ? '숨기기' : '보이기'}
+                    </button>
+                    <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Alt + ⬆️/⬇️</span>">
+                        🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
+                    </button>
+                </div>
                 <div style="display: flex; gap: 10px;">
                     <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">취소</button>
-                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';">💾 저장 및 닫기</button>
+                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Ctrl + Enter</span>">💾 저장 및 닫기</button>
                 </div>
             </div>
         </div>
     `;
 
+    // 💡 [핵심 로직] 팝업창 전용 단축키 스나이퍼 (app.js의 차단을 무시하고 팝업창 안에서 단축키 감지)
+    const handleModalKeydown = (e) => {
+        const tag = e.target.tagName.toLowerCase();
+        const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+        
+        // 글자를 입력 중이지 않을 때 방향키 로직 작동
+        if (!isInput) {
+            if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
+                e.preventDefault(); document.getElementById('day-modal-prev-btn')?.click();
+            } else if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowRight') {
+                e.preventDefault(); document.getElementById('day-modal-next-btn')?.click();
+            } else if (e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault(); document.getElementById('day-modal-toggle-weekend-btn')?.click();
+            } else if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault(); document.getElementById('day-modal-toggle-class-btn')?.click();
+            }
+        }
+        
+        // Ctrl+Enter는 텍스트 작성 중에도 바로 저장되도록 항상 감지
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault(); document.getElementById('day-modal-save-btn')?.click();
+        }
+    };
+
     const dayModal = new window.Modal({
         id: 'day-editor-modal',
-        title: `📝 ${dateStr} 일정 및 기록`,
+        title: titleHtml,
         width: '1100px',
         content: html,
         onClose: () => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
+            // 팝업이 닫히면 단축키 리스너를 깔끔하게 해제
+            document.removeEventListener('keydown', handleModalKeydown);
             if (window.render) window.render(); 
         }
     });
 
     dayModal.open();
+    document.addEventListener('keydown', handleModalKeydown); // 팝업 전용 단축키 켜기
 
     setTimeout(() => {
         const modalContainer = document.getElementById('day-modal-body');
         if (modalContainer) {
             const modalHeader = modalContainer.closest('.modal-content')?.querySelector('.modal-header');
-            const closeBtn = modalHeader?.querySelector('button');
+            const closeBtn = modalHeader?.querySelector('.btn-close-modal');
             if (closeBtn && !document.getElementById('btn-pin-day')) {
                 let btnWrapper = closeBtn.parentNode;
                 if (btnWrapper === modalHeader) {
@@ -233,9 +274,57 @@ export const goToDay = (dateStr) => {
             }
         }
 
-        const toggleBtn = document.getElementById('day-modal-toggle-class-btn');
-        if (toggleBtn) {
-            toggleBtn.onclick = (e) => {
+        // 💡 [기능 연결] 이전/다음 날짜 네비게이션 함수
+        const navigateDay = async (dir) => {
+            // 1. 현재 창의 수정 사항 자동 저장
+            if (store.hasUnsavedChanges && window.dayViewInstance) {
+                const saveBtn = document.getElementById('day-modal-save-btn');
+                if(saveBtn) { saveBtn.innerHTML = '⏳'; saveBtn.style.opacity = '0.7'; }
+                await window.dayViewInstance.save();
+                if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+            }
+            store.hasUnsavedChanges = false;
+
+            // 2. 날짜 계산 (주말 숨기기 상태면 토/일 자동 건너뛰기)
+            const d = new Date(store.currentDate);
+            d.setDate(d.getDate() + dir);
+            
+            if (!store.showWeekend) {
+                const dayOfWeek = d.getDay();
+                if (dir > 0 && dayOfWeek === 6) d.setDate(d.getDate() + 2);
+                else if (dir > 0 && dayOfWeek === 0) d.setDate(d.getDate() + 1);
+                else if (dir < 0 && dayOfWeek === 0) d.setDate(d.getDate() - 2);
+                else if (dir < 0 && dayOfWeek === 6) d.setDate(d.getDate() - 1);
+            }
+
+            const newDateStr = formatDate(d);
+            
+            // 3. 현재 팝업 깔끔하게 닫고 새 팝업 띄우기
+            dayModal.close();
+            setTimeout(() => window.goToDay(newDateStr), 50);
+        };
+
+        const prevBtn = document.getElementById('day-modal-prev-btn');
+        if (prevBtn) prevBtn.onclick = () => navigateDay(-1);
+        
+        const nextBtn = document.getElementById('day-modal-next-btn');
+        if (nextBtn) nextBtn.onclick = () => navigateDay(1);
+
+        // 💡 [기능 연결] 주말 토글 버튼
+        const toggleWeekendBtn = document.getElementById('day-modal-toggle-weekend-btn');
+        if (toggleWeekendBtn) {
+            toggleWeekendBtn.onclick = (e) => {
+                store.showWeekend = !store.showWeekend;
+                localStorage.setItem('workCalendar_showWeekend_' + store.scope, store.showWeekend ? 'true' : 'false');
+                e.target.innerHTML = `📅 주말 ${store.showWeekend ? '숨기기' : '보이기'}`;
+                if (window.updateButtonUI) window.updateButtonUI();
+            };
+        }
+
+        // 💡 [기능 연결] 수업 토글 버튼
+        const toggleClassBtn = document.getElementById('day-modal-toggle-class-btn');
+        if (toggleClassBtn) {
+            toggleClassBtn.onclick = (e) => {
                 store.showClass = !store.showClass;
                 localStorage.setItem('workCalendar_showClass_' + store.scope, store.showClass ? 'true' : 'false');
                 localStorage.setItem('workCalendar_showClass_day', store.showClass ? 'true' : 'false');
@@ -247,7 +336,6 @@ export const goToDay = (dateStr) => {
                     const wrappers = modalBody.querySelectorAll('.day-schedule-wrapper');
                     wrappers.forEach(w => w.style.display = store.showClass ? 'flex' : 'none');
                 }
-                
                 if (window.updateButtonUI) window.updateButtonUI();
             };
         }
