@@ -13,7 +13,6 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
         throw new Error("CACHE_MISS");
     }
 
-    // 💡 [추가] 기록(jMap)과 조사표(vMap)를 함께 불러옵니다.
     const eMap = {}, sMap = {}, jMap = {}, vMap = {};
     const promises = [];
 
@@ -166,5 +165,10 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
     });
 
     if (opCount > 0) batchPromises.push(batch.commit());
-    await Promise.all(batchPromises).catch(e => console.warn(e));
+    
+    // 💡 [핵심 해결] 오프라인일 경우 무한 대기하지 않고 즉시 로컬 캐시 저장을 완료로 간주하도록 처리
+    await Promise.race([
+        Promise.all(batchPromises),
+        new Promise(r => setTimeout(r, 300))
+    ]).catch(e => console.warn(e));
 };
