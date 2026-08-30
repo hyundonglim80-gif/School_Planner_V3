@@ -464,6 +464,108 @@ export const EventManager = {
         if (onConfirm) onConfirm();
     },
 
+    showGroupUpdateModal: function(baseDateStr, groupId, oldContent, newContent, onConfirmGroup, onOnlyThisDay, onCancel) {
+        const modalHtml = `
+        <div id="group-update-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
+            <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
+                <h3 style="color:#059669; margin-top:0;">🔄 반복/기간 일정 수정</h3>
+                <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;"><b>'반복 또는 기간'</b>으로 연결된 일정의 내용이 수정되었습니다.<br>이 변경 사항을 어떻게 적용할까요?</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="btn-upd-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">1. 이 일정만 수정 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span></button>
+                    <button id="btn-upd-after-this" style="padding:12px; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; cursor:pointer; font-weight:bold; color:#059669; text-align:left;">2. 이 날부터 이후 모든 연결된 일정 수정</button>
+                    <button id="btn-upd-all" style="padding:12px; background:#dcfce3; border:1px solid #86efac; border-radius:8px; cursor:pointer; font-weight:bold; color:#15803d; text-align:left;">3. 전체 그룹 일정 모두 수정 <span style="font-size:0.8rem; font-weight:normal; color:#16a34a;">(과거 포함)</span></button>
+                    <button id="btn-upd-cancel" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소 (원래대로)</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        const baseContent = oldContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+
+        document.getElementById('btn-upd-only-this').onclick = () => { document.getElementById('group-update-modal').remove(); if (onOnlyThisDay) onOnlyThisDay(); };
+        document.getElementById('btn-upd-after-this').onclick = async () => { await this.executeGroupUpdate('after', baseDateStr, groupId, baseContent, newContent, onConfirmGroup); };
+        document.getElementById('btn-upd-all').onclick = async () => { await this.executeGroupUpdate('all', baseDateStr, groupId, baseContent, newContent, onConfirmGroup); };
+        document.getElementById('btn-upd-cancel').onclick = () => { document.getElementById('group-update-modal').remove(); if (onCancel) onCancel(); };
+    },
+
+    // 🌟 [추가된 부분] 일괄 수정 처리 로직
+    executeGroupUpdate: async function(mode, baseDateStr, groupId, oldContent, newContent, onConfirm) {
+        document.getElementById('group-update-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#059669; text-align:center;">⏳ 일괄 수정 처리 중...</div>`;
+
+        const getBase = (c) => (c || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
+        const cleanNewContent = getBase(newContent);
+
+        const matchEvent = (e) => {
+            if (e.groupId !== groupId) return false;
+            return getBase(e.content) === oldContent;
+        };
+
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+            window.dayViewInstance.currentEvents.forEach(e => {
+                if (matchEvent(e)) {
+                    const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                    e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                }
+            });
+        }
+        Object.keys(window).forEach(key => {
+            if (key.startsWith('tempEvents_')) {
+                const dStr = key.replace('tempEvents_', '');
+                if (mode === 'after' && dStr < baseDateStr) return;
+                window[key].forEach(e => {
+                    if (matchEvent(e)) {
+                        const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                        e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                    }
+                });
+            }
+        });
+
+        try {
+            let myGroups = [];
+            try { myGroups = await dbAPI.loadMyGroups(); } catch(e) {}
+            const colsToSearch = [getUserCol('events'), ...myGroups.map(g => getGroupCol(g.id, 'events'))];
+
+            let batch = writeBatch(db); let count = 0; let batchPromises = []; 
+
+            for (const col of colsToSearch) {
+                let q = col;
+                if (mode === 'after') q = query(q, where(documentId(), '>=', baseDateStr));
+                const snap = await getDocs(q);
+                
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    let list = data.eventList || [];
+                    let docChanged = false;
+
+                    list.forEach(e => {
+                        if (matchEvent(e)) {
+                            const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                            e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                            docChanged = true;
+                        }
+                    });
+
+                    if (docChanged) {
+                        let updateData = { eventList: list, eventText: formatEventListToText(list), updatedAt: Date.now() };
+                        batch.update(docSnap.ref, updateData);
+                        count++;
+                        if (count >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); count = 0; }
+                    }
+                });
+            }
+            if (count > 0) batchPromises.push(batch.commit());
+            
+            await Promise.race([
+                Promise.all(batchPromises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
+        } catch(e) { console.error("일괄 수정 오류:", e); }
+
+        document.getElementById('group-update-modal')?.remove();
+        if (onConfirm) onConfirm();
+    },
+
     currentCallback: null,
     currentLabelName: '',
     currentContent: '',
