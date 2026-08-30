@@ -1,5 +1,15 @@
 // js/components/Modal.js
 
+// ==========================================================================
+// 💡 [핵심 추가] 페이지 전환/새로고침 시 팝업 카운터 강제 초기화 (안전장치)
+// ==========================================================================
+window.resetModalCount = () => {
+    window.activeModalCount = 0;
+    ModalManager.stack = [];
+};
+// 브라우저 뒤로가기 등 히스토리 변경 시 카운터 0으로 초기화
+window.addEventListener('popstate', window.resetModalCount);
+
 // 모든 팝업창을 통제하는 전역 관리자
 export class ModalManager {
     static stack = [];
@@ -17,7 +27,7 @@ export class ModalManager {
     static closeTop() {
         if (this.stack.length > 0) {
             const topModal = this.stack[this.stack.length - 1];
-            topModal.close();
+            topModal.close(); // 내부에서 자동으로 -1 처리됨
             return true;
         }
         return false;
@@ -25,7 +35,7 @@ export class ModalManager {
 }
 
 // ==========================================================================
-// 🚀 모든 팝업(레거시 포함) z-index 자동 최상단 끌어올리기 엔진 (팝업 겹침 완벽 해결)
+// 🚀 모든 팝업(레거시 포함) z-index 자동 최상단 끌어올리기 엔진
 // ==========================================================================
 const zIndexObserver = new MutationObserver((mutations) => {
     mutations.forEach(mutation => {
@@ -47,7 +57,7 @@ const zIndexObserver = new MutationObserver((mutations) => {
 zIndexObserver.observe(document.body, { childList: true });
 
 // ==========================================================================
-// 🌐 전역 팝업(모달) 안전 종료 엔진 (ESC 키 & 바깥 영역 클릭 완벽 제어)
+// 🌐 전역 팝업(모달) 안전 종료 엔진 (ESC 키 & 바깥 영역 클릭 시 -1 완벽 연동)
 // ==========================================================================
 
 // 1. 바깥 영역(어두운 배경) 클릭 시 닫기
@@ -58,29 +68,31 @@ document.addEventListener('mousedown', (e) => {
                       e.target.id === 'image-viewer-modal';
 
     if (isOverlay) {
-        // ① Modal.js 클래스로 정식 생성된 팝업인 경우 (스택에서 찾아 안전하게 종료)
+        // ① 정식 Modal 객체인 경우 (close 메서드 호출 시 알아서 -1 됨)
         const matchedModal = ModalManager.stack.find(m => m.element === e.target);
         if (matchedModal) {
             matchedModal.close();
             return;
         }
 
-        // ② index.html에 하드코딩된 예외 팝업인 경우 (DOM 삭제 대신 숨김 처리)
+        // ② 예외 팝업 (이미지 뷰어 등)
         if (e.target.id === 'image-viewer-modal') {
             e.target.classList.add('hidden');
             e.target.style.display = 'none';
+            if (window.decreaseModalCount) window.decreaseModalCount(); // 💡 강제 닫힘이므로 -1
             return;
         }
 
-        // ③ 로그인 창은 바깥을 클릭해도 닫히면 안 되므로 예외 처리
+        // ③ 로그인 창은 바깥 클릭 무시
         if (e.target.id === 'login-screen') return;
 
-        // ④ [버그 픽스] 레거시 팝업의 경우 HTML만 지우면 변수 초기화가 안 되므로 닫기 버튼을 찾아서 클릭 이벤트를 발생시킴
+        // ④ 기타 팝업 (닫기 버튼을 찾아 누르거나, 없으면 삭제 후 -1)
         const closeBtn = e.target.querySelector('.btn-close-modal, .close-btn, button[onclick*="close"]');
         if (closeBtn) {
-            closeBtn.click();
+            closeBtn.click(); // 버튼의 클릭 이벤트에 닫기 로직이 연결되어 있음
         } else {
             e.target.remove();
+            if (window.decreaseModalCount) window.decreaseModalCount(); // 💡 강제 삭제이므로 -1
         }
     }
 });
@@ -88,10 +100,10 @@ document.addEventListener('mousedown', (e) => {
 // 2. ESC 키 입력 시 닫기
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        // ① 정식 팝업이 스택에 있다면 가장 위의 것부터 닫기
+        // ① 스택에 있는 팝업부터 닫기 (내부에서 알아서 -1)
         if (ModalManager.closeTop()) return;
 
-        // ② 스택에는 없지만 화면에 강제로 떠 있는 수동 팝업들을 찾아서 닫기
+        // ② 스택에 없는 레거시 수동 팝업들 찾아서 닫기
         const visibleOverlays = Array.from(document.querySelectorAll('.modal-overlay, #help-modal, #link-modal, #image-viewer-modal')).filter(el => {
             const style = window.getComputedStyle(el);
             return style.display !== 'none' && el.id !== 'login-screen' && !el.classList.contains('hidden');
@@ -99,14 +111,19 @@ document.addEventListener('keydown', (e) => {
 
         if (visibleOverlays.length > 0) {
             const topOverlay = visibleOverlays[visibleOverlays.length - 1];
+            
             if (topOverlay.id === 'image-viewer-modal') {
                 topOverlay.classList.add('hidden');
                 topOverlay.style.display = 'none';
+                if (window.decreaseModalCount) window.decreaseModalCount(); // 💡 ESC 강제 닫힘이므로 -1
             } else {
-                // [버그 픽스] ESC 종료 시에도 닫기 버튼을 클릭하여 시스템 정상 종료 유도
                 const closeBtn = topOverlay.querySelector('.btn-close-modal, .close-btn, button[onclick*="close"]');
-                if (closeBtn) closeBtn.click();
-                else topOverlay.remove();
+                if (closeBtn) {
+                    closeBtn.click();
+                } else {
+                    topOverlay.remove();
+                    if (window.decreaseModalCount) window.decreaseModalCount(); // 💡 ESC 강제 삭제이므로 -1
+                }
             }
         }
     }
@@ -128,7 +145,6 @@ export class Modal {
     create() {
         if (document.getElementById(this.id)) {
             this.element = document.getElementById(this.id);
-            // 기존 팝업 재사용 시 내용(content) 최신화 보장
             const body = this.element.querySelector('.modal-body');
             if(body) body.innerHTML = this.content;
             return;
@@ -166,16 +182,21 @@ export class Modal {
         ModalManager.push(this);
         this.element.classList.remove('hidden');
         this.element.style.display = 'flex';
+        
+        // 💡 [팝업 열림] 카운터 +1 증가
+        if (window.increaseModalCount) window.increaseModalCount();
     }
 
     close() {
         if (this.element) {
-            // [버그 픽스] 다음번 렌더링 시 최신 데이터를 보장하기 위해 아예 삭제
             this.element.remove();
             this.element = null;
         }
         if (this.onClose) this.onClose();
         ModalManager.pop(this);
+        
+        // 💡 [팝업 닫힘] 카운터 -1 감소
+        if (window.decreaseModalCount) window.decreaseModalCount();
     }
 }
 
