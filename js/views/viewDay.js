@@ -260,10 +260,11 @@ export class DayView extends BaseView {
             </div>`;
         });
 
+        // 💡 [UI 구조 업데이트] day-schedule-wrapper 클래스 추가
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
-            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
+            <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
           </div>
         `;
@@ -432,13 +433,14 @@ export class DayView extends BaseView {
             </div>`;
         });
 
+        // 💡 [UI 구조 업데이트] day-schedule-wrapper 클래스 추가
         this.container.innerHTML = `
           <style>
             .table-container.is-dragging .editable-cell { pointer-events: none !important; user-select: none !important; }
           </style>
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
-            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
+            <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
           </div>
         `;
@@ -900,6 +902,14 @@ export class DayView extends BaseView {
     syncScheduleInputs(fId) {
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
+
+        // 💡 [버그 픽스] display:none 상태에서는 innerText가 빈 문자열을 반환하여 기존 시간표 데이터가 덮어씌워져 삭제되는 치명적 현상을 방지
+        const wrapper = tbody.closest('.day-schedule-wrapper');
+        const wasHidden = wrapper && window.getComputedStyle(wrapper).display === 'none';
+        
+        // 텍스트를 읽어오기 위해 잠깐(0.01초 이하) 화면에 블록 요소로 렌더링
+        if (wasHidden) wrapper.style.display = 'flex';
+
         this.dayData[fId].schedules = {};
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
             const p = row.getAttribute('data-period');
@@ -908,6 +918,10 @@ export class DayView extends BaseView {
             const supplies = row.querySelector('.cell-supplies').innerText.trim();
             if (subject || memo || supplies) this.dayData[fId].schedules[p] = { subject, memo, supplies };
         });
+
+        // 텍스트 추출이 끝났으므로 다시 숨김 처리
+        if (wasHidden) wrapper.style.display = 'none';
+        
         store.hasUnsavedChanges = true;
     }
 
@@ -953,8 +967,6 @@ export class DayView extends BaseView {
         });
 
         try {
-            // 💡 [버그 해결] 무한 대기를 유발하던 무의미한 서버 데이터 fetch 로직을 삭제했습니다.
-            
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
                 const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -978,7 +990,6 @@ export class DayView extends BaseView {
                 }, { merge: true }));
             });
             
-            // 💡 [버그 해결] 오프라인일 때 서버 응답을 무한정 기다리지 않고 즉시 로컬 캐시 저장을 반환하도록 타임아웃(300ms) 적용
             await Promise.race([
                 Promise.all(promises),
                 new Promise(resolve => setTimeout(resolve, 300))
