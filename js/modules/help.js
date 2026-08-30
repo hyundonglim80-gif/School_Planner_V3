@@ -2,7 +2,10 @@
 
 export const openHelpModal = function() {
     let existingModal = document.getElementById('help-modal');
-    if (existingModal) existingModal.remove();
+    if (existingModal) {
+        existingModal.remove();
+        if (window.decreaseModalCount) window.decreaseModalCount();
+    }
 
     const hideHelp = localStorage.getItem('workCalendar_hideHelp_v7') === 'true';
 
@@ -15,7 +18,7 @@ export const openHelpModal = function() {
                     <h2 style="margin:0 0 4px 0; color:#1e40af; font-size:1.35rem;">📖 School Planner V3.7 (SP3.7) 사용 설명서</h2>
                     <p style="margin:0; color:#64748b; font-size:0.9rem;">바쁜 학급 운영과 행정 업무를 스마트하고 안전하게 관리하는 핵심 가이드입니다.</p>
                 </div>
-                <button onclick="document.getElementById('help-modal').remove()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
+                <button id="btn-help-x" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
             </div>
 
             <div style="padding:25px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem;">
@@ -185,12 +188,34 @@ export const openHelpModal = function() {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    if (window.increaseModalCount) window.increaseModalCount(); // 팝업 열림 처리
 
-    document.getElementById('btn-close-help').onclick = function() {
-        const isChecked = document.getElementById('chk-hide-help').checked;
-        localStorage.setItem('workCalendar_hideHelp_v7', isChecked ? 'true' : 'false');
-        document.getElementById('help-modal').remove();
+    // 💡 안전한 닫기 처리를 위한 공통 함수
+    const closeModal = () => {
+        const modal = document.getElementById('help-modal');
+        if (modal) {
+            const isChecked = document.getElementById('chk-hide-help').checked;
+            localStorage.setItem('workCalendar_hideHelp_v7', isChecked ? 'true' : 'false');
+            modal.remove();
+            if (window.decreaseModalCount) window.decreaseModalCount(); // 팝업 닫힘 처리
+            document.removeEventListener('keydown', handleEsc); // 이벤트 리스너 청소
+        }
     };
+
+    // ESC 키로 닫기
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    // 반투명 배경 클릭 시 닫기
+    document.getElementById('help-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'help-modal') closeModal();
+    });
+
+    // 버튼 클릭 시 닫기
+    document.getElementById('btn-close-help').onclick = closeModal;
+    document.getElementById('btn-help-x').onclick = closeModal;
 };
 
 // ==========================================================================
