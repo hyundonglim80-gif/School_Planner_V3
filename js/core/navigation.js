@@ -167,19 +167,19 @@ export const goToDay = (dateStr) => {
 
     store.currentDate = new Date(dateStr); 
     
-    // 💡 [핵심 수정] 이중 스크롤을 막기 위해 높이를 100%로 채우고, 버튼 영역은 고정(flex-shrink: 0), 에디터 영역만 스크롤(flex: 1)로 설정했습니다.
+    // 💡 [디자인 핵심] 안쪽 공간 여백 최적화 (24px padding), 하단 버튼바 분리
     const html = `
         <div style="display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0;">
-            <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 15px; background: #f8fafc;">
+            <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; background: #f8fafc;">
                 <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
             </div>
-            <div style="flex-shrink: 0; padding: 15px 20px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 12px 12px;">
-                <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;">
+            <div style="flex-shrink: 0; padding: 16px 24px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'">
                     🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
                 </button>
                 <div style="display: flex; gap: 10px;">
-                    <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
-                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+                    <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">취소</button>
+                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';">💾 저장 및 닫기</button>
                 </div>
             </div>
         </div>
@@ -187,7 +187,7 @@ export const goToDay = (dateStr) => {
 
     const dayModal = new window.Modal({
         id: 'day-editor-modal',
-        title: `📝 ${dateStr} 일정 및 기록 작성`,
+        title: `📝 ${dateStr} 일정 및 기록`,
         width: '1100px',
         content: html,
         onClose: () => {
@@ -215,7 +215,7 @@ export const goToDay = (dateStr) => {
                 const pinBtn = document.createElement('button');
                 pinBtn.id = 'btn-pin-day'; pinBtn.innerHTML = '📌';
                 pinBtn.title = '팝업창을 닫고 하루(기본) 페이지 전체화면으로 엽니다.';
-                pinBtn.style.cssText = 'background:none; border:none; font-size:1.3rem; cursor:pointer; margin-right:12px; transition:transform 0.2s; display:flex; align-items:center; justify-content:center;';
+                pinBtn.style.cssText = 'background:none; border:none; font-size:1.3rem; cursor:pointer; margin-right:12px; transition:transform 0.2s; display:flex; align-items:center; justify-content:center; padding:0;';
                 pinBtn.onmouseover = () => pinBtn.style.transform = 'scale(1.2)';
                 pinBtn.onmouseout = () => pinBtn.style.transform = 'scale(1)';
                 
