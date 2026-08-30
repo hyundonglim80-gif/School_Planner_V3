@@ -464,11 +464,12 @@ export const EventManager = {
         if (onConfirm) onConfirm();
     },
 
+    // 🌟 [추가된 부분] 그룹 일정 내용 일괄 수정 모달
     showGroupUpdateModal: function(baseDateStr, groupId, oldContent, newContent, onConfirmGroup, onOnlyThisDay, onCancel) {
         const modalHtml = `
         <div id="group-update-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
             <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
-                <h3 style="color:#059669; margin-top:0;">🔄 반복/기간 일정 수정</h3>
+                <h3 style="color:#059669; margin-top:0;">🔄 반복/기간 일정 일괄 수정</h3>
                 <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;"><b>'반복 또는 기간'</b>으로 연결된 일정의 내용이 수정되었습니다.<br>이 변경 사항을 어떻게 적용할까요?</p>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <button id="btn-upd-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">1. 이 일정만 수정 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span></button>
