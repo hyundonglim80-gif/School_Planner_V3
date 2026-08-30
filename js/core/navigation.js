@@ -13,7 +13,6 @@ export const toggleWeekend = () => toggleState('showWeekend');
 export const toggleClass = () => toggleState('showClass');
 
 export const updateDateFromScroll = () => {
-    // 💡 [버그 수정] 월간(month) 뷰에서는 페이지 내 스크롤로 날짜가 변경되지 않도록 차단 (패딩 날짜로 튕기는 현상 방지)
     if (store.scope === 'memo' || store.scope === 'day' || store.scope === 'month') return;
     
     let dateElements = [];
@@ -167,13 +166,20 @@ export const goToDay = (dateStr) => {
     }
 
     store.currentDate = new Date(dateStr); 
+    
+    // 💡 [UI 추가] 팝업창 하단에 '수업 숨기기/보이기' 토글 버튼 추가
     const html = `
         <div id="day-modal-body" style="max-height: 75vh; overflow-y: auto; overflow-x: hidden; padding: 10px; background: #f8fafc; border-radius: 8px;">
             <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
         </div>
-        <div style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-            <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
-            <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+        <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+            <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;">
+                🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
+            </button>
+            <div style="display: flex; gap: 10px;">
+                <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
+                <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+            </div>
         </div>
     `;
 
@@ -223,6 +229,27 @@ export const goToDay = (dateStr) => {
                 };
                 btnWrapper.insertBefore(pinBtn, closeBtn);
             }
+        }
+
+        // 💡 [기능 연결] 수업 보이기/숨기기 토글 버튼 이벤트
+        const toggleBtn = document.getElementById('day-modal-toggle-class-btn');
+        if (toggleBtn) {
+            toggleBtn.onclick = (e) => {
+                store.showClass = !store.showClass;
+                localStorage.setItem('workCalendar_showClass_' + store.scope, store.showClass ? 'true' : 'false');
+                localStorage.setItem('workCalendar_showClass_day', store.showClass ? 'true' : 'false');
+                
+                e.target.innerHTML = `🏫 수업 ${store.showClass ? '숨기기' : '보이기'}`;
+                
+                // 데이터 유실을 막기 위해 팝업창 내에서 DOM 디스플레이 속성만 빠르고 안전하게 전환
+                const modalBody = document.getElementById('day-modal-body');
+                if (modalBody) {
+                    const wrappers = modalBody.querySelectorAll('.day-schedule-wrapper');
+                    wrappers.forEach(w => w.style.display = store.showClass ? 'flex' : 'none');
+                }
+                
+                if (window.updateButtonUI) window.updateButtonUI();
+            };
         }
 
         if (modalContainer && window.dayViewInstance) {
