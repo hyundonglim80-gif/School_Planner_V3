@@ -1,4 +1,5 @@
 // js/views/viewDay.js
+
 import { BaseView } from '../components/BaseView.js';
 import { store } from '../core/store.js';
 import { formatDate, parseLocalDate, getEventLabels, getJournalLabels, getLabelStyle, isRedDay, getHolidayName } from '../core/utils.js';
@@ -260,7 +261,6 @@ export class DayView extends BaseView {
             </div>`;
         });
 
-        // 💡 [UI 구조 업데이트] day-schedule-wrapper 클래스 추가
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
@@ -433,7 +433,6 @@ export class DayView extends BaseView {
             </div>`;
         });
 
-        // 💡 [UI 구조 업데이트] day-schedule-wrapper 클래스 추가
         this.container.innerHTML = `
           <style>
             .table-container.is-dragging .editable-cell { pointer-events: none !important; user-select: none !important; }
@@ -450,6 +449,8 @@ export class DayView extends BaseView {
               this.renderEventEntries(fId);
               this.renderJournalEntries(fId);
           });
+          // 🌟 [추가된 줄] 수정 전 데이터 기억하기 (일괄 수정 감지용 백업)
+          this.originalEventsBackup = JSON.parse(JSON.stringify(this.dayData));
         }, 0);
     }
 
@@ -661,12 +662,11 @@ export class DayView extends BaseView {
 
             const chipsHtml = allLabelsObj.map(lObj => {
                 const isActive = eLabelIds.includes(lObj.id);
-                const style = getLabelStyle(lObj.id, 'event'); // 🎨 고유 색상 불러오기
+                const style = getLabelStyle(lObj.id, 'event'); 
                 
                 const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
                 const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
                 
-                // 💡 동적 스타일 적용 (선택 시 진한 톤/흰 글자, 미선택 시 연한 톤)
                 const dynamicStyle = isActive 
                     ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
                     : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
@@ -714,9 +714,8 @@ export class DayView extends BaseView {
             const jLabelIds = j.labelIds || [];
             const chipsHtml = allLabelsObj.map(lObj => {
                 const isActive = jLabelIds.includes(lObj.id);
-                const style = getLabelStyle(lObj.id, 'journal'); // 🎨 고유 색상 불러오기
+                const style = getLabelStyle(lObj.id, 'journal'); 
                 
-                // 💡 동적 스타일 적용
                 const dynamicStyle = isActive 
                     ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
                     : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
@@ -920,11 +919,9 @@ export class DayView extends BaseView {
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
 
-        // 💡 [버그 픽스] display:none 상태에서는 innerText가 빈 문자열을 반환하여 기존 시간표 데이터가 덮어씌워져 삭제되는 치명적 현상을 방지
         const wrapper = tbody.closest('.day-schedule-wrapper');
         const wasHidden = wrapper && window.getComputedStyle(wrapper).display === 'none';
         
-        // 텍스트를 읽어오기 위해 잠깐(0.01초 이하) 화면에 블록 요소로 렌더링
         if (wasHidden) wrapper.style.display = 'flex';
 
         this.dayData[fId].schedules = {};
@@ -936,7 +933,6 @@ export class DayView extends BaseView {
             if (subject || memo || supplies) this.dayData[fId].schedules[p] = { subject, memo, supplies };
         });
 
-        // 텍스트 추출이 끝났으므로 다시 숨김 처리
         if (wasHidden) wrapper.style.display = 'none';
         
         store.hasUnsavedChanges = true;
@@ -953,6 +949,65 @@ export class DayView extends BaseView {
             this.syncScheduleInputs(fId);
         });
 
+        // 🌟 [핵심 로직] 저장 직전에 그룹 일정의 내용 변경을 감지하고 팝업 띄우기
+        if (!this.isGroupUpdateBypassed && window.EventManager && typeof window.EventManager.showGroupUpdateModal === 'function') {
+            let changedGroupEvent = null;
+            
+            for (const fId of window.activeUnifiedFilters) {
+                const currentEvents = this.dayData[fId].events;
+                const origEvents = this.originalEventsBackup?.[fId]?.events || [];
+                
+                for (let i = 0; i < currentEvents.length; i++) {
+                    const cEv = currentEvents[i];
+                    if (cEv.groupId) { // 그룹으로 묶인 일정인 경우
+                        const oEv = origEvents.find(e => e.id === cEv.id);
+                        if (oEv && oEv.content !== cEv.content) {
+                            changedGroupEvent = { fId, cEv, oEv };
+                            break;
+                        }
+                    }
+                }
+                if (changedGroupEvent) break;
+            }
+
+            // 변경된 그룹 일정을 하나라도 찾았다면 저장을 멈추고 팝업을 띄움
+            if (changedGroupEvent) {
+                return new Promise((resolve) => {
+                    window.EventManager.showGroupUpdateModal(
+                        dateStr,
+                        changedGroupEvent.cEv.groupId,
+                        changedGroupEvent.oEv.content,
+                        changedGroupEvent.cEv.content,
+                        async () => { // [2번 또는 3번] 일괄 적용 클릭 시
+                            this.isGroupUpdateBypassed = true; // 무한 반복 방지
+                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                                const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
+                                if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
+                            }
+                            await this.save(); // 다시 저장 시도
+                            resolve();
+                        },
+                        async () => { // [1번] 이 일정만 수정 클릭 시
+                            this.isGroupUpdateBypassed = true;
+                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                                const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
+                                if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
+                            }
+                            await this.save();
+                            resolve();
+                        },
+                        () => { // [취소] 클릭 시 원래 내용으로 되돌림
+                            changedGroupEvent.cEv.content = changedGroupEvent.oEv.content;
+                            this.renderEventEntries(changedGroupEvent.fId); // 화면상 텍스트 원상복구
+                            resolve();
+                        }
+                    );
+                });
+            }
+        }
+        this.isGroupUpdateBypassed = false; // 플래그 초기화
+
+        // --- 여기서부터 원래의 데이터 스냅샷 생성 및 저장 로직 ---
         const snapshot = [{
             dateStr: dateStr,
             validEvents: [],
