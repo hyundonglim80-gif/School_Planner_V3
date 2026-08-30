@@ -35,7 +35,6 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 💡 PWA 설치 앱에서 구버전 캐시로 인해 로딩이 멈추는 현상을 막기 위한 서비스 워커 강제 차단 및 캐시 청소
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let registration of registrations) {
@@ -96,12 +95,8 @@ Object.assign(window, {
     openRecurringModal: (...args) => EventManager.openRecurringModal(...args)
 });
 
-// ==========================================================================
-// 💡 앱 초기화 및 접속 환경(PWA/브라우저)에 따른 네트워크 기본 모드 설정
-// ==========================================================================
 const applyEnvironmentNetworkMode = () => {
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    
     if (window.toggleNetworkMode) {
         window.toggleNetworkMode(isPWA ? 'offline' : 'online');
     }
@@ -120,19 +115,19 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 [핵심 추가] 팝업창(모달) 활성화 여부 확인 헬퍼 함수
+// 💡 [핵심 최적화] 팝업창(모달) 상태 변수 기반 관리 (+1 / -1 로직)
 // ==========================================================================
-const isModalOpen = () => {
-    // 1. 공통 Modal 객체로 생성된 팝업 확인
-    const overlay = document.querySelector('.modal-overlay:not(.hidden)');
-    if (overlay && window.getComputedStyle(overlay).display !== 'none') return true;
-    
-    // 2. 수동으로 띄운 특수 팝업(설명서 등) 확인
-    const helpModal = document.getElementById('help-modal');
-    if (helpModal && window.getComputedStyle(helpModal).display !== 'none') return true;
+window.activeModalCount = 0;
 
-    return false;
+window.increaseModalCount = () => { 
+    window.activeModalCount++; 
 };
+
+window.decreaseModalCount = () => { 
+    if (window.activeModalCount > 0) window.activeModalCount--; 
+};
+
+const isModalOpen = () => window.activeModalCount > 0;
 
 // ==========================================================================
 // 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직
@@ -154,7 +149,6 @@ let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
 window.addEventListener('wheel', (e) => {
-    // 💡 [버그 해결] 팝업창이 떠있으면 스크롤 화면 이동 로직을 완전히 차단합니다.
     if (isModalOpen()) return; 
 
     if (store.mode !== 'viewer' || store.scope === 'memo') return;
@@ -177,7 +171,6 @@ window.addEventListener('wheel', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
-    // 💡 [버그 해결] 팝업창이 떠있으면 터치 스와이프 감지 시작을 차단합니다.
     if (isModalOpen()) return;
 
     touchStartX = e.touches[0].clientX;
@@ -191,7 +184,6 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    // 💡 [버그 해결] 팝업창이 떠있으면 스와이프 페이지 이동을 차단합니다.
     if (isModalOpen()) return;
 
     if (store.mode !== 'viewer') return;
@@ -238,7 +230,6 @@ function executeScrollNav(direction) {
 // 3. 💡 맞춤형 키보드 단축키 이벤트 세트
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
-    // 💡 [버그 해결] 팝업창이 떠있을 때는 단축키를 완전히 비활성화합니다.
     if (isModalOpen()) return;
 
     const tag = e.target.tagName.toLowerCase();
@@ -419,9 +410,6 @@ if (document.readyState === 'loading') {
     applyShortcutTooltips();
 }
 
-// ==========================================================================
-// 💡 캐시 없음(CACHE_MISS) 발생 시: 자동 데이터 불러오기 및 안내 처리
-// ==========================================================================
 window.promptOfflineSync = async (viewInstance, renderMethod) => {
     if (window.isAutoSyncing) return true;
     window.isAutoSyncing = true;
