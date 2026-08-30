@@ -637,7 +637,6 @@ export class DayView extends BaseView {
             let delHandler = `window.dayViewInstance.removeEventEntry('${fId}', ${idx})`;
             let forwardedBadge = '';
 
-            // 💡 [버그 해결] 백틱(`) 및 특수문자 파싱 오류(SyntaxError) 방지를 위한 안전한 문자열 치환
             const safeContent = (ev.content || '')
                 .replace(/\\/g, '\\\\')
                 .replace(new RegExp('\`', 'g'), '\\`')
@@ -954,7 +953,7 @@ export class DayView extends BaseView {
         });
 
         try {
-            await fetchCalendarData(dateStr, dateStr, this.myGroups); 
+            // 💡 [버그 해결] 무한 대기를 유발하던 무의미한 서버 데이터 fetch 로직을 삭제했습니다.
             
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
@@ -979,7 +978,12 @@ export class DayView extends BaseView {
                 }, { merge: true }));
             });
             
-            await Promise.all(promises);
+            // 💡 [버그 해결] 오프라인일 때 서버 응답을 무한정 기다리지 않고 즉시 로컬 캐시 저장을 반환하도록 타임아웃(300ms) 적용
+            await Promise.race([
+                Promise.all(promises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
+            
             store.hasUnsavedChanges = false;
         } catch(e) {
             console.error("저장 중 오류 발생:", e);
