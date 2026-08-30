@@ -712,9 +712,17 @@ export class DayView extends BaseView {
 
         container.innerHTML = journals.map((j, idx) => {
             const jLabelIds = j.labelIds || [];
-            const chipsHtml = allLabelsObj.map(lObj => 
-                `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
-            ).join('');
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = jLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'journal'); // 🎨 고유 색상 불러오기
+                
+                // 💡 동적 스타일 적용
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; cursor:pointer; ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
 
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
