@@ -9,20 +9,21 @@ export const openHelpModal = function() {
 
     const hideHelp = localStorage.getItem('workCalendar_hideHelp_v7') === 'true';
 
-    // 💡 [핵심 수정] Header와 Footer에 flex-shrink: 0 을 주어 크기를 고정하고, 중간 내용물(flex:1)만 스크롤되도록 적용했습니다.
+    // 💡 [디자인 핵심] 100vw, 100vh에 padding: clamp()를 적용하여 모든 기기에서 바깥 여백 보장.
     const modalHtml = `
-    <div id="help-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; display:flex; justify-content:center; align-items:center; padding:15px; box-sizing:border-box;">
-        <div style="background:#fff; padding:0; border-radius:12px; width:100%; max-width:850px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2); overflow:hidden;">
+    <div id="help-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.55); backdrop-filter:blur(5px); z-index:10005; display:flex; justify-content:center; align-items:center; padding:clamp(12px, 4vw, 32px); box-sizing:border-box;">
+        
+        <div style="width:100%; max-width:850px; max-height:100%; background:#fff; border-radius:20px; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden;">
             
-            <div style="flex-shrink:0; background:#f8fafc; padding:20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex-shrink:0; background:#ffffff; padding:20px 24px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <h2 style="margin:0 0 4px 0; color:#1e40af; font-size:1.35rem;">📖 School Planner V3.7 (SP3.7) 사용 설명서</h2>
+                    <h2 style="margin:0 0 4px 0; color:#0f172a; font-size:1.35rem; font-weight:800; letter-spacing:-0.5px;">📖 School Planner V3.7 (SP3.7) 사용 설명서</h2>
                     <p style="margin:0; color:#64748b; font-size:0.9rem;">바쁜 학급 운영과 행정 업무를 스마트하고 안전하게 관리하는 핵심 가이드입니다.</p>
                 </div>
-                <button id="btn-help-x" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
+                <button id="btn-help-x" style="display:flex; justify-content:center; align-items:center; width:32px; height:32px; font-size:1.4rem; background:#f1f5f9; border:none; border-radius:50%; cursor:pointer; color:#64748b; transition:all 0.2s; line-height:1;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b';" title="닫기">&times;</button>
             </div>
 
-            <div style="flex:1; min-height:0; padding:25px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem;">
+            <div style="flex:1; min-height:0; padding:24px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem; background:#f8fafc;">
                 
                 <div style="margin-bottom:25px;">
                     <h3 style="color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:5px; margin-top:0;">1. 상단 기본 메뉴 및 설정</h3>
@@ -56,7 +57,7 @@ export const openHelpModal = function() {
                     <p style="margin:5px 0 12px 0; color:#64748b; font-size:0.9rem;">우측 상단의 더보기(⋮) 아이콘을 누르면 학교 업무와 학급 운영에 특화된 고급 관리 기능들을 사용할 수 있습니다.</p>
                     
                     <div style="display:flex; flex-direction:column; gap:12px;">
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <b style="color:#047857;">🏷️ 3-1. 통합 라벨 관리</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">일정, 기록, 메모에 사용할 라벨의 색상과 특수한 속성을 설정하는 공간입니다. 단순한 분류를 넘어 일정의 작동 방식을 결정합니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
@@ -66,7 +67,7 @@ export const openHelpModal = function() {
                             </ul>
                         </div>
 
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <b style="color:#047857;">🧑‍🤝‍🧑 3-2. 학급 정보(명렬표) 관리</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">학급 아이들의 명렬표를 등록하고 관리합니다. 한 번 등록해 두면 앱 내의 '조사표(체크리스트)' 기능과 연동되어 매우 편리합니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
@@ -75,7 +76,7 @@ export const openHelpModal = function() {
                             </ul>
                         </div>
 
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <b style="color:#047857;">👥 3-3. 공유 그룹 관리</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">동학년 선생님, 혹은 업무팀 등 동료들과 일정 및 업무 일지를 공유할 수 있는 협업 공간입니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
@@ -84,7 +85,7 @@ export const openHelpModal = function() {
                             </ul>
                         </div>
 
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <b style="color:#047857;">🏫 3-4. 시간표 적용</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">학기 초에 확정된 기본 시간표를 특정 기간 동안 일괄적으로 캘린더에 덮어씌우는 기능입니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
@@ -93,7 +94,7 @@ export const openHelpModal = function() {
                             </ul>
                         </div>
 
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <b style="color:#047857;">💾 3-5. 내보내기 / 가져오기 (데이터 백업 및 복원)</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">소중한 기록을 안전하게 백업하고, 다른 기기로 이동하거나 복원할 때 사용하는 핵심 데이터 관리 도구입니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
@@ -148,7 +149,7 @@ export const openHelpModal = function() {
 
                 <div style="margin-bottom:15px;">
                     <h3 style="color:#7e22ce; border-bottom:2px solid #e9d5ff; padding-bottom:5px;">5. 업무 효율을 높여주는 키보드 단축키</h3>
-                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:10px;">
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:10px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                         <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <tr style="border-bottom:1px solid #cbd5e1; background:#f1f5f9;">
                                 <th style="padding:6px; text-align:left; color:#1e293b;">기능</th>
@@ -171,12 +172,12 @@ export const openHelpModal = function() {
 
             </div>
 
-            <div style="flex-shrink:0; background:#f8fafc; padding:15px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex-shrink:0; background:#ffffff; padding:16px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem; color:#475569; font-weight:bold;">
                     <input type="checkbox" id="chk-hide-help" ${hideHelp ? 'checked' : ''} style="width:16px; height:16px; accent-color:#2563eb;">
                     시작할 때 이 창 다시 보지 않기
                 </label>
-                <button id="btn-close-help" style="background:#2563eb; color:#fff; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem;">확인 (닫기)</button>
+                <button id="btn-close-help" style="background:#2563eb; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1rem; transition:0.2s; box-shadow:0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';">확인 (닫기)</button>
             </div>
             
         </div>
