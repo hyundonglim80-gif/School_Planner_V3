@@ -1,8 +1,8 @@
 // js/core/store.js
 
 export const store = {
-    // 💡 [수정] 최초 접속 시 아무 설정이 없으면 'day'(하루) 페이지로 시작
-    scope: localStorage.getItem('workCalendar_scope') || 'day',
+    // 💡 [수정] 최초 접속 시 아무 설정이 없으면 'month'(월간) 페이지로 시작하도록 변경
+    scope: localStorage.getItem('workCalendar_scope') || 'month',
     // 💡 [수정] 최초 접속 시 아무 설정이 없으면 'viewer'(보기) 모드로 시작
     mode: localStorage.getItem('workCalendar_mode') || 'viewer',
     
