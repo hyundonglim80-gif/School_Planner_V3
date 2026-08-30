@@ -33,7 +33,7 @@ export const openHelpModal = function() {
                         <li style="margin-bottom:6px;"><b>D-Day 설정:</b> 학사 일정이나 중요 행사의 디데이를 설정하고 표시합니다.</li>
                         <li style="margin-bottom:6px;"><b>빠른 동기화 (📅):</b> 현재 화면에 작성된 일정을 구글 캘린더와 즉시 연동합니다.</li>
                         <li style="margin-bottom:6px;"><b>검색 (🔍):</b> 과거의 메모나 일정을 빠르게 찾아볼 수 있습니다.</li>
-                        <li style="margin-bottom:6px;"><b>보기 단위 전환:</b> 하루 / 주간 / 월간 / 년간 / 메모 버튼을 눌러 원하는 기간 단위로 화면 이동합니다.</li>
+                        <li style="margin-bottom:6px;"><b>보기 단위 전환:</b> 하루 / 주간 / 월간 / 년간 / 메모 버튼을 눌러 원하는 기간 단위로 화면을 이동합니다.</li>
                     </ul>
                 </div>
 
@@ -116,7 +116,7 @@ export const openHelpModal = function() {
                             <p style="margin:4px 0 4px 0; font-size:0.9rem; color:#475569;">각 날짜의 '📌 오늘 할 일' 영역은 소속된 그룹별로 별도의 박스로 나뉘어 표시됩니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
                                 <li><b>일정 추가 및 구분:</b> [🔒 개인] 영역은 나에게만 보이고, [👥 그룹명] 아래의 [+ 일정 추가]를 눌러 작성하면 그룹원 모두의 캘린더에 실시간으로 나타납니다.</li>
-                                <li><b>완료 상태 실시간 공유:</b> 누군가 공유 일정의 체크박스를 완료(✅) 처리하면, 다른 선생님들의 화면에서도 줄이 정그어지며 완료 처리됩니다.</li>
+                                <li><b>완료 상태 실시간 공유:</b> 누군가 공유 일정의 체크박스를 완료(✅) 처리하면, 다른 선생님들의 화면에서도 줄이 그어지며 완료 처리됩니다.</li>
                                 <li><b>👨‍🏫 활용 예시:</b> 현장체험학습 답사, 학년 협의회, 학부모 총회 등 공통 행사 일정 공유</li>
                             </ul>
                         </div>
@@ -169,9 +169,9 @@ export const openHelpModal = function() {
                         </table>
                     </div>
                 </div>
+
             </div>
 
-            <!-- 🌟 [복구됨] 익숙한 위치인 하단 좌측으로 체크박스 재배치! -->
             <div style="flex-shrink:0; background:#ffffff; padding:16px 24px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem; color:#475569; font-weight:bold;">
                     <input type="checkbox" id="chk-hide-help" ${hideHelp ? 'checked' : ''} style="width:16px; height:16px; accent-color:#2563eb;">
@@ -187,18 +187,9 @@ export const openHelpModal = function() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     if (window.increaseModalCount) window.increaseModalCount(); 
 
-    // 💡 [버그 픽스 유지] 체크를 누르는 즉시 로컬스토리지에 저장되도록 연결
-    const chkElement = document.getElementById('chk-hide-help');
-    if (chkElement) {
-        chkElement.addEventListener('change', (e) => {
-            localStorage.setItem('workCalendar_hideHelp_v7', e.target.checked ? 'true' : 'false');
-        });
-    }
-
     const closeModal = () => {
         const modal = document.getElementById('help-modal');
         if (modal) {
-            // 닫을 때 한 번 더 확실하게 체크 상태 저장
             const isChecked = document.getElementById('chk-hide-help').checked;
             localStorage.setItem('workCalendar_hideHelp_v7', isChecked ? 'true' : 'false');
             modal.remove();
