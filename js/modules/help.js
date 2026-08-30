@@ -9,11 +9,12 @@ export const openHelpModal = function() {
 
     const hideHelp = localStorage.getItem('workCalendar_hideHelp_v7') === 'true';
 
+    // 💡 [핵심 수정] Header와 Footer에 flex-shrink: 0 을 주어 크기를 고정하고, 중간 내용물(flex:1)만 스크롤되도록 적용했습니다.
     const modalHtml = `
     <div id="help-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10005; display:flex; justify-content:center; align-items:center; padding:15px; box-sizing:border-box;">
         <div style="background:#fff; padding:0; border-radius:12px; width:100%; max-width:850px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2); overflow:hidden;">
             
-            <div style="background:#f8fafc; padding:20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex-shrink:0; background:#f8fafc; padding:20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <div>
                     <h2 style="margin:0 0 4px 0; color:#1e40af; font-size:1.35rem;">📖 School Planner V3.7 (SP3.7) 사용 설명서</h2>
                     <p style="margin:0; color:#64748b; font-size:0.9rem;">바쁜 학급 운영과 행정 업무를 스마트하고 안전하게 관리하는 핵심 가이드입니다.</p>
@@ -21,9 +22,8 @@ export const openHelpModal = function() {
                 <button id="btn-help-x" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#64748b;" title="닫기">✖</button>
             </div>
 
-            <div style="padding:25px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem;">
+            <div style="flex:1; min-height:0; padding:25px; overflow-y:auto; line-height:1.6; color:#334155; font-size:0.95rem;">
                 
-                <!-- 1. 상단 기본 메뉴 및 설정 -->
                 <div style="margin-bottom:25px;">
                     <h3 style="color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:5px; margin-top:0;">1. 상단 기본 메뉴 및 설정</h3>
                     <p style="margin:5px 0 8px 0; color:#64748b; font-size:0.9rem;">화면 맨 위쪽에 항상 떠 있는 컨트롤 패널로, 전반적인 앱 상태를 관리합니다.</p>
@@ -36,7 +36,6 @@ export const openHelpModal = function() {
                     </ul>
                 </div>
 
-                <!-- 2. 뷰어(보기)와 에디터(작성) 모드 -->
                 <div style="margin-bottom:25px;">
                     <h3 style="color:#2563eb; border-bottom:2px solid #bfdbfe; padding-bottom:5px; margin-top:0;">2. 뷰어(보기)와 에디터(작성) 모드</h3>
                     <p style="margin:5px 0 8px 0; color:#64748b; font-size:0.9rem;">SP3.7은 실수로 내용이 지워지는 것을 방지하기 위해 두 가지 모드를 분리하여 운영합니다.</p>
@@ -52,7 +51,6 @@ export const openHelpModal = function() {
                     </ul>
                 </div>
 
-                <!-- 3. 핵심 기능 관리 -->
                 <div style="margin-bottom:25px;">
                     <h3 style="color:#059669; border-bottom:2px solid #a7f3d0; padding-bottom:5px;">3. 핵심 기능 관리 (⋮ 더보기 메뉴 상세 가이드)</h3>
                     <p style="margin:5px 0 12px 0; color:#64748b; font-size:0.9rem;">우측 상단의 더보기(⋮) 아이콘을 누르면 학교 업무와 학급 운영에 특화된 고급 관리 기능들을 사용할 수 있습니다.</p>
@@ -62,7 +60,7 @@ export const openHelpModal = function() {
                             <b style="color:#047857;">🏷️ 3-1. 통합 라벨 관리</b>
                             <p style="margin:4px 0 6px 0; font-size:0.9rem; color:#475569;">일정, 기록, 메모에 사용할 라벨의 색상과 특수한 속성을 설정하는 공간입니다. 단순한 분류를 넘어 일정의 작동 방식을 결정합니다.</p>
                             <ul style="margin:0 0 0 20px; padding:0; font-size:0.9rem; color:#334155;">
-                                <li><b>수업삭제 (🚫):</b> 전일제 현장체험학습, 개교기념일 등 수업이 없는 날에 이 라벨을 쓰면, 해당 날짜의 시간표(수업) 칸이 자동으로 비워집니다.</li>
+                                <li><b>수업삭제 (🚫):</b> 현장체험학습, 개교기념일 등 수업이 없는 날에 이 라벨을 쓰면, 해당 날짜의 시간표(수업) 칸이 자동으로 비워집니다.</li>
                                 <li><b>완료 (✅):</b> 체크박스가 생성되는 일정입니다. 그날 끝내지 못하고 미완료 상태로 두면, 다음 날짜로 일정이 자동으로 넘어갑니다 (이월 기능).</li>
                                 <li><b>기간 (📅) / 반복 (🔁):</b> 며칠에 걸친 연속된 일정이나, 매주/매월 반복되는 일정을 등록할 때 사용합니다.</li>
                             </ul>
@@ -107,7 +105,6 @@ export const openHelpModal = function() {
                     </div>
                 </div>
 
-                <!-- 4. 그룹 공유 기능 상세 가이드 -->
                 <div style="margin-bottom:25px;">
                     <h3 style="color:#d97706; border-bottom:2px solid #fde68a; padding-bottom:5px;">4. 👥 그룹 공유 기능 상세 가이드 (일정 / 시간표 / 기록)</h3>
                     <p style="margin:5px 0 10px 0; color:#64748b; font-size:0.9rem;">SP3.7에서는 개인 프라이버시를 보호하면서도 필요한 정보만 동료들과 선택적으로 공유할 수 있는 '독립된 다중 작업공간(Workspace)' 방식을 사용합니다. 화면 곳곳에서 개인 자료는 🔒(파란색), 그룹 자료는 👥(초록색/분홍색) 아이콘으로 명확하게 구분됩니다.</p>
@@ -149,7 +146,6 @@ export const openHelpModal = function() {
                     </div>
                 </div>
 
-                <!-- 5. 키보드 단축키 -->
                 <div style="margin-bottom:15px;">
                     <h3 style="color:#7e22ce; border-bottom:2px solid #e9d5ff; padding-bottom:5px;">5. 업무 효율을 높여주는 키보드 단축키</h3>
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-top:10px;">
@@ -175,7 +171,7 @@ export const openHelpModal = function() {
 
             </div>
 
-            <div style="background:#f8fafc; padding:15px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex-shrink:0; background:#f8fafc; padding:15px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.9rem; color:#475569; font-weight:bold;">
                     <input type="checkbox" id="chk-hide-help" ${hideHelp ? 'checked' : ''} style="width:16px; height:16px; accent-color:#2563eb;">
                     시작할 때 이 창 다시 보지 않기
@@ -188,37 +184,30 @@ export const openHelpModal = function() {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    if (window.increaseModalCount) window.increaseModalCount(); // 팝업 열림 처리
+    if (window.increaseModalCount) window.increaseModalCount(); 
 
-    // 💡 안전한 닫기 처리를 위한 공통 함수
     const closeModal = () => {
         const modal = document.getElementById('help-modal');
         if (modal) {
             const isChecked = document.getElementById('chk-hide-help').checked;
             localStorage.setItem('workCalendar_hideHelp_v7', isChecked ? 'true' : 'false');
             modal.remove();
-            if (window.decreaseModalCount) window.decreaseModalCount(); // 팝업 닫힘 처리
-            document.removeEventListener('keydown', handleEsc); // 이벤트 리스너 청소
+            if (window.decreaseModalCount) window.decreaseModalCount(); 
+            document.removeEventListener('keydown', handleEsc); 
         }
     };
 
-    // ESC 키로 닫기
     const handleEsc = (e) => {
         if (e.key === 'Escape') closeModal();
     };
     document.addEventListener('keydown', handleEsc);
 
-    // 반투명 배경 클릭 시 닫기
     document.getElementById('help-modal').addEventListener('click', (e) => {
         if (e.target.id === 'help-modal') closeModal();
     });
 
-    // 버튼 클릭 시 닫기
     document.getElementById('btn-close-help').onclick = closeModal;
     document.getElementById('btn-help-x').onclick = closeModal;
 };
 
-// ==========================================================================
-// 🌉 과도기 호환성 레이어 
-// ==========================================================================
 window.openHelpModal = openHelpModal;
