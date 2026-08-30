@@ -119,7 +119,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ==========================================================================
-// 🛠️ 개별 팝업창을 찍어내는 붕어빵 틀 (클래스)
+// 🛠️ 팝업창 골격 (Modern UI 적용)
 // ==========================================================================
 export class Modal {
     constructor({ id, title, content, width = '400px', onClose = null }) {
@@ -142,16 +142,18 @@ export class Modal {
         const overlay = document.createElement('div');
         overlay.id = this.id;
         overlay.className = 'modal-overlay hidden';
-        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center;';
+        
+        // 💡 [디자인 핵심] 전체 화면 크기 고정, 배경 블러(blur) 효과 적용, 상하좌우 반응형 여백(padding) 강제 지정
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.55); backdrop-filter:blur(5px); display:none; justify-content:center; align-items:center; padding:clamp(12px, 4vw, 32px); box-sizing:border-box;';
 
-        // 💡 [핵심 수정] 바깥 박스는 overflow: hidden 처리, 내용물이 들어가는 modal-body는 flex: 1로 구조 변경
+        // 💡 [디자인 핵심] 부드러운 20px 곡선, 입체적인 그림자, 깨끗한 헤더 분리
         overlay.innerHTML = `
-            <div class="modal-content" style="width:${this.width}; background:#fff; border-radius:12px; box-shadow:0 10px 25px rgba(0,0,0,0.2); display:flex; flex-direction:column; max-height:90vh; overflow:hidden;">
-                <div class="modal-header" style="flex-shrink:0; padding:15px 20px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-                    <h2 style="font-size:1.2rem; margin:0; color:#1e293b;">${this.title}</h2>
-                    <button class="btn-close-modal" style="font-size:1.5rem; background:none; border:none; cursor:pointer; color:#64748b; line-height:1;" title="닫기">&times;</button>
+            <div class="modal-content" style="width:${this.width}; max-width:100%; max-height:100%; background:#fff; border-radius:20px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); display:flex; flex-direction:column; overflow:hidden;">
+                <div class="modal-header" style="flex-shrink:0; padding:20px 24px; background:#ffffff; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center;">
+                    <h2 style="font-size:1.3rem; margin:0; color:#0f172a; font-weight:800; letter-spacing:-0.5px;">${this.title}</h2>
+                    <button class="btn-close-modal" style="display:flex; justify-content:center; align-items:center; width:32px; height:32px; font-size:1.4rem; background:#f1f5f9; border:none; border-radius:50%; cursor:pointer; color:#64748b; transition:all 0.2s; line-height:1;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b';" title="닫기">&times;</button>
                 </div>
-                <div class="modal-body" style="flex:1; display:flex; flex-direction:column; overflow-y:auto; padding:0; min-height:0;">
+                <div class="modal-body" style="flex:1; display:flex; flex-direction:column; overflow-y:auto; padding:0; min-height:0; background:#f8fafc;">
                     ${this.content}
                 </div>
             </div>
