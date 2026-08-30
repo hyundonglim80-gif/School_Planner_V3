@@ -91,7 +91,8 @@ export const forceRenewToken = async () => {
         if (error.code === 'auth/popup-blocked') {
             throw new Error("팝업 차단이 감지되었습니다. 브라우저 주소창 우측에서 '팝업 차단 해제'를 해주세요.", { cause: error });
         }
-        throw new Error("권한 연장에 실패했습니다. 우측 상단의 로그아웃 후 다시 로그인해 주세요.", { cause 소: error });
+        // 💡 [수정 완료] '소' 오타를 제거하고 정상적인 문법으로 복구했습니다.
+        throw new Error("권한 연장에 실패했습니다. 우측 상단의 로그아웃 후 다시 로그인해 주세요.", { cause: error });
     }
     return null;
 };
@@ -144,7 +145,6 @@ export const initAuthListener = () => {
 
             render(false);
             setTimeout(() => {
-                // 💡 [수정 완료] 이제 정확히 v7을 검사합니다!
                 if (localStorage.getItem('workCalendar_hideHelp_v7') !== 'true' && typeof window.openHelpModal === 'function') window.openHelpModal();
             }, 500); 
         } else {
