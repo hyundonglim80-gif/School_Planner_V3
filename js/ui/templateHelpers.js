@@ -69,7 +69,10 @@ export const CompactEventHelper = {
             container.querySelectorAll('textarea').forEach(ta => {
                 const eventId = ta.getAttribute('data-id');
                 const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
-                if (ev) ev.content = ta.value;
+                // 💡 [버그 방지] 라벨 정보가 초기화되지 않도록 내용(content)만 업데이트
+                if (ev) {
+                    ev.content = ta.value;
+                }
             });
         });
     },
@@ -170,7 +173,6 @@ export const CompactEventHelper = {
         });
     },
 
-    // 💡 변경됨: 컴팩트 뷰에서도 라벨 강제 취소 장치 제거 (무한 중복 체크 허용)
     async handleCompactLabelClick(dateStr, eventId, labelId, fId) {
         this.syncCompactEventInputs(dateStr);
         
@@ -231,7 +233,6 @@ export const CompactEventHelper = {
                 return; 
             }
             
-            // 그냥 라벨 배열에 무조건 추가
             ev.labelIds.push(labelId);
             store.hasUnsavedChanges = true;
             
