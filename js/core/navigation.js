@@ -169,10 +169,10 @@ export const goToDay = (dateStr) => {
     
     // 💡 [UI 핵심] 상단 타이틀 영역에 이전(◀) / 다음(▶) 네비게이션 버튼과 단축키 툴팁 적용
     const titleHtml = `
-        <div style="display:flex; align-items:center; gap:12px;">
-            <button id="day-modal-prev-btn" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1rem; color:#475569; transition:all 0.2s;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>이전 날짜 (Ctrl + ⬅️)</span>">◀</button>
-            <span style="font-weight:800; letter-spacing:-0.5px;">📝 ${dateStr}</span>
-            <button id="day-modal-next-btn" style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1rem; color:#475569; transition:all 0.2s;" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>다음 날짜 (Ctrl + ➡️)</span>">▶</button>
+        <div style="display:flex; align-items:center; justify-content:center; gap:15px; width:100%;">
+            <button id="day-modal-prev-btn" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1.1rem; color:#475569; transition:all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>이전 날짜 (Ctrl + ⬅️)</span>">◀</button>
+            <span style="font-size:1.25rem; font-weight:800; letter-spacing:-0.5px; color:#0f172a;">📝 ${dateStr}</span>
+            <button id="day-modal-next-btn" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1.1rem; color:#475569; transition:all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>다음 날짜 (Ctrl + ➡️)</span>">▶</button>
         </div>
     `;
 
