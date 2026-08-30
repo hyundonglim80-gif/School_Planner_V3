@@ -167,18 +167,20 @@ export const goToDay = (dateStr) => {
 
     store.currentDate = new Date(dateStr); 
     
-    // 💡 [UI 추가] 팝업창 하단에 '수업 숨기기/보이기' 토글 버튼 추가
+    // 💡 [핵심 수정] 이중 스크롤을 막기 위해 높이를 100%로 채우고, 버튼 영역은 고정(flex-shrink: 0), 에디터 영역만 스크롤(flex: 1)로 설정했습니다.
     const html = `
-        <div id="day-modal-body" style="max-height: 75vh; overflow-y: auto; overflow-x: hidden; padding: 10px; background: #f8fafc; border-radius: 8px;">
-            <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
-        </div>
-        <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-            <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;">
-                🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
-            </button>
-            <div style="display: flex; gap: 10px;">
-                <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
-                <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+        <div style="display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0;">
+            <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 15px; background: #f8fafc;">
+                <div style="text-align:center; padding:40px; color:#64748b; font-weight:bold;">에디터를 불러오는 중...</div>
+            </div>
+            <div style="flex-shrink: 0; padding: 15px 20px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 12px 12px;">
+                <button id="day-modal-toggle-class-btn" style="background: #e0f2fe; color: #0284c7; border: 1px dashed #7dd3fc; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; transition: 0.2s;">
+                    🏫 수업 ${store.showClass ? '숨기기' : '보이기'}
+                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">취소</button>
+                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;">💾 저장 및 닫기</button>
+                </div>
             </div>
         </div>
     `;
@@ -231,7 +233,6 @@ export const goToDay = (dateStr) => {
             }
         }
 
-        // 💡 [기능 연결] 수업 보이기/숨기기 토글 버튼 이벤트
         const toggleBtn = document.getElementById('day-modal-toggle-class-btn');
         if (toggleBtn) {
             toggleBtn.onclick = (e) => {
@@ -241,7 +242,6 @@ export const goToDay = (dateStr) => {
                 
                 e.target.innerHTML = `🏫 수업 ${store.showClass ? '숨기기' : '보이기'}`;
                 
-                // 데이터 유실을 막기 위해 팝업창 내에서 DOM 디스플레이 속성만 빠르고 안전하게 전환
                 const modalBody = document.getElementById('day-modal-body');
                 if (modalBody) {
                     const wrappers = modalBody.querySelectorAll('.day-schedule-wrapper');
