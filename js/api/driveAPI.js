@@ -83,6 +83,66 @@ export const driveAPI = {
         };
     },
 
+    // 🌟 [추가] 여러 개의 파일을 동시에 비동기 업로드하는 기능
+    uploadFiles: async function(fileList) {
+        const token = await getValidGoogleToken();
+        if (!token) throw new Error("구글 드라이브 접근 권한이 없습니다.");
+
+        const folderId = await this.getOrCreateFolder(token, 'School_Planner');
+        const files = Array.from(fileList);
+        
+        const uploadPromises = files.map(async (file) => {
+            const metadata = {
+                name: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                parents: [folderId]
+            };
+
+            const fields = 'id,name,webViewLink,iconLink';
+            const initRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=${fields}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!initRes.ok) throw new Error(`드라이브 업로드 세션 생성 실패: ${initRes.status}`);
+
+            const uploadUrl = initRes.headers.get('Location');
+            if (!uploadUrl) throw new Error("업로드 URL을 응답받지 못했습니다.");
+
+            const uploadRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Length': file.size.toString() },
+                body: file
+            });
+
+            if (!uploadRes.ok) throw new Error(`드라이브 파일 전송 실패: ${uploadRes.status}`);
+            const fileData = await uploadRes.json();
+
+            await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ role: 'reader', type: 'anyone' })
+            }).catch(e => console.warn("권한 변경 실패:", e));
+
+            return {
+                id: fileData.id,
+                name: fileData.name,
+                webViewLink: fileData.webViewLink,
+                downloadLink: `https://drive.google.com/uc?export=download&id=${fileData.id}`,
+                iconLink: fileData.iconLink
+            };
+        });
+
+        return await Promise.all(uploadPromises);
+    },
+
     deleteFile: async function(fileId) {
         if (!fileId) return;
         const token = await getValidGoogleToken();
