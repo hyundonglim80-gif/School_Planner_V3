@@ -258,6 +258,7 @@ export const EvaluationManager = {
     openViewer: async function(dateStr, evalId) {
         this.currentDateStr = dateStr;
         this.currentEvalList = await dbAPI.loadEvaluations(dateStr, this.currentGroupId);
+        this.roster = await dbAPI.loadRoster(); 
         
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
@@ -269,7 +270,18 @@ export const EvaluationManager = {
         const isEval = ev.type === 'eval'; const isCheck = ev.type === 'check'; const isMemo = ev.type === 'memo';
         const isIndiv = isEval && ev.methodObj?.indiv; const isGroup = isEval && ev.methodObj?.group;
 
-        // 🌟 [추가됨] 상단 수정 가능한 메타정보 박스 UI
+        // 🌟 대상 학급(명렬표) 셀렉트 박스 생성
+        let rosterOptions = '<option value="">선택/변경</option>';
+        if (this.roster && this.roster.length > 0) {
+            rosterOptions = this.roster.map((r, i) => {
+                let isSelected = '';
+                if (ev.rosterMeta && r.year === ev.rosterMeta.year && r.grade === ev.rosterMeta.grade && r.classNum === ev.rosterMeta.classNum) {
+                    isSelected = 'selected';
+                }
+                return `<option value="${i}" ${isSelected}>${r.year}학년도 ${r.grade}학년 ${r.classNum}반</option>`;
+            }).join('');
+        }
+
         const subjOptions = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'].map(s => `<option value="${s}" ${s === ev.subject ? 'selected' : ''}>${s}</option>`).join('');
         const maxPeriod = store.periodNames ? store.periodNames.length : 6;
         let periodOptions = '';
@@ -284,6 +296,12 @@ export const EvaluationManager = {
                 <div style="flex:2; min-width:180px;">
                     <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">조사표 제목 수정</label>
                     <input type="text" id="edit-eval-title" class="eval-input" value="${ev.title}" style="padding:6px 10px; width:100%; border:1px solid #94a3b8; border-radius:4px;">
+                </div>
+                <div style="flex:1.5; min-width:140px;">
+                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">대상 학급</label>
+                    <select id="edit-eval-roster" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px;" onchange="window.EvaluationManager.changeViewerRoster(this.value, '${ev.id}')">
+                        ${rosterOptions}
+                    </select>
                 </div>
                 <div style="flex:1; min-width:100px;">
                     <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">교과</label>
@@ -380,12 +398,77 @@ export const EvaluationManager = {
         this.viewerModal.open();
     },
 
+    // 🌟 [추가됨] 대상 학급 변경 시 즉각적으로 표를 갈아끼우는 함수
+    changeViewerRoster: function(rosterIdxStr, evalId) {
+        const ev = this.currentEvalList.find(e => e.id === evalId);
+        if (!ev || !rosterIdxStr) return;
+        const rIdx = parseInt(rosterIdxStr, 10);
+        const newRoster = this.roster[rIdx];
+        if (!newRoster) return;
+
+        // 명단이 바뀌기 전에 현재 입력된 기록을 임시 저장 (같은 번호 학생에게는 기록 유지)
+        const table = document.getElementById('eval-viewer-table');
+        if (table) {
+            table.querySelectorAll('tbody input, tbody select').forEach(inp => {
+                const sNum = parseInt(inp.getAttribute('data-snum'), 10);
+                if (isNaN(sNum)) return;
+                let val = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
+                
+                if (!ev.records[sNum]) ev.records[sNum] = {};
+                ev.records[sNum][inp.getAttribute('data-field')] = val;
+            });
+        }
+
+        // 대상 학급 정보를 메모리 상의 ev 객체에 덮어쓰기
+        ev.rosterMeta = { year: newRoster.year, grade: newRoster.grade, classNum: newRoster.classNum };
+        ev.studentsSnapshot = newRoster.students.filter(s => s.isActive !== false).map(s => ({ num: s.num, name: s.name, gender: s.gender }));
+
+        const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
+        const uid = window.auth?.currentUser?.uid;
+        const isAuthor = !actualGroupId || !ev.authorId || !uid || ev.authorId === uid;
+
+        const isEval = ev.type === 'eval'; const isCheck = ev.type === 'check'; const isMemo = ev.type === 'memo';
+        const isIndiv = isEval && ev.methodObj?.indiv; const isGroup = isEval && ev.methodObj?.group;
+        const disabledAttr = isAuthor ? '' : 'disabled'; const readonlyAttr = isAuthor ? '' : 'readonly';
+
+        // 새 명단을 기반으로 행(row) HTML 다시 생성
+        let rowsHtml = '';
+        ev.studentsSnapshot.forEach(st => {
+            const rec = ev.records[st.num] || {}; // 같은 번호의 기록이 있으면 그대로 불러옴
+            let inputsHtml = '';
+            
+            if (isEval) {
+                if (isGroup) {
+                    const studentGroup = ev.groups?.find(g => g.members.includes(st.num));
+                    inputsHtml += `<td><input type="text" data-snum="${st.num}" data-field="groupName" value="${rec.groupName || (studentGroup ? studentGroup.name : '')}" style="width:40px; text-align:center;" ${readonlyAttr}></td>`;
+                    inputsHtml += `<td><select data-snum="${st.num}" data-field="groupScore" ${disabledAttr}><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.groupScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                }
+                if (isIndiv) {
+                    inputsHtml += `<td><select data-snum="${st.num}" data-field="indivScore" ${disabledAttr}><option value=""></option>${ev.steps.map(s => `<option value="${s}" ${rec.indivScore===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
+                }
+                inputsHtml += `<td><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" ${readonlyAttr}></td>`;
+            } else if (isCheck) {
+                inputsHtml += `<td><input type="checkbox" data-snum="${st.num}" data-field="checked" ${rec.checked ? 'checked' : ''} style="width:20px;height:20px; accent-color:#475569;" ${disabledAttr}></td>`;
+                inputsHtml += `<td><input type="text" data-snum="${st.num}" data-field="reason" value="${rec.reason || ''}" ${readonlyAttr}></td>`;
+            } else if (isMemo) {
+                inputsHtml += `<td><input type="text" data-snum="${st.num}" data-field="memo" value="${rec.memo || ''}" ${readonlyAttr}></td>`;
+            }
+
+            rowsHtml += `<tr><td style="color:#475569; background:#f8fafc;">${st.num}</td><td style="color:#1e293b;">${st.name}</td>${inputsHtml}</tr>`;
+        });
+
+        // 팝업창 내 테이블의 tbody만 즉시 교체
+        const tbody = document.querySelector('#eval-viewer-table tbody');
+        if (tbody) {
+            tbody.innerHTML = rowsHtml;
+        }
+    },
+
     saveViewerData: async function(evalId) {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
         const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
 
-        // 🌟 [추가됨] 상단 수정 항목(메타 정보) 업데이트 적용
         const titleInput = document.getElementById('edit-eval-title');
         if (titleInput && titleInput.value.trim() !== '') ev.title = titleInput.value.trim();
 
@@ -417,21 +500,19 @@ export const EvaluationManager = {
             ev.records[sNum][inp.getAttribute('data-field')] = val;
         });
 
-        // 🌟 날짜가 변경되었을 경우, 기존 날짜 DB에서 삭제 후 새 날짜 DB에 저장하는 로직
         if (ev.dateStr !== this.currentDateStr) {
             this.currentEvalList = this.currentEvalList.filter(e => e.id !== evalId);
-            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId); // 기존 날짜에서 제거
+            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId); 
             
             const newDateList = await dbAPI.loadEvaluations(ev.dateStr, actualGroupId) || [];
             newDateList.push(ev);
-            await dbAPI.saveEvaluations(ev.dateStr, newDateList, actualGroupId); // 새 날짜에 추가
+            await dbAPI.saveEvaluations(ev.dateStr, newDateList, actualGroupId); 
         } else {
-            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId); // 현재 날짜 그대로 저장
+            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId); 
         }
 
         document.getElementById('eval-viewer-modal').remove();
         
-        // UI 갱신 유도
         if (window.dayViewInstance && (window.dayViewInstance.dateStr === this.currentDateStr || window.dayViewInstance.dateStr === ev.dateStr)) {
             window.dayViewInstance.refreshEvalBadges();
         }
