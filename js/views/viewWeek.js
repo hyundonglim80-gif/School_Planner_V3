@@ -16,6 +16,7 @@ export class WeekView extends BaseView {
     this.isRendering = false; 
     this.renderId = 0; 
 
+    // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
     this.loadedWeeks = []; 
@@ -24,6 +25,7 @@ export class WeekView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
+    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToTodayWeek) {
         window.originalScrollToTodayWeek = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -226,7 +228,7 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
-
+      
       const masterEventLabels = getEventLabels();
       const masterJournalLabels = getJournalLabels();
 
@@ -250,31 +252,41 @@ export class WeekView extends BaseView {
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               
-              // 🌟 [추가됨] 뷰어 모드 일정 라벨 정렬
+              // 🌟 [추가됨] 뷰어 모드 일정 라벨 다중 순회 정렬
               processedEvents.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
                   return (a.id || '').localeCompare(b.id || '');
               });
-
+              
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 [추가됨] 뷰어 모드 기록 라벨 정렬
+              // 🌟 [추가됨] 뷰어 모드 기록 라벨 다중 순회 정렬
               validJournals.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
                   return (a.id || '').localeCompare(b.id || '');
               });
-
+              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -448,12 +460,12 @@ export class WeekView extends BaseView {
                   const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
                   const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
                   
-                  const periods = window[`tempSchedules_${d.dateStr}`][fId];
+                  const periods = sMap[d.dateStr]?.[fId] || {};
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
-                      if (pObj.memo) cellText += pObj.memo + " ";
-                      if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
+                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
