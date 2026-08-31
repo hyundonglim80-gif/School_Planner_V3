@@ -52,7 +52,6 @@ window.showCustomAlarmPopup = function(messages) {
     popup.style.display = 'block';
 };
 
-// 🌟 글로벌 알림 엔진
 if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
         const now = new Date();
@@ -111,7 +110,6 @@ export const CompactEventHelper = {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
-                // 1430 -> 14:30 으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
@@ -125,7 +123,6 @@ export const CompactEventHelper = {
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
-    // 🌟 커스텀 팝업 모달창을 이용한 알림 설정 (단축키 툴팁 팝업 방지 완료)
     openAlarmModal(dateStr, eventId, fId) {
         const evList = window[`tempEvents_${dateStr}`];
         const ev = evList?.find(e => e.id === eventId);
@@ -205,7 +202,7 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 다중 라벨 순회 검색을 통한 완벽한 정렬 알고리즘
+        // 🌟 다중 라벨 순회 검색 정렬
         list.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -251,6 +248,7 @@ export const CompactEventHelper = {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            // 🌟 삭제 기능 연결 (인라인 파싱 오류 원천 차단)
             const deleteBtnHtml = isAuthor 
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
@@ -357,6 +355,7 @@ export const CompactEventHelper = {
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
+    // 🌟 안전하게 분리된 삭제 함수
     requestRemoveCompactEvent(dateStr, eventId, fId) {
         this.syncCompactEventInputs(dateStr); 
         const evList = window[`tempEvents_${dateStr}`];
@@ -364,8 +363,7 @@ export const CompactEventHelper = {
         if (!ev) return;
 
         const isGrouped = !!ev.groupId; 
-        
-        const labelObjs = getEventLabels();
+        const labelObjs = window.getEventLabels ? window.getEventLabels() : [];
         const forwardLabelId = (ev.labelIds || []).find(id => labelObjs.find(l => l.id === id)?.isForward);
         const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
 
