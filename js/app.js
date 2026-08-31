@@ -173,18 +173,22 @@ const isModalOpen = () => {
 const modalObserver = new MutationObserver(() => isModalOpen());
 modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
+
 // ==========================================================================
-// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (모바일 무한 스크롤 최적화)
+// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (모바일 무한스크롤 완벽 대응)
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
-// 🌟 [추가됨] 모바일 기기 접속 여부 확인
+// 🌟 [핵심] 모바일 기기 판별 (터치 환경 감지)
 const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
-// 🌟 당겨서 새로고침(Pull-to-refresh) 원천 차단 CSS 적용
-const preventRefreshStyle = document.createElement('style');
-preventRefreshStyle.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
-document.head.appendChild(preventRefreshStyle);
+if (isMobileDevice) {
+    // 🌟 모바일 환경에서만 당겨서 새로고침(Pull-to-refresh)을 CSS로 완벽 차단. 
+    // 네이티브 스크롤(스와이프) 동작은 방해하지 않음!
+    const preventRefreshStyle = document.createElement('style');
+    preventRefreshStyle.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
+    document.head.appendChild(preventRefreshStyle);
+}
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
@@ -196,23 +200,10 @@ let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
-// 🌟 [추가됨] 터치 무브 이벤트: 모바일에서 화면을 아래로 당길 때 발생하는 새로고침 강제 방어
-window.addEventListener('touchmove', (e) => {
-    if (isModalOpen()) return;
-
-    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        const currentY = e.touches[0].clientY;
-        // 화면 최상단(scrollY <= 0)에서 손가락을 아래로 밀 때(새로고침 제스처)
-        if (window.scrollY <= 0 && currentY > touchStartY) {
-            // 브라우저의 기본 새로고침 이벤트를 차단 (무한 스크롤 이전 달 로딩이 방해받지 않음)
-            if (e.cancelable) e.preventDefault();
-        }
-    }
-}, { passive: false });
-
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
     
+    // 무한 스크롤 상태이면 PC 휠 스크롤은 네이티브에 맡김
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -243,7 +234,7 @@ window.addEventListener('touchstart', (e) => {
     touchStartY = e.touches[0].clientY;
     
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        return; // 무한 스크롤 상태에서는 초기 좌표만 저장하고 세로 위치 연산 패스
+        return; // 무한스크롤 시 터치 초기좌표만 기억하고 패스 (스크롤 허용)
     }
     
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -265,12 +256,13 @@ window.addEventListener('touchend', (e) => {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 좌우 스와이프 판단: 가로로 충분히(70px 이상) 밀었고, 세로 이동폭보다 1.5배 이상 클 때만 탭 전환
+    // 좌우 스와이프 판단: 가로로 70px 이상 밀고, Y축 이동량보다 최소 1.5배 클 때만 (오작동 차단)
     const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
 
+    // 🌟 무한 스크롤 켜져있을 때의 터치 동작
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        // 무한 스크롤일 때도 좌우 탭 전환은 허용
         if (isValidHorizontalSwipe) {
+            // 좌우 스와이프는 탭 전환으로 인식
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
             if (currentIdx !== -1 && window.setScope) {
@@ -280,7 +272,7 @@ window.addEventListener('touchend', (e) => {
                 window.setScope(scopes[nextIdx]);
             }
         }
-        // 🌟 무한 스크롤 상태에서는 위아래 쓸어올림이 네이티브 스크롤(무한 로딩)로만 동작하게 강제 리턴
+        // 상하 스와이프는 터치 이벤트 조작을 무시하고, 자연스러운 네이티브 스크롤(무한 로딩)이 되도록 놔둠
         return; 
     }
 
@@ -298,6 +290,7 @@ window.addEventListener('touchend', (e) => {
             window.setScope(scopes[nextIdx]);
         }
     } else if (absY > absX) { 
+        // 페이징 모드에서 위아래로 밀어 페이지 통째로 넘기기
         if (store.scope === 'memo') return; 
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
