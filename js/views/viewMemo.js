@@ -85,7 +85,6 @@ export class MemoView extends BaseView {
   }
 
   async handleFileUpload(inputElement) {
-      // 🌟 [수정] 여러 파일을 배열로 전달받아 처리하도록 변경
       const files = inputElement.files;
       if (!files || files.length === 0) return;
       
@@ -130,9 +129,8 @@ export class MemoView extends BaseView {
               allMemos = allMemos.concat(groupMemos);
           }
       } catch (e) {
-          // 에러 발생 시 팝업 호출
           if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) {
-              return null; // 동기화 완료 신호
+              return null; 
           }
       }
       return allMemos;
@@ -151,12 +149,12 @@ export class MemoView extends BaseView {
     if (!this.memoItems || this.memoItems.length === 0) {
         this.showLoading('클라우드에서 데이터(개인 및 공유)를 불러오는 중입니다...');
         const data = await this.fetchAllMemos();
-        if (data === null) return; // 💡 팝업에서 동기화를 진행하여 화면이 다시 그려졌으므로 여기서 종료
+        if (data === null) return; 
         this.memoItems = data;
         this.loadMemoLabels(); this._drawHTML();
     } else {
         this.fetchAllMemos().then(data => {
-            if (data === null) return; // 💡 동기화 진행 시 무시
+            if (data === null) return; 
             this.memoItems = data; this.loadMemoLabels();
             if (!this.isUploading) this._drawHTML(); 
         });
@@ -222,9 +220,9 @@ export class MemoView extends BaseView {
         attachmentPreviewHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + this.pendingAttachments.map((a, idx) => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
             return `
-            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;" title="클릭하여 파일 열기/다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                <span style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${a.name}</span>
+                <span data-tooltip="${a.name}" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${a.name}</span>
                 <button onclick="event.stopPropagation(); window.memoViewInstance.cancelPendingAttachment(${idx})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:16px; height:16px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:4px;" title="첨부 링크 삭제">✖</button>
             </div>`;
         }).join('') + `</div>`;
@@ -261,7 +259,6 @@ export class MemoView extends BaseView {
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
             <button onclick="document.getElementById('memo-file-upload').click()" class="memo-btn-icon" title="파일/문서 첨부">📎</button>
-            <!-- 🌟 [수정] multiple 속성을 추가하여 다중 첨부 지원 -->
             <input type="file" id="memo-file-upload" multiple style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
             
             <button onclick="window.memoViewInstance.addMemoItem()" class="memo-btn-submit">추가</button>
@@ -372,7 +369,7 @@ export class MemoView extends BaseView {
         attachmentsHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + item.attachments.map(a => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
             return `
-            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 열기/다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                 <span data-tooltip="${a.name}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
             </div>`;
@@ -495,7 +492,6 @@ export class MemoView extends BaseView {
     if(confirm("이 메모를 완전히 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
       const target = this.memoItems.find(m => m.firestoreId === firestoreId);
       
-      // 🌟 [추가됨] 드라이브 파일 동반 삭제
       if (target && target.attachments && target.attachments.length > 0) {
           target.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
       }
@@ -517,7 +513,6 @@ export class MemoView extends BaseView {
       this.memoItems = this.memoItems.filter(m => !myCompletedMemos.includes(m));
       this._drawHTML();
       myCompletedMemos.forEach(memo => {
-          // 🌟 [추가됨] 드라이브 파일 동반 삭제
           if (memo.attachments && memo.attachments.length > 0) {
               memo.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
           }
