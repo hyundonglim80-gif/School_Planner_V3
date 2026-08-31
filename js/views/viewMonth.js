@@ -26,7 +26,6 @@ export class MonthView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
-    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToToday) {
         window.originalScrollToToday = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -170,9 +169,8 @@ export class MonthView extends BaseView {
               container.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
           } else {
-              const colgroup = container.querySelector('colgroup');
-              if (colgroup) colgroup.insertAdjacentHTML('afterend', html);
-              else container.insertAdjacentHTML('afterbegin', html);
+              // 🌟 뷰어 모드도 테이블 구조이므로 table 안쪽에 정상적으로 삽입
+              container.querySelector('table').insertAdjacentHTML('afterbegin', html);
               this.loadedMonths.unshift({y, m});
           }
       }
@@ -217,7 +215,6 @@ export class MonthView extends BaseView {
       const filters = window.activeUnifiedFilters || ['personal'];
       const filterCount = filters.length;
       const realTodayStr = formatDate(new Date());
-      const maxP = store.periodNames ? store.periodNames.length : 6;
 
       const masterEventLabels = getEventLabels();
       const masterJournalLabels = getJournalLabels();
@@ -249,7 +246,7 @@ export class MonthView extends BaseView {
           filters.forEach((fId) => {
               const isPersonal = fId === 'personal';
               const gIcon = isPersonal ? '🔒' : '👥';
-              const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
               const iconColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
@@ -306,7 +303,7 @@ export class MonthView extends BaseView {
               let scheduleHtml = '';
               if (store.showClass) {
                   let hasClass = false;
-                  let boxesHtml = Array.from({ length: maxP }).map((_, pi) => {
+                  let boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
                       const p = pi + 1;
                       const subj = sMap[dateStr]?.[fId]?.[p]?.subject;
                       if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
@@ -324,7 +321,7 @@ export class MonthView extends BaseView {
 
               if (eventHtml || scheduleHtml) {
                   const topBorder = contentHtml !== '' ? 'border-top: 1px dashed #cbd5e1; padding-top: 6px; margin-top: 4px;' : 'margin-top: 4px;';
-                  const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:0.85rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:4px; cursor:help;" title="${gName}">${gIcon}</div>` : '';
+                  const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:0.85rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   contentHtml += `<div style="${topBorder} display:flex; flex-direction:column; align-items:stretch; width:100%;">${iconBadge}${scheduleHtml}${eventHtml}</div>`;
               }
           });
@@ -343,10 +340,14 @@ export class MonthView extends BaseView {
       }).join('');
 
       let headerBanner = this.isInfiniteMode ? `<div style="padding:10px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; border-radius:8px 8px 0 0; text-align:center; border:1px solid #bfdbfe; border-bottom:none;">${y}년 ${m + 1}월</div>` : '';
-      return `<div class="month-chunk" data-y="${y}" data-m="${m}" style="margin-bottom:30px;">
-                ${headerBanner}
-                <div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr); margin-top:0;">${daysHeaderHtml}${daysHtml}</div>
-              </div>`;
+      
+      // 🌟 [표 깨짐 방지] 뷰어 모드도 tbody로 감싸서 반환해야 테이블 안에 자연스럽게 스며듦
+      return `<tbody class="month-chunk" data-y="${y}" data-m="${m}">
+                <tr><td colspan="${this.isWeekendVisible ? 7 : 5}" style="padding:0; border:none;">
+                    ${headerBanner}
+                    <div class="calendar-grid" style="grid-template-columns: repeat(${this.isWeekendVisible ? 7 : 5}, 1fr); margin-top:0;">${daysHeaderHtml}${daysHtml}</div>
+                </td></tr>
+              </tbody>`;
   }
 
   async buildEditorChunk(y, m) {
@@ -397,7 +398,9 @@ export class MonthView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(dateStr);
+          
           const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
+          const todayClass = isToday ? 'month-today-cell' : '';
 
           let rowsHtmlForDate = '';
 
@@ -406,7 +409,8 @@ export class MonthView extends BaseView {
               const gIcon = isPersonal ? '🔒' : '👥';
               const badgeColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
               let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
               
@@ -431,7 +435,7 @@ export class MonthView extends BaseView {
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-month-date="${dateStr}" class="month-row-${dateStr}">
-                    <td rowspan="${totalRows}" class="${isToday ? 'month-today-cell' : ''}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                         <span onclick="window.goToDay('${dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${dateStr} 일 보기로 이동">${d}일</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
@@ -452,14 +456,15 @@ export class MonthView extends BaseView {
 
           if (store.showClass) {
               const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
-              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
+              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical- middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
 
               filters.forEach((fId) => {
                   const isPersonal = fId === 'personal';
                   const gIcon = isPersonal ? '🔒' : '👥';
                   const badgeColor = isPersonal ? '#2563eb' : '#059669';
                   const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+                  const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
                   const periods = window[`tempSchedules_${dateStr}`][fId];
                   const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
@@ -467,7 +472,6 @@ export class MonthView extends BaseView {
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
                       if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-                      // 🌟 [오타 완벽 교체됨] 
                       return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
@@ -492,37 +496,32 @@ export class MonthView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        const maxP = store.periodNames ? store.periodNames.length : 6;
-        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
+        const y = store.currentDate.getFullYear();
+        const m = store.currentDate.getMonth();
 
+        // 🌟 [표 깨짐 복구] 뷰어 모드 테이블 colgroup 부활!
         if (this.isInfiniteMode) {
-            const y = store.currentDate.getFullYear();
-            const m = store.currentDate.getMonth();
             this.renderedDateStrings = [];
             this.loadedMonths = [{y, m}];
             
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-                <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
-                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
-                        ${colgroupHtml}
-                        ${chunkHtml}
-                    </table>
+                <div id="infinite-viewer-container" style="padding-top:10px;">
+                  <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
+                    ${chunkHtml}
+                  </table>
                 </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
         } else {
-            const y = store.currentDate.getFullYear();
-            const m = store.currentDate.getMonth();
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
-              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top:15px;">
+              <div style="padding-top:15px;">
                 <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
-                    ${colgroupHtml}
-                    ${chunkHtml}
+                  ${chunkHtml}
                 </table>
               </div>`;
         }
