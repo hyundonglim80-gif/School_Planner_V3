@@ -85,16 +85,17 @@ export class MemoView extends BaseView {
   }
 
   async handleFileUpload(inputElement) {
-      const file = inputElement.files[0];
-      if (!file) return;
+      // 🌟 [수정] 여러 파일을 배열로 전달받아 처리하도록 변경
+      const files = inputElement.files;
+      if (!files || files.length === 0) return;
       
       this.isUploading = true; 
       this.renderViewer(); 
 
       try {
-          const fileData = await driveAPI.uploadFile(file);
+          const uploadedFiles = await driveAPI.uploadFiles(files);
           if (!this.pendingAttachments) this.pendingAttachments = [];
-          this.pendingAttachments.push(fileData);
+          this.pendingAttachments.push(...uploadedFiles);
           store.hasUnsavedChanges = true;
       } catch (error) {
           console.error("파일 업로드 실패:", error);
@@ -221,7 +222,7 @@ export class MemoView extends BaseView {
         attachmentPreviewHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + this.pendingAttachments.map((a, idx) => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
             return `
-            <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;" title="클릭하여 파일 다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;" title="클릭하여 파일 열기/다운로드">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                 <span style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${a.name}</span>
                 <button onclick="event.stopPropagation(); window.memoViewInstance.cancelPendingAttachment(${idx})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:16px; height:16px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:4px;" title="첨부 링크 삭제">✖</button>
@@ -260,7 +261,8 @@ export class MemoView extends BaseView {
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
             <button onclick="document.getElementById('memo-file-upload').click()" class="memo-btn-icon" title="파일/문서 첨부">📎</button>
-            <input type="file" id="memo-file-upload" style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
+            <!-- 🌟 [수정] multiple 속성을 추가하여 다중 첨부 지원 -->
+            <input type="file" id="memo-file-upload" multiple style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
             
             <button onclick="window.memoViewInstance.addMemoItem()" class="memo-btn-submit">추가</button>
           </div>
@@ -370,7 +372,7 @@ export class MemoView extends BaseView {
         attachmentsHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + item.attachments.map(a => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
             return `
-            <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 열기/다운로드">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                 <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
             </div>`;
