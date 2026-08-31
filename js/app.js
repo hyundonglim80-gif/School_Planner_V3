@@ -135,7 +135,7 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 [문제 2 해결] 팝업(모달) 감지 시 배경 스크롤 및 단축키 강제 차단 로직
+// 💡 모달창 감지 시 배경 스크롤 및 단축키 강제 차단 로직
 // ==========================================================================
 window.activeModalCount = 0;
 
@@ -195,7 +195,6 @@ let touchStartedAtBottom = false;
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
     
-    // 🌟 무한 스크롤 상태일 때는 휠/스와이프 이동을 완전 차단
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -222,8 +221,10 @@ window.addEventListener('wheel', (e) => {
 window.addEventListener('touchstart', (e) => {
     if (isModalOpen()) return; 
 
-    // 🌟 무한 스크롤 시 터치 스와이프 상태 캡처 생략
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
+        // 무한 스크롤 시에도 좌우 스와이프 기준점은 필요함
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
         return;
     }
 
@@ -240,34 +241,23 @@ window.addEventListener('touchstart', (e) => {
 window.addEventListener('touchend', (e) => {
     if (isModalOpen()) return; 
 
-    // 🌟 무한 스크롤 중이면 스와이프 이동 로직 완전 통과 (단, 좌우 탭 전환은 허용)
-    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        const touchEndX = e.changedTouches[0].clientX;
-        const deltaX = touchStartX - touchEndX;
-        if (Math.abs(deltaX) > 50) {
-            const scopes = ['day', 'week', 'month', 'year', 'memo'];
-            const currentIdx = scopes.indexOf(store.scope);
-            if (currentIdx !== -1 && window.setScope) {
-                let nextIdx = deltaX > 0 ? currentIdx + 1 : currentIdx - 1;
-                if (nextIdx < 0) nextIdx = scopes.length - 1;
-                if (nextIdx >= scopes.length) nextIdx = 0;
-                window.setScope(scopes[nextIdx]);
-            }
-        }
-        return;
-    }
-
-    if (store.mode !== 'viewer') return;
-    if (scrollNavTimeout) return;
-
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     
     const deltaX = touchStartX - touchEndX;
     const deltaY = touchStartY - touchEndY; 
+    
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
 
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        if (Math.abs(deltaX) > 50) {
+    // 🌟 좌우 스와이프 판정 기준 강화 (대각선 스크롤 시 오작동 완벽 차단)
+    // 1. 최소 70px 이상 좌우로 밀었을 것
+    // 2. Y축(위아래) 흔들림보다 X축(좌우) 이동이 1.5배 이상 명확히 클 것
+    const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
+
+    // 무한 스크롤 중일 때의 동작
+    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
+        if (isValidHorizontalSwipe) {
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
             if (currentIdx !== -1 && window.setScope) {
@@ -277,7 +267,24 @@ window.addEventListener('touchend', (e) => {
                 window.setScope(scopes[nextIdx]);
             }
         }
-    } else {
+        return; // 무한스크롤 시 세로 페이지 이동 로직 무시
+    }
+
+    // 일반(페이징) 모드일 때의 동작
+    if (store.mode !== 'viewer') return;
+    if (scrollNavTimeout) return;
+
+    if (isValidHorizontalSwipe) {
+        const scopes = ['day', 'week', 'month', 'year', 'memo'];
+        const currentIdx = scopes.indexOf(store.scope);
+        if (currentIdx !== -1 && window.setScope) {
+            let nextIdx = deltaX > 0 ? currentIdx + 1 : currentIdx - 1;
+            if (nextIdx < 0) nextIdx = scopes.length - 1;
+            if (nextIdx >= scopes.length) nextIdx = 0;
+            window.setScope(scopes[nextIdx]);
+        }
+    } else if (absY > absX) { 
+        // 세로 스크롤 이동일 경우
         if (store.scope === 'memo') return; 
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
