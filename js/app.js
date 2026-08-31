@@ -135,7 +135,7 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 모달창 감지 시 배경 스크롤 강제 차단 로직
+// 💡 모달창(팝업) 상태 관리 - 오작동 감시기(MutationObserver) 완전 제거
 // ==========================================================================
 window.activeModalCount = 0;
 
@@ -151,49 +151,37 @@ window.decreaseModalCount = () => {
     }
 };
 
-const isModalOpen = () => {
-    let modalVisible = window.activeModalCount > 0;
-    
-    const overlays = document.querySelectorAll('.modal-overlay, .super-alarm-overlay, #sp3-alarm-modal-overlay');
-    overlays.forEach(el => {
-        if (window.getComputedStyle(el).display !== 'none' && el.style.display !== 'none') {
-            modalVisible = true;
-        }
-    });
-
-    if (modalVisible) {
-        document.body.style.overflow = 'hidden';
-        return true;
-    } else {
-        document.body.style.overflow = ''; 
-        return false;
-    }
-};
-
-const modalObserver = new MutationObserver(() => isModalOpen());
-modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
-
+// 불필요한 DOM 탐색을 지우고 카운트 숫자로만 완벽하게 모달 상태를 판단합니다.
+const isModalOpen = () => window.activeModalCount > 0;
 
 // ==========================================================================
-// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (모바일/PC 스크롤 완벽 대응)
+// 📜 상하 스와이프 및 스크롤 로직 (모바일 무한스크롤 완벽 대응)
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
+// 🌟 1. 모바일 환경 감지
+const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768 || ('ontouchstart' in window);
+
+// 🌟 2. 모바일 당겨서 새로고침 방어 (CSS)
+// JS로 이벤트를 막으면 스크롤이 죽어버리므로 CSS로 모바일 새로고침 기능만 깔끔하게 차단합니다.
+if (isMobileDevice()) {
+    const style = document.createElement('style');
+    style.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
+    document.head.appendChild(style);
+}
+
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
-let startedAtTop = false;
-let startedAtBottom = false;
-
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
-// 🌟 [PC 및 일반 스크롤러 동작] 마우스 휠 이벤트 처리
+// 🌟 [PC 환경] 마우스 휠 동작 처리
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
     
-    // 무한 스크롤이 켜져있으면 PC의 마우스 휠은 기본(네이티브) 스크롤 동작을 하도록 바로 리턴
+    // 무한 스크롤 모드이면 PC 휠 스크롤은 자연스럽게 작동하도록 패스합니다.
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -206,10 +194,9 @@ window.addEventListener('wheel', (e) => {
     const atBottom = currentScroll >= scrollHeight - 10;
     const atTop = window.scrollY <= 10;
 
-    if (!blockWheelTimer) {
-        startedAtTop = atTop;
-        startedAtBottom = atBottom;
-    }
+    let startedAtTop = atTop;
+    let startedAtBottom = atBottom;
+
     if (blockWheelTimer) clearTimeout(blockWheelTimer);
     blockWheelTimer = setTimeout(() => { blockWheelTimer = null; }, 150);
 
@@ -224,7 +211,7 @@ window.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
-    // 무한스크롤 시에도 좌우 탭 전환을 위해 터치 시작 좌표만 수집하고 패스
+    // 무한스크롤 시 터치 초기좌표만 기억하고 스크롤은 막지 않음
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -236,27 +223,7 @@ window.addEventListener('touchstart', (e) => {
     touchStartedAtBottom = currentScroll >= scrollHeight - 10;
 }, { passive: true });
 
-// 🌟 [모바일 새로고침 방어] 화면을 위에서 아래로 당기는 'Pull-to-refresh'만 정밀 차단
-window.addEventListener('touchmove', (e) => {
-    if (isModalOpen()) {
-        if (e.cancelable) e.preventDefault();
-        return;
-    }
-
-    // 화면 최상단(scrollY <= 0)에 있을 때, 손가락을 아래로 내리는(새로고침) 제스처만 차단
-    // 무한 스크롤 ON/OFF와 상관없이 모바일에서는 항상 새로고침을 방지합니다.
-    if (window.scrollY <= 0) {
-        const currentY = e.touches[0].clientY;
-        if (currentY > touchStartY) {
-            // 위에서 아래로 당김 -> 새로고침 차단
-            if (e.cancelable) {
-                e.preventDefault();
-            }
-        }
-    }
-}, { passive: false }); // preventDefault를 사용해야 하므로 passive: false
-
-// 🌟 [모바일 터치 끝] 무한스크롤 vs 페이지 넘기기(플립) 처리
+// 🌟 [모바일 터치 끝] 무한스크롤 ON / OFF 완벽 분리
 window.addEventListener('touchend', (e) => {
     if (isModalOpen()) return; 
 
@@ -269,13 +236,13 @@ window.addEventListener('touchend', (e) => {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 💡 가로 탭 전환 기준: 70px 이상 이동 + 세로 이동폭보다 1.5배 명확히 커야 함
+    // 가로 스와이프: 가로로 70px 이상 밀고, 세로 이동폭의 1.5배 이상이어야 탭 이동 허용
     const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
 
-    // [1] 무한 스크롤이 켜져 있을 때 (모바일 & PC 공통)
+    // [무한 스크롤이 켜져 있을 때]
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         if (isValidHorizontalSwipe) {
-            // 좌우 스와이프: 탭 전환
+            // 좌우 스와이프: 페이지(탭) 이동
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
             if (currentIdx !== -1 && window.setScope) {
@@ -285,16 +252,16 @@ window.addEventListener('touchend', (e) => {
                 window.setScope(scopes[nextIdx]);
             }
         }
-        // 상하 스와이프(스크롤): 자바스크립트가 개입하지 않고 브라우저 네이티브 스크롤에 완전히 맡김!
+        // 상하 스와이프: 이 부분에서 아무 처리도 하지 않음으로써
+        // 브라우저의 자연스러운 스와이프 기반 상하 스크롤이 완벽하게 작동(무한 로딩)되도록 합니다!
         return; 
     }
 
-    // [2] 무한 스크롤이 꺼져 있을 때 (기존 페이징 모드 복구)
+    // [무한 스크롤이 꺼져 있을 때 (기존 페이징 기능)]
     if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
 
     if (isValidHorizontalSwipe) {
-        // 좌우 스와이프: 탭 전환
         const scopes = ['day', 'week', 'month', 'year', 'memo'];
         const currentIdx = scopes.indexOf(store.scope);
         if (currentIdx !== -1 && window.setScope) {
@@ -304,7 +271,7 @@ window.addEventListener('touchend', (e) => {
             window.setScope(scopes[nextIdx]);
         }
     } else if (absY > absX) { 
-        // 상하 스와이프: 페이지 통째로 넘기기 (메모 탭 제외)
+        // 상하 스와이프로 페이지를 통째로 넘기기
         if (store.scope === 'memo') return; 
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -323,6 +290,7 @@ function executeScrollNav(direction) {
         scrollNavTimeout = setTimeout(() => { scrollNavTimeout = null; }, 800); 
     }
 }
+
 
 // ==========================================================================
 // 3. 💡 맞춤형 키보드 단축키 이벤트 세트
