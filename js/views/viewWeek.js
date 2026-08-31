@@ -81,6 +81,7 @@ export class WeekView extends BaseView {
           }
       }
       if (btn) {
+          btn.style.display = ''; // 🌟 하루 페이지에서 숨겨졌던 버튼을 다시 표시 (복구)
           btn.innerHTML = `📜 스크롤 ${this.isInfiniteMode ? '끄기' : '켜기'}`;
           btn.style.backgroundColor = this.isInfiniteMode ? '#fef2f2' : '#f8fafc';
           btn.style.color = this.isInfiniteMode ? '#ef4444' : '#475569';
@@ -138,6 +139,7 @@ export class WeekView extends BaseView {
                           const nyStr = formatDate(nextDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(nyStr) : await this.buildViewerChunk(nyStr);
+                          
                           if (this.renderId !== currentRenderId) return;
                           
                           this.insertChunkToDOM(html, mode, 'bottom', nyStr);
@@ -150,6 +152,7 @@ export class WeekView extends BaseView {
                           const pyStr = formatDate(prevDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(pyStr) : await this.buildViewerChunk(pyStr);
+                          
                           if (this.renderId !== currentRenderId) return;
                           
                           const oldScrollHeight = document.documentElement.scrollHeight;
@@ -249,7 +252,6 @@ export class WeekView extends BaseView {
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               
-              // 🌟 뷰어 모드 일정 다중 라벨 순회 정렬
               processedEvents.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -269,7 +271,6 @@ export class WeekView extends BaseView {
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 뷰어 모드 기록 다중 라벨 순회 정렬
               validJournals.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -369,6 +370,8 @@ export class WeekView extends BaseView {
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
 
+      const maxP = store.periodNames ? store.periodNames.length : 6;
+
       const rowsHtml = weekDates.map(d => {
           if (!this.renderedDateStrings.includes(d.dateStr)) this.renderedDateStrings.push(d.dateStr);
           window[`tempEvents_${d.dateStr}`] = [];
@@ -424,19 +427,19 @@ export class WeekView extends BaseView {
                       </div>
                     </td>
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
 
           if (store.showClass) {
-              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
+              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               
               rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>${pNamesHtml}</tr>`;
 
@@ -449,7 +452,7 @@ export class WeekView extends BaseView {
                   const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
-                  const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                  const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
@@ -467,7 +470,7 @@ export class WeekView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
       return `<tbody class="week-chunk" data-date="${startOfWeekStr}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
