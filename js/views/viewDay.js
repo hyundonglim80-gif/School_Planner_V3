@@ -120,6 +120,11 @@ export class DayView extends BaseView {
     }
 
     async renderViewer() {
+        // 🌟 [추가됨] 하루 페이지에서는 무조건 스크롤 연동 기능 끄기
+        window.isInfiniteScrollActive = false;
+        const infBtn = document.getElementById('btn-toggle-infinite');
+        if (infBtn) infBtn.style.display = 'none';
+
         this.lockedDateStr = this.dateStr; 
         this.showLoading('클라우드 데이터를 불러오는 중...');
         const dateStr = this.lockedDateStr;
@@ -271,6 +276,11 @@ export class DayView extends BaseView {
     }
 
     async renderEditor() {
+        // 🌟 [추가됨] 하루 페이지에서는 무조건 스크롤 연동 기능 끄기
+        window.isInfiniteScrollActive = false;
+        const infBtn = document.getElementById('btn-toggle-infinite');
+        if (infBtn) infBtn.style.display = 'none';
+
         this.lockedDateStr = this.dateStr; 
         this.showLoading('편집 화면을 다중 작업공간으로 준비 중...');
         const dateStr = this.lockedDateStr;
@@ -681,7 +691,7 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [변경됨] 날짜 및 시간이 포함된 새로운 알림 UI (Day View)
+            // 🌟 [변경됨] 클릭 불가 버그 해결 및 날짜까지 표시되도록 UI 개편
             const timeVal = ev.time || '';
             const timeLabel = window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : (timeVal ? `⏰ ${timeVal.replace('T', ' ')}` : '⏰ off');
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
@@ -691,10 +701,9 @@ export class DayView extends BaseView {
             const timeHtml = isAuthor 
                   ? `<label style="position:relative; cursor:pointer; display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:${timeColor}; font-weight:bold; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 날짜/시간 설정 (브라우저 푸시 알림)">
                        ${timeLabel}
-                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value); window.dayViewInstance.renderEventEntries('${fId}');" style="width:1px; height:1px; opacity:0; position:absolute; bottom:0; right:0;">
+                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission(); try{this.showPicker();}catch(e){}" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value); window.dayViewInstance.renderEventEntries('${fId}');" style="width:100%; height:100%; opacity:0; position:absolute; top:0; left:0; cursor:pointer;">
                      </label>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${timeLabel}</span>`;
-
 
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
