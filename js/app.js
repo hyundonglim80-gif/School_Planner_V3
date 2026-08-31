@@ -53,7 +53,6 @@ if ('serviceWorker' in navigator) {
     }
 }
 
-// 기존 다운로드 함수 (하위 호환성을 위해 유지)
 window.promptDownloadFile = function(fileName, downloadUrl) {
     if (confirm(`"${fileName}" 파일을 다운로드하시겠습니까?`)) {
         const a = document.createElement('a');
@@ -66,12 +65,8 @@ window.promptDownloadFile = function(fileName, downloadUrl) {
     }
 };
 
-// 🌟 [추가] 첨부파일 바로 열기 및 조건부 다운로드 함수
 window.handleAttachmentClick = function(fileName, webViewLink, downloadLink) {
-    // 구글 드라이브에서 미리보기가 불가능한 파일 확장자 목록
     const unviewableExts = ['.hwp', '.hwpx', '.zip', '.rar', '.7z', '.alz', '.egg', '.exe'];
-    
-    // 파일명에서 확장자 추출
     const extMatch = fileName.match(/\.[0-9a-z]+$/i);
     const ext = extMatch ? extMatch[0].toLowerCase() : '';
     
@@ -86,7 +81,6 @@ window.handleAttachmentClick = function(fileName, webViewLink, downloadLink) {
             document.body.removeChild(a);
         }
     } else {
-        // 미리보기가 가능한 파일은 새 탭에서 구글 드라이브 뷰어로 열기
         const targetLink = (webViewLink && webViewLink !== 'undefined') ? webViewLink : downloadLink;
         window.open(targetLink, '_blank');
     }
@@ -141,19 +135,46 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 [핵심 최적화] 팝업창(모달) 상태 변수 기반 관리 (+1 / -1 로직)
+// 💡 [문제 2 해결] 팝업(모달) 감지 시 배경 스크롤 및 단축키 강제 차단 로직
 // ==========================================================================
 window.activeModalCount = 0;
 
 window.increaseModalCount = () => { 
     window.activeModalCount++; 
+    document.body.style.overflow = 'hidden'; 
 };
 
 window.decreaseModalCount = () => { 
     if (window.activeModalCount > 0) window.activeModalCount--; 
+    if (window.activeModalCount === 0) {
+        document.body.style.overflow = ''; 
+    }
 };
 
-const isModalOpen = () => window.activeModalCount > 0;
+// 화면에 실제로 모달 요소가 표시되고 있는지 0.1초마다 감지하여 완벽하게 방어합니다.
+const isModalOpen = () => {
+    let modalVisible = window.activeModalCount > 0;
+    
+    // 모달창, 오버레이, 하루 모달 본문 등의 클래스/ID를 가진 요소가 display: none이 아닌 상태로 떠있는지 체크
+    const overlays = document.querySelectorAll('.modal-overlay, [id*="modal-overlay"], .super-alarm-overlay, #day-modal-body');
+    overlays.forEach(el => {
+        if (window.getComputedStyle(el).display !== 'none' && el.id !== 'main-view') {
+            modalVisible = true;
+        }
+    });
+
+    if (modalVisible) {
+        document.body.style.overflow = 'hidden'; // 강제 스크롤 차단
+        return true;
+    } else {
+        document.body.style.overflow = ''; // 강제 스크롤 허용
+        return false;
+    }
+};
+
+// DOM 변화를 감시하여 모달창이 열리면 자동으로 스크롤을 막습니다.
+const modalObserver = new MutationObserver(() => isModalOpen());
+modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
 // ==========================================================================
 // 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직
@@ -175,9 +196,7 @@ let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
 window.addEventListener('wheel', (e) => {
-    if (isModalOpen()) return; 
-    
-    // 🌟 [추가됨] 무한 스크롤 모드일 경우 글로벌 휠 넘기기 차단
+    if (isModalOpen()) return; // 모달창 열림 시 휠 차단
     if (window.isInfiniteScrollActive) return; 
 
     if (store.mode !== 'viewer' || store.scope === 'memo') return;
@@ -200,7 +219,7 @@ window.addEventListener('wheel', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
-    if (isModalOpen()) return;
+    if (isModalOpen()) return; // 모달창 열림 시 터치 차단
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
@@ -213,7 +232,7 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    if (isModalOpen()) return;
+    if (isModalOpen()) return; // 모달창 열림 시 터치 차단
 
     if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
@@ -259,7 +278,7 @@ function executeScrollNav(direction) {
 // 3. 💡 맞춤형 키보드 단축키 이벤트 세트
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
-    if (isModalOpen()) return;
+    if (isModalOpen()) return; // 모달창 열림 시 단축키 차단
 
     const tag = e.target.tagName.toLowerCase();
     const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
@@ -303,9 +322,6 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// ==========================================================================
-// 4. 🚀 초고속 반투명 커스텀 툴팁 (깔끔한 한 줄 노란색 표시)
-// ==========================================================================
 if (!document.getElementById('sp3-custom-tooltip-style')) {
     const tooltipStyle = document.createElement('style');
     tooltipStyle.id = 'sp3-custom-tooltip-style';
@@ -383,14 +399,10 @@ document.body.addEventListener('touchstart', hideTooltip, { passive: true, captu
 function applyShortcutTooltips() {
     const attach = (el, shortcutText) => {
         if (!el) return;
-        
         if (el.hasAttribute('title')) el.removeAttribute('title'); 
-
         let existingTooltip = el.getAttribute('data-tooltip') || '';
         if (existingTooltip.includes(shortcutText)) return; 
-
         let newTooltipText = `<span style="color:#fbbf24; font-size:0.85rem; font-weight:bold;">단축키: ${shortcutText}</span>`;
-        
         el.setAttribute('data-tooltip', newTooltipText);
         el.setAttribute('data-shortcut-added', 'true');
     };
