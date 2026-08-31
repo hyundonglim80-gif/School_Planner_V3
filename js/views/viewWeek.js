@@ -14,15 +14,18 @@ export class WeekView extends BaseView {
     this.myGroups = [];
     this.scheduleGroupId = null; 
     this.isRendering = false; 
+    this.renderId = 0; 
 
+    // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
-    this.loadedWeeks = []; // [{ dateStr }] (해당 주의 일요일 날짜)
+    this.loadedWeeks = []; 
     this.observer = null;
     this.chunkObserver = null;
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
+    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToTodayWeek) {
         window.originalScrollToTodayWeek = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -53,10 +56,12 @@ export class WeekView extends BaseView {
     }, []);
   }
 
-  // 🌟 [문제 3 해결] 목요일을 기준으로 정확하게 N월 N주차를 계산하는 함수
+  // 🌟 [안전 로직 추가] 날짜 파싱 오류(NaN)를 원천 차단하는 주차 계산 로직
   getWeekTitle(dateStr) {
-      const d = new Date(dateStr);
-      d.setDate(d.getDate() + 4); // 해당 주의 목요일로 이동
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      d.setDate(d.getDate() + 4); 
       const m = d.getMonth() + 1;
       const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
       const weekNum = Math.ceil((d.getDate() + firstDay) / 7);
@@ -102,7 +107,8 @@ export class WeekView extends BaseView {
               if (entry.isIntersecting) {
                   const chunkDateStr = entry.target.getAttribute('data-date');
                   if (chunkDateStr) {
-                      const d = new Date(chunkDateStr);
+                      const parts = chunkDateStr.split('-');
+                      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
                       d.setDate(d.getDate() + 3); 
                       store.currentDate = d;
                       if (window.updateTitle) window.updateTitle();
@@ -118,9 +124,9 @@ export class WeekView extends BaseView {
 
   setupInfiniteObserver(mode) {
       if (this.observer) this.observer.disconnect();
+      const currentRenderId = this.renderId; // 🌟 현재 렌더링 ID 기억
       
       this.observer = new IntersectionObserver(async (entries) => {
-          // 💡 [문제 4 해결] 모달창이 열려있거나 강제 자동 스크롤 중일 땐 센서 무시
           if (window.isAutoScrollingWeek || window.activeModalCount > 0) return; 
 
           for (let entry of entries) {
@@ -129,20 +135,28 @@ export class WeekView extends BaseView {
                   try {
                       if (entry.target.id === 'week-bottom-sentinel') {
                           const lastDateStr = this.loadedWeeks[this.loadedWeeks.length - 1].dateStr;
-                          const nextDate = new Date(lastDateStr);
+                          const parts = lastDateStr.split('-');
+                          const nextDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
                           nextDate.setDate(nextDate.getDate() + 7);
                           const nyStr = formatDate(nextDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(nyStr) : await this.buildViewerChunk(nyStr);
+                          
+                          // 🌟 렌더링 ID가 달라졌다면(오늘 버튼 클릭 등) 삽입 즉시 중단!
+                          if (this.renderId !== currentRenderId) return;
+                          
                           this.insertChunkToDOM(html, mode, 'bottom', nyStr);
                       } 
                       else if (entry.target.id === 'week-top-sentinel') {
                           const firstDateStr = this.loadedWeeks[0].dateStr;
-                          const prevDate = new Date(firstDateStr);
+                          const parts = firstDateStr.split('-');
+                          const prevDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
                           prevDate.setDate(prevDate.getDate() - 7);
                           const pyStr = formatDate(prevDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(pyStr) : await this.buildViewerChunk(pyStr);
+                          
+                          if (this.renderId !== currentRenderId) return;
                           
                           const oldScrollHeight = document.documentElement.scrollHeight;
                           const oldScrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -154,12 +168,11 @@ export class WeekView extends BaseView {
                           window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
                       }
                   } finally {
-                      // 💡 [문제 3 해결] 에러가 나더라도 무조건 로딩 상태를 해제하여 스크롤 멈춤 방지
                       setTimeout(() => { this.isLoadingMore = false; }, 100);
                   }
               }
           }
-      }, { rootMargin: '100px' }); // 범위 축소 (튕김 방지)
+      }, { rootMargin: '600px' }); // 🌟 마진을 넉넉하게 주어 지연(버벅거림) 없이 미리 로드
 
       const topSentinel = document.getElementById('week-top-sentinel');
       const bottomSentinel = document.getElementById('week-bottom-sentinel');
@@ -168,18 +181,32 @@ export class WeekView extends BaseView {
   }
 
   insertChunkToDOM(html, mode, position, startOfWeekStr) {
-      const container = document.getElementById(mode === 'editor' ? 'infinite-editor-container' : 'infinite-viewer-container');
+      const container = document.getElementById(mode === 'editor' ? 'week-editor-table' : 'infinite-viewer-container');
       if (!container) return;
       
-      if (position === 'bottom') {
-          container.insertAdjacentHTML('beforeend', html);
-          this.loadedWeeks.push({ dateStr: startOfWeekStr });
+      // 🌟 [표 깨짐 방지] colgroup 및 thead 구조를 보호하며 삽입
+      if (mode === 'editor') {
+          if (position === 'bottom') {
+              container.insertAdjacentHTML('beforeend', html);
+              this.loadedWeeks.push({ dateStr: startOfWeekStr });
+          } else {
+              const thead = container.querySelector('thead');
+              if (thead) thead.insertAdjacentHTML('afterend', html);
+              else container.insertAdjacentHTML('afterbegin', html);
+              this.loadedWeeks.unshift({ dateStr: startOfWeekStr });
+          }
+          setTimeout(() => { this.syncAllCompactEventInputs(); }, 100);
       } else {
-          container.insertAdjacentHTML('afterbegin', html);
-          this.loadedWeeks.unshift({ dateStr: startOfWeekStr });
+          if (position === 'bottom') {
+              container.insertAdjacentHTML('beforeend', html);
+              this.loadedWeeks.push({ dateStr: startOfWeekStr });
+          } else {
+              const colgroup = container.querySelector('colgroup');
+              if (colgroup) colgroup.insertAdjacentHTML('afterend', html);
+              else container.insertAdjacentHTML('afterbegin', html);
+              this.loadedWeeks.unshift({ dateStr: startOfWeekStr });
+          }
       }
-      
-      if (mode === 'editor') setTimeout(() => { this.syncAllCompactEventInputs(); }, 100);
       this.setupChunkObserver(); 
   }
 
@@ -407,7 +434,7 @@ export class WeekView extends BaseView {
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
                       if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
                       if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
-                      return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
+                      return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
                   rowsHtmlForDate += `
@@ -426,6 +453,7 @@ export class WeekView extends BaseView {
 
   async renderViewer() {
     this.isRendering = true;
+    this.renderId = Date.now(); 
     try {
         this.showLoading('클라우드에서 주간 데이터를 불러오는 중...'); 
         this.injectInfiniteToggleBtn();
@@ -474,6 +502,7 @@ export class WeekView extends BaseView {
 
   async renderEditor() {
     this.isRendering = true;
+    this.renderId = Date.now(); 
     try {
         this.showLoading('편집 화면을 준비 중...');
         this.injectInfiniteToggleBtn();
