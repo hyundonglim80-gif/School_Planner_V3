@@ -16,7 +16,6 @@ export class WeekView extends BaseView {
     this.isRendering = false; 
     this.renderId = 0; 
 
-    // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
     this.loadedWeeks = []; 
@@ -25,7 +24,6 @@ export class WeekView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
-    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToTodayWeek) {
         window.originalScrollToTodayWeek = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -56,7 +54,6 @@ export class WeekView extends BaseView {
     }, []);
   }
 
-  // 안전한 날짜 계산 (NaN 에러 방지)
   getWeekTitle(dateStr) {
       if (!dateStr) return '';
       const parts = dateStr.split('-');
@@ -127,7 +124,6 @@ export class WeekView extends BaseView {
       const currentRenderId = this.renderId; 
       
       this.observer = new IntersectionObserver(async (entries) => {
-          // 모달창이 열려있거나 강제 이동 중일 때 센서 끄기
           if (window.isAutoScrollingWeek || window.activeModalCount > 0) return; 
 
           for (let entry of entries) {
@@ -142,6 +138,7 @@ export class WeekView extends BaseView {
                           const nyStr = formatDate(nextDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(nyStr) : await this.buildViewerChunk(nyStr);
+                          
                           if (this.renderId !== currentRenderId) return;
                           
                           this.insertChunkToDOM(html, mode, 'bottom', nyStr);
@@ -154,6 +151,7 @@ export class WeekView extends BaseView {
                           const pyStr = formatDate(prevDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(pyStr) : await this.buildViewerChunk(pyStr);
+                          
                           if (this.renderId !== currentRenderId) return;
                           
                           const oldScrollHeight = document.documentElement.scrollHeight;
@@ -166,7 +164,6 @@ export class WeekView extends BaseView {
                           window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
                       }
                   } finally {
-                      // 멈춤 방지 안전 해제
                       setTimeout(() => { this.isLoadingMore = false; }, 100);
                   }
               }
@@ -231,8 +228,6 @@ export class WeekView extends BaseView {
       const startOfWeekStr = weekDates[0].dateStr;
       
       const masterEventLabels = getEventLabels();
-      const masterJournalLabels = getJournalLabels();
-      const maxP = store.periodNames ? store.periodNames.length : 6;
 
       const rowsHtml = weekDates.map(d => {
           const isToday = (d.dateStr === realTodayStr);
@@ -241,6 +236,10 @@ export class WeekView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(d.dateStr);
+          
+          // 🌟 파싱 에러 방지를 위한 변수 사전 할당
+          const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
+          const todayClass = isToday ? 'week-today-cell' : '';
 
           let rowsHtmlForDate = '';
 
@@ -249,36 +248,30 @@ export class WeekView extends BaseView {
               const gIcon = isPersonal ? '🔒' : '👥'; 
               const badgeColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               
-              // 🌟 뷰어 모드 일정 라벨 정렬
               processedEvents.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
                   return (a.id || '').localeCompare(b.id || '');
               });
-
+              
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              
-              // 🌟 뷰어 모드 기록 라벨 정렬
-              validJournals.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
-                  return (a.id || '').localeCompare(b.id || '');
-              });
-              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -298,27 +291,27 @@ export class WeekView extends BaseView {
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
-                    <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                         <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.8rem; font-weight:900; color:${dateColor}; line-height:1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.day}</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateNumColor}; line-height:1;">${d.dateDisplay}</span>
-                        ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
+                        ${holidayHtml}
                       </div>
                     </td>
                     <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="week-row-${d.dateStr}">
                     <td style="width: 50px; font-weight: bold; background: #eff6ff; color: #1e40af; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
 
           if (store.showClass) {
-              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
+              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               
               rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>${pNamesHtml}</tr>`;
 
@@ -327,12 +320,11 @@ export class WeekView extends BaseView {
                   const gIcon = isPersonal ? '🔒' : '👥'; 
                   const badgeColor = isPersonal ? '#2563eb' : '#059669';
                   const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+                  const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   
                   const periods = sMap[d.dateStr]?.[fId] || {};
-                  
-                  // 🌟 [수정됨] 뷰어 모드는 content (입력 불가) 출력
-                  const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
+                  const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let content = '';
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
                       if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
@@ -350,7 +342,7 @@ export class WeekView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
       return `<tbody class="week-chunk" data-date="${startOfWeekStr}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
@@ -361,8 +353,6 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
-      
-      const maxP = store.periodNames ? store.periodNames.length : 6;
 
       const rowsHtml = weekDates.map(d => {
           if (!this.renderedDateStrings.includes(d.dateStr)) this.renderedDateStrings.push(d.dateStr);
@@ -392,6 +382,9 @@ export class WeekView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(d.dateStr);
+          
+          const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
+          const todayClass = isToday ? 'week-today-cell' : '';
 
           let rowsHtmlForDate = '';
 
@@ -400,34 +393,53 @@ export class WeekView extends BaseView {
               const gIcon = isPersonal ? '🔒' : '👥'; 
               const badgeColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
               let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
               
+              const jList = jMap[d.dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              const vList = vMap[d.dateStr]?.[fId] || [];
+
+              let attachmentCount = 0;
+              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
+              let metaBadges = '';
+              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
+              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
+              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:1px solid #cbd5e1;" title="첨부파일 ${attachmentCount}개">📎 ${attachmentCount}</span>`;
+
+              if (metaBadges) {
+                  eventContent += `<div style="margin-top:8px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+              }
+
+              const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
+
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
-                    <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                         <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
-                        ${holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : ''}
+                        ${holidayHtml}
                       </div>
                     </td>
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
 
           if (store.showClass) {
-              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
+              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               
               rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>${pNamesHtml}</tr>`;
 
@@ -436,12 +448,13 @@ export class WeekView extends BaseView {
                   const gIcon = isPersonal ? '🔒' : '👥'; 
                   const badgeColor = isPersonal ? '#2563eb' : '#059669';
                   const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
+                  const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+                  const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
                   
-                  // 🌟 [오타 완전 수정됨] cellText 변수 선언! (작성 모드는 입력 칸)
-                  const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
+                  // 🌟 cellText 정상 적용 완료
+                  const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
@@ -459,7 +472,7 @@ export class WeekView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
       return `<tbody class="week-chunk" data-date="${startOfWeekStr}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
