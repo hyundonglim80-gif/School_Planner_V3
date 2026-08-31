@@ -2,9 +2,65 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
+// 🌟 [추가됨] 화면 절반을 차지하며 깜빡이는 시각적 알람 팝업 함수
+window.showCustomAlarmPopup = function(messages) {
+    let popup = document.getElementById('sp3-super-alarm-popup');
+    
+    if (!popup) {
+        // 요란하게 깜빡이는 애니메이션 CSS 주입
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes extremeBlink {
+                0% { background-color: #ef4444; color: #ffffff; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+                50% { background-color: #fef08a; color: #b91c1c; transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 80px 30px rgba(239, 68, 68, 0.9); }
+                100% { background-color: #ef4444; color: #ffffff; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            }
+            .super-alarm-overlay {
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background: rgba(0,0,0,0.85); z-index: 9999999;
+                display: none; 
+            }
+            .super-alarm-content {
+                position: absolute; top: 50%; left: 50%;
+                width: 70vw; min-height: 50vh; max-height: 80vh;
+                border-radius: 30px;
+                display: flex; flex-direction: column; justify-content: center; align-items: center;
+                animation: extremeBlink 0.8s infinite;
+                text-align: center; padding: 40px;
+                overflow-y: auto;
+            }
+        `;
+        document.head.appendChild(style);
+
+        popup = document.createElement('div');
+        popup.id = 'sp3-super-alarm-popup';
+        popup.className = 'super-alarm-overlay';
+        
+        popup.innerHTML = `
+            <div class="super-alarm-content">
+                <div style="font-size: 6rem; margin-bottom: 10px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">⏰</div>
+                <div id="sp3-super-alarm-text" style="font-size: 3.5rem; font-weight: 900; margin-bottom: 50px; line-height: 1.4; word-break: keep-all; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                </div>
+                <button onclick="document.getElementById('sp3-super-alarm-popup').style.display='none'" 
+                        style="padding: 20px 60px; font-size: 2.5rem; font-weight: 900; border: none; border-radius: 15px; background: #0f172a; color: #f8fafc; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transition: 0.2s;">
+                    확 인 (닫기)
+                </button>
+            </div>
+        `;
+        document.body.appendChild(popup);
+    }
+    
+    // 메시지 삽입 및 팝업 표시
+    const textContainer = document.getElementById('sp3-super-alarm-text');
+    if (textContainer) {
+        textContainer.innerHTML = messages.map(m => `<div>🚨 ${m.replace(/\n/g, '<br>')}</div>`).join('<hr style="border:1px dashed rgba(255,255,255,0.5); margin:20px 0;">');
+    }
+    popup.style.display = 'block';
+};
+
+// 🌟 글로벌 알림 엔진 초기화
 if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
-        if (Notification.permission !== 'granted') return;
         const now = new Date();
         const currentYMDHM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         
@@ -21,21 +77,34 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
         }
         
         const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
+        let alarmMessages = [];
 
         uniqueEvents.forEach(ev => {
             if (ev.time && ev.time <= currentYMDHM && !ev.completed && !ev.alarmTriggered) {
                 const evTimeMs = new Date(ev.time).getTime();
                 const nowMs = now.getTime();
                 
+                // 설정된 시간이 지났더라도 1시간(3600000ms) 이내라면 늦게라도 알려줌
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
-                    new Notification('⏰ 일정 알림', {
-                        body: ev.content || '예정된 일정이 있습니다.',
-                        icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
-                    });
+                    const msg = ev.content || '예정된 일정이 있습니다.';
+                    alarmMessages.push(msg);
+                    
+                    // 브라우저 기본 푸시 알림 (백그라운드용)
+                    if (Notification.permission === 'granted') {
+                        new Notification('⏰ 일정 알림', {
+                            body: msg,
+                            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
+                        });
+                    }
                 }
             }
         });
+
+        // 🌟 알림 대상이 있으면 초대형 팝업 호출
+        if (alarmMessages.length > 0) {
+            window.showCustomAlarmPopup(alarmMessages);
+        }
     }, 20000); 
 }
 
@@ -51,7 +120,6 @@ export const CompactEventHelper = {
         return `⏰ ${m}/${day} ${h}:${min}`;
     },
 
-    // 🌟 [추가됨] 날짜와 시간을 조합하여 저장 (시간은 24시간제 텍스트 자동 변환)
     updateDateTime(dateStr, eventId, fId, dVal, tVal) {
         store.hasUnsavedChanges = true;
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
@@ -60,7 +128,6 @@ export const CompactEventHelper = {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
-                // 1430 처럼 치면 자동으로 14:30으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
@@ -80,7 +147,6 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 [추가됨] 설정된 라벨 순서대로 정렬 로직
         list.sort((a, b) => {
             const aRank = labelObjs.findIndex(l => l.id === a.labelIds?.[0]);
             const bRank = labelObjs.findIndex(l => l.id === b.labelIds?.[0]);
@@ -122,7 +188,6 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
-            // 🌟 [개선됨] 날짜(달력)와 시간(타이핑) 입력 폼 분리
             const timeVal = e.time || '';
             let dVal = '', tVal = '';
             if (timeVal) {
