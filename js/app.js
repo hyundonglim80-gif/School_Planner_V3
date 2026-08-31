@@ -53,6 +53,7 @@ if ('serviceWorker' in navigator) {
     }
 }
 
+// 기존 다운로드 함수 (하위 호환성을 위해 유지)
 window.promptDownloadFile = function(fileName, downloadUrl) {
     if (confirm(`"${fileName}" 파일을 다운로드하시겠습니까?`)) {
         const a = document.createElement('a');
@@ -62,6 +63,32 @@ window.promptDownloadFile = function(fileName, downloadUrl) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+};
+
+// 🌟 [추가] 첨부파일 바로 열기 및 조건부 다운로드 함수
+window.handleAttachmentClick = function(fileName, webViewLink, downloadLink) {
+    // 구글 드라이브에서 미리보기가 불가능한 파일 확장자 목록
+    const unviewableExts = ['.hwp', '.hwpx', '.zip', '.rar', '.7z', '.alz', '.egg', '.exe'];
+    
+    // 파일명에서 확장자 추출
+    const extMatch = fileName.match(/\.[0-9a-z]+$/i);
+    const ext = extMatch ? extMatch[0].toLowerCase() : '';
+    
+    if (unviewableExts.includes(ext)) {
+        if (confirm(`'${fileName}' 파일은 바로 열 수 없는 형식입니다.\n파일을 다운로드하시겠습니까?`)) {
+            const a = document.createElement('a');
+            a.href = downloadLink;
+            a.download = fileName;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    } else {
+        // 미리보기가 가능한 파일은 새 탭에서 구글 드라이브 뷰어로 열기
+        const targetLink = (webViewLink && webViewLink !== 'undefined') ? webViewLink : downloadLink;
+        window.open(targetLink, '_blank');
     }
 };
 
