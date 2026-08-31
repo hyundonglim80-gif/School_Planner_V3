@@ -79,8 +79,8 @@ export class DayView extends BaseView {
 
             const gId = e.groupId || '';
             return `
-                <div onclick="window.EvaluationManager.currentGroupId = '${gId}'; window.EvaluationManager.openViewer('${this.lockedDateStr || this.dateStr}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 열기">
-                    📊 [${badgeType}] ${e.title}
+                <div onclick="window.EvaluationManager.currentGroupId = '${gId}'; window.EvaluationManager.openViewer('${this.lockedDateStr \vert{}\vert{} this.dateStr}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 열기">
+                    📊 [${badgeType}]${e.title}
                 </div>
             `;
         }).join('');
@@ -122,7 +122,6 @@ export class DayView extends BaseView {
     async renderViewer() {
         window.isInfiniteScrollActive = false;
         
-        // 💡 [문제 1 해결] 메인 뷰에서 열릴 때만 스크롤 버튼을 숨김 (모달창으로 열릴 때는 숨기지 않음)
         if (this.container && this.container.id === 'main-view') {
             const infBtn = document.getElementById('btn-toggle-infinite');
             if (infBtn) infBtn.style.display = 'none';
@@ -187,10 +186,19 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
+            // 🌟 [개선됨] 뷰어 모드 일정 라벨 순회 정렬 적용
             processedEvents.sort((a, b) => {
-                const aRank = masterLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                const bRank = masterLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = masterLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = masterLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
             });
             
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
@@ -245,10 +253,19 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
+            // 🌟 [개선됨] 뷰어 모드 기록 라벨 다중 순회 정렬 적용
             journals.sort((a, b) => {
-                const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = masterJournalLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = masterJournalLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
             });
 
             const jListHtml = journals.length > 0 ? journals.map(j => {
@@ -263,7 +280,7 @@ export class DayView extends BaseView {
                     return `
                     <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                         <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                        <span data-tooltip="${a.name}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                        <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     </div>`;
                 }).join('') + `</div>` : '';
 
@@ -298,7 +315,6 @@ export class DayView extends BaseView {
     async renderEditor() {
         window.isInfiniteScrollActive = false;
         
-        // 💡 [문제 1 해결] 모달창이 아닐 때만 버튼 숨기기 적용
         if (this.container && this.container.id === 'main-view') {
             const infBtn = document.getElementById('btn-toggle-infinite');
             if (infBtn) infBtn.style.display = 'none';
@@ -451,6 +467,61 @@ export class DayView extends BaseView {
                 <tbody id="schedule-tbody-${fId}">${periodRowsHtml}</tbody>
               </table>
             </div>`;
+
+            const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
+            
+            // 🌟 [추가됨] 작성 모드 기록 라벨 다중 순회 정렬 적용
+            const allJournalLabelsObj = getJournalLabels();
+            journals.sort((a, b) => {
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = allJournalLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = allJournalLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+
+            const jListHtml = journals.length > 0 ? journals.map(j => {
+                const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
+                const chipsHtml = lNames.map(lName => {
+                    const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
+                }).join('');
+
+                const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
+                    const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
+                    return `
+                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
+                        <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
+                        <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                        <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
+                    </div>`;
+                }).join('') + `</div>` : '';
+
+                const uploadId = `journal-upload-${fId}-${idx}`;
+                const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
+
+                return `
+                <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
+                    <div style="position:absolute; top:8px; right:8px;">
+                        <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+                    </div>
+                    <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
+                    <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
+                        <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                        
+                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
+                    </div>
+                    ${isUploading}
+                    ${attachmentsHtml}
+                </div>`;
+            }).join('');
 
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
@@ -663,6 +734,21 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
+        // 🌟 [개선됨] 다중 라벨 순회 정렬 적용
+        events.sort((a, b) => {
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.id || '').localeCompare(b.id || '');
+        });
+
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             const eLabelIds = ev.labelIds || [];
@@ -754,13 +840,18 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        // 🌟 [추가됨] 작성 모드 기록 라벨 정렬
+        // 🌟 [개선됨] 다중 라벨 순회 정렬 적용
         journals.sort((a, b) => {
-            const aRank = (a.labelIds && a.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === a.labelIds[0]) : -1;
-            const bRank = (b.labelIds && b.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === b.labelIds[0]) : -1;
-            const rA = aRank === -1 ? 9999 : aRank;
-            const rB = bRank === -1 ? 9999 : bRank;
-            if (rA !== rB) return rA - rB;
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
             return (a.id || '').localeCompare(b.id || '');
         });
 
@@ -782,7 +873,7 @@ export class DayView extends BaseView {
                 return `
                 <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
                     <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                    <span data-tooltip="${a.name}" style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                    <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
                 </div>`;
             }).join('') + `</div>` : '';
@@ -904,14 +995,6 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].completed = isCompleted;
         this.renderEventEntries(fId);
-    }
-
-    updateEventTime(fId, idx, timeVal) {
-        store.hasUnsavedChanges = true;
-        if (this.dayData[fId].events[idx]) {
-            this.dayData[fId].events[idx].time = timeVal;
-            this.dayData[fId].events[idx].alarmTriggered = false; 
-        }
     }
 
     updateEventContent(fId, idx, val) {
