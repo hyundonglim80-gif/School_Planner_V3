@@ -176,6 +176,9 @@ let touchStartedAtBottom = false;
 
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
+    
+    // 🌟 [추가됨] 무한 스크롤 모드일 경우 글로벌 휠 넘기기 차단
+    if (window.isInfiniteScrollActive) return; 
 
     if (store.mode !== 'viewer' || store.scope === 'memo') return;
     if (scrollNavTimeout) return;
