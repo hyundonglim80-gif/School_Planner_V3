@@ -26,7 +26,6 @@ export class MonthView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
-    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToToday) {
         window.originalScrollToToday = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -255,13 +254,18 @@ export class MonthView extends BaseView {
               const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
               
-              // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
+              // 🌟 [추가됨] 뷰어 모드 일정 라벨 다중 순회 정렬
               processedEvents.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterEventLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
                   return (a.id || '').localeCompare(b.id || '');
               });
               
@@ -270,13 +274,18 @@ export class MonthView extends BaseView {
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
+              // 🌟 [추가됨] 뷰어 모드 기록 라벨 다중 순회 정렬
               validJournals.sort((a, b) => {
-                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
-                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
-                  const rA = aRank === -1 ? 9999 : aRank;
-                  const rB = bRank === -1 ? 9999 : bRank;
-                  if (rA !== rB) return rA - rB;
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
                   return (a.id || '').localeCompare(b.id || '');
               });
               
