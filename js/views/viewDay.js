@@ -183,10 +183,14 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
+            // 🌟 [추가됨] 라벨 정렬
             processedEvents.sort((a, b) => {
-                const aRank = masterLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                const bRank = masterLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                const aRank = (a.labelIds && a.labelIds.length > 0) ? masterLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                const bRank = (b.labelIds && b.labelIds.length > 0) ? masterLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                const rA = aRank === -1 ? 9999 : aRank;
+                const rB = bRank === -1 ? 9999 : bRank;
+                if (rA !== rB) return rA - rB;
+                return (a.id || '').localeCompare(b.id || '');
             });
             
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
@@ -241,10 +245,14 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
+            // 🌟 [추가됨] 기록 라벨 정렬
             journals.sort((a, b) => {
-                const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                const rA = aRank === -1 ? 9999 : aRank;
+                const rB = bRank === -1 ? 9999 : bRank;
+                if (rA !== rB) return rA - rB;
+                return (a.id || '').localeCompare(b.id || '');
             });
 
             const jListHtml = journals.length > 0 ? journals.map(j => {
@@ -647,7 +655,7 @@ export class DayView extends BaseView {
         }
     }
 
-    // 🌟 [추가됨] 하루 페이지 전용 커스텀 모달 호출 로직
+    // 🌟 [추가됨] 커스텀 모달 기반 알람 시간 설정 
     openDayAlarmModal(fId, idx) {
         if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
         const ev = this.dayData[fId].events[idx];
@@ -677,14 +685,14 @@ export class DayView extends BaseView {
                     <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
                 </div>
                 <div style="margin-bottom:25px;">
-                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제)</label>
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제 키보드 입력)</label>
                     <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
                 </div>
                 <div style="display:flex; justify-content:space-between; gap:8px;">
-                    <button id="btn-alarm-off" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
+                    <button id="btn-alarm-off" data-shortcut-added="true" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
                     <div style="display:flex; gap:8px;">
-                        <button id="btn-alarm-cancel" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
-                        <button id="btn-alarm-save" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
+                        <button id="btn-alarm-cancel" data-shortcut-added="true" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
+                        <button id="btn-alarm-save" data-shortcut-added="true" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
                     </div>
                 </div>
             </div>
@@ -731,9 +739,12 @@ export class DayView extends BaseView {
 
         // 🌟 [추가됨] 작성 모드 일정 라벨 정렬
         events.sort((a, b) => {
-            const aRank = allLabelsObj.findIndex(l => l.id === a.labelIds?.[0]);
-            const bRank = allLabelsObj.findIndex(l => l.id === b.labelIds?.[0]);
-            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            const aRank = (a.labelIds && a.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === a.labelIds[0]) : -1;
+            const bRank = (b.labelIds && b.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === b.labelIds[0]) : -1;
+            const rA = aRank === -1 ? 9999 : aRank;
+            const rB = bRank === -1 ? 9999 : bRank;
+            if (rA !== rB) return rA - rB;
+            return (a.id || '').localeCompare(b.id || '');
         });
 
         container.innerHTML = events.map((ev, idx) => {
@@ -787,7 +798,6 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [추가됨] 알람 모달 호출 UI
             const timeVal = ev.time || '';
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
@@ -830,9 +840,12 @@ export class DayView extends BaseView {
         
         // 🌟 [추가됨] 작성 모드 기록 라벨 정렬
         journals.sort((a, b) => {
-            const aRank = allLabelsObj.findIndex(l => l.id === a.labelIds?.[0]);
-            const bRank = allLabelsObj.findIndex(l => l.id === b.labelIds?.[0]);
-            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            const aRank = (a.labelIds && a.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === a.labelIds[0]) : -1;
+            const bRank = (b.labelIds && b.labelIds.length > 0) ? allLabelsObj.findIndex(l => l.id === b.labelIds[0]) : -1;
+            const rA = aRank === -1 ? 9999 : aRank;
+            const rB = bRank === -1 ? 9999 : bRank;
+            if (rA !== rB) return rA - rB;
+            return (a.id || '').localeCompare(b.id || '');
         });
 
         container.innerHTML = journals.map((j, idx) => {
