@@ -2,7 +2,7 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 [개선됨] 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거)
+// 🌟 [개선됨] 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거됨)
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -52,7 +52,6 @@ window.showCustomAlarmPopup = function(messages) {
     popup.style.display = 'block';
 };
 
-// 🌟 글로벌 알림 엔진
 if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
         const now = new Date();
@@ -124,7 +123,6 @@ export const CompactEventHelper = {
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
-    // 🌟 [개선됨] 알람 팝업 모달 (단축키 툴팁 차단 & 날짜/시간 완전 분리)
     openAlarmModal(dateStr, eventId, fId) {
         const evList = window[`tempEvents_${dateStr}`];
         const ev = evList?.find(e => e.id === eventId);
@@ -204,13 +202,18 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 [개선됨] 라벨 순서 기반 정렬 완벽 적용
+        // 🌟 [2번째 방법] 다중 라벨 순회 검색을 통한 완벽한 정렬 알고리즘
         list.sort((a, b) => {
-            const aRank = (a.labelIds && a.labelIds.length > 0) ? labelObjs.findIndex(l => l.id === a.labelIds[0]) : -1;
-            const bRank = (b.labelIds && b.labelIds.length > 0) ? labelObjs.findIndex(l => l.id === b.labelIds[0]) : -1;
-            const rA = aRank === -1 ? 9999 : aRank;
-            const rB = bRank === -1 ? 9999 : bRank;
-            if (rA !== rB) return rA - rB;
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = labelObjs.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = labelObjs.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
             return (a.id || '').localeCompare(b.id || '');
         });
 
