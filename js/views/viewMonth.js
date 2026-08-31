@@ -17,10 +17,9 @@ export class MonthView extends BaseView {
     this.isRendering = false; 
     this.renderId = 0; 
     
-    // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
-    this.loadedMonths = []; // [{y, m}]
+    this.loadedMonths = []; 
     this.observer = null;
     this.chunkObserver = null;
     this.isLoadingMore = false;
@@ -166,11 +165,13 @@ export class MonthView extends BaseView {
           setTimeout(() => { this.syncAllCompactEventInputs(); }, 100);
       } else {
           if (position === 'bottom') {
-              container.insertAdjacentHTML('beforeend', html);
+              // 🌟 뷰어 모드는 table 내부에 tbody로 삽입
+              const table = container.querySelector('table') || container;
+              table.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
           } else {
-              // 🌟 뷰어 모드도 테이블 구조이므로 table 안쪽에 정상적으로 삽입
-              container.querySelector('table').insertAdjacentHTML('afterbegin', html);
+              const table = container.querySelector('table') || container;
+              table.insertAdjacentHTML('afterbegin', html);
               this.loadedMonths.unshift({y, m});
           }
       }
@@ -253,6 +254,7 @@ export class MonthView extends BaseView {
               const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
               
+              // 🌟 뷰어 모드 일정 다중 정렬 적용
               processedEvents.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -272,6 +274,7 @@ export class MonthView extends BaseView {
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
+              // 🌟 뷰어 모드 기록 다중 정렬 적용
               validJournals.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -340,8 +343,6 @@ export class MonthView extends BaseView {
       }).join('');
 
       let headerBanner = this.isInfiniteMode ? `<div style="padding:10px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; border-radius:8px 8px 0 0; text-align:center; border:1px solid #bfdbfe; border-bottom:none;">${y}년 ${m + 1}월</div>` : '';
-      
-      // 🌟 [표 깨짐 방지] 뷰어 모드도 tbody로 감싸서 반환해야 테이블 안에 자연스럽게 스며듦
       return `<tbody class="month-chunk" data-y="${y}" data-m="${m}">
                 <tr><td colspan="${this.isWeekendVisible ? 7 : 5}" style="padding:0; border:none;">
                     ${headerBanner}
@@ -398,7 +399,6 @@ export class MonthView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(dateStr);
-          
           const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
           const todayClass = isToday ? 'month-today-cell' : '';
 
@@ -456,7 +456,7 @@ export class MonthView extends BaseView {
 
           if (store.showClass) {
               const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
-              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical- middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
+              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
 
               filters.forEach((fId) => {
                   const isPersonal = fId === 'personal';
@@ -498,8 +498,9 @@ export class MonthView extends BaseView {
 
         const y = store.currentDate.getFullYear();
         const m = store.currentDate.getMonth();
+        const maxP = store.periodNames ? store.periodNames.length : 6;
+        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
 
-        // 🌟 [표 깨짐 복구] 뷰어 모드 테이블 colgroup 부활!
         if (this.isInfiniteMode) {
             this.renderedDateStrings = [];
             this.loadedMonths = [{y, m}];
@@ -507,10 +508,10 @@ export class MonthView extends BaseView {
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-                <div id="infinite-viewer-container" style="padding-top:10px;">
-                  <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
-                    ${chunkHtml}
-                  </table>
+                <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
+                        ${chunkHtml}
+                    </table>
                 </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
