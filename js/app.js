@@ -179,16 +179,8 @@ modalObserver.observe(document.body, { childList: true, subtree: true, attribute
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
-// 🌟 [핵심] 모바일 기기 판별 (터치 환경 감지)
-const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
-
-if (isMobileDevice) {
-    // 🌟 모바일 환경에서만 당겨서 새로고침(Pull-to-refresh)을 CSS로 완벽 차단. 
-    // 네이티브 스크롤(스와이프) 동작은 방해하지 않음!
-    const preventRefreshStyle = document.createElement('style');
-    preventRefreshStyle.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
-    document.head.appendChild(preventRefreshStyle);
-}
+// 🌟 [핵심] 모바일/터치 기기 감지
+const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768 || ('ontouchstart' in window);
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
@@ -203,7 +195,7 @@ let touchStartedAtBottom = false;
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
     
-    // 무한 스크롤 상태이면 PC 휠 스크롤은 네이티브에 맡김
+    // 무한 스크롤 상태이면 PC 마우스 휠 스크롤은 브라우저 네이티브 스크롤에 맡김 (허용)
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -230,11 +222,22 @@ window.addEventListener('wheel', (e) => {
 window.addEventListener('touchstart', (e) => {
     if (isModalOpen()) return; 
 
+    // 🌟 모바일 무한 스크롤 켜짐 상태일 때: 당겨서 새로고침(Pull-to-refresh) 원천 차단
+    // touchmove 이벤트가 아닌 CSS(overscroll-behavior)를 조작하므로 네이티브 상하 스크롤이 완벽하게 보호됨
+    if (isMobileDevice() && (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true')) {
+        document.documentElement.style.overscrollBehaviorY = 'none';
+        document.body.style.overscrollBehaviorY = 'none';
+    } else {
+        document.documentElement.style.overscrollBehaviorY = 'auto';
+        document.body.style.overscrollBehaviorY = 'auto';
+    }
+
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
+    // 무한스크롤 시 터치 초기좌표만 기억하고 패스 (스크롤 허용)
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        return; // 무한스크롤 시 터치 초기좌표만 기억하고 패스 (스크롤 허용)
+        return; 
     }
     
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -256,10 +259,11 @@ window.addEventListener('touchend', (e) => {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 좌우 스와이프 판단: 가로로 70px 이상 밀고, Y축 이동량보다 최소 1.5배 클 때만 (오작동 차단)
+    // 🌟 좌우 스와이프 판정 기준 강력화 (대각선 스크롤 오작동 차단)
+    // 가로로 70px 이상 밀고, Y축 이동량보다 최소 1.5배 클 때만 탭 전환으로 인정
     const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
 
-    // 🌟 무한 스크롤 켜져있을 때의 터치 동작
+    // 🌟 무한 스크롤 켜져있을 때의 동작
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         if (isValidHorizontalSwipe) {
             // 좌우 스와이프는 탭 전환으로 인식
@@ -272,7 +276,7 @@ window.addEventListener('touchend', (e) => {
                 window.setScope(scopes[nextIdx]);
             }
         }
-        // 상하 스와이프는 터치 이벤트 조작을 무시하고, 자연스러운 네이티브 스크롤(무한 로딩)이 되도록 놔둠
+        // 상하 스와이프(스크롤)는 네이티브 스크롤(무한 로딩)이 처리하도록 조작 없이 즉시 리턴
         return; 
     }
 
