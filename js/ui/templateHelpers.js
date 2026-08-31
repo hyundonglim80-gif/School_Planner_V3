@@ -2,7 +2,7 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
+// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거됨)
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -52,6 +52,7 @@ window.showCustomAlarmPopup = function(messages) {
     popup.style.display = 'block';
 };
 
+// 🌟 글로벌 알림 엔진
 if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
         const now = new Date();
@@ -110,20 +111,21 @@ export const CompactEventHelper = {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
+                // 1430 -> 14:30 으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
                     else finalT = cleanNum.substring(0,2) + ':' + cleanNum.substring(2);
                 }
                 if (!finalT || finalT.length < 4) finalT = '09:00'; 
-                const targetDate = dVal || dateStr;
-                ev.time = `${targetDate}T${finalT}`;
+                ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
+    // 🌟 커스텀 팝업 모달창을 이용한 알림 설정 (단축키 툴팁 팝업 방지 완료)
     openAlarmModal(dateStr, eventId, fId) {
         const evList = window[`tempEvents_${dateStr}`];
         const ev = evList?.find(e => e.id === eventId);
@@ -203,10 +205,19 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
+        // 🌟 다중 라벨 순회 검색을 통한 완벽한 정렬 알고리즘
         list.sort((a, b) => {
-            const aRank = labelObjs.findIndex(l => l.id === a.labelIds?.[0]);
-            const bRank = labelObjs.findIndex(l => l.id === b.labelIds?.[0]);
-            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = labelObjs.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = labelObjs.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.id || '').localeCompare(b.id || '');
         });
 
         const realTodayStr = formatDate(new Date());
@@ -240,22 +251,8 @@ export const CompactEventHelper = {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            const safeContent = pureContent.replace(/\\/g, '\\\\').replace(new RegExp('\`', 'g'), '\\`').replace(/\$/g, '\\$').replace(/"/g, '&quot;');
-            const firstLabel = eLabelIds[0] || '';
-
-            let delHandler = '';
-            if (e.groupId || (e.forwardChainId && e.originalDate && e.originalDate !== dateStr)) {
-                if (e.groupId) {
-                    delHandler = `window.showGroupDeleteModal('${dateStr}', '${firstLabel}', \`${safeContent}\`, '${e.groupId}', () => { window.render(); }, () => { window.CompactEventHelper.removeCompactEvent('${dateStr}', '${e.id}', '${fId}'); })`;
-                } else {
-                    delHandler = `window.showForwardDeleteModal('${dateStr}', '${firstLabel}', \`${safeContent}\`, '${e.forwardChainId}', () => { window.render(); })`;
-                }
-            } else {
-                delHandler = `window.CompactEventHelper.removeCompactEvent('${dateStr}', '${e.id}', '${fId}')`;
-            }
-
             const deleteBtnHtml = isAuthor 
-                  ? `<button onclick="${delHandler}" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                  ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
             const timeVal = e.time || '';
@@ -372,16 +369,13 @@ export const CompactEventHelper = {
         const forwardLabelId = (ev.labelIds || []).find(id => labelObjs.find(l => l.id === id)?.isForward);
         const forwardLabelName = forwardLabelId ? labelObjs.find(l=>l.id===forwardLabelId).name : '';
 
-        const safeContent = (ev.content || '').replace(/\\/g, '\\\\').replace(new RegExp('\`', 'g'), '\\`').replace(/\$/g, '\\$').replace(/"/g, '&quot;');
-        const firstLabel = ev.labelIds[0] || '';
-
         if (isGrouped && ev.groupId.startsWith('group_')) {
-            window.showGroupDeleteModal(dateStr, firstLabel, safeContent, ev.groupId, 
+            window.showGroupDeleteModal(dateStr, ev.labelIds[0] || '', ev.content, ev.groupId, 
                 () => window.render(), 
                 () => this.removeCompactEvent(dateStr, eventId, fId)
             );
         } else if (forwardLabelId && ev.forwardChainId) {
-            window.showForwardDeleteModal(dateStr, forwardLabelName, safeContent, ev.forwardChainId, () => window.render());
+            window.showForwardDeleteModal(dateStr, forwardLabelName, ev.content, ev.forwardChainId, () => window.render());
         } else {
             this.removeCompactEvent(dateStr, eventId, fId);
         }
