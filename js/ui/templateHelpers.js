@@ -7,37 +7,54 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
     window.alarmCheckerInterval = setInterval(() => {
         if (Notification.permission !== 'granted') return;
         const now = new Date();
-        const currentYMD = window.formatDate ? window.formatDate(now) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        const currentHM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        const currentYMDHM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         
         let activeEvents = [];
-        // 1. 월간/주간 페이지의 데이터 스캔
+        const currentYMD = currentYMDHM.split('T')[0];
+        
         if (window[`tempEvents_${currentYMD}`]) {
             activeEvents.push(...window[`tempEvents_${currentYMD}`]);
         }
-        // 2. 하루 페이지의 데이터 스캔
         if (window.dayViewInstance && window.dayViewInstance.dateStr === currentYMD && window.dayViewInstance.dayData) {
             Object.values(window.dayViewInstance.dayData).forEach(d => {
                 if (d.events) activeEvents.push(...d.events);
             });
         }
         
-        // 중복 이벤트 제거
         const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
 
         uniqueEvents.forEach(ev => {
-            if (ev.time === currentHM && !ev.completed && !ev.alarmTriggered) {
-                ev.alarmTriggered = true; // 동일 분 내 중복 알림 방지
-                new Notification('⏰ 일정 알림', {
-                    body: ev.content || '예정된 일정이 있습니다.',
-                    icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
-                });
+            // 알림 시간이 있고(과거거나 현재), 완료되지 않았으며, 아직 알림이 울리지 않은 경우
+            if (ev.time && ev.time <= currentYMDHM && !ev.completed && !ev.alarmTriggered) {
+                const evTimeMs = new Date(ev.time).getTime();
+                const nowMs = now.getTime();
+                
+                // 설정된 시간이 지났더라도 1시간(3600000ms) 이내라면 늦게라도 알려줌 (오래된 알림 폭탄 방지)
+                if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
+                    ev.alarmTriggered = true; 
+                    new Notification('⏰ 일정 알림', {
+                        body: ev.content || '예정된 일정이 있습니다.',
+                        icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
+                    });
+                }
             }
         });
     }, 20000); 
 }
 
 export const CompactEventHelper = {
+    // 🌟 [추가] datetime-local 텍스트를 "MM/DD HH:mm" 또는 "off" 형태로 변환하는 헬퍼
+    formatAlarmTime(datetimeStr) {
+        if (!datetimeStr) return '⏰ off';
+        const d = new Date(datetimeStr);
+        if (isNaN(d.getTime())) return '⏰ off';
+        const m = String(d.getMonth()+1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const h = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `⏰ ${m}/${day} ${h}:${min}`;
+    },
+
     generateCompactEventEditor(dateStr, fId) {
         const allEvents = window[`tempEvents_${dateStr}`] || [];
         const list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -78,10 +95,19 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
-            // 🌟 [추가됨] 알람 시간을 설정할 수 있는 Time Input 요소 생성
+            // 🌟 [변경됨] 날짜 및 시간이 포함된 새로운 알림 UI
+            const timeVal = e.time || '';
+            const timeLabel = this.formatAlarmTime(timeVal);
+            const timeColor = timeVal ? '#2563eb' : '#94a3b8';
+            const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
+            const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
+
             const timeHtml = isAuthor 
-                  ? `<input type="time" value="${e.time || ''}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'time', this.value)" style="border:1px solid #cbd5e1; border-radius:4px; padding:2px; font-size:0.8rem; color:#475569; outline:none; background:transparent;" title="알림 시간 설정 (브라우저 푸시 알림)">` 
-                  : `<span style="font-size:0.8rem; color:#64748b;">${e.time || ''}</span>`;
+                  ? `<label style="position:relative; cursor:pointer; display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:${timeColor}; font-weight:bold; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 날짜/시간 설정 (브라우저 푸시 알림)">
+                       ${timeLabel}
+                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'time', this.value); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = window.CompactEventHelper.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:1px; height:1px; opacity:0; position:absolute; bottom:0; right:0;">
+                     </label>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${timeLabel}</span>`;
 
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
@@ -109,7 +135,9 @@ export const CompactEventHelper = {
             container.querySelectorAll('textarea').forEach(ta => {
                 const eventId = ta.getAttribute('data-id');
                 const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
-                if (ev) ev.content = ta.value;
+                if (ev) {
+                    ev.content = ta.value;
+                }
             });
         });
     },
@@ -150,7 +178,10 @@ export const CompactEventHelper = {
     updateCompactEvent(dateStr, eventId, field, value) {
         store.hasUnsavedChanges = true;
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
-        if (ev) ev[field] = value;
+        if (ev) {
+            ev[field] = value;
+            if (field === 'time') ev.alarmTriggered = false; // 시간 변경 시 알람 리셋
+        }
     },
 
     addCompactEvent(dateStr, fId) {
