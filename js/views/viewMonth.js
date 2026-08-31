@@ -31,7 +31,6 @@ export class MonthView extends BaseView {
         window.scrollToTodayIfExist = () => {
             window.isAutoScrollingMonth = true;
             window.originalScrollToToday();
-            // 1.5초간 스크롤 감지 센서를 일시정지
             setTimeout(() => { window.isAutoScrollingMonth = false; }, 1500);
         };
     }
@@ -75,7 +74,6 @@ export class MonthView extends BaseView {
       }
   }
 
-  // 💡 [문제 1 해결] 스크롤 시 화면 중앙에 위치한 달을 감지하여 상단 2열 날짜 타이틀 업데이트
   setupChunkObserver() {
       if (this.chunkObserver) this.chunkObserver.disconnect();
       this.chunkObserver = new IntersectionObserver((entries) => {
@@ -93,7 +91,7 @@ export class MonthView extends BaseView {
                   }
               }
           });
-      }, { rootMargin: '-40% 0px -40% 0px' }); // 화면의 중간 20% 지점을 지날 때 감지
+      }, { rootMargin: '-40% 0px -40% 0px' }); 
       
       document.querySelectorAll('.month-chunk').forEach(chunk => {
           this.chunkObserver.observe(chunk);
@@ -104,44 +102,43 @@ export class MonthView extends BaseView {
       if (this.observer) this.observer.disconnect();
       
       this.observer = new IntersectionObserver(async (entries) => {
-          if (window.isAutoScrollingMonth) return; // '오늘'로 자동 이동 중일 때는 로드 무시
+          if (window.isAutoScrollingMonth || window.activeModalCount > 0) return; 
 
           for (let entry of entries) {
               if (entry.isIntersecting && !this.isLoadingMore) {
                   this.isLoadingMore = true;
-                  
-                  if (entry.target.id === 'month-bottom-sentinel') {
-                      const last = this.loadedMonths[this.loadedMonths.length - 1];
-                      let ny = last.y, nm = last.m + 1;
-                      if (nm > 11) { ny++; nm = 0; }
-                      
-                      const html = mode === 'editor' ? await this.buildEditorChunk(ny, nm) : await this.buildViewerChunk(ny, nm);
-                      this.insertChunkToDOM(html, mode, 'bottom', ny, nm);
-                  } 
-                  else if (entry.target.id === 'month-top-sentinel') {
-                      const first = this.loadedMonths[0];
-                      let py = first.y, pm = first.m - 1;
-                      if (pm < 0) { py--; pm = 11; }
-                      
-                      // 데이터 렌더링 대기
-                      const html = mode === 'editor' ? await this.buildEditorChunk(py, pm) : await this.buildViewerChunk(py, pm);
-                      
-                      // 💡 [문제 2 해결] DOM 삽입 직전의 위치를 정확히 기억하여 끊김 방지
-                      const oldScrollHeight = document.documentElement.scrollHeight;
-                      const oldScrollTop = window.scrollY || document.documentElement.scrollTop;
-                      
-                      this.insertChunkToDOM(html, mode, 'top', py, pm);
-                      
-                      // 요소 삽입 후 늘어난 높이만큼 스크롤을 보정하여 시야 유지
-                      const newScrollHeight = document.documentElement.scrollHeight;
-                      const diff = newScrollHeight - oldScrollHeight;
-                      window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
+                  try {
+                      if (entry.target.id === 'month-bottom-sentinel') {
+                          const last = this.loadedMonths[this.loadedMonths.length - 1];
+                          let ny = last.y, nm = last.m + 1;
+                          if (nm > 11) { ny++; nm = 0; }
+                          
+                          const html = mode === 'editor' ? await this.buildEditorChunk(ny, nm) : await this.buildViewerChunk(ny, nm);
+                          this.insertChunkToDOM(html, mode, 'bottom', ny, nm);
+                      } 
+                      else if (entry.target.id === 'month-top-sentinel') {
+                          const first = this.loadedMonths[0];
+                          let py = first.y, pm = first.m - 1;
+                          if (pm < 0) { py--; pm = 11; }
+                          
+                          const html = mode === 'editor' ? await this.buildEditorChunk(py, pm) : await this.buildViewerChunk(py, pm);
+                          
+                          const oldScrollHeight = document.documentElement.scrollHeight;
+                          const oldScrollTop = window.scrollY || document.documentElement.scrollTop;
+                          
+                          this.insertChunkToDOM(html, mode, 'top', py, pm);
+                          
+                          const newScrollHeight = document.documentElement.scrollHeight;
+                          const diff = newScrollHeight - oldScrollHeight;
+                          window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
+                      }
+                  } finally {
+                      // 🌟 [문제 3 해결] 딜레이 부여 및 안전 해제
+                      setTimeout(() => { this.isLoadingMore = false; }, 100);
                   }
-                  
-                  this.isLoadingMore = false;
               }
           }
-      }, { rootMargin: '800px' }); // 끊김 없이 자연스럽게 미리 불러오도록 여백을 넓게 설정
+      }, { rootMargin: '400px' }); 
 
       const topSentinel = document.getElementById('month-top-sentinel');
       const bottomSentinel = document.getElementById('month-bottom-sentinel');
@@ -154,7 +151,6 @@ export class MonthView extends BaseView {
       if (!container) return;
       
       if (mode === 'editor') {
-          // 💡 [문제 3 해결] 작성 모드에서 테이블 구조가 깨지지 않게 안전한 위치에 삽입
           if (position === 'bottom') {
               container.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
@@ -173,8 +169,7 @@ export class MonthView extends BaseView {
               this.loadedMonths.unshift({y, m});
           }
       }
-      
-      this.setupChunkObserver(); // 새 요소가 추가될 때마다 상단 날짜 감지기 재설정
+      this.setupChunkObserver(); 
   }
 
   async fetchMonthData(y, m) {
@@ -264,7 +259,7 @@ export class MonthView extends BaseView {
               if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
               if (metaBadges) {
-                  eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+                  eventContent += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
               }
 
               let scheduleHtml = '';
@@ -506,7 +501,7 @@ export class MonthView extends BaseView {
                 <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background: #fff;">${headerTr}</thead>
-                  ${chunkHtml}
+                  <tbody id="infinite-editor-container" style="display:contents;">${chunkHtml}</tbody>
                 </table>
               </div>
               <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>`;
