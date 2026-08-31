@@ -492,8 +492,14 @@ export class MemoView extends BaseView {
   }
 
   deleteMemoItem(firestoreId) {
-    if(confirm("이 메모를 완전히 삭제하시겠습니까? (첨부된 드라이브 파일은 유지됩니다)")) {
+    if(confirm("이 메모를 완전히 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
       const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+      
+      // 🌟 [추가됨] 드라이브 파일 동반 삭제
+      if (target && target.attachments && target.attachments.length > 0) {
+          target.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
+      }
+      
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
       dbAPI.deleteMemo(firestoreId, target ? target.groupId : null).catch(e=>console.warn(e)); 
@@ -507,10 +513,14 @@ export class MemoView extends BaseView {
     const myCompletedMemos = completedMemos.filter(m => !m.authorId || !uid || m.authorId === uid);
 
     if (myCompletedMemos.length === 0) return alert("비울 수 있는 완료된 본인 메모가 없습니다.");
-    if(confirm(`완료된 내 업무 ${myCompletedMemos.length}개를 모두 삭제하시겠습니까?\n(타인이 작성한 공유 메모는 삭제되지 않습니다)`)) {
+    if(confirm(`완료된 내 업무 ${myCompletedMemos.length}개를 모두 삭제하시겠습니까?\n(포함된 첨부파일도 모두 영구 삭제됩니다)`)) {
       this.memoItems = this.memoItems.filter(m => !myCompletedMemos.includes(m));
       this._drawHTML();
       myCompletedMemos.forEach(memo => {
+          // 🌟 [추가됨] 드라이브 파일 동반 삭제
+          if (memo.attachments && memo.attachments.length > 0) {
+              memo.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
+          }
           dbAPI.deleteMemo(memo.firestoreId, memo.groupId).catch(e=>console.warn(e));
       });
     }
