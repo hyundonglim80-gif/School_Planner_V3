@@ -26,6 +26,7 @@ export class MonthView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
+    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToToday) {
         window.originalScrollToToday = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -115,7 +116,6 @@ export class MonthView extends BaseView {
                           if (nm > 11) { ny++; nm = 0; }
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(ny, nm) : await this.buildViewerChunk(ny, nm);
-                          
                           if (this.renderId !== currentRenderId) return;
                           
                           this.insertChunkToDOM(html, mode, 'bottom', ny, nm);
@@ -126,7 +126,6 @@ export class MonthView extends BaseView {
                           if (pm < 0) { py--; pm = 11; }
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(py, pm) : await this.buildViewerChunk(py, pm);
-                          
                           if (this.renderId !== currentRenderId) return;
                           
                           const oldScrollHeight = document.documentElement.scrollHeight;
@@ -171,7 +170,9 @@ export class MonthView extends BaseView {
               container.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
           } else {
-              container.insertAdjacentHTML('afterbegin', html);
+              const colgroup = container.querySelector('colgroup');
+              if (colgroup) colgroup.insertAdjacentHTML('afterend', html);
+              else container.insertAdjacentHTML('afterbegin', html);
               this.loadedMonths.unshift({y, m});
           }
       }
@@ -216,6 +217,7 @@ export class MonthView extends BaseView {
       const filters = window.activeUnifiedFilters || ['personal'];
       const filterCount = filters.length;
       const realTodayStr = formatDate(new Date());
+      const maxP = store.periodNames ? store.periodNames.length : 6;
 
       const masterEventLabels = getEventLabels();
       const masterJournalLabels = getJournalLabels();
@@ -254,7 +256,6 @@ export class MonthView extends BaseView {
               const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
               
-              // 🌟 [추가됨] 뷰어 모드 일정 라벨 다중 순회 정렬
               processedEvents.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -274,7 +275,6 @@ export class MonthView extends BaseView {
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 [추가됨] 뷰어 모드 기록 라벨 다중 순회 정렬
               validJournals.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -306,7 +306,7 @@ export class MonthView extends BaseView {
               let scheduleHtml = '';
               if (store.showClass) {
                   let hasClass = false;
-                  let boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
+                  let boxesHtml = Array.from({ length: maxP }).map((_, pi) => {
                       const p = pi + 1;
                       const subj = sMap[dateStr]?.[fId]?.[p]?.subject;
                       if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
@@ -452,7 +452,7 @@ export class MonthView extends BaseView {
 
           if (store.showClass) {
               const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
-              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical- middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
+              rowsHtmlForDate += `<tr class="month-row-${dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
 
               filters.forEach((fId) => {
                   const isPersonal = fId === 'personal';
@@ -467,6 +467,7 @@ export class MonthView extends BaseView {
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
                       if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+                      // 🌟 [오타 완벽 교체됨] 
                       return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
@@ -491,24 +492,39 @@ export class MonthView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        const y = store.currentDate.getFullYear();
-        const m = store.currentDate.getMonth();
+        const maxP = store.periodNames ? store.periodNames.length : 6;
+        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
 
         if (this.isInfiniteMode) {
+            const y = store.currentDate.getFullYear();
+            const m = store.currentDate.getMonth();
             this.renderedDateStrings = [];
             this.loadedMonths = [{y, m}];
             
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-                <div id="infinite-viewer-container" style="padding-top:10px;">${chunkHtml}</div>
+                <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
+                        ${colgroupHtml}
+                        ${chunkHtml}
+                    </table>
+                </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
         } else {
+            const y = store.currentDate.getFullYear();
+            const m = store.currentDate.getMonth();
             const chunkHtml = await this.buildViewerChunk(y, m);
-            this.container.innerHTML = `<div style="padding-top:15px;">${chunkHtml}</div>`;
+            this.container.innerHTML = `
+              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top:15px;">
+                <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
+                    ${colgroupHtml}
+                    ${chunkHtml}
+                </table>
+              </div>`;
         }
     } finally {
         this.isRendering = false;
