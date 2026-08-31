@@ -138,7 +138,6 @@ export class WeekView extends BaseView {
                           const nyStr = formatDate(nextDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(nyStr) : await this.buildViewerChunk(nyStr);
-                          
                           if (this.renderId !== currentRenderId) return;
                           
                           this.insertChunkToDOM(html, mode, 'bottom', nyStr);
@@ -151,7 +150,6 @@ export class WeekView extends BaseView {
                           const pyStr = formatDate(prevDate);
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(pyStr) : await this.buildViewerChunk(pyStr);
-                          
                           if (this.renderId !== currentRenderId) return;
                           
                           const oldScrollHeight = document.documentElement.scrollHeight;
@@ -228,6 +226,7 @@ export class WeekView extends BaseView {
       const startOfWeekStr = weekDates[0].dateStr;
       
       const masterEventLabels = getEventLabels();
+      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = weekDates.map(d => {
           const isToday = (d.dateStr === realTodayStr);
@@ -236,10 +235,6 @@ export class WeekView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (isSat ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(d.dateStr);
-          
-          // 🌟 파싱 에러 방지를 위한 변수 사전 할당
-          const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
-          const todayClass = isToday ? 'week-today-cell' : '';
 
           let rowsHtmlForDate = '';
 
@@ -254,6 +249,7 @@ export class WeekView extends BaseView {
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               
+              // 🌟 뷰어 모드 일정 다중 라벨 순회 정렬
               processedEvents.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -272,6 +268,22 @@ export class WeekView extends BaseView {
 
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              
+              // 🌟 뷰어 모드 기록 다중 라벨 순회 정렬
+              validJournals.sort((a, b) => {
+                  let aRank = 9999, bRank = 9999;
+                  (a.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < aRank) aRank = r;
+                  });
+                  (b.labelIds || []).forEach(id => {
+                      const r = masterJournalLabels.findIndex(l => l.id === id);
+                      if (r !== -1 && r < bRank) bRank = r;
+                  });
+                  if (aRank !== bRank) return aRank - bRank;
+                  return (a.id || '').localeCompare(b.id || '');
+              });
+              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -287,6 +299,9 @@ export class WeekView extends BaseView {
                   eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
               }
               if (!eventContent) eventContent = '<span style="color:#94a3b8;">-</span>';
+
+              const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
+              const todayClass = isToday ? 'week-today-cell' : '';
 
               if (idx === 0) {
                   rowsHtmlForDate += `
@@ -398,24 +413,6 @@ export class WeekView extends BaseView {
 
               let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
               
-              const jList = jMap[d.dateStr]?.[fId] || [];
-              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              const vList = vMap[d.dateStr]?.[fId] || [];
-
-              let attachmentCount = 0;
-              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
-
-              let metaBadges = '';
-              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="기록 ${validJournals.length}개">📔 ${validJournals.length}</span>`;
-              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="조사표 ${vList.length}개">📊 ${vList.length}</span>`;
-              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; padding:2px 5px; border-radius:4px; font-size:0.75rem; font-weight:bold; margin-right:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); border:1px solid #cbd5e1;" title="첨부파일 ${attachmentCount}개">📎 ${attachmentCount}</span>`;
-
-              if (metaBadges) {
-                  eventContent += `<div style="margin-top:8px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
-              }
-
-              const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
-
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
@@ -426,13 +423,13 @@ export class WeekView extends BaseView {
                         ${holidayHtml}
                       </div>
                     </td>
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
                     <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
                     <td colspan="${this.maxPeriod}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
@@ -452,8 +449,6 @@ export class WeekView extends BaseView {
                   const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
-                  
-                  // 🌟 cellText 정상 적용 완료
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
