@@ -2,82 +2,29 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 [추가됨] 화면 절반을 차지하며 깜빡이는 시각적 알람 팝업 함수
-window.showCustomAlarmPopup = function(messages) {
-    let popup = document.getElementById('sp3-super-alarm-popup');
-    
-    if (!popup) {
-        // 요란하게 깜빡이는 애니메이션 CSS 주입
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @keyframes extremeBlink {
-                0% { background-color: #ef4444; color: #ffffff; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-                50% { background-color: #fef08a; color: #b91c1c; transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 80px 30px rgba(239, 68, 68, 0.9); }
-                100% { background-color: #ef4444; color: #ffffff; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            }
-            .super-alarm-overlay {
-                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-                background: rgba(0,0,0,0.85); z-index: 9999999;
-                display: none; 
-            }
-            .super-alarm-content {
-                position: absolute; top: 50%; left: 50%;
-                width: 70vw; min-height: 50vh; max-height: 80vh;
-                border-radius: 30px;
-                display: flex; flex-direction: column; justify-content: center; align-items: center;
-                animation: extremeBlink 0.8s infinite;
-                text-align: center; padding: 40px;
-                overflow-y: auto;
-            }
-        `;
-        document.head.appendChild(style);
-
-        popup = document.createElement('div');
-        popup.id = 'sp3-super-alarm-popup';
-        popup.className = 'super-alarm-overlay';
-        
-        popup.innerHTML = `
-            <div class="super-alarm-content">
-                <div style="font-size: 6rem; margin-bottom: 10px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">⏰</div>
-                <div id="sp3-super-alarm-text" style="font-size: 3.5rem; font-weight: 900; margin-bottom: 50px; line-height: 1.4; word-break: keep-all; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                </div>
-                <button onclick="document.getElementById('sp3-super-alarm-popup').style.display='none'" 
-                        style="padding: 20px 60px; font-size: 2.5rem; font-weight: 900; border: none; border-radius: 15px; background: #0f172a; color: #f8fafc; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transition: 0.2s;">
-                    확 인 (닫기)
-                </button>
-            </div>
-        `;
-        document.body.appendChild(popup);
-    }
-    
-    // 메시지 삽입 및 팝업 표시
-    const textContainer = document.getElementById('sp3-super-alarm-text');
-    if (textContainer) {
-        textContainer.innerHTML = messages.map(m => `<div>🚨 ${m.replace(/\n/g, '<br>')}</div>`).join('<hr style="border:1px dashed rgba(255,255,255,0.5); margin:20px 0;">');
-    }
-    popup.style.display = 'block';
-};
-
-// 🌟 글로벌 알림 엔진 초기화
+// 🌟 [방향 B] 20초마다 브라우저 로컬 알림을 검사하는 글로벌 알림 엔진 초기화
 if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
+        if (Notification.permission !== 'granted') return;
         const now = new Date();
         const currentYMDHM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         
         let activeEvents = [];
         const currentYMD = currentYMDHM.split('T')[0];
         
+        // 1. 월간/주간 페이지의 데이터 스캔
         if (window[`tempEvents_${currentYMD}`]) {
             activeEvents.push(...window[`tempEvents_${currentYMD}`]);
         }
+        // 2. 하루 페이지의 데이터 스캔
         if (window.dayViewInstance && window.dayViewInstance.dateStr === currentYMD && window.dayViewInstance.dayData) {
             Object.values(window.dayViewInstance.dayData).forEach(d => {
                 if (d.events) activeEvents.push(...d.events);
             });
         }
         
+        // 중복 이벤트 제거
         const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
-        let alarmMessages = [];
 
         uniqueEvents.forEach(ev => {
             if (ev.time && ev.time <= currentYMDHM && !ev.completed && !ev.alarmTriggered) {
@@ -87,24 +34,13 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
                 // 설정된 시간이 지났더라도 1시간(3600000ms) 이내라면 늦게라도 알려줌
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
-                    const msg = ev.content || '예정된 일정이 있습니다.';
-                    alarmMessages.push(msg);
-                    
-                    // 브라우저 기본 푸시 알림 (백그라운드용)
-                    if (Notification.permission === 'granted') {
-                        new Notification('⏰ 일정 알림', {
-                            body: msg,
-                            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
-                        });
-                    }
+                    new Notification('⏰ 일정 알림', {
+                        body: ev.content || '예정된 일정이 있습니다.',
+                        icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
+                    });
                 }
             }
         });
-
-        // 🌟 알림 대상이 있으면 초대형 팝업 호출
-        if (alarmMessages.length > 0) {
-            window.showCustomAlarmPopup(alarmMessages);
-        }
     }, 20000); 
 }
 
@@ -128,6 +64,7 @@ export const CompactEventHelper = {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
+                // 1430 처럼 치면 자동으로 14:30으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
@@ -141,12 +78,96 @@ export const CompactEventHelper = {
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
+    // 🌟 [추가됨] 커스텀 알림 설정 팝업 호출 함수
+    openAlarmModal(dateStr, eventId, fId) {
+        if (window.Notification && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
+        if (!ev) return;
+
+        let dVal = dateStr;
+        let tVal = '';
+        if (ev.time) {
+            const parts = ev.time.split('T');
+            dVal = parts[0] || dateStr;
+            tVal = parts[1] || '';
+        }
+
+        let modal = document.getElementById('sp3-alarm-modal-overlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'sp3-alarm-modal-overlay';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:999999; display:flex; align-items:center; justify-content:center;";
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div style="background:#fff; padding:20px; border-radius:12px; width:320px; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+                <h3 style="margin-top:0; color:#1e40af; font-size:1.2rem; display:flex; align-items:center; gap:8px;">⏰ 알림 시간 설정</h3>
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:5px;">날짜 선택</label>
+                    <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; font-family:inherit; cursor:pointer;">
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제)</label>
+                    <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430" maxlength="5" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; text-align:center; font-family:inherit; letter-spacing:2px; font-weight:bold;" autocomplete="off">
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:8px;">
+                    <button id="btn-alarm-off" style="padding:8px 12px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem;">알림 끄기</button>
+                    <div style="display:flex; gap:8px;">
+                        <button id="btn-alarm-cancel" style="padding:8px 12px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem;">취소</button>
+                        <button id="btn-alarm-save" style="padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.9rem;">저장</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+        
+        // 모달 상태관리 (글로벌 스크롤 차단용)
+        if (window.increaseModalCount) window.increaseModalCount();
+
+        const closePopup = () => {
+            modal.style.display = 'none';
+            if (window.decreaseModalCount) window.decreaseModalCount();
+        };
+
+        modal.onclick = closePopup;
+
+        document.getElementById('btn-alarm-off').onclick = () => {
+            window.CompactEventHelper.updateDateTime(dateStr, eventId, fId, '', '');
+            closePopup();
+        };
+
+        document.getElementById('btn-alarm-cancel').onclick = closePopup;
+
+        document.getElementById('btn-alarm-save').onclick = () => {
+            const dInput = document.getElementById('alarm-popup-date').value;
+            const tInput = document.getElementById('alarm-popup-time').value;
+            window.CompactEventHelper.updateDateTime(dateStr, eventId, fId, dInput, tInput);
+            closePopup();
+        };
+
+        // 엔터키 저장 지원
+        document.getElementById('alarm-popup-time').onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-alarm-save').click();
+            }
+        };
+        
+        // 모달이 열리면 자동으로 시간 입력칸에 포커스
+        setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
+    },
+
     generateCompactEventEditor(dateStr, fId) {
         const allEvents = window[`tempEvents_${dateStr}`] || [];
         let list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
         
         const labelObjs = getEventLabels();
         
+        // 라벨 설정 순서대로 정렬
         list.sort((a, b) => {
             const aRank = labelObjs.findIndex(l => l.id === a.labelIds?.[0]);
             const bRank = labelObjs.findIndex(l => l.id === b.labelIds?.[0]);
@@ -188,23 +209,15 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
+            // 🌟 [개선됨] 알람 버튼 클릭 시 모달창 호출
             const timeVal = e.time || '';
-            let dVal = '', tVal = '';
-            if (timeVal) {
-                const parts = timeVal.split('T');
-                dVal = parts[0]; tVal = parts[1] || '';
-            }
-
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 직접 입력)">
-                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor}; margin-right:4px; cursor:pointer;" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();">${timeVal ? '⏰' : '⏰ off'}</span>
-                       <input type="date" id="date-${e.id}" value="${dVal}" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.value, document.getElementById('time-${e.id}').value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
-                       <input type="text" id="time-${e.id}" value="${tVal}" placeholder="HH:MM" maxlength="5" onblur="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', document.getElementById('date-${e.id}').value, this.value)" onkeydown="if(event.key==='Enter') this.blur();" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
-                       ${timeVal ? `<button onclick="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', '', '')" style="background:none; border:none; color:#ef4444; font-size:0.8rem; cursor:pointer; margin-left:4px; padding:0; line-height:1;">✖</button>` : ''}
+                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
