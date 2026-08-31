@@ -681,9 +681,20 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            // 🌟 [변경됨] 날짜 및 시간이 포함된 새로운 알림 UI (Day View)
+            const timeVal = ev.time || '';
+            const timeLabel = window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : (timeVal ? `⏰ ${timeVal.replace('T', ' ')}` : '⏰ off');
+            const timeColor = timeVal ? '#2563eb' : '#94a3b8';
+            const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
+            const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
+
             const timeHtml = isAuthor 
-                  ? `<input type="time" value="${ev.time || ''}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value)" style="border:1px solid #cbd5e1; border-radius:4px; padding:2px; font-size:0.8rem; color:#475569; outline:none; background:transparent;" title="알림 시간 설정 (브라우저 푸시 알림)">` 
-                  : `<span style="font-size:0.8rem; color:#64748b;">${ev.time || ''}</span>`;
+                  ? `<label style="position:relative; cursor:pointer; display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:${timeColor}; font-weight:bold; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 날짜/시간 설정 (브라우저 푸시 알림)">
+                       ${timeLabel}
+                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value); window.dayViewInstance.renderEventEntries('${fId}');" style="width:1px; height:1px; opacity:0; position:absolute; bottom:0; right:0;">
+                     </label>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${timeLabel}</span>`;
+
 
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
@@ -858,7 +869,10 @@ export class DayView extends BaseView {
 
     updateEventTime(fId, idx, timeVal) {
         store.hasUnsavedChanges = true;
-        if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].time = timeVal;
+        if (this.dayData[fId].events[idx]) {
+            this.dayData[fId].events[idx].time = timeVal;
+            this.dayData[fId].events[idx].alarmTriggered = false; // 시간 변경 시 알람 다시 초기화
+        }
     }
 
     updateEventContent(fId, idx, val) {
