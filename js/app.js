@@ -135,7 +135,7 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 모달창 감지 시 배경 스크롤 강제 차단 로직 (버그 수정됨)
+// 💡 모달창 감지 시 배경 스크롤 강제 차단 로직
 // ==========================================================================
 window.activeModalCount = 0;
 
@@ -151,11 +151,9 @@ window.decreaseModalCount = () => {
     }
 };
 
-// 🌟 스크롤이 무고하게 얼어붙는 현상을 막기 위해 감지 조건 최적화
 const isModalOpen = () => {
     let modalVisible = window.activeModalCount > 0;
     
-    // 오작동을 유발하던 포괄적 탐색자를 명확한 팝업창 클래스/ID로만 한정
     const overlays = document.querySelectorAll('.modal-overlay, .super-alarm-overlay, #sp3-alarm-modal-overlay');
     overlays.forEach(el => {
         if (window.getComputedStyle(el).display !== 'none' && el.style.display !== 'none') {
@@ -176,9 +174,17 @@ const modalObserver = new MutationObserver(() => isModalOpen());
 modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
 // ==========================================================================
-// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (무한 스크롤과 완벽 호환)
+// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (모바일 무한 스크롤 최적화)
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
+
+// 🌟 [추가됨] 모바일 기기 접속 여부 확인
+const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+// 🌟 당겨서 새로고침(Pull-to-refresh) 원천 차단 CSS 적용
+const preventRefreshStyle = document.createElement('style');
+preventRefreshStyle.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
+document.head.appendChild(preventRefreshStyle);
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
@@ -189,6 +195,20 @@ let touchStartX = 0;
 let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
+
+// 🌟 [추가됨] 터치 무브 이벤트: 모바일에서 화면을 아래로 당길 때 발생하는 새로고침 강제 방어
+window.addEventListener('touchmove', (e) => {
+    if (isModalOpen()) return;
+
+    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
+        const currentY = e.touches[0].clientY;
+        // 화면 최상단(scrollY <= 0)에서 손가락을 아래로 밀 때(새로고침 제스처)
+        if (window.scrollY <= 0 && currentY > touchStartY) {
+            // 브라우저의 기본 새로고침 이벤트를 차단 (무한 스크롤 이전 달 로딩이 방해받지 않음)
+            if (e.cancelable) e.preventDefault();
+        }
+    }
+}, { passive: false });
 
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
@@ -222,9 +242,8 @@ window.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
-    // 무한 스크롤 모드에서도 좌우 스와이프 감지를 위해 좌표는 수집
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
-        return;
+        return; // 무한 스크롤 상태에서는 초기 좌표만 저장하고 세로 위치 연산 패스
     }
     
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -246,12 +265,11 @@ window.addEventListener('touchend', (e) => {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 🌟 좌우 스와이프 판정 기준 대폭 강화 (대각선 스크롤 오작동 차단)
-    // 좌우로 최소 70px 이상 이동해야 하며, X축 이동량이 Y축 이동량보다 1.5배 이상 커야만 좌우 스와이프로 인정
+    // 좌우 스와이프 판단: 가로로 충분히(70px 이상) 밀었고, 세로 이동폭보다 1.5배 이상 클 때만 탭 전환
     const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
 
-    // 무한 스크롤 중일 때의 동작
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
+        // 무한 스크롤일 때도 좌우 탭 전환은 허용
         if (isValidHorizontalSwipe) {
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
@@ -261,20 +279,12 @@ window.addEventListener('touchend', (e) => {
                 if (nextIdx >= scopes.length) nextIdx = 0;
                 window.setScope(scopes[nextIdx]);
             }
-        } else if (absY > absX && absY > 50) {
-            // 🌟 수동 스크롤 어시스트: 네이티브 스크롤이 끝에 닿았을 때 옵저버가 안 켜지는 모바일 렌더링 버그 방어
-            const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-            const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-            if (currentScroll >= scrollHeight - 150 && deltaY > 50) {
-                window.scrollBy({ top: 100, behavior: 'smooth' }); // 아래로 당길 때 살짝 더 밀어줌
-            } else if (window.scrollY <= 50 && deltaY < -50) {
-                window.scrollBy({ top: -100, behavior: 'smooth' }); // 위로 올릴 때 살짝 더 올려줌
-            }
         }
-        return; // 무한스크롤 시 페이지 넘김(플립) 로직 무시
+        // 🌟 무한 스크롤 상태에서는 위아래 쓸어올림이 네이티브 스크롤(무한 로딩)로만 동작하게 강제 리턴
+        return; 
     }
 
-    // 일반(페이징) 모드일 때의 동작
+    // 일반(페이징) 모드
     if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
 
@@ -288,7 +298,6 @@ window.addEventListener('touchend', (e) => {
             window.setScope(scopes[nextIdx]);
         }
     } else if (absY > absX) { 
-        // 세로 스크롤 이동일 경우 (이전/다음 페이지 전환)
         if (store.scope === 'memo') return; 
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
