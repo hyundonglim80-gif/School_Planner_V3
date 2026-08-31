@@ -25,7 +25,6 @@ export class WeekView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
-    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToTodayWeek) {
         window.originalScrollToTodayWeek = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -228,6 +227,9 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
+      
+      const masterEventLabels = getEventLabels();
+      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = weekDates.map(d => {
           const isToday = (d.dateStr === realTodayStr);
@@ -248,10 +250,26 @@ export class WeekView extends BaseView {
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
+              
+              // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
+              processedEvents.sort((a, b) => {
+                  const aRank = masterEventLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterEventLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              
+              // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
+              validJournals.sort((a, b) => {
+                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -332,6 +350,8 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
+      
+      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = weekDates.map(d => {
           if (!this.renderedDateStrings.includes(d.dateStr)) this.renderedDateStrings.push(d.dateStr);
@@ -375,6 +395,14 @@ export class WeekView extends BaseView {
               
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              
+              // 🌟 [추가됨] 작성 모드 기록 라벨 순서 정렬
+              validJournals.sort((a, b) => {
+                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -427,10 +455,10 @@ export class WeekView extends BaseView {
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let cellText = ""; 
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `; 
-                      if (pObj.memo) cellText += pObj.memo + " "; 
-                      if (pObj.supplies) cellText += `[${pObj.supplies}]`; 
+                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
+                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
