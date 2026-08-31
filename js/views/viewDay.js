@@ -120,7 +120,7 @@ export class DayView extends BaseView {
     }
 
     async renderViewer() {
-        // 🌟 [추가됨] 하루 페이지에서는 무조건 스크롤 연동 기능 끄기
+        // 하루 페이지는 스크롤 관련 간섭 끄기
         window.isInfiniteScrollActive = false;
         const infBtn = document.getElementById('btn-toggle-infinite');
         if (infBtn) infBtn.style.display = 'none';
@@ -168,6 +168,9 @@ export class DayView extends BaseView {
         }
 
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
+        
+        const masterLabels = getEventLabels();
+        const masterJournalLabels = getJournalLabels();
 
         let eventsHtml = '';
         let schedulesHtml = '';
@@ -180,6 +183,14 @@ export class DayView extends BaseView {
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
+            
+            // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
+            processedEvents.sort((a, b) => {
+                const aRank = masterLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                const bRank = masterLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            });
+            
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
 
             eventsHtml += `
@@ -231,6 +242,14 @@ export class DayView extends BaseView {
             </div>`;
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
+            
+            // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
+            journals.sort((a, b) => {
+                const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            });
+
             const jListHtml = journals.length > 0 ? journals.map(j => {
                 const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
                 const chipsHtml = lNames.map(lName => {
@@ -276,7 +295,6 @@ export class DayView extends BaseView {
     }
 
     async renderEditor() {
-        // 🌟 [추가됨] 하루 페이지에서는 무조건 스크롤 연동 기능 끄기
         window.isInfiniteScrollActive = false;
         const infBtn = document.getElementById('btn-toggle-infinite');
         if (infBtn) infBtn.style.display = 'none';
@@ -640,6 +658,13 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
+        // 🌟 [추가됨] 작성 모드 일정 라벨 정렬
+        events.sort((a, b) => {
+            const aRank = allLabelsObj.findIndex(l => l.id === a.labelIds?.[0]);
+            const bRank = allLabelsObj.findIndex(l => l.id === b.labelIds?.[0]);
+            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+        });
+
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             const eLabelIds = ev.labelIds || [];
@@ -691,19 +716,26 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [변경됨] 클릭 불가 버그 해결 및 날짜까지 표시되도록 UI 개편
+            // 🌟 [추가됨] 알람 UI 분리 적용
             const timeVal = ev.time || '';
-            const timeLabel = window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : (timeVal ? `⏰ ${timeVal.replace('T', ' ')}` : '⏰ off');
+            let dVal = '', tVal = '';
+            if (timeVal) {
+                const parts = timeVal.split('T');
+                dVal = parts[0]; tVal = parts[1] || '';
+            }
+
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<label style="position:relative; cursor:pointer; display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:${timeColor}; font-weight:bold; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 날짜/시간 설정 (브라우저 푸시 알림)">
-                       ${timeLabel}
-                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission(); try{this.showPicker();}catch(e){}" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value); window.dayViewInstance.renderEventEntries('${fId}');" style="width:100%; height:100%; opacity:0; position:absolute; top:0; left:0; cursor:pointer;">
-                     </label>` 
-                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${timeLabel}</span>`;
+                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 직접 입력)">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor}; margin-right:4px; cursor:pointer;" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();">${timeVal ? '⏰' : '⏰ off'}</span>
+                       <input type="date" id="day-date-${ev.id}" value="${dVal}" onchange="window.dayViewInstance.updateDateTime('${fId}', ${idx}, this.value, document.getElementById('day-time-${ev.id}').value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
+                       <input type="text" id="day-time-${ev.id}" value="${tVal}" placeholder="HH:MM" maxlength="5" onblur="window.dayViewInstance.updateDateTime('${fId}', ${idx}, document.getElementById('day-date-${ev.id}').value, this.value)" onkeydown="if(event.key==='Enter') this.blur();" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
+                       ${timeVal ? `<button onclick="window.dayViewInstance.updateDateTime('${fId}', ${idx}, '', '')" style="background:none; border:none; color:#ef4444; font-size:0.8rem; cursor:pointer; margin-left:4px; padding:0; line-height:1;">✖</button>` : ''}
+                     </div>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
@@ -733,6 +765,13 @@ export class DayView extends BaseView {
         
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
+        
+        // 🌟 [추가됨] 작성 모드 기록 라벨 정렬
+        journals.sort((a, b) => {
+            const aRank = allLabelsObj.findIndex(l => l.id === a.labelIds?.[0]);
+            const bRank = allLabelsObj.findIndex(l => l.id === b.labelIds?.[0]);
+            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+        });
 
         container.innerHTML = journals.map((j, idx) => {
             const jLabelIds = j.labelIds || [];
@@ -876,12 +915,26 @@ export class DayView extends BaseView {
         this.renderEventEntries(fId);
     }
 
-    updateEventTime(fId, idx, timeVal) {
+    // 🌟 [추가됨] DayView 자체적인 알람 시간 업데이트 함수
+    updateDateTime(fId, idx, dVal, tVal) {
         store.hasUnsavedChanges = true;
-        if (this.dayData[fId].events[idx]) {
-            this.dayData[fId].events[idx].time = timeVal;
-            this.dayData[fId].events[idx].alarmTriggered = false; // 시간 변경 시 알람 다시 초기화
+        const ev = this.dayData[fId].events[idx];
+        if (ev) {
+            if (!dVal && (!tVal || tVal.trim() === '')) {
+                ev.time = '';
+            } else {
+                let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
+                if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
+                    let cleanNum = finalT.replace(':', '');
+                    if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
+                    else finalT = cleanNum.substring(0,2) + ':' + cleanNum.substring(2);
+                }
+                if (!finalT || finalT.length < 4) finalT = '09:00'; 
+                ev.time = `${dVal || this.lockedDateStr || this.dateStr}T${finalT}`;
+            }
+            ev.alarmTriggered = false; 
         }
+        this.renderEventEntries(fId);
     }
 
     updateEventContent(fId, idx, val) {
