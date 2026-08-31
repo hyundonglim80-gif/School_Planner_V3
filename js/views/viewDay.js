@@ -120,7 +120,6 @@ export class DayView extends BaseView {
     }
 
     async renderViewer() {
-        // 하루 페이지는 스크롤 관련 간섭 끄기
         window.isInfiniteScrollActive = false;
         const infBtn = document.getElementById('btn-toggle-infinite');
         if (infBtn) infBtn.style.display = 'none';
@@ -184,7 +183,6 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
-            // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
             processedEvents.sort((a, b) => {
                 const aRank = masterLabels.findIndex(l => l.id === a.labelIds?.[0]);
                 const bRank = masterLabels.findIndex(l => l.id === b.labelIds?.[0]);
@@ -243,7 +241,6 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
-            // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
             journals.sort((a, b) => {
                 const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
                 const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
@@ -650,6 +647,80 @@ export class DayView extends BaseView {
         }
     }
 
+    // 🌟 [추가됨] 하루 페이지 전용 커스텀 모달 호출 로직
+    openDayAlarmModal(fId, idx) {
+        if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+        const ev = this.dayData[fId].events[idx];
+        if (!ev) return;
+
+        let dVal = this.lockedDateStr || this.dateStr;
+        let tVal = '';
+        if (ev.time) {
+            const parts = ev.time.split('T');
+            dVal = parts[0] || dVal;
+            tVal = parts[1] || '';
+        }
+
+        let modal = document.getElementById('sp3-alarm-modal-overlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'sp3-alarm-modal-overlay';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:999999; display:flex; align-items:center; justify-content:center;";
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+                <h3 style="margin-top:0; color:#1e40af; font-size:1.3rem; display:flex; align-items:center; gap:8px;">⏰ 알림 시간 설정</h3>
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">날짜 선택</label>
+                    <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
+                </div>
+                <div style="margin-bottom:25px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제)</label>
+                    <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:8px;">
+                    <button id="btn-alarm-off" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
+                    <div style="display:flex; gap:8px;">
+                        <button id="btn-alarm-cancel" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
+                        <button id="btn-alarm-save" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+        if (window.increaseModalCount) window.increaseModalCount();
+
+        const closePopup = () => {
+            modal.style.display = 'none';
+            if (window.decreaseModalCount) window.decreaseModalCount();
+        };
+
+        modal.onclick = closePopup;
+        document.getElementById('btn-alarm-cancel').onclick = closePopup;
+
+        document.getElementById('btn-alarm-off').onclick = () => {
+            this.updateDateTime(fId, idx, '', '');
+            closePopup();
+        };
+
+        document.getElementById('btn-alarm-save').onclick = () => {
+            const dInput = document.getElementById('alarm-popup-date').value;
+            const tInput = document.getElementById('alarm-popup-time').value;
+            this.updateDateTime(fId, idx, dInput, tInput);
+            closePopup();
+        };
+
+        document.getElementById('alarm-popup-time').onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-alarm-save').click();
+            }
+        };
+        setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
+    }
+
     renderEventEntries(fId) {
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(!container) return;
@@ -716,24 +787,15 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 [추가됨] 알람 UI 분리 적용
+            // 🌟 [추가됨] 알람 모달 호출 UI
             const timeVal = ev.time || '';
-            let dVal = '', tVal = '';
-            if (timeVal) {
-                const parts = timeVal.split('T');
-                dVal = parts[0]; tVal = parts[1] || '';
-            }
-
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 직접 입력)">
-                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor}; margin-right:4px; cursor:pointer;" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();">${timeVal ? '⏰' : '⏰ off'}</span>
-                       <input type="date" id="day-date-${ev.id}" value="${dVal}" onchange="window.dayViewInstance.updateDateTime('${fId}', ${idx}, this.value, document.getElementById('day-time-${ev.id}').value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
-                       <input type="text" id="day-time-${ev.id}" value="${tVal}" placeholder="HH:MM" maxlength="5" onblur="window.dayViewInstance.updateDateTime('${fId}', ${idx}, document.getElementById('day-date-${ev.id}').value, this.value)" onkeydown="if(event.key==='Enter') this.blur();" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
-                       ${timeVal ? `<button onclick="window.dayViewInstance.updateDateTime('${fId}', ${idx}, '', '')" style="background:none; border:none; color:#ef4444; font-size:0.8rem; cursor:pointer; margin-left:4px; padding:0; line-height:1;">✖</button>` : ''}
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}', ${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
@@ -915,7 +977,6 @@ export class DayView extends BaseView {
         this.renderEventEntries(fId);
     }
 
-    // 🌟 [추가됨] DayView 자체적인 알람 시간 업데이트 함수
     updateDateTime(fId, idx, dVal, tVal) {
         store.hasUnsavedChanges = true;
         const ev = this.dayData[fId].events[idx];
