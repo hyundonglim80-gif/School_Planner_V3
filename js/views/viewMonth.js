@@ -257,9 +257,12 @@ export class MonthView extends BaseView {
               
               // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
               processedEvents.sort((a, b) => {
-                  const aRank = masterEventLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterEventLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                  const rA = aRank === -1 ? 9999 : aRank;
+                  const rB = bRank === -1 ? 9999 : bRank;
+                  if (rA !== rB) return rA - rB;
+                  return (a.id || '').localeCompare(b.id || '');
               });
               
               let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
@@ -269,9 +272,12 @@ export class MonthView extends BaseView {
               
               // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
               validJournals.sort((a, b) => {
-                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                  const rA = aRank === -1 ? 9999 : aRank;
+                  const rB = bRank === -1 ? 9999 : bRank;
+                  if (rA !== rB) return rA - rB;
+                  return (a.id || '').localeCompare(b.id || '');
               });
               
               const vList = vMap[dateStr]?.[fId] || [];
