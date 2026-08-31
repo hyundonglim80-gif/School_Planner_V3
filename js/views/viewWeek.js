@@ -16,7 +16,6 @@ export class WeekView extends BaseView {
     this.isRendering = false; 
     this.renderId = 0; 
 
-    // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
     this.loadedWeeks = []; 
@@ -350,8 +349,6 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
-      
-      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = weekDates.map(d => {
           if (!this.renderedDateStrings.includes(d.dateStr)) this.renderedDateStrings.push(d.dateStr);
@@ -360,7 +357,7 @@ export class WeekView extends BaseView {
 
           filters.forEach(fId => {
               const periods = sMap[d.dateStr]?.[fId] || {};
-              window[`tempSchedules_${d.dateStr}`][fId] = periods;
+              window[`tempSchedules_${d.dateStr}`] = periods;
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               fEvents.forEach(e => {
@@ -395,14 +392,6 @@ export class WeekView extends BaseView {
               
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              
-              // 🌟 [추가됨] 작성 모드 기록 라벨 순서 정렬
-              validJournals.sort((a, b) => {
-                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
-              });
-              
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -455,10 +444,10 @@ export class WeekView extends BaseView {
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
-                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                      const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+                      if (pObj.memo) cellText += pObj.memo + " ";
+                      if (pObj.supplies) cellText += `[${pObj.supplies}]`;
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
