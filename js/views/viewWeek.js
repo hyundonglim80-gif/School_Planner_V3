@@ -24,6 +24,7 @@ export class WeekView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
+    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToTodayWeek) {
         window.originalScrollToTodayWeek = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
@@ -52,16 +53,6 @@ export class WeekView extends BaseView {
       tempDate.setDate(tempDate.getDate() + 1);
       return acc;
     }, []);
-  }
-
-  // 🌟 [추가됨] 목요일 기준으로 정확한 N월 N주차를 계산하는 함수
-  getWeekTitle(dateStr) {
-      const d = new Date(dateStr);
-      d.setDate(d.getDate() + 4); 
-      const m = d.getMonth() + 1;
-      const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-      const weekNum = Math.ceil((d.getDate() + firstDay) / 7);
-      return `${d.getFullYear()}년 ${m}월 ${weekNum}주차`;
   }
 
   injectInfiniteToggleBtn() {
@@ -104,6 +95,7 @@ export class WeekView extends BaseView {
                   const chunkDateStr = entry.target.getAttribute('data-date');
                   if (chunkDateStr) {
                       const d = new Date(chunkDateStr);
+                      // 상단 날짜 타이틀이 화면과 일치하도록 기준 날짜 갱신 (수요일 기준)
                       d.setDate(d.getDate() + 3); 
                       store.currentDate = d;
                       if (window.updateTitle) window.updateTitle();
@@ -154,11 +146,10 @@ export class WeekView extends BaseView {
                       window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
                   }
                   
-                  // 🌟 [문제 2 해결] 센서 감지 딜레이를 주어 다중 렌더링 스크롤 튕김 현상 방지
-                  setTimeout(() => { this.isLoadingMore = false; }, 100);
+                  this.isLoadingMore = false;
               }
           }
-      }, { rootMargin: '300px' }); // 주간은 세로가 짧으므로 범위를 줄임
+      }, { rootMargin: '800px' }); 
 
       const topSentinel = document.getElementById('week-top-sentinel');
       const bottomSentinel = document.getElementById('week-bottom-sentinel');
@@ -296,7 +287,7 @@ export class WeekView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${startOfWeekStr.substring(0,7)} 주간</td></tr>` : '';
       return `<tbody class="week-chunk" data-date="${startOfWeekStr}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
@@ -369,7 +360,7 @@ export class WeekView extends BaseView {
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
-                    <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                    <td rowspan="${totalRows}" class="${isToday ? 'week-today-cell' : ''}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
                       <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                         <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
@@ -389,9 +380,8 @@ export class WeekView extends BaseView {
           });
 
           if (store.showClass) {
-              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
-              
-              rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">교시</td>${pNamesHtml}</tr>`;
+              const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / this.maxPeriod}%; text-align: center; border: 1px solid #cbd5e1;">${name}</td>`).join('');
+              rowsHtmlForDate += `<tr class="week-row-${d.dateStr}"><td style="font-weight: bold; background: #f1f5f9; color: #475569; vertical-align: middle; text-align: center; border: 1px solid #cbd5e1;">교시</td>${pNamesHtml}</tr>`;
 
               filters.forEach((fId) => {
                   const isPersonal = fId === 'personal';
@@ -402,16 +392,16 @@ export class WeekView extends BaseView {
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
-                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
-                      return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
+                      const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
+                      if (pObj.memo) cellText += pObj.memo + " ";
+                      if (pObj.supplies) cellText += `[${pObj.supplies}]`;
+                      return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">수업${badgeHtml}</td>
                     ${periodCellsHtml}
                   </tr>`;
               });
@@ -419,7 +409,7 @@ export class WeekView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${this.getWeekTitle(startOfWeekStr)}</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${this.maxPeriod + 2}" style="padding:10px; background:#f8fafc; color:#475569; font-size:1rem; font-weight:900; text-align:center; border:1px dashed #cbd5e1;">${startOfWeekStr.substring(0,7)} 주간</td></tr>` : '';
       return `<tbody class="week-chunk" data-date="${startOfWeekStr}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
@@ -433,10 +423,6 @@ export class WeekView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        const maxP = store.periodNames ? store.periodNames.length : 6;
-        // 🌟 [문제 4 해결] 뷰어 모드에도 colgroup과 table-layout: fixed 부여
-        const colgroupHtml = `<colgroup><col style="width: 70px;"><col style="width: 50px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
-
         if (this.isInfiniteMode) {
             const tempDateStr = formatDate(store.currentDate);
             const startOfWeekStr = this.getWeekDates(tempDateStr)[0].dateStr;
@@ -447,10 +433,7 @@ export class WeekView extends BaseView {
             this.container.innerHTML = `
                 <div id="week-top-sentinel" style="height:20px; width:100%;"></div>
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
-                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
-                        ${colgroupHtml}
-                        ${chunkHtml}
-                    </table>
+                    <table style="width:100%; border-collapse:collapse; text-align:center;" id="infinite-viewer-container">${chunkHtml}</table>
                 </div>
                 <div id="week-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
@@ -461,10 +444,7 @@ export class WeekView extends BaseView {
             const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
             this.container.innerHTML = `
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
-                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
-                        ${colgroupHtml}
-                        ${chunkHtml}
-                    </table>
+                    <table style="width:100%; border-collapse:collapse; text-align:center;">${chunkHtml}</table>
                 </div>`;
         }
     } finally {
