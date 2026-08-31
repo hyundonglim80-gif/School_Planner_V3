@@ -31,6 +31,7 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
                 const evTimeMs = new Date(ev.time).getTime();
                 const nowMs = now.getTime();
                 
+                // 설정된 시간이 지났더라도 1시간(3600000ms) 이내라면 늦게라도 알려줌
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
                     new Notification('⏰ 일정 알림', {
@@ -54,6 +55,29 @@ export const CompactEventHelper = {
         const h = String(d.getHours()).padStart(2, '0');
         const min = String(d.getMinutes()).padStart(2, '0');
         return `⏰ ${m}/${day} ${h}:${min}`;
+    },
+
+    // 🌟 [추가됨] 날짜와 시간을 조합하여 저장하는 함수
+    updateDateTime(dateStr, eventId, fId, dVal, tVal) {
+        store.hasUnsavedChanges = true;
+        const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
+        if (ev) {
+            if (!dVal && !tVal) {
+                ev.time = '';
+            } else {
+                let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
+                // 1430 -> 14:30 으로 자동 포맷팅
+                if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
+                    let cleanNum = finalT.replace(':', '');
+                    if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
+                    else finalT = cleanNum.substring(0,2) + ':' + cleanNum.substring(2);
+                }
+                if (!finalT) finalT = '09:00'; // 시간 입력이 없으면 기본값 09:00
+                ev.time = `${dVal || dateStr}T${finalT}`;
+            }
+            ev.alarmTriggered = false; // 알람 시간 변경 시 울림 초기화
+        }
+        document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
     generateCompactEventEditor(dateStr, fId) {
@@ -96,19 +120,27 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
-            // 🌟 [변경됨] 클릭 불가 버그 해결 및 날짜까지 표시되도록 UI 개편
+            // 🌟 [변경됨] 날짜(달력)와 시간(타이핑 24시간제) 분리된 알람 UI
             const timeVal = e.time || '';
-            const timeLabel = this.formatAlarmTime(timeVal);
+            let dVal = '', tVal = '';
+            if (timeVal) {
+                const parts = timeVal.split('T');
+                dVal = parts[0];
+                tVal = parts[1] || '';
+            }
+
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<label style="position:relative; cursor:pointer; display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; font-size:0.75rem; color:${timeColor}; font-weight:bold; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 날짜/시간 설정 (브라우저 푸시 알림)">
-                       ${timeLabel}
-                       <input type="datetime-local" value="${timeVal}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission(); try{this.showPicker();}catch(e){}" onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'time', this.value); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = window.CompactEventHelper.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:100%; height:100%; opacity:0; position:absolute; top:0; left:0; cursor:pointer;">
-                     </label>` 
-                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${timeLabel}</span>`;
+                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 입력)">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor}; margin-right:4px; cursor:pointer;" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();">${timeVal ? '⏰' : '⏰ off'}</span>
+                       <input type="date" value="${dVal}" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.value, this.nextElementSibling.value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
+                       <input type="text" value="${tVal}" placeholder="HH:MM" maxlength="5" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.previousElementSibling.value, this.value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
+                       ${timeVal ? `<button onclick="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', '', '')" style="background:none; border:none; color:#ef4444; font-size:0.8rem; cursor:pointer; margin-left:4px; padding:0; line-height:1;">✖</button>` : ''}
+                     </div>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
@@ -181,7 +213,6 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
-            if (field === 'time') ev.alarmTriggered = false; // 시간 변경 시 알람 리셋
         }
     },
 
