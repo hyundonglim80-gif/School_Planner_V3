@@ -236,7 +236,7 @@ export class DayView extends BaseView {
                 const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map(a => {
                     const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                     return `
-                    <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 다운로드">
+                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 열기/다운로드">
                         <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                         <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     </div>`;
@@ -449,7 +449,6 @@ export class DayView extends BaseView {
               this.renderEventEntries(fId);
               this.renderJournalEntries(fId);
           });
-          // 🌟 [추가된 줄] 수정 전 데이터 기억하기 (일괄 수정 감지용 백업)
           this.originalEventsBackup = JSON.parse(JSON.stringify(this.dayData));
         }, 0);
     }
@@ -726,7 +725,7 @@ export class DayView extends BaseView {
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                 return `
-                <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="클릭하여 파일 다운로드">
+                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="클릭하여 파일 열기/다운로드">
                     <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                     <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
@@ -746,7 +745,8 @@ export class DayView extends BaseView {
                     <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                     
                     <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <input type="file" id="${uploadId}" style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
+                    <!-- 🌟 [수정] multiple 속성을 추가하여 다중 첨부 지원 -->
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
                 </div>
                 ${isUploading}
                 ${attachmentsHtml}
@@ -759,8 +759,9 @@ export class DayView extends BaseView {
     async handleJournalAttachmentUpload(fId, idx, inputEl) {
         this.syncJournalInputs(fId);
         
-        const file = inputEl.files[0];
-        if (!file) return;
+        // 🌟 [수정] 여러 파일을 배열로 전달하도록 변경
+        const files = inputEl.files;
+        if (!files || files.length === 0) return;
 
         const j = this.dayData[fId].journals[idx];
         if (!j) return;
@@ -769,9 +770,10 @@ export class DayView extends BaseView {
         this.renderJournalEntries(fId);
 
         try {
-            const fileData = await driveAPI.uploadFile(file);
+            // Promise.all로 병렬 처리된 배열을 반환받아 한꺼번에 푸시
+            const uploadedFiles = await driveAPI.uploadFiles(files);
             if (!j.attachments) j.attachments = [];
-            j.attachments.push(fileData);
+            j.attachments.push(...uploadedFiles);
             store.hasUnsavedChanges = true;
         } catch (err) {
             console.error(err);
