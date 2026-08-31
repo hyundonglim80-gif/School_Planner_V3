@@ -291,31 +291,34 @@ export const EvaluationManager = {
         }
         periodOptions += `<option value="journal" ${ev.context?.source === 'journal' ? 'selected' : ''}>기록 (오늘 기록 칸)</option>`;
 
+        // 🌟 [UI 개선] 1행: 학급, 교과, 날짜, 위치 / 2행: 조사표 제목 (수정 문구 제거)
         const metaHtml = isAuthor ? `
-            <div style="background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; border:1px solid #cbd5e1; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
-                <div style="flex:2; min-width:180px;">
-                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">조사표 제목 수정</label>
-                    <input type="text" id="edit-eval-title" class="eval-input" value="${ev.title}" style="padding:6px 10px; width:100%; border:1px solid #94a3b8; border-radius:4px;">
+            <div style="background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; border:1px solid #cbd5e1; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; flex-wrap:wrap; gap:10px; width:100%;">
+                    <div style="flex:1.5; min-width:130px;">
+                        <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">대상 학급</label>
+                        <select id="edit-eval-roster" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px; box-sizing:border-box;" onchange="window.EvaluationManager.changeViewerRoster(this.value, '${ev.id}')">
+                            ${rosterOptions}
+                        </select>
+                    </div>
+                    <div style="flex:1; min-width:90px;">
+                        <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">교과</label>
+                        <select id="edit-eval-subject" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px; box-sizing:border-box;">
+                            <option value="">선택 안함</option>${subjOptions}
+                        </select>
+                    </div>
+                    <div style="flex:1.2; min-width:110px;">
+                        <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">표시될 날짜</label>
+                        <input type="date" id="edit-eval-date" class="eval-input" value="${ev.dateStr || dateStr}" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px; box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1.2; min-width:110px;">
+                        <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">위치</label>
+                        <select id="edit-eval-period" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px; box-sizing:border-box;">${periodOptions}</select>
+                    </div>
                 </div>
-                <div style="flex:1.5; min-width:140px;">
-                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">대상 학급</label>
-                    <select id="edit-eval-roster" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px;" onchange="window.EvaluationManager.changeViewerRoster(this.value, '${ev.id}')">
-                        ${rosterOptions}
-                    </select>
-                </div>
-                <div style="flex:1; min-width:100px;">
-                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">교과</label>
-                    <select id="edit-eval-subject" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px;">
-                        <option value="">선택 안함</option>${subjOptions}
-                    </select>
-                </div>
-                <div style="flex:1; min-width:120px;">
-                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">표시될 날짜</label>
-                    <input type="date" id="edit-eval-date" class="eval-input" value="${ev.dateStr || dateStr}" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px;">
-                </div>
-                <div style="flex:1; min-width:120px;">
-                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">위치</label>
-                    <select id="edit-eval-period" class="eval-input" style="padding:6px; width:100%; border:1px solid #94a3b8; border-radius:4px;">${periodOptions}</select>
+                <div style="width:100%;">
+                    <label style="font-size:0.8rem; font-weight:bold; color:#475569; display:block; margin-bottom:2px;">조사표 제목</label>
+                    <input type="text" id="edit-eval-title" class="eval-input" value="${ev.title}" style="padding:6px 10px; width:100%; border:1px solid #94a3b8; border-radius:4px; box-sizing:border-box;">
                 </div>
             </div>
         ` : `<div style="margin-bottom:10px; font-weight:bold; font-size:1.1rem; color:#1e40af;">${ev.title} <span style="font-size:0.85rem; color:#64748b; font-weight:normal;">(읽기 전용)</span></div>`;
@@ -398,7 +401,6 @@ export const EvaluationManager = {
         this.viewerModal.open();
     },
 
-    // 🌟 [추가됨] 대상 학급 변경 시 즉각적으로 표를 갈아끼우는 함수
     changeViewerRoster: function(rosterIdxStr, evalId) {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev || !rosterIdxStr) return;
@@ -406,7 +408,6 @@ export const EvaluationManager = {
         const newRoster = this.roster[rIdx];
         if (!newRoster) return;
 
-        // 명단이 바뀌기 전에 현재 입력된 기록을 임시 저장 (같은 번호 학생에게는 기록 유지)
         const table = document.getElementById('eval-viewer-table');
         if (table) {
             table.querySelectorAll('tbody input, tbody select').forEach(inp => {
@@ -419,7 +420,6 @@ export const EvaluationManager = {
             });
         }
 
-        // 대상 학급 정보를 메모리 상의 ev 객체에 덮어쓰기
         ev.rosterMeta = { year: newRoster.year, grade: newRoster.grade, classNum: newRoster.classNum };
         ev.studentsSnapshot = newRoster.students.filter(s => s.isActive !== false).map(s => ({ num: s.num, name: s.name, gender: s.gender }));
 
@@ -431,10 +431,9 @@ export const EvaluationManager = {
         const isIndiv = isEval && ev.methodObj?.indiv; const isGroup = isEval && ev.methodObj?.group;
         const disabledAttr = isAuthor ? '' : 'disabled'; const readonlyAttr = isAuthor ? '' : 'readonly';
 
-        // 새 명단을 기반으로 행(row) HTML 다시 생성
         let rowsHtml = '';
         ev.studentsSnapshot.forEach(st => {
-            const rec = ev.records[st.num] || {}; // 같은 번호의 기록이 있으면 그대로 불러옴
+            const rec = ev.records[st.num] || {}; 
             let inputsHtml = '';
             
             if (isEval) {
@@ -457,7 +456,6 @@ export const EvaluationManager = {
             rowsHtml += `<tr><td style="color:#475569; background:#f8fafc;">${st.num}</td><td style="color:#1e293b;">${st.name}</td>${inputsHtml}</tr>`;
         });
 
-        // 팝업창 내 테이블의 tbody만 즉시 교체
         const tbody = document.querySelector('#eval-viewer-table tbody');
         if (tbody) {
             tbody.innerHTML = rowsHtml;
