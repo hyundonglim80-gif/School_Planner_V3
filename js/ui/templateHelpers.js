@@ -2,7 +2,7 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 [추가됨] 화면 절반 이상을 차지하며 요란하게 깜빡이는 대형 알람 팝업
+// 🌟 [개선됨] 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거)
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -36,7 +36,7 @@ window.showCustomAlarmPopup = function(messages) {
                 <div style="font-size: 8rem; margin-bottom: 20px; text-shadow: 0 4px 10px rgba(0,0,0,0.5);">⏰</div>
                 <div id="sp3-super-alarm-text" style="font-size: 3rem; font-weight: 900; margin-bottom: 50px; line-height: 1.4; word-break: keep-all; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
                 </div>
-                <button onclick="document.getElementById('sp3-super-alarm-popup').style.display='none'" 
+                <button onclick="document.getElementById('sp3-super-alarm-popup').style.display='none'" data-shortcut-added="true"
                         style="padding: 25px 80px; font-size: 2.5rem; font-weight: 900; border: 5px solid #fff; border-radius: 20px; background: #0f172a; color: #f8fafc; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: 0.2s;">
                     확 인 (알림 끄기)
                 </button>
@@ -52,8 +52,8 @@ window.showCustomAlarmPopup = function(messages) {
     popup.style.display = 'block';
 };
 
-// 🌟 글로벌 알림 엔진 초기화
-if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCheckerInterval) {
+// 🌟 글로벌 알림 엔진
+if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
         const now = new Date();
         const currentYMDHM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -80,15 +80,7 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
                 
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
-                    const msg = ev.content || '예정된 일정이 있습니다.';
-                    alarmMessages.push(msg);
-                    
-                    if (Notification.permission === 'granted') {
-                        new Notification('⏰ 일정 알림', {
-                            body: msg,
-                            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
-                        });
-                    }
+                    alarmMessages.push(ev.content || '예정된 일정이 있습니다.');
                 }
             }
         });
@@ -119,7 +111,6 @@ export const CompactEventHelper = {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
-                // 1430 -> 14:30 으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
@@ -133,12 +124,8 @@ export const CompactEventHelper = {
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
-    // 🌟 [추가됨] 커스텀 팝업 모달창을 이용한 알림 설정
+    // 🌟 [개선됨] 알람 팝업 모달 (단축키 툴팁 차단 & 날짜/시간 완전 분리)
     openAlarmModal(dateStr, eventId, fId) {
-        if (window.Notification && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
         const evList = window[`tempEvents_${dateStr}`];
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
@@ -167,20 +154,19 @@ export const CompactEventHelper = {
                     <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
                 </div>
                 <div style="margin-bottom:25px;">
-                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제)</label>
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제 키보드 입력)</label>
                     <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
                 </div>
                 <div style="display:flex; justify-content:space-between; gap:8px;">
-                    <button id="btn-alarm-off" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
+                    <button id="btn-alarm-off" data-shortcut-added="true" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
                     <div style="display:flex; gap:8px;">
-                        <button id="btn-alarm-cancel" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
-                        <button id="btn-alarm-save" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
+                        <button id="btn-alarm-cancel" data-shortcut-added="true" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
+                        <button id="btn-alarm-save" data-shortcut-added="true" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
                     </div>
                 </div>
             </div>
         `;
         modal.style.display = 'flex';
-        
         if (window.increaseModalCount) window.increaseModalCount();
 
         const closePopup = () => {
@@ -209,7 +195,6 @@ export const CompactEventHelper = {
                 document.getElementById('btn-alarm-save').click();
             }
         };
-        
         setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
     },
 
@@ -219,11 +204,14 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 [추가됨] 일정 라벨 순서 정렬
+        // 🌟 [개선됨] 라벨 순서 기반 정렬 완벽 적용
         list.sort((a, b) => {
-            const aRank = labelObjs.findIndex(l => l.id === a.labelIds?.[0]);
-            const bRank = labelObjs.findIndex(l => l.id === b.labelIds?.[0]);
-            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+            const aRank = (a.labelIds && a.labelIds.length > 0) ? labelObjs.findIndex(l => l.id === a.labelIds[0]) : -1;
+            const bRank = (b.labelIds && b.labelIds.length > 0) ? labelObjs.findIndex(l => l.id === b.labelIds[0]) : -1;
+            const rA = aRank === -1 ? 9999 : aRank;
+            const rB = bRank === -1 ? 9999 : bRank;
+            if (rA !== rB) return rA - rB;
+            return (a.id || '').localeCompare(b.id || '');
         });
 
         const realTodayStr = formatDate(new Date());
@@ -261,7 +249,6 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
-            // 🌟 [추가됨] 팝업 모달창을 띄우는 알람 아이콘 (읽기 전용과 구분)
             const timeVal = e.time || '';
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
             const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
