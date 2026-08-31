@@ -226,7 +226,7 @@ export class WeekView extends BaseView {
       const filterCount = filters.length;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
       const startOfWeekStr = weekDates[0].dateStr;
-      
+
       const masterEventLabels = getEventLabels();
       const masterJournalLabels = getJournalLabels();
 
@@ -250,25 +250,31 @@ export class WeekView extends BaseView {
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [], content: e.content }));
               
-              // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
+              // 🌟 [추가됨] 뷰어 모드 일정 라벨 정렬
               processedEvents.sort((a, b) => {
-                  const aRank = masterEventLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterEventLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterEventLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                  const rA = aRank === -1 ? 9999 : aRank;
+                  const rB = bRank === -1 ? 9999 : bRank;
+                  if (rA !== rB) return rA - rB;
+                  return (a.id || '').localeCompare(b.id || '');
               });
-              
+
               let eventContent = processedEvents.length > 0 ? generateEventBadgesHTML(processedEvents, d.dateStr) : '<span style="color:#94a3b8;">-</span>';
 
               const jList = jMap[d.dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
+              // 🌟 [추가됨] 뷰어 모드 기록 라벨 정렬
               validJournals.sort((a, b) => {
-                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+                  const aRank = (a.labelIds && a.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === a.labelIds[0]) : -1;
+                  const bRank = (b.labelIds && b.labelIds.length > 0) ? masterJournalLabels.findIndex(l => l.id === b.labelIds[0]) : -1;
+                  const rA = aRank === -1 ? 9999 : aRank;
+                  const rB = bRank === -1 ? 9999 : bRank;
+                  if (rA !== rB) return rA - rB;
+                  return (a.id || '').localeCompare(b.id || '');
               });
-              
+
               const vList = vMap[d.dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -357,7 +363,7 @@ export class WeekView extends BaseView {
 
           filters.forEach(fId => {
               const periods = sMap[d.dateStr]?.[fId] || {};
-              window[`tempSchedules_${d.dateStr}`] = periods;
+              window[`tempSchedules_${d.dateStr}`][fId] = periods;
 
               const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               fEvents.forEach(e => {
