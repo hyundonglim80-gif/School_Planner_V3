@@ -2,7 +2,6 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 [방향 B] 20초마다 브라우저 로컬 알림을 검사하는 글로벌 알림 엔진 초기화
 if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCheckerInterval) {
     window.alarmCheckerInterval = setInterval(() => {
         if (Notification.permission !== 'granted') return;
@@ -12,18 +11,15 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
         let activeEvents = [];
         const currentYMD = currentYMDHM.split('T')[0];
         
-        // 1. 월간/주간 페이지의 데이터 스캔
         if (window[`tempEvents_${currentYMD}`]) {
             activeEvents.push(...window[`tempEvents_${currentYMD}`]);
         }
-        // 2. 하루 페이지의 데이터 스캔
         if (window.dayViewInstance && window.dayViewInstance.dateStr === currentYMD && window.dayViewInstance.dayData) {
             Object.values(window.dayViewInstance.dayData).forEach(d => {
                 if (d.events) activeEvents.push(...d.events);
             });
         }
         
-        // 중복 이벤트 제거
         const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
 
         uniqueEvents.forEach(ev => {
@@ -31,7 +27,6 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
                 const evTimeMs = new Date(ev.time).getTime();
                 const nowMs = now.getTime();
                 
-                // 설정된 시간이 지났더라도 1시간(3600000ms) 이내라면 늦게라도 알려줌
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
                     new Notification('⏰ 일정 알림', {
@@ -45,7 +40,6 @@ if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCh
 }
 
 export const CompactEventHelper = {
-    // 🌟 [추가됨] 알림 시간을 예쁘게 포맷팅 (off 처리 포함)
     formatAlarmTime(datetimeStr) {
         if (!datetimeStr) return '⏰ off';
         const d = new Date(datetimeStr);
@@ -57,34 +51,42 @@ export const CompactEventHelper = {
         return `⏰ ${m}/${day} ${h}:${min}`;
     },
 
-    // 🌟 [추가됨] 날짜와 시간을 조합하여 저장하는 함수
+    // 🌟 [추가됨] 날짜와 시간을 조합하여 저장 (시간은 24시간제 텍스트 자동 변환)
     updateDateTime(dateStr, eventId, fId, dVal, tVal) {
         store.hasUnsavedChanges = true;
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
-            if (!dVal && !tVal) {
+            if (!dVal && (!tVal || tVal.trim() === '')) {
                 ev.time = '';
             } else {
                 let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
-                // 1430 -> 14:30 으로 자동 포맷팅
+                // 1430 처럼 치면 자동으로 14:30으로 변환
                 if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
                     let cleanNum = finalT.replace(':', '');
                     if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
                     else finalT = cleanNum.substring(0,2) + ':' + cleanNum.substring(2);
                 }
-                if (!finalT) finalT = '09:00'; // 시간 입력이 없으면 기본값 09:00
+                if (!finalT || finalT.length < 4) finalT = '09:00'; 
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
-            ev.alarmTriggered = false; // 알람 시간 변경 시 울림 초기화
+            ev.alarmTriggered = false; 
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
     generateCompactEventEditor(dateStr, fId) {
         const allEvents = window[`tempEvents_${dateStr}`] || [];
-        const list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+        let list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
         
         const labelObjs = getEventLabels();
+        
+        // 🌟 [추가됨] 설정된 라벨 순서대로 정렬 로직
+        list.sort((a, b) => {
+            const aRank = labelObjs.findIndex(l => l.id === a.labelIds?.[0]);
+            const bRank = labelObjs.findIndex(l => l.id === b.labelIds?.[0]);
+            return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+        });
+
         const realTodayStr = formatDate(new Date());
         const uid = window.auth?.currentUser?.uid;
         
@@ -120,13 +122,12 @@ export const CompactEventHelper = {
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
-            // 🌟 [변경됨] 날짜(달력)와 시간(타이핑 24시간제) 분리된 알람 UI
+            // 🌟 [개선됨] 날짜(달력)와 시간(타이핑) 입력 폼 분리
             const timeVal = e.time || '';
             let dVal = '', tVal = '';
             if (timeVal) {
                 const parts = timeVal.split('T');
-                dVal = parts[0];
-                tVal = parts[1] || '';
+                dVal = parts[0]; tVal = parts[1] || '';
             }
 
             const timeColor = timeVal ? '#2563eb' : '#94a3b8';
@@ -134,10 +135,10 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 입력)">
+                  ? `<div style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 4px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;" title="알림 설정 (날짜 선택 + 시간 직접 입력)">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor}; margin-right:4px; cursor:pointer;" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();">${timeVal ? '⏰' : '⏰ off'}</span>
-                       <input type="date" value="${dVal}" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.value, this.nextElementSibling.value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
-                       <input type="text" value="${tVal}" placeholder="HH:MM" maxlength="5" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.previousElementSibling.value, this.value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
+                       <input type="date" id="date-${e.id}" value="${dVal}" onchange="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', this.value, document.getElementById('time-${e.id}').value)" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; cursor:pointer; padding:0; width:100px;">
+                       <input type="text" id="time-${e.id}" value="${tVal}" placeholder="HH:MM" maxlength="5" onblur="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', document.getElementById('date-${e.id}').value, this.value)" onkeydown="if(event.key==='Enter') this.blur();" style="border:none; background:transparent; font-size:0.75rem; color:${timeColor}; outline:none; padding:0; width:45px; text-align:center; margin-left:4px;">
                        ${timeVal ? `<button onclick="window.CompactEventHelper.updateDateTime('${dateStr}', '${e.id}', '${fId}', '', '')" style="background:none; border:none; color:#ef4444; font-size:0.8rem; cursor:pointer; margin-left:4px; padding:0; line-height:1;">✖</button>` : ''}
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
