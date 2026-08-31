@@ -347,8 +347,6 @@ export class MonthView extends BaseView {
       const filterCount = filters.length;
       const maxP = store.periodNames ? store.periodNames.length : 6;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
-      
-      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = Array.from({ length: lastDate }).map((_, i) => {
           const d = i + 1;
@@ -399,14 +397,6 @@ export class MonthView extends BaseView {
               
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              
-              // 🌟 [추가됨] 작성 모드 기록 라벨 순서 정렬
-              validJournals.sort((a, b) => {
-                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
-                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
-                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
-              });
-              
               const vList = vMap[dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
