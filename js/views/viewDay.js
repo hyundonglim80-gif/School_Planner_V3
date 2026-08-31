@@ -236,9 +236,9 @@ export class DayView extends BaseView {
                 const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map(a => {
                     const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                     return `
-                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 열기/다운로드">
+                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                         <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                        <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                        <span data-tooltip="${a.name}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     </div>`;
                 }).join('') + `</div>` : '';
 
@@ -681,6 +681,10 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            const timeHtml = isAuthor 
+                  ? `<input type="time" value="${ev.time || ''}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.dayViewInstance.updateEventTime('${fId}', ${idx}, this.value)" style="border:1px solid #cbd5e1; border-radius:4px; padding:2px; font-size:0.8rem; color:#475569; outline:none; background:transparent;" title="알림 시간 설정 (브라우저 푸시 알림)">` 
+                  : `<span style="font-size:0.8rem; color:#64748b;">${ev.time || ''}</span>`;
+
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -689,6 +693,7 @@ export class DayView extends BaseView {
                         ${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${timeHtml}
                         ${deleteBtnHtml}
                     </div>
                 </div>
@@ -725,7 +730,7 @@ export class DayView extends BaseView {
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                 return `
-                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="클릭하여 파일 열기/다운로드">
+                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
                     <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                     <span data-tooltip="${a.name}" style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
@@ -745,7 +750,6 @@ export class DayView extends BaseView {
                     <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                     
                     <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <!-- 🌟 [수정] multiple 속성을 추가하여 다중 첨부 지원 -->
                     <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
                 </div>
                 ${isUploading}
@@ -759,7 +763,6 @@ export class DayView extends BaseView {
     async handleJournalAttachmentUpload(fId, idx, inputEl) {
         this.syncJournalInputs(fId);
         
-        // 🌟 [수정] 여러 파일을 배열로 전달하도록 변경
         const files = inputEl.files;
         if (!files || files.length === 0) return;
 
@@ -770,7 +773,6 @@ export class DayView extends BaseView {
         this.renderJournalEntries(fId);
 
         try {
-            // Promise.all로 병렬 처리된 배열을 반환받아 한꺼번에 푸시
             const uploadedFiles = await driveAPI.uploadFiles(files);
             if (!j.attachments) j.attachments = [];
             j.attachments.push(...uploadedFiles);
@@ -790,6 +792,11 @@ export class DayView extends BaseView {
         if (confirm("첨부된 파일 링크를 삭제하시겠습니까?\n(※ 구글 드라이브의 실제 파일은 삭제되지 않습니다.)")) {
             const j = this.dayData[fId].journals[jIdx];
             if (j && j.attachments) {
+                const targetAttachment = j.attachments[aIdx];
+                if (targetAttachment && targetAttachment.id) {
+                    driveAPI.deleteFile(targetAttachment.id).catch(e => console.warn(e));
+                }
+                
                 j.attachments.splice(aIdx, 1);
                 store.hasUnsavedChanges = true;
                 this.renderJournalEntries(fId);
@@ -849,6 +856,11 @@ export class DayView extends BaseView {
         this.renderEventEntries(fId);
     }
 
+    updateEventTime(fId, idx, timeVal) {
+        store.hasUnsavedChanges = true;
+        if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].time = timeVal;
+    }
+
     updateEventContent(fId, idx, val) {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].content = val;
@@ -897,10 +909,9 @@ export class DayView extends BaseView {
         if (confirm("이 기록을 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
             const j = this.dayData[fId].journals[index];
             
-            // 🌟 [추가됨] 드라이브 파일 동반 삭제
             if (j && j.attachments && j.attachments.length > 0) {
                 j.attachments.forEach(a => {
-                    driveAPI.deleteFile(a.id).catch(e => console.warn(e));
+                    if (a && a.id) driveAPI.deleteFile(a.id).catch(e => console.warn(e));
                 });
             }
             
@@ -962,7 +973,6 @@ export class DayView extends BaseView {
             this.syncScheduleInputs(fId);
         });
 
-        // 🌟 [핵심 로직] 저장 직전에 그룹 일정의 내용 변경을 감지하고 팝업 띄우기
         if (!this.isGroupUpdateBypassed && window.EventManager && typeof window.EventManager.showGroupUpdateModal === 'function') {
             let changedGroupEvent = null;
             
@@ -972,7 +982,7 @@ export class DayView extends BaseView {
                 
                 for (let i = 0; i < currentEvents.length; i++) {
                     const cEv = currentEvents[i];
-                    if (cEv.groupId) { // 그룹으로 묶인 일정인 경우
+                    if (cEv.groupId) { 
                         const oEv = origEvents.find(e => e.id === cEv.id);
                         if (oEv && oEv.content !== cEv.content) {
                             changedGroupEvent = { fId, cEv, oEv };
@@ -983,7 +993,6 @@ export class DayView extends BaseView {
                 if (changedGroupEvent) break;
             }
 
-            // 변경된 그룹 일정을 하나라도 찾았다면 저장을 멈추고 팝업을 띄움
             if (changedGroupEvent) {
                 return new Promise((resolve) => {
                     window.EventManager.showGroupUpdateModal(
@@ -991,16 +1000,16 @@ export class DayView extends BaseView {
                         changedGroupEvent.cEv.groupId,
                         changedGroupEvent.oEv.content,
                         changedGroupEvent.cEv.content,
-                        async () => { // [2번 또는 3번] 일괄 적용 클릭 시
-                            this.isGroupUpdateBypassed = true; // 무한 반복 방지
+                        async () => { 
+                            this.isGroupUpdateBypassed = true; 
                             if(this.originalEventsBackup[changedGroupEvent.fId]) {
                                 const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
                                 if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
                             }
-                            await this.save(); // 다시 저장 시도
+                            await this.save(); 
                             resolve();
                         },
-                        async () => { // [1번] 이 일정만 수정 클릭 시
+                        async () => { 
                             this.isGroupUpdateBypassed = true;
                             if(this.originalEventsBackup[changedGroupEvent.fId]) {
                                 const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
@@ -1009,18 +1018,17 @@ export class DayView extends BaseView {
                             await this.save();
                             resolve();
                         },
-                        () => { // [취소] 클릭 시 원래 내용으로 되돌림
+                        () => { 
                             changedGroupEvent.cEv.content = changedGroupEvent.oEv.content;
-                            this.renderEventEntries(changedGroupEvent.fId); // 화면상 텍스트 원상복구
+                            this.renderEventEntries(changedGroupEvent.fId); 
                             resolve();
                         }
                     );
                 });
             }
         }
-        this.isGroupUpdateBypassed = false; // 플래그 초기화
+        this.isGroupUpdateBypassed = false; 
 
-        // --- 여기서부터 원래의 데이터 스냅샷 생성 및 저장 로직 ---
         const snapshot = [{
             dateStr: dateStr,
             validEvents: [],
