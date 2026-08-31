@@ -15,6 +15,7 @@ export class MonthView extends BaseView {
     this.myGroups = [];
     this.scheduleGroupId = null; 
     this.isRendering = false; 
+    this.renderId = 0; 
     
     // 무한 스크롤 관련 상태
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
@@ -25,13 +26,12 @@ export class MonthView extends BaseView {
     this.isLoadingMore = false;
     this.renderedDateStrings = []; 
 
-    // 💡 [문제 4 해결] '오늘'로 부드럽게 스크롤될 때 무한 스크롤 센서가 간섭하여 튕기는 현상 방지
+    // '오늘'로 부드럽게 스크롤 시 무한 스크롤 센서 간섭 방지
     if (typeof window.scrollToTodayIfExist === 'function' && !window.originalScrollToToday) {
         window.originalScrollToToday = window.scrollToTodayIfExist;
         window.scrollToTodayIfExist = () => {
             window.isAutoScrollingMonth = true;
             window.originalScrollToToday();
-            // 1.5초간 스크롤 감지 센서를 일시정지
             setTimeout(() => { window.isAutoScrollingMonth = false; }, 1500);
         };
     }
@@ -75,7 +75,6 @@ export class MonthView extends BaseView {
       }
   }
 
-  // 💡 [문제 1 해결] 스크롤 시 화면 중앙에 위치한 달을 감지하여 상단 2열 날짜 타이틀 업데이트
   setupChunkObserver() {
       if (this.chunkObserver) this.chunkObserver.disconnect();
       this.chunkObserver = new IntersectionObserver((entries) => {
@@ -93,7 +92,7 @@ export class MonthView extends BaseView {
                   }
               }
           });
-      }, { rootMargin: '-40% 0px -40% 0px' }); // 화면의 중간 20% 지점을 지날 때 감지
+      }, { rootMargin: '-40% 0px -40% 0px' }); 
       
       document.querySelectorAll('.month-chunk').forEach(chunk => {
           this.chunkObserver.observe(chunk);
@@ -102,9 +101,10 @@ export class MonthView extends BaseView {
 
   setupInfiniteObserver(mode) {
       if (this.observer) this.observer.disconnect();
+      const currentRenderId = this.renderId; 
       
       this.observer = new IntersectionObserver(async (entries) => {
-          if (window.isAutoScrollingMonth) return; // '오늘'로 자동 이동 중일 때는 로드 무시
+          if (window.isAutoScrollingMonth || window.activeModalCount > 0) return; 
 
           for (let entry of entries) {
               if (entry.isIntersecting && !this.isLoadingMore) {
@@ -116,6 +116,9 @@ export class MonthView extends BaseView {
                           if (nm > 11) { ny++; nm = 0; }
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(ny, nm) : await this.buildViewerChunk(ny, nm);
+                          
+                          if (this.renderId !== currentRenderId) return;
+                          
                           this.insertChunkToDOM(html, mode, 'bottom', ny, nm);
                       } 
                       else if (entry.target.id === 'month-top-sentinel') {
@@ -124,23 +127,24 @@ export class MonthView extends BaseView {
                           if (pm < 0) { py--; pm = 11; }
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(py, pm) : await this.buildViewerChunk(py, pm);
+                          
+                          if (this.renderId !== currentRenderId) return;
+                          
                           const oldScrollHeight = document.documentElement.scrollHeight;
                           const oldScrollTop = window.scrollY || document.documentElement.scrollTop;
                           
                           this.insertChunkToDOM(html, mode, 'top', py, pm);
                           
-                          // 요소 삽입 후 늘어난 높이만큼 스크롤을 보정하여 시야 유지
                           const newScrollHeight = document.documentElement.scrollHeight;
                           const diff = newScrollHeight - oldScrollHeight;
                           window.scrollTo({ top: oldScrollTop + diff, behavior: 'instant' });
                       }
                   } finally {
-                      // 💡 [문제 3 해결] 에러 시에도 무조건 로딩 상태를 해제하여 스크롤 멈춤 방지
                       setTimeout(() => { this.isLoadingMore = false; }, 100);
                   }
               }
           }
-      }, { rootMargin: '400px' }); 
+      }, { rootMargin: '600px' }); 
 
       const topSentinel = document.getElementById('month-top-sentinel');
       const bottomSentinel = document.getElementById('month-bottom-sentinel');
@@ -153,13 +157,13 @@ export class MonthView extends BaseView {
       if (!container) return;
       
       if (mode === 'editor') {
-          // 💡 [문제 3 해결] 작성 모드에서 테이블 구조가 깨지지 않게 안전한 위치에 삽입
           if (position === 'bottom') {
               container.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
           } else {
               const thead = container.querySelector('thead');
-              thead.insertAdjacentHTML('afterend', html);
+              if (thead) thead.insertAdjacentHTML('afterend', html);
+              else container.insertAdjacentHTML('afterbegin', html);
               this.loadedMonths.unshift({y, m});
           }
           setTimeout(() => { this.syncAllCompactEventInputs(); }, 100);
@@ -172,8 +176,7 @@ export class MonthView extends BaseView {
               this.loadedMonths.unshift({y, m});
           }
       }
-      
-      this.setupChunkObserver(); // 새 요소가 추가될 때마다 상단 날짜 감지기 재설정
+      this.setupChunkObserver(); 
   }
 
   async fetchMonthData(y, m) {
@@ -215,6 +218,9 @@ export class MonthView extends BaseView {
       const filterCount = filters.length;
       const realTodayStr = formatDate(new Date());
 
+      const masterEventLabels = getEventLabels();
+      const masterJournalLabels = getJournalLabels();
+
       const daysList = this.isWeekendVisible ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
       const daysHeaderHtml = daysList.map(d => {
           let color = d === '일' ? 'color:#ef4444;' : (d === '토' ? 'color:#3b82f6;' : '');
@@ -248,10 +254,26 @@ export class MonthView extends BaseView {
 
               const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
+              
+              // 🌟 [추가됨] 뷰어 모드 일정 라벨 순서 정렬
+              processedEvents.sort((a, b) => {
+                  const aRank = masterEventLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterEventLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              
+              // 🌟 [추가됨] 뷰어 모드 기록 라벨 순서 정렬
+              validJournals.sort((a, b) => {
+                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               const vList = vMap[dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -263,7 +285,6 @@ export class MonthView extends BaseView {
               if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
               if (metaBadges) {
-                  // 🌟 [버그 수정 완료] eventContent 오타 수정 (eventHtml에 결합)
                   eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
               }
 
@@ -326,6 +347,8 @@ export class MonthView extends BaseView {
       const filterCount = filters.length;
       const maxP = store.periodNames ? store.periodNames.length : 6;
       const totalRows = filterCount + (store.showClass ? 1 + filterCount : 0);
+      
+      const masterJournalLabels = getJournalLabels();
 
       const rowsHtml = Array.from({ length: lastDate }).map((_, i) => {
           const d = i + 1;
@@ -376,6 +399,14 @@ export class MonthView extends BaseView {
               
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              
+              // 🌟 [추가됨] 작성 모드 기록 라벨 순서 정렬
+              validJournals.sort((a, b) => {
+                  const aRank = masterJournalLabels.findIndex(l => l.id === a.labelIds?.[0]);
+                  const bRank = masterJournalLabels.findIndex(l => l.id === b.labelIds?.[0]);
+                  return (aRank === -1 ? 999 : aRank) - (bRank === -1 ? 999 : bRank);
+              });
+              
               const vList = vMap[dateStr]?.[fId] || [];
 
               let attachmentCount = 0;
@@ -446,6 +477,7 @@ export class MonthView extends BaseView {
 
   async renderViewer() {
     this.isRendering = true;
+    this.renderId = Date.now();
     try {
         this.showLoading('클라우드에서 월간 일정을 불러오는 중...'); 
         this.injectInfiniteToggleBtn();
@@ -480,6 +512,7 @@ export class MonthView extends BaseView {
 
   async renderEditor() {
     this.isRendering = true;
+    this.renderId = Date.now();
     try {
         this.showLoading('월간 편집 시트를 불러오는 중...');
         this.injectInfiniteToggleBtn();
@@ -492,7 +525,7 @@ export class MonthView extends BaseView {
         const m = store.currentDate.getMonth();
         const maxP = store.periodNames ? store.periodNames.length : 6;
         const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
-        const headerTr = `<tr style="background:#f1f5f9;"><td style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</td><td style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</td><td colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</td></tr>`;
+        const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
 
         this.renderedDateStrings = [];
 
