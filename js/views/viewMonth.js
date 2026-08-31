@@ -58,6 +58,7 @@ export class MonthView extends BaseView {
           }
       }
       if (btn) {
+          btn.style.display = ''; // 🌟 하루 페이지에서 숨겨졌던 버튼을 다시 표시 (복구)
           btn.innerHTML = `📜 스크롤 ${this.isInfiniteMode ? '끄기' : '켜기'}`;
           btn.style.backgroundColor = this.isInfiniteMode ? '#fef2f2' : '#f8fafc';
           btn.style.color = this.isInfiniteMode ? '#ef4444' : '#475569';
@@ -165,7 +166,6 @@ export class MonthView extends BaseView {
           setTimeout(() => { this.syncAllCompactEventInputs(); }, 100);
       } else {
           if (position === 'bottom') {
-              // 🌟 뷰어 모드는 table 내부에 tbody로 삽입
               const table = container.querySelector('table') || container;
               table.insertAdjacentHTML('beforeend', html);
               this.loadedMonths.push({y, m});
@@ -399,6 +399,7 @@ export class MonthView extends BaseView {
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#1e40af');
           const dateNumColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#475569');
           const holidayName = getHolidayName(dateStr);
+          
           const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
           const todayClass = isToday ? 'month-today-cell' : '';
 
@@ -498,8 +499,6 @@ export class MonthView extends BaseView {
 
         const y = store.currentDate.getFullYear();
         const m = store.currentDate.getMonth();
-        const maxP = store.periodNames ? store.periodNames.length : 6;
-        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
 
         if (this.isInfiniteMode) {
             this.renderedDateStrings = [];
@@ -508,10 +507,10 @@ export class MonthView extends BaseView {
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-                <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
-                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
-                        ${chunkHtml}
-                    </table>
+                <div id="infinite-viewer-container" style="padding-top:10px;">
+                  <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
+                    ${chunkHtml}
+                  </table>
                 </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
