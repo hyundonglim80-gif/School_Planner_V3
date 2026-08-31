@@ -56,7 +56,6 @@ export class WeekView extends BaseView {
     }, []);
   }
 
-  // 🌟 [안전 로직 추가] 날짜 파싱 오류(NaN)를 원천 차단하는 주차 계산 로직
   getWeekTitle(dateStr) {
       if (!dateStr) return '';
       const parts = dateStr.split('-');
@@ -124,7 +123,7 @@ export class WeekView extends BaseView {
 
   setupInfiniteObserver(mode) {
       if (this.observer) this.observer.disconnect();
-      const currentRenderId = this.renderId; // 🌟 현재 렌더링 ID 기억
+      const currentRenderId = this.renderId; 
       
       this.observer = new IntersectionObserver(async (entries) => {
           if (window.isAutoScrollingWeek || window.activeModalCount > 0) return; 
@@ -142,7 +141,6 @@ export class WeekView extends BaseView {
                           
                           const html = mode === 'editor' ? await this.buildEditorChunk(nyStr) : await this.buildViewerChunk(nyStr);
                           
-                          // 🌟 렌더링 ID가 달라졌다면(오늘 버튼 클릭 등) 삽입 즉시 중단!
                           if (this.renderId !== currentRenderId) return;
                           
                           this.insertChunkToDOM(html, mode, 'bottom', nyStr);
@@ -172,7 +170,7 @@ export class WeekView extends BaseView {
                   }
               }
           }
-      }, { rootMargin: '600px' }); // 🌟 마진을 넉넉하게 주어 지연(버벅거림) 없이 미리 로드
+      }, { rootMargin: '600px' }); 
 
       const topSentinel = document.getElementById('week-top-sentinel');
       const bottomSentinel = document.getElementById('week-bottom-sentinel');
@@ -184,7 +182,6 @@ export class WeekView extends BaseView {
       const container = document.getElementById(mode === 'editor' ? 'week-editor-table' : 'infinite-viewer-container');
       if (!container) return;
       
-      // 🌟 [표 깨짐 방지] colgroup 및 thead 구조를 보호하며 삽입
       if (mode === 'editor') {
           if (position === 'bottom') {
               container.insertAdjacentHTML('beforeend', html);
@@ -430,10 +427,10 @@ export class WeekView extends BaseView {
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
-                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                      const p = i + 1; const pObj = periods[p] || {}; let cellText = ""; 
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `; 
+                      if (pObj.memo) cellText += pObj.memo + " "; 
+                      if (pObj.supplies) cellText += `[${pObj.supplies}]`; 
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
