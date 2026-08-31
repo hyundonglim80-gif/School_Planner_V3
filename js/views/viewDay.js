@@ -894,9 +894,20 @@ export class DayView extends BaseView {
 
     removeJournalEntry(fId, index) {
         this.syncJournalInputs(fId);
-        this.dayData[fId].journals.splice(index, 1);
-        this.renderJournalEntries(fId);
-        store.hasUnsavedChanges = true;
+        if (confirm("이 기록을 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
+            const j = this.dayData[fId].journals[index];
+            
+            // 🌟 [추가됨] 드라이브 파일 동반 삭제
+            if (j && j.attachments && j.attachments.length > 0) {
+                j.attachments.forEach(a => {
+                    driveAPI.deleteFile(a.id).catch(e => console.warn(e));
+                });
+            }
+            
+            this.dayData[fId].journals.splice(index, 1);
+            this.renderJournalEntries(fId);
+            store.hasUnsavedChanges = true;
+        }
     }
 
     syncEventInputs(fId) {
