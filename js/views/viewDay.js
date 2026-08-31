@@ -188,7 +188,6 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
-            // 🌟 뷰어 모드 일정 다중 정렬 적용
             processedEvents.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
                 (a.labelIds || []).forEach(id => {
@@ -255,7 +254,6 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
-            // 🌟 뷰어 모드 기록 다중 정렬 적용
             journals.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
                 (a.labelIds || []).forEach(id => {
@@ -282,7 +280,7 @@ export class DayView extends BaseView {
                     return `
                     <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                         <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                        <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                        <span data-tooltip="${a.name}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     </div>`;
                 }).join('') + `</div>` : '';
 
@@ -470,65 +468,24 @@ export class DayView extends BaseView {
               </table>
             </div>`;
 
-            const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
-            
-            const allJournalLabelsObj = getJournalLabels();
-            // 🌟 [추가됨] 작성 모드 기록 다중 순회 정렬 적용
-            journals.sort((a, b) => {
-                let aRank = 9999, bRank = 9999;
-                (a.labelIds || []).forEach(id => {
-                    const r = allJournalLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < aRank) aRank = r;
-                });
-                (b.labelIds || []).forEach(id => {
-                    const r = allJournalLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < bRank) bRank = r;
-                });
-                if (aRank !== bRank) return aRank - bRank;
-                return (a.id || '').localeCompare(b.id || '');
-            });
-
-            const jListHtml = journals.length > 0 ? journals.map(j => {
-                const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
-                const chipsHtml = lNames.map(lName => {
-                    const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
-                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
-                }).join('');
-
-                const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
-                    const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
-                    return `
-                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
-                        <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                        <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
-                        <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
-                    </div>`;
-                }).join('') + `</div>` : '';
-
-                const uploadId = `journal-upload-${fId}-${idx}`;
-                const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
-
-                return `
-                <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
-                    <div style="position:absolute; top:8px; right:8px;">
-                        <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
-                    </div>
-                    <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                    <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                        <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
-                        
-                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
-                    </div>
-                    ${isUploading}
-                    ${attachmentsHtml}
-                </div>`;
-            }).join('');
-
-            setTimeout(() => { container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta)); }, 0);
-        }
+            journalsHtml += `
+            <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
+              </div>
+              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                  ${this.generateEvalBadgesHtml('journal', null, fId)}
+              </div>
+              <div id="journal-entries-container-${fId}" style="width: 100%;"></div>
+              <button onclick="window.dayViewInstance.addJournalEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${jBgColor}; color:${jThemeColor}; border:2px dashed ${jBColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 기록 추가</button>
+            </div>`;
+        });
 
         this.container.innerHTML = `
+          <style>
+            .table-container.is-dragging .editable-cell { pointer-events: none !important; user-select: none !important; }
+          </style>
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
             <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
@@ -714,78 +671,40 @@ export class DayView extends BaseView {
         }
     }
 
-    // 🌟 하루 보기 전용 알림 모달
-    openDayAlarmModal(fId, idx) {
-        if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    // 🌟 [추가됨] 깔끔하고 독립적인 이벤트 삭제 함수 (파싱 오류 방지)
+    requestRemoveEvent(fId, idx) {
+        this.syncEventInputs(fId);
         const ev = this.dayData[fId].events[idx];
         if (!ev) return;
 
-        let dVal = this.lockedDateStr || this.dateStr;
-        let tVal = '';
-        if (ev.time) {
-            const parts = ev.time.split('T');
-            dVal = parts[0] || dVal;
-            tVal = parts[1] || '';
+        const isGrouped = !!ev.groupId;
+        const allLabelsObj = window.getEventLabels ? window.getEventLabels() : [];
+        const forwardLabelId = (ev.labelIds || []).find(id => allLabelsObj.find(l => l.id === id)?.isForward);
+        const forwardLabelName = forwardLabelId ? allLabelsObj.find(l=>l.id===forwardLabelId).name : '';
+        const targetDate = this.lockedDateStr || this.dateStr;
+
+        if (isGrouped && ev.groupId.startsWith('group_')) {
+            window.showGroupDeleteModal(targetDate, ev.labelIds[0] || '', ev.content, ev.groupId, 
+                () => { 
+                    this.dayData[fId].events.splice(idx, 1); 
+                    this.renderEventEntries(fId); 
+                    store.hasUnsavedChanges = true; 
+                }, 
+                () => { 
+                    this.dayData[fId].events.splice(idx, 1); 
+                    this.renderEventEntries(fId); 
+                    store.hasUnsavedChanges = true; 
+                }
+            );
+        } else if (forwardLabelId && ev.forwardChainId) {
+            window.showForwardDeleteModal(targetDate, forwardLabelName, ev.content, ev.forwardChainId, () => { 
+                this.dayData[fId].events.splice(idx, 1); 
+                this.renderEventEntries(fId); 
+                store.hasUnsavedChanges = true; 
+            });
+        } else {
+            this.removeEventEntry(fId, idx);
         }
-
-        let modal = document.getElementById('sp3-alarm-modal-overlay');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'sp3-alarm-modal-overlay';
-            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:999999; display:flex; align-items:center; justify-content:center;";
-            document.body.appendChild(modal);
-        }
-
-        modal.innerHTML = `
-            <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
-                <h3 style="margin-top:0; color:#1e40af; font-size:1.3rem; display:flex; align-items:center; gap:8px;">⏰ 알림 시간 설정</h3>
-                <div style="margin-bottom:15px;">
-                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">날짜 선택</label>
-                    <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
-                </div>
-                <div style="margin-bottom:25px;">
-                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제 키보드 입력)</label>
-                    <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
-                </div>
-                <div style="display:flex; justify-content:space-between; gap:8px;">
-                    <button id="btn-alarm-off" data-shortcut-added="true" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
-                    <div style="display:flex; gap:8px;">
-                        <button id="btn-alarm-cancel" data-shortcut-added="true" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
-                        <button id="btn-alarm-save" data-shortcut-added="true" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        modal.style.display = 'flex';
-        if (window.increaseModalCount) window.increaseModalCount();
-
-        const closePopup = () => {
-            modal.style.display = 'none';
-            if (window.decreaseModalCount) window.decreaseModalCount();
-        };
-
-        modal.onclick = closePopup;
-        document.getElementById('btn-alarm-cancel').onclick = closePopup;
-
-        document.getElementById('btn-alarm-off').onclick = () => {
-            this.updateDateTime(fId, idx, '', '');
-            closePopup();
-        };
-
-        document.getElementById('btn-alarm-save').onclick = () => {
-            const dInput = document.getElementById('alarm-popup-date').value;
-            const tInput = document.getElementById('alarm-popup-time').value;
-            this.updateDateTime(fId, idx, dInput, tInput);
-            closePopup();
-        };
-
-        document.getElementById('alarm-popup-time').onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('btn-alarm-save').click();
-            }
-        };
-        setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
     }
 
     renderEventEntries(fId) {
@@ -796,7 +715,6 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
-        // 🌟 [추가됨] 작성 모드 일정 정렬
         events.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -817,27 +735,14 @@ export class DayView extends BaseView {
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
 
-            let delHandler = `window.dayViewInstance.removeEventEntry('${fId}', ${idx})`;
             let forwardedBadge = '';
-
-            const safeContent = (ev.content || '')
-                .replace(/\\/g, '\\\\')
-                .replace(new RegExp('\`', 'g'), '\\`')
-                .replace(/\$/g, '\\$')
-                .replace(/"/g, '&quot;');
-
-            if (ev.groupId || (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr))) {
-                const isRecurring = !!ev.groupId; 
-                if (isRecurring) {
-                    delHandler = `window.showGroupDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${safeContent}\`, '${ev.groupId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
-                } else {
-                    delHandler = `window.showForwardDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${safeContent}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
-                    forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
-                }
+            if (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr)) {
+                forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
             }
 
+            // 🌟 HTML 텍스트에 직접 엮이는 대신 깔끔하게 함수 호출!
             const deleteBtnHtml = isAuthor 
-                ? `<button class="modal-delete-btn" onclick="${delHandler}" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
+                ? `<button class="modal-delete-btn" onclick="window.dayViewInstance.requestRemoveEvent('${fId}', ${idx})" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
                 : '';
 
             const chipsHtml = allLabelsObj.map(lObj => {
@@ -902,7 +807,6 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        // 🌟 [추가됨] 작성 모드 기록 정렬
         journals.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -1057,6 +961,79 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].completed = isCompleted;
         this.renderEventEntries(fId);
+    }
+
+    openDayAlarmModal(fId, idx) {
+        if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+        const ev = this.dayData[fId].events[idx];
+        if (!ev) return;
+
+        let dVal = this.lockedDateStr || this.dateStr;
+        let tVal = '';
+        if (ev.time) {
+            const parts = ev.time.split('T');
+            dVal = parts[0] || dVal;
+            tVal = parts[1] || '';
+        }
+
+        let modal = document.getElementById('sp3-alarm-modal-overlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'sp3-alarm-modal-overlay';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:999999; display:flex; align-items:center; justify-content:center;";
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+                <h3 style="margin-top:0; color:#1e40af; font-size:1.3rem; display:flex; align-items:center; gap:8px;">⏰ 알림 시간 설정</h3>
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">날짜 선택</label>
+                    <input type="date" id="alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
+                </div>
+                <div style="margin-bottom:25px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제 키보드 입력)</label>
+                    <input type="text" id="alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:8px;">
+                    <button id="btn-alarm-off" data-shortcut-added="true" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
+                    <div style="display:flex; gap:8px;">
+                        <button id="btn-alarm-cancel" data-shortcut-added="true" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
+                        <button id="btn-alarm-save" data-shortcut-added="true" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+        if (window.increaseModalCount) window.increaseModalCount();
+
+        const closePopup = () => {
+            modal.style.display = 'none';
+            if (window.decreaseModalCount) window.decreaseModalCount();
+        };
+
+        modal.onclick = closePopup;
+        document.getElementById('btn-alarm-cancel').onclick = closePopup;
+
+        document.getElementById('btn-alarm-off').onclick = () => {
+            this.updateDateTime(fId, idx, '', '');
+            closePopup();
+        };
+
+        document.getElementById('btn-alarm-save').onclick = () => {
+            const dInput = document.getElementById('alarm-popup-date').value;
+            const tInput = document.getElementById('alarm-popup-time').value;
+            this.updateDateTime(fId, idx, dInput, tInput);
+            closePopup();
+        };
+
+        document.getElementById('alarm-popup-time').onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-alarm-save').click();
+            }
+        };
+        setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
     }
 
     updateDateTime(fId, idx, dVal, tVal) {
