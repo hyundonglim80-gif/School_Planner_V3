@@ -1,7 +1,41 @@
 // js/ui/templateHelpers.js
-
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
+
+// 🌟 [방향 B] 20초마다 브라우저 로컬 알림을 검사하는 글로벌 알림 엔진 초기화
+if (typeof window !== 'undefined' && 'Notification' in window && !window.alarmCheckerInterval) {
+    window.alarmCheckerInterval = setInterval(() => {
+        if (Notification.permission !== 'granted') return;
+        const now = new Date();
+        const currentYMD = window.formatDate ? window.formatDate(now) : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        const currentHM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        
+        let activeEvents = [];
+        // 1. 월간/주간 페이지의 데이터 스캔
+        if (window[`tempEvents_${currentYMD}`]) {
+            activeEvents.push(...window[`tempEvents_${currentYMD}`]);
+        }
+        // 2. 하루 페이지의 데이터 스캔
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === currentYMD && window.dayViewInstance.dayData) {
+            Object.values(window.dayViewInstance.dayData).forEach(d => {
+                if (d.events) activeEvents.push(...d.events);
+            });
+        }
+        
+        // 중복 이벤트 제거
+        const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
+
+        uniqueEvents.forEach(ev => {
+            if (ev.time === currentHM && !ev.completed && !ev.alarmTriggered) {
+                ev.alarmTriggered = true; // 동일 분 내 중복 알림 방지
+                new Notification('⏰ 일정 알림', {
+                    body: ev.content || '예정된 일정이 있습니다.',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png'
+                });
+            }
+        });
+    }, 20000); 
+}
 
 export const CompactEventHelper = {
     generateCompactEventEditor(dateStr, fId) {
@@ -43,6 +77,11 @@ export const CompactEventHelper = {
             const deleteBtnHtml = isAuthor 
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
+            
+            // 🌟 [추가됨] 알람 시간을 설정할 수 있는 Time Input 요소 생성
+            const timeHtml = isAuthor 
+                  ? `<input type="time" value="${e.time || ''}" onclick="if(window.Notification && Notification.permission==='default') Notification.requestPermission();" onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'time', this.value)" style="border:1px solid #cbd5e1; border-radius:4px; padding:2px; font-size:0.8rem; color:#475569; outline:none; background:transparent;" title="알림 시간 설정 (브라우저 푸시 알림)">` 
+                  : `<span style="font-size:0.8rem; color:#64748b;">${e.time || ''}</span>`;
 
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
@@ -51,6 +90,7 @@ export const CompactEventHelper = {
                         ${chipsHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${timeHtml}
                         ${deleteBtnHtml}
                     </div>
                 </div>
@@ -69,10 +109,7 @@ export const CompactEventHelper = {
             container.querySelectorAll('textarea').forEach(ta => {
                 const eventId = ta.getAttribute('data-id');
                 const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
-                // 💡 [버그 방지] 라벨 정보가 초기화되지 않도록 내용(content)만 업데이트
-                if (ev) {
-                    ev.content = ta.value;
-                }
+                if (ev) ev.content = ta.value;
             });
         });
     },
