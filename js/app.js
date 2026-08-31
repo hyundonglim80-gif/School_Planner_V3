@@ -175,19 +175,9 @@ modalObserver.observe(document.body, { childList: true, subtree: true, attribute
 
 
 // ==========================================================================
-// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (요구사항 완벽 반영)
+// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직 (모바일/PC 스크롤 완벽 대응)
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
-
-// 🌟 [요구사항 1, 3] 모바일 기기 감지
-const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768 || ('ontouchstart' in window);
-
-if (isMobileDevice()) {
-    // 🌟 [요구사항 1, 3] 모바일일 때는 '당겨서 새로고침(Pull-to-Refresh)' 기능을 무조건 차단
-    const preventRefreshStyle = document.createElement('style');
-    preventRefreshStyle.innerHTML = `html, body { overscroll-behavior-y: none !important; overscroll-behavior-x: none !important; }`;
-    document.head.appendChild(preventRefreshStyle);
-}
 
 let scrollNavTimeout = null;
 let blockWheelTimer = null;
@@ -199,10 +189,11 @@ let touchStartY = 0;
 let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
+// 🌟 [PC 및 일반 스크롤러 동작] 마우스 휠 이벤트 처리
 window.addEventListener('wheel', (e) => {
     if (isModalOpen()) return; 
     
-    // 🌟 [요구사항 3] PC 환경: 무한 스크롤 켜져 있으면 기본 휠 스크롤 허용
+    // 무한 스크롤이 켜져있으면 PC의 마우스 휠은 기본(네이티브) 스크롤 동작을 하도록 바로 리턴
     if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         return; 
     }
@@ -226,11 +217,17 @@ window.addEventListener('wheel', (e) => {
     else if (atTop && e.deltaY < 0 && startedAtTop) executeScrollNav(-1);
 });
 
+// 🌟 [모바일 터치 시작]
 window.addEventListener('touchstart', (e) => {
     if (isModalOpen()) return; 
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    
+    // 무한스크롤 시에도 좌우 탭 전환을 위해 터치 시작 좌표만 수집하고 패스
+    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
+        return; 
+    }
     
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
@@ -239,6 +236,27 @@ window.addEventListener('touchstart', (e) => {
     touchStartedAtBottom = currentScroll >= scrollHeight - 10;
 }, { passive: true });
 
+// 🌟 [모바일 새로고침 방어] 화면을 위에서 아래로 당기는 'Pull-to-refresh'만 정밀 차단
+window.addEventListener('touchmove', (e) => {
+    if (isModalOpen()) {
+        if (e.cancelable) e.preventDefault();
+        return;
+    }
+
+    // 화면 최상단(scrollY <= 0)에 있을 때, 손가락을 아래로 내리는(새로고침) 제스처만 차단
+    // 무한 스크롤 ON/OFF와 상관없이 모바일에서는 항상 새로고침을 방지합니다.
+    if (window.scrollY <= 0) {
+        const currentY = e.touches[0].clientY;
+        if (currentY > touchStartY) {
+            // 위에서 아래로 당김 -> 새로고침 차단
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+        }
+    }
+}, { passive: false }); // preventDefault를 사용해야 하므로 passive: false
+
+// 🌟 [모바일 터치 끝] 무한스크롤 vs 페이지 넘기기(플립) 처리
 window.addEventListener('touchend', (e) => {
     if (isModalOpen()) return; 
 
@@ -251,14 +269,13 @@ window.addEventListener('touchend', (e) => {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // 좌우 스와이프 판단: 가로 이동이 70px 이상이고, Y축 이동량보다 최소 1.5배 클 때
+    // 💡 가로 탭 전환 기준: 70px 이상 이동 + 세로 이동폭보다 1.5배 명확히 커야 함
     const isValidHorizontalSwipe = absX > 70 && absX > (absY * 1.5);
 
-    // 🌟 [요구사항 2] 모바일 & 무한 스크롤이 켜져 있을 때의 동작
-    if (isMobileDevice() && (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true')) {
-        
+    // [1] 무한 스크롤이 켜져 있을 때 (모바일 & PC 공통)
+    if (window.isInfiniteScrollActive === true || localStorage.getItem('workCalendar_infiniteScroll') === 'true') {
         if (isValidHorizontalSwipe) {
-            // 좌우 탭 전환
+            // 좌우 스와이프: 탭 전환
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
             if (currentIdx !== -1 && window.setScope) {
@@ -267,27 +284,17 @@ window.addEventListener('touchend', (e) => {
                 if (nextIdx >= scopes.length) nextIdx = 0;
                 window.setScope(scopes[nextIdx]);
             }
-        } else if (absY > absX && absY > 30) {
-            // 🌟 상하 스와이프를 스크롤 동작으로 강제 변환
-            // 손가락을 위로 튕기면(deltaY가 음수) 화면은 아래로 내려가야 함
-            // 손가락을 아래로 튕기면(deltaY가 양수) 화면은 위로 올라가야 함
-            
-            // 이동량 증폭 (부드러운 스크롤 느낌을 위해 스와이프 거리에 비례하여 이동)
-            const scrollAmount = -(deltaY * 2.5); 
-            
-            window.scrollBy({
-                top: scrollAmount,
-                behavior: 'smooth'
-            });
         }
-        return; // 무한스크롤 시 페이지 넘김(플립) 무시
+        // 상하 스와이프(스크롤): 자바스크립트가 개입하지 않고 브라우저 네이티브 스크롤에 완전히 맡김!
+        return; 
     }
 
-    // 🌟 [요구사항 3] 무한 스크롤이 꺼져 있을 때 (기존 페이징 기능 복구)
+    // [2] 무한 스크롤이 꺼져 있을 때 (기존 페이징 모드 복구)
     if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
 
     if (isValidHorizontalSwipe) {
+        // 좌우 스와이프: 탭 전환
         const scopes = ['day', 'week', 'month', 'year', 'memo'];
         const currentIdx = scopes.indexOf(store.scope);
         if (currentIdx !== -1 && window.setScope) {
@@ -297,6 +304,7 @@ window.addEventListener('touchend', (e) => {
             window.setScope(scopes[nextIdx]);
         }
     } else if (absY > absX) { 
+        // 상하 스와이프: 페이지 통째로 넘기기 (메모 탭 제외)
         if (store.scope === 'memo') return; 
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
