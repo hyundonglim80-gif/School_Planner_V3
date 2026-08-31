@@ -41,7 +41,7 @@ export const BackupManager = {
                 <label style="display:block; font-weight:bold; margin-bottom:6px; color:#1e40af; font-size:1.05rem;">1. 동기화 대상 공간</label>
                 <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
                     <select id="backup-scope-select" onchange="window.BackupManager.onScopeChange()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:1rem; outline:none; cursor:pointer; font-weight:bold; color:#334155;">
-                        <option value="personal" selected>🔒 개인 데이터 (기본)</option>
+                        <option value="personal" selected>🔒 개인 데이터</option>
                         ${groupOptions}
                     </select>
                 </div>
