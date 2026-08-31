@@ -20,7 +20,6 @@ export class DayView extends BaseView {
         this.myGroups = [];
         this.dayData = {}; 
         this.lockedDateStr = null; 
-        this.lastInteractedJournal = null; // 🌟 라벨 팝업 유지용 상태 변수
     }
 
     autoResize(textarea) {
@@ -820,6 +819,7 @@ export class DayView extends BaseView {
             return (a.id || '').localeCompare(b.id || '');
         });
 
+        // 🌟 [복구완료] 하루-작성 모드의 '오늘 기록' 라벨은 숨김 없이 항상 표시되도록 원래 구조로 복원
         container.innerHTML = journals.map((j, idx) => {
             const jLabelIds = j.labelIds || [];
             const chipsHtml = allLabelsObj.map(lObj => {
@@ -846,33 +846,17 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
-            // 🌟 [UI 개선] 등록된 기록은 포커스 할 때만 라벨 버튼 표시 (파일 첨부 버튼은 우측에 고정)
-            const hasAttachments = (j.attachments && j.attachments.length > 0) ? 'true' : 'false';
-            const isRegistered = (j.content || '').trim() !== '' || hasAttachments === 'true';
-            const forceShow = this.lastInteractedJournal === `${fId}-${idx}`;
-            const labelsDisplay = (isRegistered && !forceShow) ? 'none' : 'flex';
-
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px;">
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
-                
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-right:24px; min-height:24px;">
-                    <div class="label-chip-container" id="journal-labels-${fId}-${idx}" style="margin:0; display:${labelsDisplay}; flex-wrap:wrap; gap:4px; transition:0.2s; flex:1;">
-                        ${chipsHtml}
-                    </div>
-                    <div style="display:flex; gap:8px; flex-shrink:0; margin-left:8px;">
-                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:2px 8px; border-radius:4px; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎 첨부</button>
-                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
-                    </div>
-                </div>
-
+                <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
                 <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                    <textarea class="modal-input-text" data-idx="${idx}" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" 
-                        onfocus="document.getElementById('journal-labels-${fId}-${idx}').style.display='flex'; window.dayViewInstance.lastInteractedJournal='${fId}-${idx}'; window.dayViewInstance.autoResize(this)" 
-                        onblur="setTimeout(() => { if (window.dayViewInstance.lastInteractedJournal !== '${fId}-${idx}') { if (this.value.trim() !== '' || ${hasAttachments}) { const el = document.getElementById('journal-labels-${fId}-${idx}'); if(el) el.style.display='none'; } } }, 250)" 
-                        oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                    <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                    
+                    <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
                 </div>
                 ${isUploading}
                 ${attachmentsHtml}
@@ -978,27 +962,6 @@ export class DayView extends BaseView {
         this.renderEventEntries(fId);
     }
 
-    updateDateTime(fId, idx, dVal, tVal) {
-        store.hasUnsavedChanges = true;
-        const ev = this.dayData[fId].events[idx];
-        if (ev) {
-            if (!dVal && (!tVal || tVal.trim() === '')) {
-                ev.time = '';
-            } else {
-                let finalT = (tVal || '').trim().replace(/[^0-9:]/g, '');
-                if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
-                    let cleanNum = finalT.replace(':', '');
-                    if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
-                    else finalT = cleanNum.substring(0,2) + ':' + cleanNum.substring(2);
-                }
-                if (!finalT || finalT.length < 4) finalT = '09:00'; 
-                ev.time = `${dVal || this.lockedDateStr || this.dateStr}T${finalT}`;
-            }
-            ev.alarmTriggered = false; 
-        }
-        this.renderEventEntries(fId);
-    }
-
     updateEventContent(fId, idx, val) {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].content = val;
@@ -1007,18 +970,11 @@ export class DayView extends BaseView {
     toggleJournalLabel(fId, idx, labelId) {
         this.syncJournalInputs(fId);
         store.hasUnsavedChanges = true;
-        this.lastInteractedJournal = `${fId}-${idx}`; 
-        
         const j = this.dayData[fId].journals[idx];
         if (!j) return;
         j.labelIds = j.labelIds || [];
         j.labelIds = j.labelIds.includes(labelId) ? j.labelIds.filter(id => id !== labelId) : [...j.labelIds, labelId];
         this.renderJournalEntries(fId);
-        
-        setTimeout(() => {
-            const ta = document.querySelector(`#journal-entries-container-${fId} textarea[data-idx="${idx}"]`);
-            if (ta) ta.focus();
-        }, 50);
     }
 
     updateJournalContent(fId, idx, val) {
