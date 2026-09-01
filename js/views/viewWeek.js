@@ -169,7 +169,7 @@ export class WeekView extends BaseView {
                   }
               }
           }
-      }, { rootMargin: '600px' }); 
+      }, { rootMargin: '100px' }); 
 
       const topSentinel = document.getElementById('week-top-sentinel');
       const bottomSentinel = document.getElementById('week-bottom-sentinel');

@@ -141,7 +141,7 @@ export class MonthView extends BaseView {
                   }
               }
           }
-      }, { rootMargin: '600px' }); 
+      }, { rootMargin: '100px' }); 
 
       const topSentinel = document.getElementById('month-top-sentinel');
       const bottomSentinel = document.getElementById('month-bottom-sentinel');
