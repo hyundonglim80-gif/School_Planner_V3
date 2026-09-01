@@ -413,9 +413,12 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
+            // 🔥 추가됨: 라벨 해제 시 즉시 백그라운드 자동 저장
+            if (typeof window.saveCurrentViewData === 'function') {
+                await window.saveCurrentViewData(true);
+            }
         } else {
             if (labelObj?.isPeriod || labelObj?.isRecur) {
-                const evContent = ev.content || '';
                 
                 const scopeInstance = window[`${store.scope}ViewInstance`];
                 if (scopeInstance && typeof scopeInstance.syncScheduleInputs === 'function') {
@@ -462,6 +465,10 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
+            // 🔥 추가됨: 라벨 추가 시 즉시 백그라운드 자동 저장
+            if (typeof window.saveCurrentViewData === 'function') {
+                await window.saveCurrentViewData(true);
+            }
         }
     }
 };

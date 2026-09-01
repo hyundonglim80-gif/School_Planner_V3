@@ -922,6 +922,7 @@ export class DayView extends BaseView {
         if (ev.labelIds.includes(labelId)) {
             ev.labelIds = ev.labelIds.filter(id => id !== labelId);
             this.renderEventEntries(fId);
+            await this.save(); // 🔥 추가됨: 라벨 해제 시 즉시 자동 저장
         } else {
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
@@ -953,6 +954,7 @@ export class DayView extends BaseView {
 
             ev.labelIds.push(labelId);
             this.renderEventEntries(fId);
+            await this.save(); // 🔥 추가됨: 라벨 추가 시 즉시 자동 저장
         }
     }
 
