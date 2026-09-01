@@ -72,7 +72,14 @@ export class YearView extends BaseView {
         const endStr = `${targetY + 1}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
+        }
 
         if (this.renderId !== currentRenderId) return;
 
@@ -81,7 +88,7 @@ export class YearView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
         if (store.mode === 'editor') this.scheduleGroupId = window.activeUnifiedFilters.includes('personal') ? null : window.activeUnifiedFilters[0];
 
-        const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap)]);
+        const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap), ...Object.keys(jMap), ...Object.keys(vMap)]);
         const filters = window.activeUnifiedFilters;
         const filterCount = filters.length;
 
@@ -98,7 +105,23 @@ export class YearView extends BaseView {
                 const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
-                const eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+
+                const jList = jMap[dateStr]?.[fId] || [];
+                const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+                const vList = vMap[dateStr]?.[fId] || [];
+
+                let attachmentCount = 0;
+                validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
+                let metaBadges = '';
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}</span>`;
+                if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
+
+                if (metaBadges) {
+                    eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+                }
 
                 let scheduleHtml = '';
                 if (store.showClass) {
@@ -225,7 +248,14 @@ export class YearView extends BaseView {
         const febLastDay = new Date(nextYear, 2, 0).getDate(); const endStr = `${nextYear}-02-${febLastDay}`;
 
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; } 
-        const { eMap, sMap } = await fetchCalendarData(startStr, endStr, this.myGroups); 
+        
+        let eMap = {}, sMap = {}, jMap = {}, vMap = {};
+        try {
+            const res = await fetchCalendarData(startStr, endStr, this.myGroups);
+            eMap = res.eMap; sMap = res.sMap; jMap = res.jMap; vMap = res.vMap;
+        } catch (e) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
+        }
 
         if (this.renderId !== currentRenderId) return;
 
@@ -246,7 +276,13 @@ export class YearView extends BaseView {
             const chunk = [];
             for (let d = 1; d <= lastDay; d++) {
                 const dateStr = `${mObj.year}-${String(mObj.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                chunk.push({ year: mObj.year, month: mObj.month, day: d, dateStr, data: { periods: sMap[dateStr] || {} }, eventData: eMap[dateStr] || {} });
+                chunk.push({ 
+                    year: mObj.year, month: mObj.month, day: d, dateStr, 
+                    data: { periods: sMap[dateStr] || {} }, 
+                    eventData: eMap[dateStr] || {},
+                    journalData: jMap[dateStr] || {},
+                    evalData: vMap[dateStr] || {}
+                });
             }
             monthChunksMap[`${mObj.year}-${mObj.month}`] = chunk;
         }
@@ -312,7 +348,25 @@ export class YearView extends BaseView {
                 const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
                 const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')}">${gIcon}</div>` : '';
 
-                const eventContent = `<div id="compact-events-${item.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(item.dateStr, fId)}</div>`;
+                let eventContent = `<div id="compact-events-${item.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(item.dateStr, fId)}</div>`;
+                
+                // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
+                const jList = item.journalData[fId] || [];
+                const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+                const vList = item.evalData[fId] || [];
+
+                let attachmentCount = 0;
+                validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
+                let metaBadges = '';
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}</span>`;
+                if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
+
+                if (metaBadges) {
+                    eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+                }
+
                 const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${item.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
                 if (idx === 0) {
@@ -396,8 +450,11 @@ export class YearView extends BaseView {
     const snapshot = this.renderedDateStrings.map(dateStr => {
         const rawList = window[`tempEvents_${dateStr}`] || [];
         const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
-                ...e, id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || auth?.currentUser?.uid, sharedGroupId: e.sharedGroupId || 'personal'
+                ...e, 
+                // 💡 [버그 해결] 라벨 ID 등 기존 메타데이터 보존 처리
+                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                authorId: e.authorId || auth?.currentUser?.uid, 
+                sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) };
     });

@@ -35,7 +35,6 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-// 💡 [핵심 해결] PWA 설치 앱에서 구버전 캐시로 인해 로딩이 멈추는 현상을 막기 위한 서비스 워커 강제 차단 및 캐시 청소
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let registration of registrations) {
@@ -63,6 +62,27 @@ window.promptDownloadFile = function(fileName, downloadUrl) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+};
+
+window.handleAttachmentClick = function(fileName, webViewLink, downloadLink) {
+    const unviewableExts = ['.hwp', '.hwpx', '.zip', '.rar', '.7z', '.alz', '.egg', '.exe'];
+    const extMatch = fileName.match(/\.[0-9a-z]+$/i);
+    const ext = extMatch ? extMatch[0].toLowerCase() : '';
+    
+    if (unviewableExts.includes(ext)) {
+        if (confirm(`'${fileName}' 파일은 바로 열 수 없는 형식입니다.\n파일을 다운로드하시겠습니까?`)) {
+            const a = document.createElement('a');
+            a.href = downloadLink;
+            a.download = fileName;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    } else {
+        const targetLink = (webViewLink && webViewLink !== 'undefined') ? webViewLink : downloadLink;
+        window.open(targetLink, '_blank');
     }
 };
 
@@ -96,14 +116,68 @@ Object.assign(window, {
     openRecurringModal: (...args) => EventManager.openRecurringModal(...args)
 });
 
+const applyEnvironmentNetworkMode = () => {
+    if (window.toggleNetworkMode) {
+        window.toggleNetworkMode('online');
+    }
+};
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { initAppEvents(); initAuthListener(); });
+    document.addEventListener('DOMContentLoaded', () => { 
+        initAppEvents(); 
+        initAuthListener(); 
+        applyEnvironmentNetworkMode(); 
+    });
 } else {
-    initAppEvents(); initAuthListener();
+    initAppEvents(); 
+    initAuthListener();
+    applyEnvironmentNetworkMode(); 
 }
 
 // ==========================================================================
-// 📜 상하 스와이프 및 키보드 단축키 페이지 이동 로직
+// 💡 [문제 2 해결] 팝업(모달) 감지 시 배경 스크롤 및 단축키 강제 차단 로직
+// ==========================================================================
+window.activeModalCount = 0;
+
+window.increaseModalCount = () => { 
+    window.activeModalCount++; 
+    document.body.style.overflow = 'hidden'; 
+};
+
+window.decreaseModalCount = () => { 
+    if (window.activeModalCount > 0) window.activeModalCount--; 
+    if (window.activeModalCount === 0) {
+        document.body.style.overflow = ''; 
+    }
+};
+
+// 화면에 실제로 모달 요소가 표시되고 있는지 0.1초마다 감지하여 완벽하게 방어합니다.
+const isModalOpen = () => {
+    let modalVisible = window.activeModalCount > 0;
+    
+    // 모달창, 오버레이, 하루 모달 본문 등의 클래스/ID를 가진 요소가 display: none이 아닌 상태로 떠있는지 체크
+    const overlays = document.querySelectorAll('.modal-overlay, [id*="modal-overlay"], .super-alarm-overlay, #day-modal-body');
+    overlays.forEach(el => {
+        if (window.getComputedStyle(el).display !== 'none' && el.id !== 'main-view') {
+            modalVisible = true;
+        }
+    });
+
+    if (modalVisible) {
+        document.body.style.overflow = 'hidden'; // 강제 스크롤 차단
+        return true;
+    } else {
+        document.body.style.overflow = ''; // 강제 스크롤 허용
+        return false;
+    }
+};
+
+// DOM 변화를 감시하여 모달창이 열리면 자동으로 스크롤을 막습니다.
+const modalObserver = new MutationObserver(() => isModalOpen());
+modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+// ==========================================================================
+// 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직
 // ==========================================================================
 localStorage.setItem('workCalendar_swipeMode', 'tab');
 
@@ -122,7 +196,10 @@ let touchStartedAtTop = false;
 let touchStartedAtBottom = false;
 
 window.addEventListener('wheel', (e) => {
-    if (store.mode !== 'viewer' || store.scope === 'memo' || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    if (isModalOpen()) return; // 모달창 열림 시 휠 차단
+    if (window.isInfiniteScrollActive) return; 
+
+    if (store.mode !== 'viewer' || store.scope === 'memo') return;
     if (scrollNavTimeout) return;
 
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
@@ -142,6 +219,8 @@ window.addEventListener('wheel', (e) => {
 });
 
 window.addEventListener('touchstart', (e) => {
+    if (isModalOpen()) return; // 모달창 열림 시 터치 차단
+
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
@@ -153,7 +232,9 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-    if (store.mode !== 'viewer' || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    if (isModalOpen()) return; // 모달창 열림 시 터치 차단
+
+    if (store.mode !== 'viewer') return;
     if (scrollNavTimeout) return;
 
     const touchEndX = e.changedTouches[0].clientX;
@@ -197,6 +278,8 @@ function executeScrollNav(direction) {
 // 3. 💡 맞춤형 키보드 단축키 이벤트 세트
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
+    if (isModalOpen()) return; // 모달창 열림 시 단축키 차단
+
     const tag = e.target.tagName.toLowerCase();
     const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
     
@@ -207,7 +290,6 @@ window.addEventListener('keydown', (e) => {
         else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
             if (e.key === 'Enter') { 
                 e.preventDefault(); 
-                // 💡 [추가됨] 메모 페이지일 때는 '추가' 버튼을 클릭하게 하고, 그 외에는 저장(handleEditSaveClick) 작동
                 if (store.scope === 'memo') {
                     const addBtn = Array.from(document.querySelectorAll('button, [onclick]')).find(b => b.textContent.trim().includes('추가'));
                     if (addBtn) addBtn.click();
@@ -240,9 +322,6 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// ==========================================================================
-// 4. 🚀 초고속 반투명 커스텀 툴팁 (깔끔한 한 줄 노란색 표시)
-// ==========================================================================
 if (!document.getElementById('sp3-custom-tooltip-style')) {
     const tooltipStyle = document.createElement('style');
     tooltipStyle.id = 'sp3-custom-tooltip-style';
@@ -320,14 +399,10 @@ document.body.addEventListener('touchstart', hideTooltip, { passive: true, captu
 function applyShortcutTooltips() {
     const attach = (el, shortcutText) => {
         if (!el) return;
-        
         if (el.hasAttribute('title')) el.removeAttribute('title'); 
-
         let existingTooltip = el.getAttribute('data-tooltip') || '';
         if (existingTooltip.includes(shortcutText)) return; 
-
         let newTooltipText = `<span style="color:#fbbf24; font-size:0.85rem; font-weight:bold;">단축키: ${shortcutText}</span>`;
-        
         el.setAttribute('data-tooltip', newTooltipText);
         el.setAttribute('data-shortcut-added', 'true');
     };
@@ -351,7 +426,6 @@ function applyShortcutTooltips() {
 
         if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
         else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
-        // 💡 [추가됨] 메모 페이지의 '추가' 버튼 단축키 알림 매칭
         else if (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가')) attach(el, 'Ctrl + Enter');
         else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + `');
         else if (attr.includes('goToToday') || idClass.includes('date-range-text') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
@@ -376,3 +450,52 @@ if (document.readyState === 'loading') {
 } else {
     applyShortcutTooltips();
 }
+
+window.promptOfflineSync = async (viewInstance, renderMethod) => {
+    if (window.isAutoSyncing) return true;
+    window.isAutoSyncing = true;
+
+    const toastId = 'auto-sync-toast';
+    let existingToast = document.getElementById(toastId);
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#3b82f6; color:white; padding:12px 24px; border-radius:8px; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-weight:bold; font-size:0.95rem; display:flex; align-items:center; gap:8px;";
+    toast.innerHTML = `<div style="width:16px; height:16px; border:3px solid white; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div> 기기에 데이터가 없어 클라우드에서 자동으로 불러옵니다... <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>`;
+    document.body.appendChild(toast);
+
+    try {
+        if (window.toggleNetworkMode) window.toggleNetworkMode('online');
+        await new Promise(r => setTimeout(r, 1500)); 
+        
+        if (window.executeManualSync) {
+            await window.executeManualSync(); 
+        } else {
+            throw new Error("동기화 기능 없음");
+        }
+        
+        toast.style.background = '#059669';
+        toast.innerHTML = "✅ 데이터를 성공적으로 불러왔습니다.";
+        setTimeout(() => toast.remove(), 2500);
+        
+        window.isAutoSyncing = false;
+        
+        if (viewInstance && renderMethod) {
+            viewInstance[renderMethod]();
+        }
+        return true; 
+
+    } catch (e) {
+        console.error("데이터 불러오기 실패:", e);
+        
+        toast.style.background = '#ef4444';
+        toast.innerHTML = "⚠️ 오프라인 상태입니다. 빈 페이지로 엽니다.";
+        setTimeout(() => toast.remove(), 3000);
+        
+        if (window.toggleNetworkMode) window.toggleNetworkMode('online'); 
+        
+        window.isAutoSyncing = false;
+        return false; 
+    }
+};

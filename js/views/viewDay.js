@@ -1,4 +1,5 @@
 // js/views/viewDay.js
+
 import { BaseView } from '../components/BaseView.js';
 import { store } from '../core/store.js';
 import { formatDate, parseLocalDate, getEventLabels, getJournalLabels, getLabelStyle, isRedDay, getHolidayName } from '../core/utils.js';
@@ -69,6 +70,8 @@ export class DayView extends BaseView {
 
         if(evals.length === 0) return '';
         
+        const targetDate = this.lockedDateStr || this.dateStr;
+
         return evals.map(e => {
             let badgeType = '';
             if (e.type === 'eval') badgeType = e.subject || '평가';
@@ -78,7 +81,7 @@ export class DayView extends BaseView {
 
             const gId = e.groupId || '';
             return `
-                <div onclick="window.EvaluationManager.currentGroupId = '${gId}'; window.EvaluationManager.openViewer('${this.lockedDateStr || this.dateStr}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 열기">
+                <div onclick="window.EvaluationManager.currentGroupId = '${gId}'; window.EvaluationManager.openViewer('${targetDate}', '${e.id}')" style="padding:4px 8px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; font-size:0.85rem; color:#1e40af; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; align-items:center; white-space:nowrap;" title="클릭하여 평가 열기">
                     📊 [${badgeType}] ${e.title}
                 </div>
             `;
@@ -119,6 +122,13 @@ export class DayView extends BaseView {
     }
 
     async renderViewer() {
+        window.isInfiniteScrollActive = false;
+        
+        if (this.container && this.container.id === 'main-view') {
+            const infBtn = document.getElementById('btn-toggle-infinite');
+            if (infBtn) infBtn.style.display = 'none';
+        }
+
         this.lockedDateStr = this.dateStr; 
         this.showLoading('클라우드 데이터를 불러오는 중...');
         const dateStr = this.lockedDateStr;
@@ -131,29 +141,40 @@ export class DayView extends BaseView {
 
         this.dayData = {};
         const filters = window.activeUnifiedFilters;
+        let hasCacheError = false;
 
         for (const fId of filters) {
             this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            const evDoc = await getDoc(doc(evCol, dateStr));
+            let evDoc = null;
+            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
             let eList = [];
-            if (evDoc.exists()) {
+            if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
             this.dayData[fId].events = eList;
 
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            const scDoc = await getDoc(doc(scCol, dateStr));
-            this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
+            let scDoc = null;
+            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
+            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
 
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            const jrDoc = await getDoc(doc(jrCol, dateStr));
-            this.dayData[fId].journals = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
+            let jrDoc = null;
+            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
+            this.dayData[fId].journals = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
         }
-        
+
+        if (hasCacheError) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
+        }
+
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
+        
+        const masterLabels = getEventLabels();
+        const masterJournalLabels = getJournalLabels();
 
         let eventsHtml = '';
         let schedulesHtml = '';
@@ -166,6 +187,21 @@ export class DayView extends BaseView {
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
+            
+            processedEvents.sort((a, b) => {
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = masterLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = masterLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+            
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
 
             eventsHtml += `
@@ -217,6 +253,21 @@ export class DayView extends BaseView {
             </div>`;
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
+            
+            journals.sort((a, b) => {
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = masterJournalLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = masterJournalLabels.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+
             const jListHtml = journals.length > 0 ? journals.map(j => {
                 const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
                 const chipsHtml = lNames.map(lName => {
@@ -227,13 +278,12 @@ export class DayView extends BaseView {
                 const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map(a => {
                     const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                     return `
-                    <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 다운로드">
+                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                         <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                         <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     </div>`;
                 }).join('') + `</div>` : '';
 
-                // 🛑 [버그 수정 1] 들여쓰기 공백 완벽 제거 (white-space: pre-wrap 대응)
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
                         <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
@@ -256,13 +306,20 @@ export class DayView extends BaseView {
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
-            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
+            <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
           </div>
         `;
     }
 
     async renderEditor() {
+        window.isInfiniteScrollActive = false;
+        
+        if (this.container && this.container.id === 'main-view') {
+            const infBtn = document.getElementById('btn-toggle-infinite');
+            if (infBtn) infBtn.style.display = 'none';
+        }
+
         this.lockedDateStr = this.dateStr; 
         this.showLoading('편집 화면을 다중 작업공간으로 준비 중...');
         const dateStr = this.lockedDateStr;
@@ -276,14 +333,16 @@ export class DayView extends BaseView {
         this.dayData = {};
         const filters = window.activeUnifiedFilters;
         const masterLabels = getEventLabels();
+        let hasCacheError = false;
 
         for (const fId of filters) {
             this.dayData[fId] = { events: [], schedules: {}, journals: [] };
 
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            const evDoc = await getDoc(doc(evCol, dateStr));
+            let evDoc = null;
+            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
             let eList = [];
-            if (evDoc.exists()) {
+            if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
@@ -301,12 +360,14 @@ export class DayView extends BaseView {
             this.dayData[fId].events = eList;
 
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            const scDoc = await getDoc(doc(scCol, dateStr));
-            this.dayData[fId].schedules = scDoc.exists() ? (scDoc.data().periods || {}) : {};
+            let scDoc = null;
+            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
+            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
 
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            const jrDoc = await getDoc(doc(jrCol, dateStr));
-            let jList = jrDoc.exists() ? (jrDoc.data().entries || []) : [];
+            let jrDoc = null;
+            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
+            let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
             jList = jList.map(j => ({ ...j, labelIds: j.labelIds || [], attachments: j.attachments || [] }));
             if (jList.length === 0) {
                 const masterJournalLabels = getJournalLabels();
@@ -314,6 +375,10 @@ export class DayView extends BaseView {
                 jList.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
             }
             this.dayData[fId].journals = jList;
+        }
+
+        if (hasCacheError) {
+            if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;
         }
 
         this.currentEvalList = await this.loadEvaluationsForDay(dateStr);
@@ -423,7 +488,7 @@ export class DayView extends BaseView {
           </style>
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
-            <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
+            <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
           </div>
         `;
@@ -433,6 +498,7 @@ export class DayView extends BaseView {
               this.renderEventEntries(fId);
               this.renderJournalEntries(fId);
           });
+          this.originalEventsBackup = JSON.parse(JSON.stringify(this.dayData));
         }, 0);
     }
 
@@ -605,6 +671,41 @@ export class DayView extends BaseView {
         }
     }
 
+    requestRemoveEvent(fId, idx) {
+        this.syncEventInputs(fId);
+        const ev = this.dayData[fId].events[idx];
+        if (!ev) return;
+
+        const isGrouped = !!ev.groupId;
+        const allLabelsObj = window.getEventLabels ? window.getEventLabels() : [];
+        const forwardLabelId = (ev.labelIds || []).find(id => allLabelsObj.find(l => l.id === id)?.isForward);
+        const forwardLabelName = forwardLabelId ? allLabelsObj.find(l=>l.id===forwardLabelId).name : '';
+        const targetDate = this.lockedDateStr || this.dateStr;
+
+        if (isGrouped && ev.groupId.startsWith('group_')) {
+            window.showGroupDeleteModal(targetDate, ev.labelIds[0] || '', ev.content, ev.groupId, 
+                () => { 
+                    this.dayData[fId].events.splice(idx, 1); 
+                    this.renderEventEntries(fId); 
+                    store.hasUnsavedChanges = true; 
+                }, 
+                () => { 
+                    this.dayData[fId].events.splice(idx, 1); 
+                    this.renderEventEntries(fId); 
+                    store.hasUnsavedChanges = true; 
+                }
+            );
+        } else if (forwardLabelId && ev.forwardChainId) {
+            window.showForwardDeleteModal(targetDate, forwardLabelName, ev.content, ev.forwardChainId, () => { 
+                this.dayData[fId].events.splice(idx, 1); 
+                this.renderEventEntries(fId); 
+                store.hasUnsavedChanges = true; 
+            });
+        } else {
+            this.removeEventEntry(fId, idx);
+        }
+    }
+
     renderEventEntries(fId) {
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(!container) return;
@@ -613,33 +714,47 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
+        events.sort((a, b) => {
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.id || '').localeCompare(b.id || '');
+        });
+
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             const eLabelIds = ev.labelIds || [];
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
 
-            let delHandler = `window.dayViewInstance.removeEventEntry('${fId}', ${idx})`;
             let forwardedBadge = '';
-
-            if (ev.groupId || (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr))) {
-                const isRecurring = !!ev.groupId; 
-                if (isRecurring) {
-                    delHandler = `window.showGroupDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.groupId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; }, () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
-                } else {
-                    delHandler = `window.showForwardDeleteModal('${this.lockedDateStr || this.dateStr}', '${eLabelIds[0]||''}', \`${(ev.content || '').replace(/`/g, '\\`')}\`, '${ev.forwardChainId}', () => { window.dayViewInstance.dayData['${fId}'].events.splice(${idx}, 1); window.dayViewInstance.renderEventEntries('${fId}'); store.hasUnsavedChanges = true; })`;
-                    forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
-                }
+            if (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr)) {
+                forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
             }
 
             const deleteBtnHtml = isAuthor 
-                ? `<button class="modal-delete-btn" onclick="${delHandler}" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
+                ? `<button class="modal-delete-btn" onclick="window.dayViewInstance.requestRemoveEvent('${fId}', ${idx})" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
                 : '';
 
             const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = eLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'event'); 
+                
                 const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
                 const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
-                return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; ${chipCursorStyle} ${dynamicStyle}">${lObj.name}</div>`;
             }).join('');
 
             const checkboxHtml = canComplete 
@@ -650,6 +765,17 @@ export class DayView extends BaseView {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            const timeVal = ev.time || '';
+            const timeColor = timeVal ? '#2563eb' : '#94a3b8';
+            const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
+            const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
+
+            const timeHtml = isAuthor 
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}', ${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
+                     </div>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
+
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -658,6 +784,7 @@ export class DayView extends BaseView {
                         ${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${timeHtml}
                         ${deleteBtnHtml}
                     </div>
                 </div>
@@ -677,17 +804,39 @@ export class DayView extends BaseView {
         
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
+        
+        journals.sort((a, b) => {
+            let aRank = 9999, bRank = 9999;
+            (a.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < aRank) aRank = r;
+            });
+            (b.labelIds || []).forEach(id => {
+                const r = allLabelsObj.findIndex(l => l.id === id);
+                if (r !== -1 && r < bRank) bRank = r;
+            });
+            if (aRank !== bRank) return aRank - bRank;
+            return (a.id || '').localeCompare(b.id || '');
+        });
 
+        // 🌟 [복구완료] 하루-작성 모드의 '오늘 기록' 라벨은 숨김 없이 항상 표시되도록 원래 구조로 복원
         container.innerHTML = journals.map((j, idx) => {
             const jLabelIds = j.labelIds || [];
-            const chipsHtml = allLabelsObj.map(lObj => 
-                `<div class="label-chip ${jLabelIds.includes(lObj.id) ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; min-width:auto; cursor:pointer;">${lObj.name}</div>`
-            ).join('');
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = jLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'journal'); 
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; cursor:pointer; ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
 
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                 return `
-                <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="클릭하여 파일 다운로드">
+                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
                     <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                     <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
@@ -707,7 +856,7 @@ export class DayView extends BaseView {
                     <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                     
                     <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <input type="file" id="${uploadId}" style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
                 </div>
                 ${isUploading}
                 ${attachmentsHtml}
@@ -720,8 +869,8 @@ export class DayView extends BaseView {
     async handleJournalAttachmentUpload(fId, idx, inputEl) {
         this.syncJournalInputs(fId);
         
-        const file = inputEl.files[0];
-        if (!file) return;
+        const files = inputEl.files;
+        if (!files || files.length === 0) return;
 
         const j = this.dayData[fId].journals[idx];
         if (!j) return;
@@ -730,9 +879,9 @@ export class DayView extends BaseView {
         this.renderJournalEntries(fId);
 
         try {
-            const fileData = await driveAPI.uploadFile(file);
+            const uploadedFiles = await driveAPI.uploadFiles(files);
             if (!j.attachments) j.attachments = [];
-            j.attachments.push(fileData);
+            j.attachments.push(...uploadedFiles);
             store.hasUnsavedChanges = true;
         } catch (err) {
             console.error(err);
@@ -749,6 +898,11 @@ export class DayView extends BaseView {
         if (confirm("첨부된 파일 링크를 삭제하시겠습니까?\n(※ 구글 드라이브의 실제 파일은 삭제되지 않습니다.)")) {
             const j = this.dayData[fId].journals[jIdx];
             if (j && j.attachments) {
+                const targetAttachment = j.attachments[aIdx];
+                if (targetAttachment && targetAttachment.id) {
+                    driveAPI.deleteFile(targetAttachment.id).catch(e => console.warn(e));
+                }
+                
                 j.attachments.splice(aIdx, 1);
                 store.hasUnsavedChanges = true;
                 this.renderJournalEntries(fId);
@@ -853,9 +1007,19 @@ export class DayView extends BaseView {
 
     removeJournalEntry(fId, index) {
         this.syncJournalInputs(fId);
-        this.dayData[fId].journals.splice(index, 1);
-        this.renderJournalEntries(fId);
-        store.hasUnsavedChanges = true;
+        if (confirm("이 기록을 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
+            const j = this.dayData[fId].journals[index];
+            
+            if (j && j.attachments && j.attachments.length > 0) {
+                j.attachments.forEach(a => {
+                    if (a && a.id) driveAPI.deleteFile(a.id).catch(e => console.warn(e));
+                });
+            }
+            
+            this.dayData[fId].journals.splice(index, 1);
+            this.renderJournalEntries(fId);
+            store.hasUnsavedChanges = true;
+        }
     }
 
     syncEventInputs(fId) {
@@ -879,6 +1043,12 @@ export class DayView extends BaseView {
     syncScheduleInputs(fId) {
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
+
+        const wrapper = tbody.closest('.day-schedule-wrapper');
+        const wasHidden = wrapper && window.getComputedStyle(wrapper).display === 'none';
+        
+        if (wasHidden) wrapper.style.display = 'flex';
+
         this.dayData[fId].schedules = {};
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
             const p = row.getAttribute('data-period');
@@ -887,6 +1057,9 @@ export class DayView extends BaseView {
             const supplies = row.querySelector('.cell-supplies').innerText.trim();
             if (subject || memo || supplies) this.dayData[fId].schedules[p] = { subject, memo, supplies };
         });
+
+        if (wasHidden) wrapper.style.display = 'none';
+        
         store.hasUnsavedChanges = true;
     }
 
@@ -900,6 +1073,62 @@ export class DayView extends BaseView {
             this.syncJournalInputs(fId);
             this.syncScheduleInputs(fId);
         });
+
+        if (!this.isGroupUpdateBypassed && window.EventManager && typeof window.EventManager.showGroupUpdateModal === 'function') {
+            let changedGroupEvent = null;
+            
+            for (const fId of window.activeUnifiedFilters) {
+                const currentEvents = this.dayData[fId].events;
+                const origEvents = this.originalEventsBackup?.[fId]?.events || [];
+                
+                for (let i = 0; i < currentEvents.length; i++) {
+                    const cEv = currentEvents[i];
+                    if (cEv.groupId) { 
+                        const oEv = origEvents.find(e => e.id === cEv.id);
+                        if (oEv && oEv.content !== cEv.content) {
+                            changedGroupEvent = { fId, cEv, oEv };
+                            break;
+                        }
+                    }
+                }
+                if (changedGroupEvent) break;
+            }
+
+            if (changedGroupEvent) {
+                return new Promise((resolve) => {
+                    window.EventManager.showGroupUpdateModal(
+                        dateStr,
+                        changedGroupEvent.cEv.groupId,
+                        changedGroupEvent.oEv.content,
+                        changedGroupEvent.cEv.content,
+                        async () => { 
+                            this.isGroupUpdateBypassed = true; 
+                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                                const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
+                                if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
+                            }
+                            await this.save(); 
+                            resolve();
+                        },
+                        async () => { 
+                            this.isGroupUpdateBypassed = true;
+                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                                const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
+                                if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
+                            }
+                            await this.save();
+                            resolve();
+                        },
+                        () => { 
+                            changedGroupEvent.cEv.content = changedGroupEvent.oEv.content;
+                            this.renderEventEntries(changedGroupEvent.fId); 
+                            resolve();
+                        }
+                    );
+                });
+            }
+        }
+        this.isGroupUpdateBypassed = false; 
 
         const snapshot = [{
             dateStr: dateStr,
@@ -932,8 +1161,6 @@ export class DayView extends BaseView {
         });
 
         try {
-            await fetchCalendarData(dateStr, dateStr, this.myGroups); 
-            
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
                 const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -957,7 +1184,11 @@ export class DayView extends BaseView {
                 }, { merge: true }));
             });
             
-            await Promise.all(promises);
+            await Promise.race([
+                Promise.all(promises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
+            
             store.hasUnsavedChanges = false;
         } catch(e) {
             console.error("저장 중 오류 발생:", e);

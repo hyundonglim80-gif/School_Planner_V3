@@ -202,11 +202,9 @@ export const EventManager = {
         }, 0);
     },
 
-    // 💡 완벽 수정됨: 무한 루프 과부하 제거 및 과거 미완료 일정 100% 당일 강제 이동
     autoForwardIncompleteEvents: async function() {
         const todayStr = formatDate(new Date()); 
         try {
-            // 과거 문서를 통째로 긁어옵니다. (루프 제거)
             const eventsSnap = await getDocs(getUserCol('events'));
             
             let eventsToMove = [];
@@ -215,7 +213,7 @@ export const EventManager = {
 
             eventsSnap.forEach(docSnap => {
                 const dateStr = docSnap.id;
-                if (dateStr >= todayStr) return; // 오늘 및 미래는 건너뜀 (과거만 탐색)
+                if (dateStr >= todayStr) return; 
 
                 const data = docSnap.data();
                 let list = data.eventList || (data.eventText ? parseRawEventTextToEventList(data.eventText) : []);
@@ -235,10 +233,10 @@ export const EventManager = {
                         delete ev.originalDate;
                         ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                         
-                        eventsToMove.push({ ...ev }); // 오늘로 가져갈 짐 싸기
+                        eventsToMove.push({ ...ev }); 
                         docChanged = true;
                     } else {
-                        newList.push(ev); // 원래 날짜에 남을 일정
+                        newList.push(ev); 
                     }
                 });
 
@@ -248,13 +246,12 @@ export const EventManager = {
                 }
             });
 
-            if (eventsToMove.length === 0) return; // 이동할 일정이 없으면 즉시 종료
+            if (eventsToMove.length === 0) return; 
 
             let batch = writeBatch(db);
             let opCount = 0;
             let batchPromises = []; 
 
-            // 1. 과거 날짜 문서에서 미완료 일정 깨끗하게 지우기
             changedPastDocs.forEach(dateStr => {
                 const list = eventsMap[dateStr];
                 const docRef = doc(getUserCol('events'), dateStr);
@@ -263,7 +260,6 @@ export const EventManager = {
                 if (opCount >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); opCount = 0; }
             });
 
-            // 2. 오늘 날짜에 이동한 일정들을 한꺼번에 붓기 (중복 방지 포함)
             const todayDocRef = doc(getUserCol('events'), todayStr);
             const todaySnap = await getDoc(todayDocRef);
             let todayData = todaySnap.exists() ? todaySnap.data() : {};
@@ -278,7 +274,12 @@ export const EventManager = {
             opCount++;
             
             if (opCount > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises); // 완벽하게 저장될 때까지 기다림!
+            
+            // 💡 [버그 방어] 오프라인 타임아웃 0.3초 설정
+            await Promise.race([
+                Promise.all(batchPromises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
 
         } catch(e) { console.error("자동 이월 처리 에러:", e); }
     },
@@ -365,7 +366,12 @@ export const EventManager = {
             batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
         }
 
-        batch.commit().catch(e => console.warn(e)); 
+        // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
+        await Promise.race([
+            batch.commit(),
+            new Promise(resolve => setTimeout(resolve, 300))
+        ]).catch(e => console.warn(e));
+        
         document.getElementById(`${prefix}-modal`).remove();
         alert(`✅ 총 ${totalDays}개의 그룹 일정이 성공적으로 등록되었습니다.`);
         if (callback) callback(true);
@@ -445,10 +451,119 @@ export const EventManager = {
                 });
             }
             if (count > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
+            
+            // 💡 [버그 방어] 오프라인일 때 서버 응답 무한 대기로 멈추는 현상 해결 (타임아웃 적용)
+            await Promise.race([
+                Promise.all(batchPromises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
+            
         } catch(e) { console.error("일괄 삭제 오류:", e); }
 
         document.getElementById('group-delete-modal')?.remove();
+        if (onConfirm) onConfirm();
+    },
+
+    // 🌟 [추가된 부분] 그룹 일정 내용 일괄 수정 모달
+    showGroupUpdateModal: function(baseDateStr, groupId, oldContent, newContent, onConfirmGroup, onOnlyThisDay, onCancel) {
+        const modalHtml = `
+        <div id="group-update-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
+            <div class="modal-content" style="width:380px; padding:25px; background:#fff; border-radius:12px; text-align:center;">
+                <h3 style="color:#059669; margin-top:0;">🔄 반복/기간 일정 일괄 수정</h3>
+                <p style="color:#475569; font-size:0.95rem; margin-bottom:20px; line-height:1.5;"><b>'반복 또는 기간'</b>으로 연결된 일정의 내용이 수정되었습니다.<br>이 변경 사항을 어떻게 적용할까요?</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="btn-upd-only-this" style="padding:12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; color:#1e293b; text-align:left;">1. 이 일정만 수정 <span style="font-size:0.8rem; font-weight:normal; color:#64748b;">(예외 처리)</span></button>
+                    <button id="btn-upd-after-this" style="padding:12px; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; cursor:pointer; font-weight:bold; color:#059669; text-align:left;">2. 이 날부터 이후 모든 연결된 일정 수정</button>
+                    <button id="btn-upd-all" style="padding:12px; background:#dcfce3; border:1px solid #86efac; border-radius:8px; cursor:pointer; font-weight:bold; color:#15803d; text-align:left;">3. 전체 그룹 일정 모두 수정 <span style="font-size:0.8rem; font-weight:normal; color:#16a34a;">(과거 포함)</span></button>
+                    <button id="btn-upd-cancel" style="padding:10px; background:none; border:none; color:#64748b; font-weight:bold; cursor:pointer; margin-top:5px;">취소 (원래대로)</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        const baseContent = oldContent.replace(/\s*\(\d+\/\d+\).*/, '').trim();
+
+        document.getElementById('btn-upd-only-this').onclick = () => { document.getElementById('group-update-modal').remove(); if (onOnlyThisDay) onOnlyThisDay(); };
+        document.getElementById('btn-upd-after-this').onclick = async () => { await this.executeGroupUpdate('after', baseDateStr, groupId, baseContent, newContent, onConfirmGroup); };
+        document.getElementById('btn-upd-all').onclick = async () => { await this.executeGroupUpdate('all', baseDateStr, groupId, baseContent, newContent, onConfirmGroup); };
+        document.getElementById('btn-upd-cancel').onclick = () => { document.getElementById('group-update-modal').remove(); if (onCancel) onCancel(); };
+    },
+
+    // 🌟 [추가된 부분] 일괄 수정 처리 로직
+    executeGroupUpdate: async function(mode, baseDateStr, groupId, oldContent, newContent, onConfirm) {
+        document.getElementById('group-update-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#059669; text-align:center;">⏳ 일괄 수정 처리 중...</div>`;
+
+        const getBase = (c) => (c || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
+        const cleanNewContent = getBase(newContent);
+
+        const matchEvent = (e) => {
+            if (e.groupId !== groupId) return false;
+            return getBase(e.content) === oldContent;
+        };
+
+        if (window.dayViewInstance && window.dayViewInstance.dateStr === baseDateStr && window.dayViewInstance.currentEvents) {
+            window.dayViewInstance.currentEvents.forEach(e => {
+                if (matchEvent(e)) {
+                    const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                    e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                }
+            });
+        }
+        Object.keys(window).forEach(key => {
+            if (key.startsWith('tempEvents_')) {
+                const dStr = key.replace('tempEvents_', '');
+                if (mode === 'after' && dStr < baseDateStr) return;
+                window[key].forEach(e => {
+                    if (matchEvent(e)) {
+                        const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                        e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                    }
+                });
+            }
+        });
+
+        try {
+            let myGroups = [];
+            try { myGroups = await dbAPI.loadMyGroups(); } catch(e) {}
+            const colsToSearch = [getUserCol('events'), ...myGroups.map(g => getGroupCol(g.id, 'events'))];
+
+            let batch = writeBatch(db); let count = 0; let batchPromises = []; 
+
+            for (const col of colsToSearch) {
+                let q = col;
+                if (mode === 'after') q = query(q, where(documentId(), '>=', baseDateStr));
+                const snap = await getDocs(q);
+                
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    let list = data.eventList || [];
+                    let docChanged = false;
+
+                    list.forEach(e => {
+                        if (matchEvent(e)) {
+                            const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
+                            e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
+                            docChanged = true;
+                        }
+                    });
+
+                    if (docChanged) {
+                        let updateData = { eventList: list, eventText: formatEventListToText(list), updatedAt: Date.now() };
+                        batch.update(docSnap.ref, updateData);
+                        count++;
+                        if (count >= 400) { batchPromises.push(batch.commit()); batch = writeBatch(db); count = 0; }
+                    }
+                });
+            }
+            if (count > 0) batchPromises.push(batch.commit());
+            
+            await Promise.race([
+                Promise.all(batchPromises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
+        } catch(e) { console.error("일괄 수정 오류:", e); }
+
+        document.getElementById('group-update-modal')?.remove();
         if (onConfirm) onConfirm();
     },
 
@@ -667,7 +782,12 @@ export const EventManager = {
             }
 
             if (opCount > 0) batchPromises.push(batch.commit());
-            await Promise.all(batchPromises);
+            
+            // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
+            await Promise.race([
+                Promise.all(batchPromises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
 
             document.getElementById('recurring-event-modal')?.remove();
             alert(`✅ 성공적으로 등록 완료되었습니다!\n- 등록: ${addedCount}건\n- 건너뜀(휴일/중복): ${skippedCount}건`);

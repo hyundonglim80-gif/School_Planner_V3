@@ -23,7 +23,7 @@ export const dbAPI = {
             const memos = [];
             snapshot.forEach(docSnap => memos.push({ firestoreId: docSnap.id, ...docSnap.data() }));
             return memos;
-        } catch (error) { return []; }
+        } catch (error) { throw new Error("CACHE_MISS"); } // 수정됨
     },
     loadGroupMemos: async (groupId) => {
         try {
@@ -32,7 +32,7 @@ export const dbAPI = {
             const memos = [];
             snapshot.forEach(docSnap => memos.push({ firestoreId: docSnap.id, groupId: groupId, isShared: true, ...docSnap.data() }));
             return memos;
-        } catch (error) { return []; }
+        } catch (error) { throw new Error("CACHE_MISS"); } // 수정됨
     },
     addMemo: async (memoData, groupId = null) => { 
         if (groupId) await addDoc(getGroupCol(groupId, 'tasks'), memoData);

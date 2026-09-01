@@ -21,6 +21,7 @@ export class MemoView extends BaseView {
     this.currentNewMemoGroupId = null; 
     this.activeGroupFilters = null;
     this.isAllGroupsVisible = true;
+    this.lastInteractedMemo = null; // 🌟 라벨 팝업 유지용 상태 변수 추가
   }
 
   loadMemoLabels() {
@@ -84,17 +85,18 @@ export class MemoView extends BaseView {
     });
   }
 
+  // 🌟 (신규 메모용) 상단 파일 업로드
   async handleFileUpload(inputElement) {
-      const file = inputElement.files[0];
-      if (!file) return;
+      const files = inputElement.files;
+      if (!files || files.length === 0) return;
       
       this.isUploading = true; 
       this.renderViewer(); 
 
       try {
-          const fileData = await driveAPI.uploadFile(file);
+          const uploadedFiles = await driveAPI.uploadFiles(files);
           if (!this.pendingAttachments) this.pendingAttachments = [];
-          this.pendingAttachments.push(fileData);
+          this.pendingAttachments.push(...uploadedFiles);
           store.hasUnsavedChanges = true;
       } catch (error) {
           console.error("파일 업로드 실패:", error);
@@ -118,13 +120,62 @@ export class MemoView extends BaseView {
       }
   }
 
+  // 🌟 [추가됨] (기존 메모용) 파일 첨부 업로드 함수
+  async handleMemoItemAttachmentUpload(firestoreId, inputEl) {
+      const files = inputEl.files;
+      if (!files || files.length === 0) return;
+
+      const item = this.memoItems.find(m => m.firestoreId === firestoreId);
+      if (!item) return;
+
+      item.isUploading = true;
+      this._drawHTML();
+
+      try {
+          const uploadedFiles = await driveAPI.uploadFiles(files);
+          if (!item.attachments) item.attachments = [];
+          item.attachments.push(...uploadedFiles);
+          await dbAPI.updateMemo(firestoreId, { attachments: item.attachments }, item.groupId);
+      } catch (err) {
+          console.error(err);
+          alert("파일 업로드 중 오류가 발생했습니다: " + err.message);
+      } finally {
+          item.isUploading = false;
+          inputEl.value = '';
+          this._drawHTML();
+      }
+  }
+
+  // 🌟 [추가됨] (기존 메모용) 첨부파일 삭제 함수
+  removeMemoAttachment(firestoreId, aIdx) {
+      if (confirm("첨부된 파일 링크를 삭제하시겠습니까?\n(※ 구글 드라이브의 실제 파일은 삭제되지 않습니다.)")) {
+          const item = this.memoItems.find(m => m.firestoreId === firestoreId);
+          if (item && item.attachments) {
+              const targetAttachment = item.attachments[aIdx];
+              if (targetAttachment && targetAttachment.id) {
+                  driveAPI.deleteFile(targetAttachment.id).catch(e => console.warn(e));
+              }
+              item.attachments.splice(aIdx, 1);
+              dbAPI.updateMemo(firestoreId, { attachments: item.attachments }, item.groupId).catch(e => console.warn(e));
+              this._drawHTML();
+          }
+      }
+  }
+
   async fetchAllMemos() {
       try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
-      let allMemos = await dbAPI.loadMemos(); 
-      for (const group of this.myGroups) {
-          const groupMemos = await dbAPI.loadGroupMemos(group.id);
-          groupMemos.forEach(m => { m.groupName = group.name; });
-          allMemos = allMemos.concat(groupMemos);
+      let allMemos = [];
+      try {
+          allMemos = await dbAPI.loadMemos(); 
+          for (const group of this.myGroups) {
+              const groupMemos = await dbAPI.loadGroupMemos(group.id);
+              groupMemos.forEach(m => { m.groupName = group.name; });
+              allMemos = allMemos.concat(groupMemos);
+          }
+      } catch (e) {
+          if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) {
+              return null; 
+          }
       }
       return allMemos;
   }
@@ -141,10 +192,13 @@ export class MemoView extends BaseView {
 
     if (!this.memoItems || this.memoItems.length === 0) {
         this.showLoading('클라우드에서 데이터(개인 및 공유)를 불러오는 중입니다...');
-        this.memoItems = await this.fetchAllMemos();
+        const data = await this.fetchAllMemos();
+        if (data === null) return; 
+        this.memoItems = data;
         this.loadMemoLabels(); this._drawHTML();
     } else {
         this.fetchAllMemos().then(data => {
+            if (data === null) return; 
             this.memoItems = data; this.loadMemoLabels();
             if (!this.isUploading) this._drawHTML(); 
         });
@@ -210,9 +264,9 @@ export class MemoView extends BaseView {
         attachmentPreviewHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + this.pendingAttachments.map((a, idx) => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
             return `
-            <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;" title="클릭하여 파일 다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer;">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                <span style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${a.name}</span>
+                <span data-tooltip="${a.name}" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${a.name}</span>
                 <button onclick="event.stopPropagation(); window.memoViewInstance.cancelPendingAttachment(${idx})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:16px; height:16px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:4px;" title="첨부 링크 삭제">✖</button>
             </div>`;
         }).join('') + `</div>`;
@@ -249,7 +303,7 @@ export class MemoView extends BaseView {
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
             <button onclick="document.getElementById('memo-file-upload').click()" class="memo-btn-icon" title="파일/문서 첨부">📎</button>
-            <input type="file" id="memo-file-upload" style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
+            <input type="file" id="memo-file-upload" multiple style="display:none;" onchange="window.memoViewInstance.handleFileUpload(this)">
             
             <button onclick="window.memoViewInstance.addMemoItem()" class="memo-btn-submit">추가</button>
           </div>
@@ -315,7 +369,7 @@ export class MemoView extends BaseView {
     const uid = auth?.currentUser?.uid;
     const isAuthor = !item.authorId || !uid || item.authorId === uid;
 
-    const deleteBtnHtml = isAuthor ? `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" class="modal-delete-btn" title="삭제" style="font-size:1.3rem; margin-left:4px; padding:0;">🗑️</button>` : '';
+    const deleteBtnHtml = isAuthor ? `<button onclick="window.memoViewInstance.deleteMemoItem('${item.firestoreId}')" class="modal-delete-btn" title="삭제" style="font-size:1.3rem; margin-left:4px; padding:0; line-height:1;">🗑️</button>` : '';
 
     let dragHandleHtml = ''; let dragAttributes = '';
     if (!isCompleted && this.currentFilter === '전체' && this.isAllGroupsVisible && isAuthor) {
@@ -326,7 +380,6 @@ export class MemoView extends BaseView {
       dragHandleHtml = `<span style="font-size:1.8rem; color:#cbd5e1; padding-right:8px; line-height:1; cursor:not-allowed;" title="${titleMsg}">≡</span>`;
     }
 
-    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
     const labels = item.labels || [];
     const palette = window.LABEL_PALETTE || {};
     const knownLabelNames = this.AVAILABLE_LABELS.map(l => l.name);
@@ -346,7 +399,7 @@ export class MemoView extends BaseView {
     let groupButtonsHtml = '';
     if (isAuthor) {
         groupButtonsHtml = `
-            <div class="group-toggle-wrap" style="margin-right:0;">
+            <div class="group-toggle-wrap" style="margin:0;">
                 <button class="group-toggle-chip ${!item.groupId ? 'active' : ''}" onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', null)">🔒 개인</button>
                 ${this.myGroups.map(g => `<button class="group-toggle-chip ${item.groupId === g.id ? 'active' : ''}" onclick="window.memoViewInstance.changeMemoGroup('${item.firestoreId}', '${g.id}')">👥 ${g.name}</button>`).join('')}
             </div>`;
@@ -356,12 +409,14 @@ export class MemoView extends BaseView {
         
     let attachmentsHtml = '';
     if (item.attachments && item.attachments.length > 0) {
-        attachmentsHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + item.attachments.map(a => {
+        attachmentsHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + item.attachments.map((a, aIdx) => {
             const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
+            const delBtn = isAuthor && !isCompleted ? `<button onclick="event.stopPropagation(); window.memoViewInstance.removeMemoAttachment('${item.firestoreId}', ${aIdx})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:16px; height:16px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:4px;" title="첨부 링크 삭제">✖</button>` : '';
             return `
-            <div onclick="window.promptDownloadFile('${a.name}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'" title="클릭하여 파일 다운로드">
+            <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
                 <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
-                <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                <span data-tooltip="${a.name}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                ${delBtn}
             </div>`;
         }).join('') + `</div>`;
     } else if (item.imageUrl) {
@@ -369,18 +424,48 @@ export class MemoView extends BaseView {
     }
 
     const textStatusClass = isCompleted ? 'completed' : (isAuthor ? 'active' : 'readonly');
+    
+    // 🌟 [UI 개선] 등록된 메모는 포커스 될 때만 라벨 버튼을 표출하고, 우측에 첨부 버튼 고정
+    const hasAttachments = (item.attachments && item.attachments.length > 0) || item.imageUrl ? 'true' : 'false';
+    const isRegistered = (item.text || '').trim() !== '' || hasAttachments === 'true';
+    const forceShow = this.lastInteractedMemo === item.firestoreId;
+    const hideCondition = isRegistered && !forceShow && isAuthor && !isCompleted;
+    const finalLabelsDisplay = hideCondition ? 'none' : 'flex';
+
+    const focusHandler = `document.getElementById('memo-labels-${item.firestoreId}').style.display='flex'; window.memoViewInstance.lastInteractedMemo='${item.firestoreId}';`;
+    const blurHandler = `window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText); setTimeout(() => { if(window.memoViewInstance.lastInteractedMemo !== '${item.firestoreId}') { const el = document.getElementById('memo-labels-${item.firestoreId}'); if(el) el.style.display='none'; } }, 250);`;
+    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+
+    const uploadId = `memo-upload-${item.firestoreId}`;
+    const isUploadingHtml = item.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
     return `
-      <div id="memo-card-${item.firestoreId}" class="memo-item-row" ${dragAttributes}>
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-            <div style="flex: 1;"><div class="label-chip-container" style="margin-bottom:0;">${allLabelsHtml}</div></div>
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0;">${groupButtonsHtml}${deleteBtnHtml}</div>
+      <div id="memo-card-${item.firestoreId}" class="memo-item-row" style="position:relative; padding-top:12px;" ${dragAttributes}>
+        <!-- Top Right Delete Button -->
+        ${isAuthor ? `<div style="position:absolute; top:8px; right:8px;">${deleteBtnHtml}</div>` : ''}
+        
+        <!-- Middle Row: Labels, Group, Attach Button -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-right:24px; min-height:24px; margin-bottom:8px;">
+            <div id="memo-labels-${item.firestoreId}" class="label-chip-container" style="margin:0; display:${finalLabelsDisplay}; flex-wrap:wrap; gap:4px; transition:0.2s; flex:1;">
+                ${allLabelsHtml}
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
+                ${groupButtonsHtml}
+                ${isAuthor && !isCompleted ? `
+                <button onclick="document.getElementById('${uploadId}').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" title="파일 첨부">📎 첨부</button>
+                <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.memoViewInstance.handleMemoItemAttachmentUpload('${item.firestoreId}', this)">
+                ` : ''}
+            </div>
         </div>
+        
+        <!-- Checkbox, Drag Handle, Text, Attachments -->
         <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
           <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
           <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-             <span ${editableAttr} class="memo-text-content ${textStatusClass}" ${isAuthor && !isCompleted ? 'onblur="window.memoViewInstance.updateMemoText(\'' + item.firestoreId + '\', this.innerText);"' : ''}>${item.text}</span>
+             <span id="memo-span-${item.firestoreId}" ${editableAttr} class="memo-text-content ${textStatusClass}" style="outline:none;">${item.text}</span>
+             ${isUploadingHtml}
              ${attachmentsHtml}
           </div>
         </div>
@@ -421,11 +506,30 @@ export class MemoView extends BaseView {
   toggleMemoItemLabel(firestoreId, labelName) {
       const item = this.memoItems.find(m => m.firestoreId === firestoreId);
       if (!item) return;
+      this.lastInteractedMemo = firestoreId; 
+      
       let labels = item.labels || [];
       if (labels.includes(labelName)) labels = labels.filter(l => l !== labelName);
       else labels.push(labelName);
-      item.labels = labels; this._drawHTML();
+      item.labels = labels; 
+      
       dbAPI.updateMemo(firestoreId, { labels: labels }, item.groupId).catch(e => console.warn(e)); 
+      this._drawHTML();
+      
+      setTimeout(() => {
+          const span = document.getElementById(`memo-span-${firestoreId}`);
+          if (span) {
+              span.focus();
+              if (typeof window.getSelection !== "undefined" && typeof document.createRange !== "undefined") {
+                  const range = document.createRange();
+                  range.selectNodeContents(span);
+                  range.collapse(false);
+                  const sel = window.getSelection();
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+              }
+          }
+      }, 50);
   }
 
   updateMemoText(firestoreId, newText) {
@@ -479,8 +583,13 @@ export class MemoView extends BaseView {
   }
 
   deleteMemoItem(firestoreId) {
-    if(confirm("이 메모를 완전히 삭제하시겠습니까? (첨부된 드라이브 파일은 유지됩니다)")) {
+    if(confirm("이 메모를 완전히 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
       const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+      
+      if (target && target.attachments && target.attachments.length > 0) {
+          target.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
+      }
+      
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
       dbAPI.deleteMemo(firestoreId, target ? target.groupId : null).catch(e=>console.warn(e)); 
@@ -494,10 +603,13 @@ export class MemoView extends BaseView {
     const myCompletedMemos = completedMemos.filter(m => !m.authorId || !uid || m.authorId === uid);
 
     if (myCompletedMemos.length === 0) return alert("비울 수 있는 완료된 본인 메모가 없습니다.");
-    if(confirm(`완료된 내 업무 ${myCompletedMemos.length}개를 모두 삭제하시겠습니까?\n(타인이 작성한 공유 메모는 삭제되지 않습니다)`)) {
+    if(confirm(`완료된 내 업무 ${myCompletedMemos.length}개를 모두 삭제하시겠습니까?\n(포함된 첨부파일도 모두 영구 삭제됩니다)`)) {
       this.memoItems = this.memoItems.filter(m => !myCompletedMemos.includes(m));
       this._drawHTML();
       myCompletedMemos.forEach(memo => {
+          if (memo.attachments && memo.attachments.length > 0) {
+              memo.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
+          }
           dbAPI.deleteMemo(memo.firestoreId, memo.groupId).catch(e=>console.warn(e));
       });
     }
