@@ -227,8 +227,9 @@ window.addEventListener('touchstart', (e) => {
     const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
     const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
     
-    touchStartedAtTop = window.scrollY <= 10;
-    touchStartedAtBottom = currentScroll >= scrollHeight - 10;
+    // 🔥 모바일 UI 변화를 고려해 오차 범위를 10에서 50으로 확대
+    touchStartedAtTop = window.scrollY <= 50;
+    touchStartedAtBottom = currentScroll >= scrollHeight - 50;
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
@@ -257,10 +258,14 @@ window.addEventListener('touchend', (e) => {
     } else {
         if (store.scope === 'memo') return; 
 
+        // 🔥 핵심: 무한 스크롤 모드가 켜져 있을 때는 강제 화면 전환 방지
+        if (window.isInfiniteScrollActive) return;
+
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
         const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-        const atBottom = currentScroll >= scrollHeight - 10;
-        const atTop = window.scrollY <= 10;
+        // 🔥 오차 범위를 50으로 확대
+        const atBottom = currentScroll >= scrollHeight - 50;
+        const atTop = window.scrollY <= 50;
 
         if (atBottom && deltaY > 50 && touchStartedAtBottom) executeScrollNav(1);
         else if (atTop && deltaY < -50 && touchStartedAtTop) executeScrollNav(-1);
