@@ -235,7 +235,8 @@ window.addEventListener('touchstart', (e) => {
 window.addEventListener('touchend', (e) => {
     if (isModalOpen()) return; // 모달창 열림 시 터치 차단
 
-    if (store.mode !== 'viewer') return;
+    // 🔥 작성 모드에서는 앱의 강제 스와이프 개입을 중단 (기본 스크롤만 허용)
+    if (store.mode !== 'viewer') return; 
     if (scrollNavTimeout) return;
 
     const touchEndX = e.changedTouches[0].clientX;
@@ -244,7 +245,8 @@ window.addEventListener('touchend', (e) => {
     const deltaX = touchStartX - touchEndX;
     const deltaY = touchStartY - touchEndY; 
 
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    // 🔥 대각선 터치 시 화면이 넘어가는 오작동을 막기 위해 가로 스와이프 조건 강화 (1.5배)
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
         if (Math.abs(deltaX) > 50) {
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             const currentIdx = scopes.indexOf(store.scope);
@@ -256,14 +258,14 @@ window.addEventListener('touchend', (e) => {
             }
         }
     } else {
+        // 세로 스와이프
         if (store.scope === 'memo') return; 
 
-        // 🔥 핵심: 무한 스크롤 모드가 켜져 있을 때는 강제 화면 전환 방지
+        // 🔥 핵심: 무한 스크롤 모드가 켜져 있을 때는 강제 페이지 새로고침 중단!
         if (window.isInfiniteScrollActive) return;
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
         const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
-        // 🔥 오차 범위를 50으로 확대
         const atBottom = currentScroll >= scrollHeight - 50;
         const atTop = window.scrollY <= 50;
 
