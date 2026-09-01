@@ -962,6 +962,7 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].completed = isCompleted;
         this.renderEventEntries(fId);
+        this.save(); // 🔥 추가됨: 체크박스 클릭 시 즉시 자동 저장
     }
 
     updateEventContent(fId, idx, val) {

@@ -336,6 +336,11 @@ export const CompactEventHelper = {
         if (ev) {
             ev[field] = value;
         }
+        
+        // 🔥 추가됨: 변경된 필드가 '완료 여부(completed)'일 때만 즉시 자동 저장
+        if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
+            window.saveCurrentViewData(true);
+        }
     },
 
     addCompactEvent(dateStr, fId) {
