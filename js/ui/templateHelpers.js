@@ -264,6 +264,11 @@ export const CompactEventHelper = {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && e.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자 고유ID">👤 ${e.authorId.substring(0, 6)}</span>`
+                : '';
+
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -272,6 +277,7 @@ export const CompactEventHelper = {
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
+                        ${authorBadge} <!-- [추가된 부분] 시간과 삭제 버튼 사이에 삽입 -->
                         ${deleteBtnHtml}
                     </div>
                 </div>

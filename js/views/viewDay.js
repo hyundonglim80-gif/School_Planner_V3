@@ -776,6 +776,11 @@ export class DayView extends BaseView {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && ev.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자 고유ID">👤 ${ev.authorId.substring(0, 6)}</span>`
+                : '';
+
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
@@ -785,6 +790,7 @@ export class DayView extends BaseView {
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
+                        ${authorBadge} <!-- [추가된 부분] 시간과 삭제 버튼 사이에 삽입 -->
                         ${deleteBtnHtml}
                     </div>
                 </div>
@@ -846,9 +852,15 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && j.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자 고유ID">👤 ${j.authorId.substring(0, 6)}</span>`
+                : '';
+
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
-                <div style="position:absolute; top:8px; right:8px;">
+                <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;"> <!-- [수정된 부분] flex 컨테이너로 변경 -->
+                    ${authorBadge} <!-- [추가된 부분] 삭제 버튼 좌측에 삽입 -->
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
