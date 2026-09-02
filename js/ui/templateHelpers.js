@@ -2,6 +2,7 @@
 
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
+import { auth } from '../api/firebaseInit.js'; // 🔥 사용자 정보(auth) 임포트 추가
 
 // 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
 window.showCustomAlarmPopup = function(messages) {
@@ -120,7 +121,7 @@ export const CompactEventHelper = {
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
-            ev.editorEmail = window.auth?.currentUser?.email; // 🌟 시간 변경 시에도 에디터 이메일 갱신
+            ev.editorEmail = auth?.currentUser?.email; // 🔥 auth 객체 사용
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
@@ -219,12 +220,14 @@ export const CompactEventHelper = {
         });
 
         const realTodayStr = formatDate(new Date());
-        const uid = window.auth?.currentUser?.uid;
+        const uid = auth?.currentUser?.uid; // 🔥 auth 객체 직접 사용
         
         return list.map((e) => {
             if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
 
+            // 💡 여기서 과거 데이터(!e.authorId)는 누구나 권한을 갖게 예외 처리됨
             const isAuthor = !e.authorId || !uid || e.authorId === uid;
+            
             const eLabelIds = e.labelIds || [];
             const isCompleted = !!e.completed;
             const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
@@ -264,12 +267,11 @@ export const CompactEventHelper = {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
-            // 🌟 공유 그룹일 경우 최근 수정자/작성자 아이디 배지 표시 로직
             let authorHtml = '';
             if (fId !== 'personal') {
                 const emailStr = e.editorEmail || e.authorEmail || '';
                 const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr}">👤 ${authorName}</div>`;
+                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr || '과거데이터'}">👤 ${authorName}</div>`;
             }
 
             return `
@@ -286,7 +288,7 @@ export const CompactEventHelper = {
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
+                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '작성자 본인만 수정할 수 있습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -344,7 +346,7 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
-            ev.editorEmail = window.auth?.currentUser?.email; // 🌟 필드 값이 변경될 때마다 최근 수정자 이메일 갱신
+            ev.editorEmail = auth?.currentUser?.email; // 🔥 내용 수정 시 이메일 확실히 기록
         }
         
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
@@ -359,13 +361,14 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
-        const userEmail = window.auth?.currentUser?.email; // 🌟
+        const userEmail = auth?.currentUser?.email; // 🔥
+        const uid = auth?.currentUser?.uid;
         
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-            authorId: window.auth?.currentUser?.uid,
-            authorEmail: userEmail, // 🌟 작성자 기록
-            editorEmail: userEmail, // 🌟 초기 수정자 기록
+            authorId: uid,
+            authorEmail: userEmail, 
+            editorEmail: userEmail, 
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
             content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
         });
@@ -418,7 +421,7 @@ export const CompactEventHelper = {
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
-        ev.editorEmail = window.auth?.currentUser?.email; // 🌟 라벨 수정 시에도 에디터 갱신
+        ev.editorEmail = auth?.currentUser?.email; // 🔥 라벨 수정 시에도 권한 확실히 기록
         
         const isActive = ev.labelIds.includes(labelId);
         const labelObj = getEventLabels().find(l => l.id === labelId);
@@ -469,8 +472,8 @@ export const CompactEventHelper = {
                 };
 
                 labelObj.isPeriod 
-                    ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
-                    : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
+                    ? window.openPeriodModal(dateStr, labelObj.name, ev.content, callback, labelId)
+                    : window.openRecurringModal(dateStr, labelObj.name, ev.content, callback, labelId);
                 return; 
             }
             
