@@ -259,7 +259,7 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
@@ -277,8 +277,7 @@ export const CompactEventHelper = {
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
-                        ${authorBadge} <!-- [추가된 부분] 시간과 삭제 버튼 사이에 삽입 -->
-                        ${deleteBtnHtml}
+                        ${authorBadge}${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">

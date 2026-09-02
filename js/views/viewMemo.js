@@ -439,38 +439,32 @@ export class MemoView extends BaseView {
     const uploadId = `memo-upload-${item.firestoreId}`;
     const isUploadingHtml = item.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
+    // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+    const isSharedGroup = item.groupId && item.groupId !== 'personal';
+    const authorBadge = (isSharedGroup && item.authorId)
+        ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자 고유ID">👤 ${item.authorId.substring(0, 6)}</div>`
+        : '';
+
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" style="position:relative; padding-top:12px;" ${dragAttributes}>
         <!-- Top Right Delete Button -->
         ${isAuthor ? `<div style="position:absolute; top:8px; right:8px;">${deleteBtnHtml}</div>` : ''}
         
         <!-- Middle Row: Labels, Group, Attach Button -->
-        // [추가된 부분] 공유 그룹일 때 작성자 배지 생성 로직을 return 템플릿 직전에 추가
-            const isSharedGroup = item.groupId && item.groupId !== 'personal';
-            const authorBadge = (isSharedGroup && item.authorId)
-                ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자 고유ID">👤 ${item.authorId.substring(0, 6)}</div>`
-                : '';
-
-            return `
-              <div id="memo-card-${item.firestoreId}" class="memo-item-row" style="position:relative; padding-top:12px;" ${dragAttributes}>
-                <!-- Top Right Delete Button -->
-                ${isAuthor ? `<div style="position:absolute; top:8px; right:8px;">${deleteBtnHtml}</div>` : ''}
-                
-                <!-- Middle Row: Labels, Group, Attach Button -->
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-right:24px; min-height:24px; margin-bottom:8px;">
-                    <div id="memo-labels-${item.firestoreId}" class="label-chip-container" style="margin:0; display:${finalLabelsDisplay}; flex-wrap:wrap; gap:4px; transition:0.2s; flex:1;">
-                        ${allLabelsHtml}
-                    </div>
-                    
-                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
-                        ${groupButtonsHtml}
-                        ${authorBadge} <!-- [추가된 부분] 그룹 버튼과 첨부 버튼 사이에 삽입 -->
-                        ${isAuthor && !isCompleted ? `
-                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" title="파일 첨부">📎 첨부</button>
-                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.memoViewInstance.handleMemoItemAttachmentUpload('${item.firestoreId}', this)">
-                        ` : ''}
-                    </div>
-                </div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-right:24px; min-height:24px; margin-bottom:8px;">
+            <div id="memo-labels-${item.firestoreId}" class="label-chip-container" style="margin:0; display:${finalLabelsDisplay}; flex-wrap:wrap; gap:4px; transition:0.2s; flex:1;">
+                ${allLabelsHtml}
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
+                ${groupButtonsHtml}
+                ${authorBadge}
+                ${isAuthor && !isCompleted ? `
+                <button onclick="document.getElementById('${uploadId}').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" title="파일 첨부">📎 첨부</button>
+                <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.memoViewInstance.handleMemoItemAttachmentUpload('${item.firestoreId}', this)">
+                ` : ''}
+            </div>
+        </div>
         
         <!-- Checkbox, Drag Handle, Text, Attachments -->
         <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">

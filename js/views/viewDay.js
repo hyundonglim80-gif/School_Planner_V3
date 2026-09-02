@@ -771,7 +771,7 @@ export class DayView extends BaseView {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}', ${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
@@ -785,13 +785,11 @@ export class DayView extends BaseView {
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
-                        ${chipsHtml}
-                        ${forwardedBadge}
+                        ${chipsHtml}${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
-                        ${authorBadge} <!-- [추가된 부분] 시간과 삭제 버튼 사이에 삽입 -->
-                        ${deleteBtnHtml}
+                        ${authorBadge}${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
@@ -859,19 +857,18 @@ export class DayView extends BaseView {
 
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
-                <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;"> <!-- [수정된 부분] flex 컨테이너로 변경 -->
-                    ${authorBadge} <!-- [추가된 부분] 삭제 버튼 좌측에 삽입 -->
-                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+                <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
+                    ${authorBadge}
+                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
                 <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
                     <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                     
                     <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
                 </div>
-                ${isUploading}
-                ${attachmentsHtml}
+                ${isUploading}${attachmentsHtml}
             </div>`;
         }).join('');
 
