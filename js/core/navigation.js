@@ -227,15 +227,25 @@ export const goToDay = (dateStr) => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
             document.removeEventListener('keydown', handleModalKeydown);
             
-            // 1. 데이터 최신화를 위해 백그라운드 리렌더링 실행
+            // 🔥 네비게이션(이전/다음) 이동 중에는 백그라운드를 재렌더링하지 않음
+            if (window.isNavigatingDayModal) return;
+
             if (window.render) window.render(); 
 
-            // 🔥 2. 팝업창에서 마지막으로 머물렀던 날짜(store.currentDate)를 찾아 화면 중앙으로 스크롤
             const targetDateStr = formatDate(store.currentDate);
             let attempts = 0;
             
             const focusOnTargetDate = () => {
                 attempts++;
+                
+                // 🔥 백그라운드 렌더링이 완전히 끝날 때까지 대기
+                if ((window.monthViewInstance && window.monthViewInstance.isRendering) ||
+                    (window.weekViewInstance && window.weekViewInstance.isRendering) ||
+                    (window.yearViewInstance && window.yearViewInstance.isRendering)) {
+                    if (attempts < 50) setTimeout(focusOnTargetDate, 100);
+                    return;
+                }
+
                 let targetEl = null;
 
                 if (store.scope === 'week') {
@@ -252,23 +262,20 @@ export const goToDay = (dateStr) => {
 
                 if (targetEl) {
                     const rect = targetEl.getBoundingClientRect();
-                    // 무한스크롤 청크나 DOM이 아직 완전히 그려지지 않았다면 약간 대기 후 재시도
                     if (rect.width === 0 && rect.height === 0) {
-                        if (attempts < 20) setTimeout(focusOnTargetDate, 150);
+                        if (attempts < 50) setTimeout(focusOnTargetDate, 150);
                         return;
                     }
 
-                    // 뷰어 고유의 초기화 스크롤(setTimeout 50ms)을 덮어쓰기 위해 100ms 지연 실행
+                    // 렌더링 고유의 스크롤을 무시하기 위해 여유를 두고 스크롤 이동 및 강조
                     setTimeout(() => {
                         const headerOffset = document.querySelector('.app-header')?.offsetHeight || 60;
                         const absoluteY = targetEl.getBoundingClientRect().top + window.pageYOffset;
                         const viewportHeight = window.innerHeight;
                         
-                        // 화면 중앙부보다 살짝 위쪽에 해당 날짜가 오도록 계산
                         const targetScrollY = absoluteY - headerOffset - (viewportHeight / 4);
                         window.scrollTo({ top: targetScrollY, behavior: 'auto' });
 
-                        // 사용자가 쉽게 알아볼 수 있도록 노란색 하이라이트 깜빡임 효과 적용
                         const highlightTargets = targetEl.tagName.toLowerCase() === 'tr' ? targetEl.querySelectorAll('td') : [targetEl];
                         highlightTargets.forEach(el => {
                             const originalBg = el.style.backgroundColor || '';
@@ -279,8 +286,8 @@ export const goToDay = (dateStr) => {
                                 setTimeout(() => { el.style.transition = ''; }, 400); 
                             }, 1200);
                         });
-                    }, 100); 
-                } else if (attempts < 20) {
+                    }, 150); 
+                } else if (attempts < 50) {
                     setTimeout(focusOnTargetDate, 150);
                 }
             };
@@ -349,8 +356,12 @@ export const goToDay = (dateStr) => {
 
             const newDateStr = formatDate(d);
             
+            window.isNavigatingDayModal = true; // 🔥 네비게이션 시 백그라운드 재렌더링 방지 플래그
             dayModal.close();
-            setTimeout(() => window.goToDay(newDateStr), 50);
+            setTimeout(() => {
+                window.goToDay(newDateStr);
+                window.isNavigatingDayModal = false;
+            }, 50);
         };
 
         const prevBtn = document.getElementById('day-modal-prev-btn');
