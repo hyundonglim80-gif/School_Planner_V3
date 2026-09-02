@@ -175,7 +175,6 @@ export const goToDay = (dateStr) => {
         </div>
     `;
 
-    // 🔥 [수정 1] 하단 닫기/저장 버튼 HTML 구조 분리
     const html = `
         <div style="display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0;">
             <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; background: #f8fafc;">
@@ -191,7 +190,6 @@ export const goToDay = (dateStr) => {
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <!-- 🔥 닫기와 저장 버튼을 명확하게 분리 -->
                     <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">닫기</button>
                     <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Ctrl + Enter</span>">💾 저장</button>
                 </div>
@@ -215,7 +213,6 @@ export const goToDay = (dateStr) => {
             }
         }
         
-        // 🔥 단축키(Ctrl+Enter)를 눌러도 '저장(day-modal-save-btn)'만 클릭되도록 유지
         if (e.ctrlKey && e.key === 'Enter') {
             e.preventDefault(); document.getElementById('day-modal-save-btn')?.click();
         }
@@ -229,7 +226,66 @@ export const goToDay = (dateStr) => {
         onClose: () => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
             document.removeEventListener('keydown', handleModalKeydown);
+            
+            // 1. 데이터 최신화를 위해 백그라운드 리렌더링 실행
             if (window.render) window.render(); 
+
+            // 🔥 2. 팝업창에서 마지막으로 머물렀던 날짜(store.currentDate)를 찾아 화면 중앙으로 스크롤
+            const targetDateStr = formatDate(store.currentDate);
+            let attempts = 0;
+            
+            const focusOnTargetDate = () => {
+                attempts++;
+                let targetEl = null;
+
+                if (store.scope === 'week') {
+                    targetEl = document.querySelector(`tr[data-week-date="${targetDateStr}"]`);
+                } else if (store.scope === 'month') {
+                    targetEl = store.mode === 'editor' 
+                        ? document.querySelector(`tr[data-month-date="${targetDateStr}"]`) 
+                        : document.querySelector(`.cal-day[data-date="${targetDateStr}"]`);
+                } else if (store.scope === 'year') {
+                    targetEl = store.mode === 'editor' 
+                        ? document.querySelector(`tr[data-year-date="${targetDateStr}"]`) 
+                        : document.querySelector(`div[onclick="window.goToDay('${targetDateStr}')"]`);
+                }
+
+                if (targetEl) {
+                    const rect = targetEl.getBoundingClientRect();
+                    // 무한스크롤 청크나 DOM이 아직 완전히 그려지지 않았다면 약간 대기 후 재시도
+                    if (rect.width === 0 && rect.height === 0) {
+                        if (attempts < 20) setTimeout(focusOnTargetDate, 150);
+                        return;
+                    }
+
+                    // 뷰어 고유의 초기화 스크롤(setTimeout 50ms)을 덮어쓰기 위해 100ms 지연 실행
+                    setTimeout(() => {
+                        const headerOffset = document.querySelector('.app-header')?.offsetHeight || 60;
+                        const absoluteY = targetEl.getBoundingClientRect().top + window.pageYOffset;
+                        const viewportHeight = window.innerHeight;
+                        
+                        // 화면 중앙부보다 살짝 위쪽에 해당 날짜가 오도록 계산
+                        const targetScrollY = absoluteY - headerOffset - (viewportHeight / 4);
+                        window.scrollTo({ top: targetScrollY, behavior: 'auto' });
+
+                        // 사용자가 쉽게 알아볼 수 있도록 노란색 하이라이트 깜빡임 효과 적용
+                        const highlightTargets = targetEl.tagName.toLowerCase() === 'tr' ? targetEl.querySelectorAll('td') : [targetEl];
+                        highlightTargets.forEach(el => {
+                            const originalBg = el.style.backgroundColor || '';
+                            el.style.transition = 'background-color 0.4s ease';
+                            el.style.backgroundColor = '#fef08a';
+                            setTimeout(() => { 
+                                el.style.backgroundColor = originalBg; 
+                                setTimeout(() => { el.style.transition = ''; }, 400); 
+                            }, 1200);
+                        });
+                    }, 100); 
+                } else if (attempts < 20) {
+                    setTimeout(focusOnTargetDate, 150);
+                }
+            };
+
+            focusOnTargetDate();
         }
     });
 
@@ -338,7 +394,6 @@ export const goToDay = (dateStr) => {
             window.dayViewInstance.renderEditor().then(() => { store.mode = prevMode; });
         }
 
-        // 🔥 [수정 2] 저장을 눌렀을 때 창을 닫지 않도록 수정
         document.getElementById('day-modal-save-btn').onclick = async () => {
             if (window.dayViewInstance) {
                 try {
@@ -348,11 +403,9 @@ export const goToDay = (dateStr) => {
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
                     store.hasUnsavedChanges = false;
                     
-                    // dayModal.close(); 🔥 삭제하여 창을 유지합니다.
-                    
                     btn.innerHTML = '✅ 저장됨';
                     btn.style.opacity = '1';
-                    setTimeout(() => { btn.innerHTML = '💾 저장'; }, 2000); // 2초 후 원래 텍스트 복구
+                    setTimeout(() => { btn.innerHTML = '💾 저장'; }, 2000);
                 } catch (err) {
                     console.error("저장 중 에러 발생:", err);
                     alert("저장 중 오류가 발생했습니다: " + err.message);
@@ -362,7 +415,6 @@ export const goToDay = (dateStr) => {
             }
         };
         
-        // 닫기 버튼 로직
         document.getElementById('day-modal-cancel-btn').onclick = () => { store.hasUnsavedChanges = false; dayModal.close(); };
     }, 100);
 };
