@@ -227,7 +227,6 @@ export const goToDay = (dateStr) => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
             document.removeEventListener('keydown', handleModalKeydown);
             
-            // 🔥 네비게이션(이전/다음) 이동 중에는 백그라운드를 재렌더링하지 않음
             if (window.isNavigatingDayModal) return;
 
             if (window.render) window.render(); 
@@ -238,7 +237,6 @@ export const goToDay = (dateStr) => {
             const focusOnTargetDate = () => {
                 attempts++;
                 
-                // 🔥 백그라운드 렌더링이 완전히 끝날 때까지 대기
                 if ((window.monthViewInstance && window.monthViewInstance.isRendering) ||
                     (window.weekViewInstance && window.weekViewInstance.isRendering) ||
                     (window.yearViewInstance && window.yearViewInstance.isRendering)) {
@@ -247,27 +245,49 @@ export const goToDay = (dateStr) => {
                 }
 
                 let targetEl = null;
+                let highlightTargets = [];
 
+                // 🔥 요청사항 완벽 반영: 줄 전체가 아닌 정확히 '날짜/요일 칸'만 타겟팅
                 if (store.scope === 'week') {
-                    targetEl = document.querySelector(`tr[data-week-date="${targetDateStr}"]`);
+                    const row = document.querySelector(`tr[data-week-date="${targetDateStr}"]`);
+                    if (row) {
+                        targetEl = row;
+                        highlightTargets = [row.querySelector('td:first-child')]; 
+                    }
                 } else if (store.scope === 'month') {
-                    targetEl = store.mode === 'editor' 
-                        ? document.querySelector(`tr[data-month-date="${targetDateStr}"]`) 
-                        : document.querySelector(`.cal-day[data-date="${targetDateStr}"]`);
+                    if (store.mode === 'editor') {
+                        const row = document.querySelector(`tr[data-month-date="${targetDateStr}"]`);
+                        if (row) {
+                            targetEl = row;
+                            highlightTargets = [row.querySelector('td:first-child')];
+                        }
+                    } else {
+                        targetEl = document.querySelector(`.cal-day[data-date="${targetDateStr}"]`);
+                        if (targetEl) highlightTargets = [targetEl];
+                    }
                 } else if (store.scope === 'year') {
-                    targetEl = store.mode === 'editor' 
-                        ? document.querySelector(`tr[data-year-date="${targetDateStr}"]`) 
-                        : document.querySelector(`div[onclick="window.goToDay('${targetDateStr}')"]`);
+                    if (store.mode === 'editor') {
+                        const row = document.querySelector(`tr[data-year-date="${targetDateStr}"]`);
+                        if (row) {
+                            targetEl = row;
+                            highlightTargets = [row.querySelector('td:first-child')];
+                        }
+                    } else {
+                        const clickDiv = document.querySelector(`div[onclick="window.goToDay('${targetDateStr}')"]`);
+                        if (clickDiv) {
+                            targetEl = clickDiv.parentElement;
+                            highlightTargets = [targetEl];
+                        }
+                    }
                 }
 
-                if (targetEl) {
+                if (targetEl && highlightTargets.length > 0 && highlightTargets[0] != null) {
                     const rect = targetEl.getBoundingClientRect();
                     if (rect.width === 0 && rect.height === 0) {
                         if (attempts < 50) setTimeout(focusOnTargetDate, 150);
                         return;
                     }
 
-                    // 렌더링 고유의 스크롤을 무시하기 위해 여유를 두고 스크롤 이동 및 강조
                     setTimeout(() => {
                         const headerOffset = document.querySelector('.app-header')?.offsetHeight || 60;
                         const absoluteY = targetEl.getBoundingClientRect().top + window.pageYOffset;
@@ -276,8 +296,8 @@ export const goToDay = (dateStr) => {
                         const targetScrollY = absoluteY - headerOffset - (viewportHeight / 4);
                         window.scrollTo({ top: targetScrollY, behavior: 'auto' });
 
-                        const highlightTargets = targetEl.tagName.toLowerCase() === 'tr' ? targetEl.querySelectorAll('td') : [targetEl];
                         highlightTargets.forEach(el => {
+                            if(!el) return;
                             const originalBg = el.style.backgroundColor || '';
                             el.style.transition = 'background-color 0.4s ease';
                             el.style.backgroundColor = '#fef08a';
@@ -356,7 +376,7 @@ export const goToDay = (dateStr) => {
 
             const newDateStr = formatDate(d);
             
-            window.isNavigatingDayModal = true; // 🔥 네비게이션 시 백그라운드 재렌더링 방지 플래그
+            window.isNavigatingDayModal = true; 
             dayModal.close();
             setTimeout(() => {
                 window.goToDay(newDateStr);
