@@ -3,7 +3,11 @@
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
+// 🌟 안전하게 로그인 정보를 가져오는 헬퍼 함수
+const getCurrentUser = () => {
+    return window.auth?.currentUser || null;
+};
+
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -120,7 +124,7 @@ export const CompactEventHelper = {
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
-            ev.editorEmail = window.auth?.currentUser?.email; 
+            ev.editorEmail = getCurrentUser()?.email; // 💡
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
@@ -219,7 +223,7 @@ export const CompactEventHelper = {
         });
 
         const realTodayStr = formatDate(new Date());
-        const uid = window.auth?.currentUser?.uid; 
+        const uid = getCurrentUser()?.uid; // 💡
         
         return list.map((e) => {
             if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
@@ -347,12 +351,14 @@ export const CompactEventHelper = {
                 const currSupplies = supplies ? ` [${supplies}]` : '';
                 const currText = `${currSubject}${memo || ''}${currSupplies}`.trim();
 
+                // 💡 텍스트가 바뀌었을 때만 새로운 사람의 이메일로 덮어쓰기
                 if (currText !== prevText) {
                     if (currText === '') {
                         authorEmail = null; editorEmail = null;
                     } else {
-                        authorEmail = authorEmail || window.auth?.currentUser?.email;
-                        editorEmail = window.auth?.currentUser?.email;
+                        const userEmail = getCurrentUser()?.email;
+                        authorEmail = authorEmail || userEmail;
+                        editorEmail = userEmail;
                     }
                 }
 
@@ -372,7 +378,7 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
-            ev.editorEmail = window.auth?.currentUser?.email; 
+            ev.editorEmail = getCurrentUser()?.email; 
         }
         
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
@@ -387,11 +393,13 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
-        const userEmail = window.auth?.currentUser?.email;
+        
+        const userEmail = getCurrentUser()?.email;
+        const uid = getCurrentUser()?.uid;
         
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-            authorId: window.auth?.currentUser?.uid,
+            authorId: uid,
             authorEmail: userEmail, 
             editorEmail: userEmail, 
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
@@ -446,7 +454,7 @@ export const CompactEventHelper = {
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
-        ev.editorEmail = window.auth?.currentUser?.email; 
+        ev.editorEmail = getCurrentUser()?.email; 
         
         const isActive = ev.labelIds.includes(labelId);
         const labelObj = getEventLabels().find(l => l.id === labelId);

@@ -119,7 +119,7 @@ export class YearView extends BaseView {
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
                 
-                // 💡 뷰어 렌더링 시 fId를 직접 넘겨 안전성을 보장
+                // 💡 뷰어 렌더링 시 fId 직접 넘겨 아이디 출력 보장
                 let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact', fId)}</div>` : '';
 
                 const jList = jMap[dateStr]?.[fId] || [];
@@ -541,10 +541,12 @@ export class YearView extends BaseView {
 
     const snapshot = this.renderedDateStrings.map(dateStr => {
         const rawList = window[`tempEvents_${dateStr}`] || [];
+        const currentUser = window.auth?.currentUser || null;
+
         const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
                 ...e, 
                 id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || window.auth?.currentUser?.uid, 
+                authorId: e.authorId || currentUser?.uid, 
                 sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) };
@@ -566,6 +568,9 @@ export class YearView extends BaseView {
   }
 
   async executeBackgroundSync(snapshot) {
+      const currentUser = window.auth?.currentUser || null;
+      const myUid = currentUser?.uid;
+
       for (const item of snapshot) {
           const { dateStr, validEvents, schedulesData } = item;
 
@@ -583,7 +588,7 @@ export class YearView extends BaseView {
 
           const groupIds = Object.keys(schedulesData).filter(id => id !== 'personal');
           validEvents.forEach(e => {
-              if (e.sharedGroupId !== 'personal' && !groupIds.includes(e.sharedGroupId)) groupIds.push(e.sharedGroupId);
+              if (e.sharedGroupId && e.sharedGroupId !== 'personal' && !groupIds.includes(e.sharedGroupId)) groupIds.push(e.sharedGroupId);
           });
 
           if (groupIds.length > 0) this.showGroupRealtimeNotice();
@@ -596,32 +601,34 @@ export class YearView extends BaseView {
               await runTransaction(db, async (transaction) => {
                   const docSnap = await transaction.get(groupDocRef);
                   const existingData = docSnap.exists() ? docSnap.data() : { eventList: [], schedules: {} };
-                  const existingEvents = existingData.eventList || [];
-                  const existingSchedules = existingData.schedules || {};
+                  
+                  // 🌟 A선생님 이벤트 날아가는 버그 해결! 작성자 판별로 보존 처리 
+                  const newMergedEvents = [];
 
-                  const mergedEvents = [...existingEvents];
-
-                  gEvents.forEach(newEv => {
-                      const existingIdx = mergedEvents.findIndex(e => e.id === newEv.id);
-                      if (existingIdx !== -1) {
-                          const isDifferent = JSON.stringify(mergedEvents[existingIdx]) !== JSON.stringify(newEv);
-                          if (isDifferent && mergedEvents[existingIdx].authorId !== newEv.authorId) {
-                              mergedEvents.push({ ...newEv, id: newEv.id + '_conflict_' + Date.now() });
-                          } else {
-                              mergedEvents[existingIdx] = newEv; 
+                  // 1) DB에 있지만 내 화면(로컬)엔 없는 일정 병합
+                  (existingData.eventList || []).forEach(dbEv => {
+                      const inLocal = gEvents.find(e => e.id === dbEv.id);
+                      if (!inLocal) {
+                          const isMyEvent = (dbEv.authorId === myUid) || (!dbEv.authorId);
+                          if (!isMyEvent) {
+                              newMergedEvents.push(dbEv);
                           }
-                      } else {
-                          mergedEvents.push(newEv); 
                       }
                   });
 
-                  const mergedSchedules = { ...existingSchedules };
+                  // 2) 내 로컬 화면에 있는 일정 추가 및 덮어쓰기
+                  gEvents.forEach(localEv => {
+                      newMergedEvents.push(localEv);
+                  });
+
+                  // 3) 시간표 셀 병합
+                  const mergedSchedules = { ...(existingData.schedules || {}) };
                   Object.keys(gSchedules).forEach(period => {
                       mergedSchedules[period] = gSchedules[period];
                   });
 
                   transaction.set(groupDocRef, { 
-                      eventList: mergedEvents, 
+                      eventList: newMergedEvents, 
                       schedules: mergedSchedules,
                       updatedAt: Date.now() 
                   }, { merge: true });
@@ -629,7 +636,7 @@ export class YearView extends BaseView {
           }
       }
       
-      saveCalendarData(snapshot, this.myGroups, window.activeUnifiedFilters).catch(e => console.warn(e));
+      saveCalendarData(snapshot, this.myGroups, ['personal']).catch(e => console.warn(e));
   }
 }
 

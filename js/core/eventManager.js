@@ -58,7 +58,6 @@ export const formatEventListToText = (eventList) => {
     }).join('\n');
 };
 
-// 💡 fId 파라미터를 추가하여 과거 데이터의 꼬리표 누락 방지
 export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'normal', fId = 'personal') => {
     if (!eventList || eventList.length === 0) return '';
     
@@ -129,7 +128,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;` : 
             `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
 
-        // 🌟 명확하게 fId를 통해 공유그룹 여부 판별 (과거데이터 포함)
+        // 🌟 공유 그룹 일정일 경우 최근 수정자/작성자 아이디 표시 로직
         const isSharedGroup = fId !== 'personal';
         let authorTag = '';
         if (isSharedGroup) {
@@ -154,16 +153,17 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 export const EventManager = {
     toggleEventCompletion: function(dateStr, index, currentStatus) {
         const willBeComplete = !currentStatus;
+        const currentUser = auth?.currentUser || window.auth?.currentUser; // 💡 이중 참조
 
         if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
             if (window.dayViewInstance.currentEvents[index]) {
                 window.dayViewInstance.currentEvents[index].completed = willBeComplete;
-                window.dayViewInstance.currentEvents[index].editorEmail = window.auth?.currentUser?.email;
+                window.dayViewInstance.currentEvents[index].editorEmail = currentUser?.email; 
             }
         }
         if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][index]) {
             window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
-            window[`tempEvents_${dateStr}`][index].editorEmail = window.auth?.currentUser?.email;
+            window[`tempEvents_${dateStr}`][index].editorEmail = currentUser?.email;
         }
 
         const rowEl = document.getElementById(`evt-row-${dateStr}-${index}`);
@@ -208,7 +208,7 @@ export const EventManager = {
 
                 if (eventList[index]) {
                     eventList[index].completed = willBeComplete;
-                    eventList[index].editorEmail = window.auth?.currentUser?.email; 
+                    eventList[index].editorEmail = currentUser?.email; 
                     const newText = formatEventListToText(eventList);
                     await setDoc(docRef, { eventList: eventList, eventText: newText, updatedAt: Date.now() }, { merge: true });
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents(); 
@@ -362,7 +362,9 @@ export const EventManager = {
         const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`; 
 
         const targetCol = sharedGroupId ? getGroupCol(sharedGroupId, 'events') : getUserCol('events');
-        const userEmail = window.auth?.currentUser?.email;
+        
+        const currentUser = auth?.currentUser || window.auth?.currentUser; // 💡
+        const userEmail = currentUser?.email;
 
         for(let i=0; i<totalDays; i++) {
             const dStr = datesToSave[i];
@@ -372,7 +374,7 @@ export const EventManager = {
 
             list.push({ 
                 id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
-                authorId: window.auth?.currentUser?.uid,
+                authorId: currentUser?.uid,
                 authorEmail: userEmail, 
                 editorEmail: userEmail, 
                 labelIds: labelId ? [labelId] : [], 
@@ -508,7 +510,9 @@ export const EventManager = {
 
         const getBase = (c) => (c || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
         const cleanNewContent = getBase(newContent);
-        const userEmail = window.auth?.currentUser?.email;
+        
+        const currentUser = auth?.currentUser || window.auth?.currentUser; // 💡
+        const userEmail = currentUser?.email;
 
         const matchEvent = (e) => {
             if (e.groupId !== groupId) return false;
@@ -770,7 +774,9 @@ export const EventManager = {
 
             let batch = writeBatch(db); let opCount = 0; let batchPromises = [];
             let addedCount = 0; let skippedCount = 0;
-            const userEmail = window.auth?.currentUser?.email;
+            
+            const currentUser = auth?.currentUser || window.auth?.currentUser; // 💡
+            const userEmail = currentUser?.email;
 
             for (const dateStr of targetDates) {
                 const docData = existingEventsMap[dateStr] || {};
@@ -784,7 +790,7 @@ export const EventManager = {
                 if (!list.some(ev => (ev.label === this.currentLabelName || (ev.labels && ev.labels.includes(this.currentLabelName))) && ev.content === content)) {
                     list.push({ 
                         id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
-                        authorId: window.auth?.currentUser?.uid,
+                        authorId: currentUser?.uid,
                         authorEmail: userEmail, 
                         editorEmail: userEmail, 
                         labelIds: labelId ? [labelId] : [], 

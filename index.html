@@ -152,6 +152,47 @@
             return msg;
         }
     });
+
+    // 💡 F5 새로고침 상태 유지 스크립트 (UI 자동화)
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            const savedMode = localStorage.getItem('sp3_mode');
+            if (savedMode === 'editor') document.getElementById('btn-mode-editor')?.click();
+
+            const savedWeekend = localStorage.getItem('sp3_weekendVisible');
+            if (savedWeekend === 'false') {
+                if (window.monthViewInstance?.isWeekendVisible !== false) document.getElementById('btn-toggle-weekend')?.click();
+            }
+
+            const savedClass = localStorage.getItem('sp3_showClass');
+            if (savedClass === 'false') {
+                // UI에서 수업 숨기기가 켜져있지 않다면 클릭
+                document.getElementById('btn-toggle-class')?.click();
+            }
+            
+            const savedFilters = localStorage.getItem('sp3_activeFilters');
+            if (savedFilters) {
+                try {
+                    const filters = JSON.parse(savedFilters);
+                    window.activeUnifiedFilters = filters;
+                    if(window.render) window.render(true);
+                } catch(e){}
+            }
+        }, 800); // 시스템 초기화 이후 안전하게 세팅을 덧씌우기 위한 딜레이
+
+        // 사용자가 버튼을 누를 때마다 상태 즉시 저장
+        document.body.addEventListener('click', (e) => {
+            if (e.target.id === 'btn-mode-viewer') localStorage.setItem('sp3_mode', 'viewer');
+            if (e.target.id === 'btn-mode-editor') localStorage.setItem('sp3_mode', 'editor');
+            if (e.target.id === 'btn-toggle-weekend') setTimeout(() => localStorage.setItem('sp3_weekendVisible', window.monthViewInstance?.isWeekendVisible), 100);
+            if (e.target.id === 'btn-toggle-class') setTimeout(() => localStorage.setItem('sp3_showClass', window.store?.showClass), 100);
+            
+            // 공유 그룹 필터 선택 시 저장
+            if (e.target.closest('.filter-checkbox') || e.target.id === 'btn-filter-personal') {
+                setTimeout(() => localStorage.setItem('sp3_activeFilters', JSON.stringify(window.activeUnifiedFilters || ['personal'])), 100);
+            }
+        });
+    });
   </script>
 </body>
 </html>
