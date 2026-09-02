@@ -1,6 +1,5 @@
 // js/modules/roster.js
-
-import { dbAPI } from '../api/database.js'; // 🌟 신규 API 경로로 변경
+import { dbAPI } from '../api/database.js'; 
 
 export const RosterManager = {
     modalInstance: null,
@@ -54,6 +53,7 @@ export const RosterManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h4 style="margin:0; color:#0f172a;">📋 학생 명단</h4>
                 <div style="display:flex; gap:6px; align-items:center;">
+                    <button onclick="window.RosterManager.importFromGoogleSheet()" style="background:#e0f2fe; color:#0284c7; border:1px solid #bae6fd; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold; margin-right:6px;" title="구글 시트에서 명단을 가져옵니다.">📊 시트에서 가져오기</button>
                     <button onclick="window.RosterManager.removeAllStudents()" style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;" title="현재 학급의 모든 학생을 명단에서 삭제합니다.">🗑️ 모두 삭제</button>
                     <input type="number" id="roster-add-count" placeholder="명수" min="1" style="width:60px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') window.RosterManager.addStudent()">
                     <button onclick="window.RosterManager.addStudent()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;">+ 학생 추가</button>
@@ -68,6 +68,49 @@ export const RosterManager = {
                 <button onclick="window.RosterManager.saveRoster(event)" style="padding:10px 20px; border:none; background:#10b981; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;" title="명렬표 정보를 저장합니다.">저장</button>
             </div>
         `;
+    },
+
+    importFromGoogleSheet: async function() {
+        const url = prompt("구글 시트 주소(URL)를 입력해주세요.\n(주의: 시트의 A열은 '번호', B열은 '이름', C열은 '성별(선택)'이어야 합니다.)");
+        if (!url) return;
+        const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (!match) return alert("올바른 구글 시트 URL이 아닙니다.");
+        const sheetId = match[1];
+
+        try {
+            const token = await window.getValidGoogleToken(); 
+            if (!token) return alert("구글 로그인이 필요합니다.");
+
+            const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const meta = await metaRes.json();
+            if (!meta.sheets) throw new Error("시트 정보를 읽을 수 없습니다. (권한을 확인하세요)");
+            const firstSheetName = meta.sheets[0].properties.title;
+
+            const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(firstSheetName)}!A:C`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await dataRes.json();
+            if (!data.values || data.values.length === 0) return alert("데이터가 비어있습니다.");
+
+            const newStudents = [];
+            data.values.forEach((row, i) => {
+                if (i === 0 && (row[0]==='번호' || row[0]==='순번')) return; 
+                const num = parseInt(row[0], 10);
+                const name = row[1] ? row[1].trim() : '';
+                const gender = row[2] ? (row[2].trim() === '남' || row[2].trim().toUpperCase() === 'M' ? 'M' : (row[2].trim() === '여' || row[2].trim().toUpperCase() === 'F' ? 'F' : '')) : '';
+                if (!isNaN(num) && name) newStudents.push({ num, name, gender, isActive: true });
+            });
+
+            if (newStudents.length > 0) {
+                if (confirm(`총 ${newStudents.length}명의 학생 데이터를 찾았습니다. 현재 학급 명단을 이 데이터로 교체하시겠습니까?`)) {
+                    this.rosterList[this.currentIndex].students = newStudents;
+                    this.renderStudentList();
+                    alert("성공적으로 불러왔습니다. 창 하단의 '저장' 버튼을 눌러야 최종 반영됩니다.");
+                }
+            } else {
+                alert("유효한 학생 데이터를 찾지 못했습니다.");
+            }
+        } catch(e) {
+            alert("가져오기 실패: " + e.message);
+        }
     },
 
     renderCurrentClass: function() {

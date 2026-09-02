@@ -1,5 +1,4 @@
 // js/modules/evaluation.js
-
 import { dbAPI } from '../api/database.js'; 
 import { formatDate } from '../core/utils.js';
 import { store } from '../core/store.js';
@@ -262,6 +261,50 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
 
+        // 🔥 [추가됨] 명렬표 안전 동기화 로직 (방안 A: 전출생 태그 보호 & 신규생 자동 추가)
+        if (this.roster === null) {
+            try { this.roster = await dbAPI.loadRoster(); } catch(e) { this.roster = []; }
+        }
+        if (ev.rosterMeta && this.roster) {
+            const matchedRoster = this.roster.find(r => r.year == ev.rosterMeta.year && r.grade == ev.rosterMeta.grade && r.classNum == ev.rosterMeta.classNum);
+            if (matchedRoster) {
+                let isChanged = false;
+                const activeCurrent = matchedRoster.students || [];
+
+                // 1. 신규 전입생 추가 및 이름 변경 반영
+                activeCurrent.forEach(currSt => {
+                    const existing = ev.studentsSnapshot.find(s => s.num === currSt.num);
+                    if (!existing) {
+                        ev.studentsSnapshot.push({ num: currSt.num, name: currSt.name, gender: currSt.gender });
+                        isChanged = true;
+                    } else {
+                        if (existing.name !== currSt.name && !existing.name.includes('(전출/삭제됨)')) {
+                            existing.name = currSt.name;
+                            isChanged = true;
+                        } else if (existing.name.includes('(전출/삭제됨)')) {
+                            existing.name = currSt.name; 
+                            isChanged = true;
+                        }
+                    }
+                });
+
+                // 2. 전출생(삭제된 학생) 기록 보호용 태그 추가
+                ev.studentsSnapshot.forEach(snapSt => {
+                    const stillExists = activeCurrent.find(s => s.num === snapSt.num && s.isActive !== false);
+                    if (!stillExists && !snapSt.name.includes('(전출/삭제됨)')) {
+                        snapSt.name = snapSt.name + ' (전출/삭제됨)';
+                        isChanged = true;
+                    }
+                });
+
+                if (isChanged) {
+                    ev.studentsSnapshot.sort((a, b) => a.num - b.num);
+                    const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
+                    await dbAPI.saveEvaluations(dateStr, this.currentEvalList, actualGroupId); 
+                }
+            }
+        }
+
         const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
         const uid = window.auth?.currentUser?.uid;
         const isAuthor = !actualGroupId || !ev.authorId || !uid || ev.authorId === uid;
@@ -293,7 +336,8 @@ export const EvaluationManager = {
                 inputsHtml += `<td><input type="text" data-snum="${st.num}" data-field="memo" value="${rec.memo || ''}" ${readonlyAttr}></td>`;
             }
 
-            rowsHtml += `<tr><td style="color:#475569; background:#f8fafc;">${st.num}</td><td style="color:#1e293b;">${st.name}</td>${inputsHtml}</tr>`;
+            const isExited = st.name.includes('(전출/삭제됨)');
+            rowsHtml += `<tr style="${isExited ? 'background:#f1f5f9; color:#94a3b8;' : ''}"><td style="color:#475569; background:#f8fafc;">${st.num}</td><td style="color:${isExited ? '#94a3b8' : '#1e293b'};">${st.name}</td>${inputsHtml}</tr>`;
         });
 
         let headersHtml = `<th style="width:45px;">번호</th><th style="width:85px;">이름</th>`;

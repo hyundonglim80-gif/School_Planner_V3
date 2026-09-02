@@ -81,7 +81,7 @@ export class WeekView extends BaseView {
           }
       }
       if (btn) {
-          btn.style.display = ''; // 🌟 하루 페이지에서 숨겨졌던 버튼을 다시 표시 (복구)
+          btn.style.display = ''; 
           btn.innerHTML = `📜 스크롤 ${this.isInfiniteMode ? '끄기' : '켜기'}`;
           btn.style.backgroundColor = this.isInfiniteMode ? '#fef2f2' : '#f8fafc';
           btn.style.color = this.isInfiniteMode ? '#ef4444' : '#475569';
@@ -169,7 +169,7 @@ export class WeekView extends BaseView {
                   }
               }
           }
-      }, { rootMargin: '100px' }); 
+      }, { rootMargin: '600px' }); 
 
       const topSentinel = document.getElementById('week-top-sentinel');
       const bottomSentinel = document.getElementById('week-bottom-sentinel');
@@ -427,13 +427,13 @@ export class WeekView extends BaseView {
                       </div>
                     </td>
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
@@ -489,12 +489,21 @@ export class WeekView extends BaseView {
         const colgroupHtml = `<colgroup><col style="width: 70px;"><col style="width: 50px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
 
         if (this.isInfiniteMode) {
-            const tempDateStr = formatDate(store.currentDate);
-            const startOfWeekStr = this.getWeekDates(tempDateStr)[0].dateStr;
-            this.renderedDateStrings = [];
-            this.loadedWeeks = [{ dateStr: startOfWeekStr }];
+            const currentTargetDate = new Date(store.currentDate);
+            currentTargetDate.setDate(currentTargetDate.getDate() - currentTargetDate.getDay() - 14);
             
-            const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
+            this.renderedDateStrings = [];
+            this.loadedWeeks = [];
+            let chunkHtml = '';
+            
+            for (let i = 0; i < 5; i++) {
+                const wStr = formatDate(currentTargetDate);
+                const startOfWeekStr = this.getWeekDates(wStr)[0].dateStr;
+                chunkHtml += await this.buildViewerChunk(startOfWeekStr);
+                this.loadedWeeks.push({ dateStr: startOfWeekStr });
+                currentTargetDate.setDate(currentTargetDate.getDate() + 7);
+            }
+
             this.container.innerHTML = `
                 <div id="week-top-sentinel" style="height:20px; width:100%;"></div>
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
@@ -507,6 +516,18 @@ export class WeekView extends BaseView {
             `;
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
+
+            setTimeout(() => {
+                const todayStr = formatDate(store.currentDate);
+                const startOfCurrentWeek = this.getWeekDates(todayStr)[0].dateStr;
+                const targetRow = document.querySelector(`tr[data-week-date="${startOfCurrentWeek}"]`);
+                if (targetRow) {
+                    const header = document.querySelector('.app-header');
+                    const offset = header ? header.offsetHeight : 0;
+                    const y = targetRow.getBoundingClientRect().top + window.pageYOffset - offset - 15;
+                    window.scrollTo({ top: y, behavior: 'instant' });
+                }
+            }, 50);
         } else {
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
             const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
@@ -541,10 +562,19 @@ export class WeekView extends BaseView {
         this.renderedDateStrings = [];
 
         if (this.isInfiniteMode) {
-            const tempDateStr = formatDate(store.currentDate);
-            const startOfWeekStr = this.getWeekDates(tempDateStr)[0].dateStr;
-            this.loadedWeeks = [{ dateStr: startOfWeekStr }];
-            const chunkHtml = await this.buildEditorChunk(startOfWeekStr);
+            const currentTargetDate = new Date(store.currentDate);
+            currentTargetDate.setDate(currentTargetDate.getDate() - currentTargetDate.getDay() - 14);
+
+            this.loadedWeeks = [];
+            let chunkHtml = '';
+
+            for (let i = 0; i < 5; i++) {
+                const wStr = formatDate(currentTargetDate);
+                const startOfWeekStr = this.getWeekDates(wStr)[0].dateStr;
+                chunkHtml += await this.buildEditorChunk(startOfWeekStr);
+                this.loadedWeeks.push({ dateStr: startOfWeekStr });
+                currentTargetDate.setDate(currentTargetDate.getDate() + 7);
+            }
             
             this.container.innerHTML = `
               <div id="week-top-sentinel" style="height:20px; width:100%;"></div>
@@ -558,6 +588,18 @@ export class WeekView extends BaseView {
               <div id="week-bottom-sentinel" style="height:20px; width:100%;"></div>`;
             this.setupInfiniteObserver('editor');
             this.setupChunkObserver();
+
+            setTimeout(() => {
+                const todayStr = formatDate(store.currentDate);
+                const startOfCurrentWeek = this.getWeekDates(todayStr)[0].dateStr;
+                const targetRow = document.querySelector(`tr[data-week-date="${startOfCurrentWeek}"]`);
+                if (targetRow) {
+                    const header = document.querySelector('.app-header');
+                    const offset = header ? header.offsetHeight : 0;
+                    const y = targetRow.getBoundingClientRect().top + window.pageYOffset - offset - 15;
+                    window.scrollTo({ top: y, behavior: 'instant' });
+                }
+            }, 50);
         } else {
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
             const chunkHtml = await this.buildEditorChunk(startOfWeekStr);
