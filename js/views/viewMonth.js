@@ -58,7 +58,7 @@ export class MonthView extends BaseView {
           }
       }
       if (btn) {
-          btn.style.display = ''; // 🌟 하루 페이지에서 숨겨졌던 버튼을 다시 표시 (복구)
+          btn.style.display = ''; 
           btn.innerHTML = `📜 스크롤 ${this.isInfiniteMode ? '끄기' : '켜기'}`;
           btn.style.backgroundColor = this.isInfiniteMode ? '#fef2f2' : '#f8fafc';
           btn.style.color = this.isInfiniteMode ? '#ef4444' : '#475569';
@@ -102,6 +102,7 @@ export class MonthView extends BaseView {
       if (this.observer) this.observer.disconnect();
       const currentRenderId = this.renderId; 
       
+      // 🔥 최적화를 위해 오차 범위를 100px로 줄여 적용
       this.observer = new IntersectionObserver(async (entries) => {
           if (window.isAutoScrollingMonth || window.activeModalCount > 0) return; 
 
@@ -254,7 +255,6 @@ export class MonthView extends BaseView {
               const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
               
-              // 🌟 뷰어 모드 일정 다중 정렬 적용
               processedEvents.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -274,7 +274,6 @@ export class MonthView extends BaseView {
               const jList = jMap[dateStr]?.[fId] || [];
               const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
               
-              // 🌟 뷰어 모드 기록 다중 정렬 적용
               validJournals.sort((a, b) => {
                   let aRank = 9999, bRank = 9999;
                   (a.labelIds || []).forEach(id => {
@@ -497,14 +496,23 @@ export class MonthView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        const y = store.currentDate.getFullYear();
-        const m = store.currentDate.getMonth();
-
         if (this.isInfiniteMode) {
+            // 🔥 1. 모바일 환경을 위해 앞뒤 2개월 포함 총 5개월치 미리 렌더링
+            const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
+            currentTargetDate.setMonth(currentTargetDate.getMonth() - 2); // 2개월 전으로 이동
+
             this.renderedDateStrings = [];
-            this.loadedMonths = [{y, m}];
-            
-            const chunkHtml = await this.buildViewerChunk(y, m);
+            this.loadedMonths = [];
+            let chunkHtml = '';
+
+            for (let i = 0; i < 5; i++) {
+                const y = currentTargetDate.getFullYear();
+                const m = currentTargetDate.getMonth();
+                chunkHtml += await this.buildViewerChunk(y, m);
+                this.loadedMonths.push({y, m});
+                currentTargetDate.setMonth(currentTargetDate.getMonth() + 1);
+            }
+
             this.container.innerHTML = `
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
                 <div id="infinite-viewer-container" style="padding-top:10px;">
@@ -516,7 +524,22 @@ export class MonthView extends BaseView {
             `;
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
+
+            // 🔥 2. 렌더링 직후 화면을 가운데 '이번 달' 위치로 자동 정렬
+            setTimeout(() => {
+                const todayY = store.currentDate.getFullYear();
+                const todayM = store.currentDate.getMonth();
+                const targetChunk = document.querySelector(`.month-chunk[data-y="${todayY}"][data-m="${todayM}"]`);
+                if (targetChunk) {
+                    const header = document.querySelector('.app-header');
+                    const offset = header ? header.offsetHeight : 0;
+                    const y = targetChunk.getBoundingClientRect().top + window.pageYOffset - offset - 15;
+                    window.scrollTo({ top: y, behavior: 'instant' });
+                }
+            }, 50);
         } else {
+            const y = store.currentDate.getFullYear();
+            const m = store.currentDate.getMonth();
             const chunkHtml = await this.buildViewerChunk(y, m);
             this.container.innerHTML = `
               <div style="padding-top:15px;">
@@ -541,8 +564,6 @@ export class MonthView extends BaseView {
         if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
-        const y = store.currentDate.getFullYear();
-        const m = store.currentDate.getMonth();
         const maxP = store.periodNames ? store.periodNames.length : 6;
         const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
         const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
@@ -550,9 +571,21 @@ export class MonthView extends BaseView {
         this.renderedDateStrings = [];
 
         if (this.isInfiniteMode) {
-            this.loadedMonths = [{y, m}];
-            const chunkHtml = await this.buildEditorChunk(y, m);
-            
+            // 🔥 1. 앞뒤 2개월 포함 총 5개월치 렌더링
+            const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
+            currentTargetDate.setMonth(currentTargetDate.getMonth() - 2);
+
+            this.loadedMonths = [];
+            let chunkHtml = '';
+
+            for (let i = 0; i < 5; i++) {
+                const y = currentTargetDate.getFullYear();
+                const m = currentTargetDate.getMonth();
+                chunkHtml += await this.buildEditorChunk(y, m);
+                this.loadedMonths.push({y, m});
+                currentTargetDate.setMonth(currentTargetDate.getMonth() + 1);
+            }
+
             this.container.innerHTML = `
               <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
               <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
@@ -565,7 +598,22 @@ export class MonthView extends BaseView {
               <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>`;
             this.setupInfiniteObserver('editor');
             this.setupChunkObserver();
+
+            // 🔥 2. 스크롤 정렬
+            setTimeout(() => {
+                const todayY = store.currentDate.getFullYear();
+                const todayM = store.currentDate.getMonth();
+                const targetChunk = document.querySelector(`.month-chunk[data-y="${todayY}"][data-m="${todayM}"]`);
+                if (targetChunk) {
+                    const header = document.querySelector('.app-header');
+                    const offset = header ? header.offsetHeight : 0;
+                    const y = targetChunk.getBoundingClientRect().top + window.pageYOffset - offset - 15;
+                    window.scrollTo({ top: y, behavior: 'instant' });
+                }
+            }, 50);
         } else {
+            const y = store.currentDate.getFullYear();
+            const m = store.currentDate.getMonth();
             const chunkHtml = await this.buildEditorChunk(y, m);
             this.container.innerHTML = `
               <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top:15px;">
