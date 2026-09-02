@@ -778,7 +778,7 @@ export class DayView extends BaseView {
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && ev.authorId)
-                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자 고유ID">👤 ${ev.authorId.substring(0, 6)}</span>`
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
                 : '';
 
             return `
@@ -852,7 +852,7 @@ export class DayView extends BaseView {
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && j.authorId)
-                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자 고유ID">👤 ${j.authorId.substring(0, 6)}</span>`
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
                 : '';
 
             return `
@@ -1157,6 +1157,10 @@ export class DayView extends BaseView {
             validEvents.forEach(e => {
                 if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!e.authorId && auth?.currentUser?.uid) e.authorId = auth.currentUser.uid;
+                // [추가된 부분] 내 일정일 경우 닉네임 도장 찍기
+                if (e.authorId === auth?.currentUser?.uid) {
+                    e.authorName = localStorage.getItem('sp3_nickname') || e.authorName || '';
+                }
                 e.sharedGroupId = fId === 'personal' ? null : fId;
                 snapshot[0].validEvents.push(e);
             });
@@ -1167,6 +1171,10 @@ export class DayView extends BaseView {
             validJournals.forEach(j => {
                 if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!j.authorId && auth?.currentUser?.uid) j.authorId = auth.currentUser.uid;
+                // [추가된 부분] 내 기록일 경우 닉네임 도장 찍기
+                if (j.authorId === auth?.currentUser?.uid) {
+                    j.authorName = localStorage.getItem('sp3_nickname') || j.authorName || '';
+                }
                 delete j.isUploading;
             });
             snapshot[0].journalsData[fId] = validJournals;
@@ -1201,27 +1209,23 @@ export class DayView extends BaseView {
                             
                             const mergedMap = new Map();
                             
-                            // 원격(다른 유저) 데이터를 기준으로 탐색
                             remoteEvents.forEach(re => {
                                 if (originalMap.has(re.id) && !localMap.has(re.id)) {
-                                    // Case A: 내가 로컬에서 삭제버튼을 눌러 지운 항목 -> 병합하지 않음(삭제 인정)
+                                    // 내가 로컬에서 지운 항목 무시
                                 } else if (localMap.has(re.id)) {
-                                    // Case B: 둘 다 존재하지만 내가 수정한 경우 -> 내 수정본 우선 반영
-                                    mergedMap.set(re.id, localMap.get(re.id));
+                                    mergedMap.set(re.id, localMap.get(re.id)); // 내 수정본 반영
                                 } else {
-                                    // Case C: 내 원본엔 없었는데 원격에 생긴 경우 -> 다른 유저가 동시 추가한 항목! (보존)
-                                    mergedMap.set(re.id, re);
+                                    mergedMap.set(re.id, re); // 타 유저가 동시 추가한 항목 보존
                                 }
                             });
                             
-                            // 내 로컬에서 새롭게 추가한 항목들 덧붙이기
                             pEvents.forEach(le => {
                                 if (!mergedMap.has(le.id)) mergedMap.set(le.id, le);
                             });
                             
                             finalEvents = Array.from(mergedMap.values());
                         }
-                    } catch(err) { console.warn("일정 병합 중 오류:", err); }
+                    } catch(err) { console.warn("일정 병합 오류:", err); }
 
                     await setDoc(evRef, { 
                         eventList: finalEvents,
@@ -1245,14 +1249,14 @@ export class DayView extends BaseView {
                             const mergedMap = new Map();
                             
                             remoteJournals.forEach(rj => {
-                                if (originalMap.has(rj.id) && !localMap.has(rj.id)) { /* 내가 삭제함 */ }
+                                if (originalMap.has(rj.id) && !localMap.has(rj.id)) { }
                                 else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
-                                else mergedMap.set(rj.id, rj); // 다른 유저가 추가함
+                                else mergedMap.set(rj.id, rj); 
                             });
                             pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
                             finalJournals = Array.from(mergedMap.values());
                         }
-                    } catch(err) { console.warn("기록 병합 중 오류:", err); }
+                    } catch(err) { console.warn("기록 병합 오류:", err); }
 
                     await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
 
@@ -1267,26 +1271,27 @@ export class DayView extends BaseView {
                             const remotePeriods = scSnap.data().periods || {};
                             const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
                             
-                            // 각 교시별로 비교
                             for (let p in remotePeriods) {
                                 const rJson = JSON.stringify(remotePeriods[p] || {});
                                 const oJson = JSON.stringify(originalPeriods[p] || {});
                                 const lJson = JSON.stringify(pSchedules[p] || {});
                                 
-                                // 나는 해당 교시를 건드리지 않았는데, 다른 유저가 교시 내용을 수정했다면
                                 if (oJson === lJson && rJson !== oJson) {
-                                    finalSchedules[p] = remotePeriods[p]; // 다른 유저의 수정 내용 보존
+                                    finalSchedules[p] = remotePeriods[p]; 
                                 }
                             }
                         }
-                    } catch(err) { console.warn("수업 병합 중 오류:", err); }
+                    } catch(err) { console.warn("수업 병합 오류:", err); }
 
                     await setDoc(scRef, { periods: finalSchedules, updatedAt: Date.now() }, { merge: true });
 
                 })());
             });
             
-            await Promise.all(promises);
+            await Promise.race([
+                Promise.all(promises),
+                new Promise(resolve => setTimeout(resolve, 300))
+            ]);
             
             store.hasUnsavedChanges = false;
         } catch(e) {

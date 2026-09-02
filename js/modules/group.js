@@ -41,7 +41,16 @@ export const GroupManager = {
 
     getModalHtml: function() {
         return `
-            <div style="display:flex; flex-direction:column; gap:20px; max-height:65vh; overflow-y:auto; padding-right:5px;">
+        <div style="display:flex; flex-direction:column; gap:15px; padding:10px;">
+            <!-- [추가된 부분] 닉네임 설정 영역 -->
+            <div style="margin-bottom: 10px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                <label style="font-weight:bold; color:#0369a1; display:block; margin-bottom:8px;">👤 내 그룹 활동 닉네임 (실명)</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="my-group-nickname" placeholder="예: 홍길동 교사" value="\${localStorage.getItem('sp3_nickname') || ''}" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px;">
+                    <button onclick="window.saveMyNickname()" style="background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:4px; font-weight:bold; cursor:pointer;">저장</button>
+                </div>
+                <p style="font-size:0.8rem; color:#64748b; margin:5px 0 0 0;">※ 저장 이후 작성/수정하는 데이터부터 이 닉네임이 표기됩니다.</p>
+            </div>
                 
                 <div class="modal-info-box" style="background:#eff6ff; border-left-color:#3b82f6; margin:0; padding:12px 15px;">
                     <p style="margin:0; font-size:0.95rem; color:#1e40af;">
@@ -225,3 +234,11 @@ export const GroupManager = {
 };
 
 window.GroupManager = GroupManager;
+
+    // [추가된 부분] 닉네임 저장 함수
+    window.saveMyNickname = function() {
+        const nick = document.getElementById('my-group-nickname').value.trim();
+        if(!nick) return alert("닉네임을 입력해주세요.");
+        localStorage.setItem('sp3_nickname', nick);
+        alert("닉네임이 저장되었습니다. 이후 작성글부터 닉네임이 적용됩니다.");
+    };

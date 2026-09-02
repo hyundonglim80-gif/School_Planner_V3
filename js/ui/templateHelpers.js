@@ -266,7 +266,7 @@ export const CompactEventHelper = {
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && e.authorId)
-                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자 고유ID">👤 ${e.authorId.substring(0, 6)}</span>`
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
                 : '';
 
             return `

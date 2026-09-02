@@ -442,7 +442,7 @@ export class MemoView extends BaseView {
     // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
     const isSharedGroup = item.groupId && item.groupId !== 'personal';
     const authorBadge = (isSharedGroup && item.authorId)
-        ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자 고유ID">👤 ${item.authorId.substring(0, 6)}</div>`
+        ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자">👤 ${item.authorName || item.authorId.substring(0, 6)}</div>`
         : '';
 
     return `
@@ -579,7 +579,8 @@ export class MemoView extends BaseView {
         text: text, completed: false, order: -Date.now(), createdAt: Date.now(),
         labels: [...this.currentNewLabels], 
         attachments: [...(this.pendingAttachments || [])],
-        authorId: auth?.currentUser?.uid
+        authorId: auth?.currentUser?.uid,
+        authorName: localStorage.getItem('sp3_nickname') || '' // [추가된 부분]
     };
     
     input.value = ""; input.style.height = '50px'; 

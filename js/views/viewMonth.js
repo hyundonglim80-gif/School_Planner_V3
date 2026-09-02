@@ -659,12 +659,20 @@ export class MonthView extends BaseView {
     for(const dateStr of datesToSave) {
         const rawList = window[`tempEvents_${dateStr}`];
         if (rawList !== undefined) {
-            const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
-                ...e, 
-                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || auth?.currentUser?.uid, 
-                sharedGroupId: e.sharedGroupId || 'personal'
-            }));
+            const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => {
+                const authorId = e.authorId || auth?.currentUser?.uid;
+                let authorName = e.authorName || '';
+                if (authorId === auth?.currentUser?.uid) {
+                    authorName = localStorage.getItem('sp3_nickname') || authorName;
+                }
+                return {
+                    ...e, 
+                    id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                    authorId: authorId, 
+                    authorName: authorName,
+                    sharedGroupId: e.sharedGroupId || 'personal'
+                };
+            });
             snapshot.push({ dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) });
         }
     }
