@@ -2,11 +2,13 @@
 import { BaseView } from '../components/BaseView.js';
 import { store } from '../core/store.js';
 import { formatDate, isRedDay, getHolidayName, getEventLabels } from '../core/utils.js';
+// 💡 getUserCol, getGroupCol 임포트 추가
 import { dbAPI, getUserCol, getGroupCol } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js'; 
 import { generateEventBadgesHTML } from '../core/eventManager.js';
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
+// 💡 runTransaction 임포트 추가
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch, runTransaction } from "firebase/firestore";
 
 export class YearView extends BaseView {
@@ -118,9 +120,7 @@ export class YearView extends BaseView {
                 
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
-                
-                // 💡 뷰어 렌더링 시 fId 직접 넘겨 아이디 출력 보장
-                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact', fId)}</div>` : '';
+                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
                 const jList = jMap[dateStr]?.[fId] || [];
                 const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
@@ -129,22 +129,9 @@ export class YearView extends BaseView {
                 let attachmentCount = 0;
                 validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
 
-                // 🌟 기록 및 조사표 아이디 표시 (이메일 없으면 익명으로 예외처리)
-                let jAuthors = [...new Set(validJournals.map(j => j.editorEmail || j.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-                let jAuthorStr = '';
-                if (fId !== 'personal' && validJournals.length > 0) {
-                    jAuthorStr = jAuthors.length > 0 ? ` (👤${jAuthors.join(', ')})` : ` (👤익명)`;
-                }
-
-                let vAuthors = [...new Set(vList.map(v => v.editorEmail || v.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-                let vAuthorStr = '';
-                if (fId !== 'personal' && vList.length > 0) {
-                    vAuthorStr = vAuthors.length > 0 ? ` (👤${vAuthors.join(', ')})` : ` (👤익명)`;
-                }
-
                 let metaBadges = '';
-                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}${jAuthorStr}</span>`;
-                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}${vAuthorStr}</span>`;
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}</span>`;
                 if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
                 if (metaBadges) {
@@ -156,23 +143,13 @@ export class YearView extends BaseView {
                     let hasClass = false;
                     let boxesHtml = Array.from({ length: this.maxPeriod }).map((_, pi) => {
                         const p = pi + 1;
-                        const pObj = sMap[dateStr]?.[fId]?.[p] || {};
-                        const subj = pObj.subject;
+                        const subj = sMap[dateStr]?.[fId]?.[p]?.subject;
                         if (subj && subj.trim() !== '' && subj.toUpperCase() !== 'X') {
                             hasClass = true;
                             const text = subj.trim();
                             let fontSize = text.length >= 5 ? "0.45rem" : (text.length === 4 ? "0.55rem" : (text.length === 3 ? "0.65rem" : "0.75rem"));
                             let letterSpacing = text.length >= 5 ? "-1.5px" : (text.length === 4 ? "-1px" : (text.length === 3 ? "-0.5px" : "normal"));
-                            
-                            // 🌟 수업(뷰어) 아이디 표시 (이메일 없으면 익명으로 예외처리)
-                            let authorHtml = '';
-                            if (fId !== 'personal' && text !== '') {
-                                const emailStr = pObj.editorEmail || pObj.authorEmail || '';
-                                const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-                                authorHtml = `<span style="font-size:0.5rem; color:#059669; margin-left:2px; font-weight:normal;">(👤${authorName})</span>`;
-                            }
-
-                            return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="최근 수정: ${pObj.editorEmail || pObj.authorEmail || '과거데이터'}">${text}${authorHtml}</div>`;
+                            return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="${text}">${text}</div>`;
                         }
                         return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
                     }).join('');
@@ -396,22 +373,9 @@ export class YearView extends BaseView {
                 let attachmentCount = 0;
                 validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
 
-                // 🌟 기록 및 조사표 아이디 표시 (이메일 없으면 익명으로 예외처리)
-                let jAuthors = [...new Set(validJournals.map(j => j.editorEmail || j.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-                let jAuthorStr = '';
-                if (fId !== 'personal' && validJournals.length > 0) {
-                    jAuthorStr = jAuthors.length > 0 ? ` (👤${jAuthors.join(', ')})` : ` (👤익명)`;
-                }
-
-                let vAuthors = [...new Set(vList.map(v => v.editorEmail || v.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-                let vAuthorStr = '';
-                if (fId !== 'personal' && vList.length > 0) {
-                    vAuthorStr = vAuthors.length > 0 ? ` (👤${vAuthors.join(', ')})` : ` (👤익명)`;
-                }
-
                 let metaBadges = '';
-                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}${jAuthorStr}</span>`;
-                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}${vAuthorStr}</span>`;
+                if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="기록">📔${validJournals.length}</span>`;
+                if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px;" title="조사표">📊${vList.length}</span>`;
                 if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
 
                 if (metaBadges) {
@@ -459,19 +423,7 @@ export class YearView extends BaseView {
                         if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                         if (pObj.memo) cellText += pObj.memo + " ";
                         if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-                        
-                        // 🌟 수업(에디터) 텍스트 편집 방해 금지 레이어 (이메일 없으면 익명 표시)
-                        let authorHtml = '';
-                        if (fId !== 'personal' && cellText.trim() !== '') {
-                            const emailStr = pObj.editorEmail || pObj.authorEmail || '';
-                            const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-                            authorHtml = `<div contenteditable="false" style="position:absolute; top:2px; right:2px; font-size:0.65rem; color:#059669; background:rgba(209,250,229,0.9); padding:1px 4px; border-radius:4px; pointer-events:none; font-weight:bold; border:1px solid #6ee7b7; z-index:2;">👤${authorName}</div>`;
-                        }
-
-                        return `<td style="position:relative; vertical-align: top; text-align: left; padding: 0; border:1px solid #cbd5e1; background:#ecfdf5;">
-                            ${authorHtml}
-                            <div class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="padding: 6px 8px; min-height:45px; font-size:1rem; color:#047857; outline:none; white-space:pre-wrap; box-sizing:border-box; width:100%; position:relative; z-index:1;" oninput="window.yearViewInstance.syncScheduleInputs()">${cellText.trim()}</div>
-                        </td>`;
+                        return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.yearViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                     }).join('');
 
                     rowsHtmlForDate += `<tr data-year-schedule-date="${item.dateStr}" data-fid="${fId}" class="year-row-${item.dateStr}"><td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">수업<br>${badgeHtml}</td>${periodCellsHtml}</tr>`;
@@ -505,6 +457,7 @@ export class YearView extends BaseView {
   syncAllCompactEventInputs() { if (this.renderedDateStrings) this.renderedDateStrings.forEach(dateStr => this.syncCompactEventInputs(dateStr)); }
   syncScheduleInputs() { CompactEventHelper.syncScheduleInputs('data-year-schedule-date', 'edit-class-cell'); }
 
+  // 💡 백그라운드 동기화 UI 업데이트 헬퍼
   updateSyncUI(isSyncing) {
       let indicator = document.getElementById('sync-status-indicator');
       if (!indicator) return;
@@ -524,6 +477,7 @@ export class YearView extends BaseView {
       }
   }
 
+  // 💡 공유 그룹 실시간 동기화 알림 (1회성)
   showGroupRealtimeNotice() {
       if (window.hasShownGroupNotice) return;
       window.hasShownGroupNotice = true;
@@ -534,6 +488,7 @@ export class YearView extends BaseView {
       setTimeout(() => toast.remove(), 4000);
   }
 
+  // 💡 오프라인 퍼스트 및 백그라운드 동기화가 반영된 Save 메서드
   async save() {
     if (this.isRendering) return; 
     this.syncScheduleInputs(); 
@@ -541,22 +496,23 @@ export class YearView extends BaseView {
 
     const snapshot = this.renderedDateStrings.map(dateStr => {
         const rawList = window[`tempEvents_${dateStr}`] || [];
-        const currentUser = window.auth?.currentUser || null;
-
         const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
                 ...e, 
                 id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || currentUser?.uid, 
+                authorId: e.authorId || auth?.currentUser?.uid, 
                 sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) };
     });
 
+    // 1. 낙관적 업데이트 적용
     store.hasUnsavedChanges = false;
     
+    // 2. 동기화 상태 활성화 (백그라운드)
     window.pendingWrites = (window.pendingWrites || 0) + 1;
     this.updateSyncUI(true);
 
+    // 3. await 없이 비동기 백그라운드 업로드 시작
     this.executeBackgroundSync(snapshot).then(() => {
         window.pendingWrites = Math.max(0, window.pendingWrites - 1);
         this.updateSyncUI(false);
@@ -567,13 +523,12 @@ export class YearView extends BaseView {
     });
   }
 
+  // 💡 트랜잭션 동시성 병합 로직 및 백그라운드 업로드 로직
   async executeBackgroundSync(snapshot) {
-      const currentUser = window.auth?.currentUser || null;
-      const myUid = currentUser?.uid;
-
       for (const item of snapshot) {
           const { dateStr, validEvents, schedulesData } = item;
 
+          // [개인 데이터 처리] 캐시를 믿고 단순 덮어쓰기 적용
           const personalEvents = validEvents.filter(e => e.sharedGroupId === 'personal');
           const personalSchedules = schedulesData['personal'];
 
@@ -586,9 +541,10 @@ export class YearView extends BaseView {
               }, { merge: true });
           }
 
+          // [공유 그룹 데이터 처리] 다중 사용자 충돌 방지 로직 적용
           const groupIds = Object.keys(schedulesData).filter(id => id !== 'personal');
           validEvents.forEach(e => {
-              if (e.sharedGroupId && e.sharedGroupId !== 'personal' && !groupIds.includes(e.sharedGroupId)) groupIds.push(e.sharedGroupId);
+              if (e.sharedGroupId !== 'personal' && !groupIds.includes(e.sharedGroupId)) groupIds.push(e.sharedGroupId);
           });
 
           if (groupIds.length > 0) this.showGroupRealtimeNotice();
@@ -598,37 +554,40 @@ export class YearView extends BaseView {
               const gSchedules = schedulesData[gId] || {};
               const groupDocRef = doc(getGroupCol(gId, 'events'), dateStr);
 
+              // Transaction으로 클라우드 최신 데이터를 읽어온 후 내 데이터와 병합
               await runTransaction(db, async (transaction) => {
                   const docSnap = await transaction.get(groupDocRef);
                   const existingData = docSnap.exists() ? docSnap.data() : { eventList: [], schedules: {} };
-                  
-                  // 🌟 A선생님 이벤트 날아가는 버그 해결! 작성자 판별로 보존 처리 
-                  const newMergedEvents = [];
+                  const existingEvents = existingData.eventList || [];
+                  const existingSchedules = existingData.schedules || {};
 
-                  // 1) DB에 있지만 내 화면(로컬)엔 없는 일정 병합
-                  (existingData.eventList || []).forEach(dbEv => {
-                      const inLocal = gEvents.find(e => e.id === dbEv.id);
-                      if (!inLocal) {
-                          const isMyEvent = (dbEv.authorId === myUid) || (!dbEv.authorId);
-                          if (!isMyEvent) {
-                              newMergedEvents.push(dbEv);
+                  // 1) 이벤트 병합: 누가 동시에 수정했는지 확인
+                  const mergedEvents = [...existingEvents];
+
+                  gEvents.forEach(newEv => {
+                      const existingIdx = mergedEvents.findIndex(e => e.id === newEv.id);
+                      if (existingIdx !== -1) {
+                          const isDifferent = JSON.stringify(mergedEvents[existingIdx]) !== JSON.stringify(newEv);
+                          // 남이 먼저 수정한 것을 내가 덮어쓰지 않고 새로운 ID를 부여해 복제 보존시킴
+                          if (isDifferent && mergedEvents[existingIdx].authorId !== newEv.authorId) {
+                              mergedEvents.push({ ...newEv, id: newEv.id + '_conflict_' + Date.now() });
+                          } else {
+                              mergedEvents[existingIdx] = newEv; // 내가 수정한 것은 정상 업데이트
                           }
+                      } else {
+                          mergedEvents.push(newEv); // 새로운 이벤트 추가
                       }
                   });
 
-                  // 2) 내 로컬 화면에 있는 일정 추가 및 덮어쓰기
-                  gEvents.forEach(localEv => {
-                      newMergedEvents.push(localEv);
-                  });
-
-                  // 3) 시간표 셀 병합
-                  const mergedSchedules = { ...(existingData.schedules || {}) };
+                  // 2) 시간표(Schedules) 병합
+                  const mergedSchedules = { ...existingSchedules };
                   Object.keys(gSchedules).forEach(period => {
                       mergedSchedules[period] = gSchedules[period];
                   });
 
+                  // 트랜잭션 기록 완료
                   transaction.set(groupDocRef, { 
-                      eventList: newMergedEvents, 
+                      eventList: mergedEvents, 
                       schedules: mergedSchedules,
                       updatedAt: Date.now() 
                   }, { merge: true });
@@ -636,7 +595,8 @@ export class YearView extends BaseView {
           }
       }
       
-      saveCalendarData(snapshot, this.myGroups, ['personal']).catch(e => console.warn(e));
+      // 하위 호환성을 위해 기존 모듈 비동기 백그라운드 호출 (DB 트랜잭션은 위에서 이미 처리됨)
+      saveCalendarData(snapshot, this.myGroups, window.activeUnifiedFilters).catch(e => console.warn(e));
   }
 }
 
