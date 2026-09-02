@@ -135,7 +135,7 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================================================
-// 💡 팝업(모달) 감지 시 배경 스크롤 및 단축키 강제 차단 로직
+// 💡 [문제 2 해결] 팝업(모달) 감지 시 배경 스크롤 및 단축키 강제 차단 로직
 // ==========================================================================
 window.activeModalCount = 0;
 
@@ -151,10 +151,7 @@ window.decreaseModalCount = () => {
     }
 };
 
-// 🔥 추가됨: 모달이 열려있었는지를 기억하는 상태 변수
-let wasModalOpen = false; 
-
-// 화면에 실제로 모달 요소가 표시되고 있는지 감지
+// 화면에 실제로 모달 요소가 표시되고 있는지 0.1초마다 감지하여 완벽하게 방어합니다.
 const isModalOpen = () => {
     let modalVisible = window.activeModalCount > 0;
     
@@ -168,21 +165,9 @@ const isModalOpen = () => {
 
     if (modalVisible) {
         document.body.style.overflow = 'hidden'; // 강제 스크롤 차단
-        wasModalOpen = true; // 🔥 모달이 열림을 기록
         return true;
     } else {
         document.body.style.overflow = ''; // 강제 스크롤 허용
-        
-        // 🔥 핵심: 모달이 막 닫힌 순간을 포착하여 눈에 보이지 않는 1px 미세 스크롤 발생
-        if (wasModalOpen) {
-            wasModalOpen = false;
-            setTimeout(() => {
-                if (window.isInfiniteScrollActive) {
-                    window.scrollBy(0, 1);
-                    window.scrollBy(0, -1);
-                }
-            }, 50); // DOM이 복구된 직후 실행하여 센서를 강제로 깨움
-        }
         return false;
     }
 };
