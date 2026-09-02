@@ -4,11 +4,23 @@ import { store } from '../core/store.js';
 
 export const FilterUI = {
     renderUnifiedFilter: function(myGroups) {
+        // 기본값 설정: 처음에는 'personal(개인)'만 활성화
         if (!window.activeUnifiedFilters) {
-            window.activeUnifiedFilters = ['personal', ...(myGroups || []).map(g => g.id)];
+            window.activeUnifiedFilters = ['personal'];
         }
+        
         const container = document.getElementById('unified-filter-container');
         if (!container) return;
+
+        // 🔥 공유 그룹이 없으면 상단 필터 영역을 아예 숨김
+        if (!myGroups || myGroups.length === 0) {
+            container.style.display = 'none';
+            container.innerHTML = '';
+            return;
+        }
+
+        // 공유 그룹이 1개라도 있으면 영역을 표시
+        container.style.display = 'flex';
 
         const isPersonalActive = window.activeUnifiedFilters.includes('personal');
         let html = `

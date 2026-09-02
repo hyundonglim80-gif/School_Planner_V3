@@ -84,7 +84,7 @@ export class YearView extends BaseView {
         if (this.renderId !== currentRenderId) return;
 
         window.currentMyGroups = this.myGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
         if (store.mode === 'editor') this.scheduleGroupId = window.activeUnifiedFilters.includes('personal') ? null : window.activeUnifiedFilters[0];
 
@@ -260,7 +260,7 @@ export class YearView extends BaseView {
         if (this.renderId !== currentRenderId) return;
 
         window.currentMyGroups = this.myGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         const filters = window.activeUnifiedFilters;

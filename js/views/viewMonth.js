@@ -493,7 +493,7 @@ export class MonthView extends BaseView {
         this.injectInfiniteToggleBtn();
         window.currentMyGroups = await dbAPI.loadMyGroups().catch(() => []);
         this.myGroups = window.currentMyGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         if (this.isInfiniteMode) {
@@ -561,7 +561,7 @@ export class MonthView extends BaseView {
         this.injectInfiniteToggleBtn();
         window.currentMyGroups = await dbAPI.loadMyGroups().catch(() => []);
         this.myGroups = window.currentMyGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         const maxP = store.periodNames ? store.periodNames.length : 6;

@@ -136,7 +136,7 @@ export class DayView extends BaseView {
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
         
         window.currentMyGroups = this.myGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI && typeof window.FilterUI.renderUnifiedFilter === 'function') window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         this.dayData = {};
@@ -327,7 +327,7 @@ export class DayView extends BaseView {
         try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
 
         window.currentMyGroups = this.myGroups;
-        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal', ...this.myGroups.map(g => g.id)];
+        if (!window.activeUnifiedFilters) window.activeUnifiedFilters = ['personal'];
         if (window.FilterUI && typeof window.FilterUI.renderUnifiedFilter === 'function') window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         this.dayData = {};

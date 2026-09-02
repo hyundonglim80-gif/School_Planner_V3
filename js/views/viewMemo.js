@@ -44,7 +44,7 @@ export class MemoView extends BaseView {
   }
 
   toggleGroupFilter(groupId) {
-      if (!this.activeGroupFilters) this.activeGroupFilters = ['personal', ...this.myGroups.map(g => g.id)];
+      if (!this.activeGroupFilters) this.activeGroupFilters = ['personal'];
       if (this.activeGroupFilters.includes(groupId)) {
           if (this.activeGroupFilters.length > 1) this.activeGroupFilters = this.activeGroupFilters.filter(id => id !== groupId);
       } else this.activeGroupFilters.push(groupId);
