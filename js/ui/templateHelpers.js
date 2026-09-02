@@ -2,7 +2,7 @@
 
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
-import { auth } from '../api/firebaseInit.js'; // 🔥 사용자 정보(auth) 임포트 추가
+import { auth } from '../api/firebaseInit.js';
 
 // 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
 window.showCustomAlarmPopup = function(messages) {
@@ -121,7 +121,7 @@ export const CompactEventHelper = {
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
-            ev.editorEmail = auth?.currentUser?.email; // 🔥 auth 객체 사용
+            ev.editorEmail = window.auth?.currentUser?.email;
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
@@ -220,14 +220,12 @@ export const CompactEventHelper = {
         });
 
         const realTodayStr = formatDate(new Date());
-        const uid = auth?.currentUser?.uid; // 🔥 auth 객체 직접 사용
+        const uid = window.auth?.currentUser?.uid;
         
         return list.map((e) => {
             if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
 
-            // 💡 여기서 과거 데이터(!e.authorId)는 누구나 권한을 갖게 예외 처리됨
             const isAuthor = !e.authorId || !uid || e.authorId === uid;
-            
             const eLabelIds = e.labelIds || [];
             const isCompleted = !!e.completed;
             const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
@@ -270,8 +268,8 @@ export const CompactEventHelper = {
             let authorHtml = '';
             if (fId !== 'personal') {
                 const emailStr = e.editorEmail || e.authorEmail || '';
-                const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr || '과거데이터'}">👤 ${authorName}</div>`;
+                const authorName = emailStr ? emailStr.split('@')[0] : '과거데이터';
+                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr || '알수없음'}">👤 ${authorName}</div>`;
             }
 
             return `
@@ -308,6 +306,7 @@ export const CompactEventHelper = {
         });
     },
 
+    // 🌟 핵심 로직: 셀 텍스트를 파싱하더라도 기존 작성자 정보를 절대 유실하지 않고 변경 시에만 갱신
     syncScheduleInputs(rowAttr, cellClass) {
         document.querySelectorAll(`tr[${rowAttr}]`).forEach(row => {
             const dateStr = row.getAttribute(rowAttr);
@@ -318,6 +317,7 @@ export const CompactEventHelper = {
 
             row.querySelectorAll(`.${cellClass}`).forEach(cell => {
                 const p = cell.getAttribute("data-p");
+                // contenteditable div 안의 순수 텍스트만 추출 (아이디 뱃지 태그는 형제 요소이므로 무시됨)
                 let text = cell.innerText?.trim() || "";
                 let subject = '', memo = '', supplies = '';
 
@@ -336,7 +336,37 @@ export const CompactEventHelper = {
                         memo = text;
                     }
                 }
-                window[`tempSchedules_${dateStr}`][fId][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
+                
+                // 이전 기록된 작성자/수정자 정보 보존
+                const prev = window[`tempSchedules_${dateStr}`][fId][p] || {};
+                let authorEmail = prev.authorEmail;
+                let editorEmail = prev.editorEmail;
+                
+                const prevSubject = prev.subject && prev.subject.toUpperCase() !== 'X' ? `[${prev.subject}] ` : '';
+                const prevSupplies = prev.supplies ? ` [${prev.supplies}]` : '';
+                const prevText = `${prevSubject}${prev.memo || ''}${prevSupplies}`.trim();
+                
+                const currSubject = subject && subject.toUpperCase() !== 'X' ? `[${subject}] ` : '';
+                const currSupplies = supplies ? ` [${supplies}]` : '';
+                const currText = `${currSubject}${memo || ''}${currSupplies}`.trim();
+
+                // 텍스트 내용이 변경되었을 때만 수정자 갱신 (비어있으면 권한 초기화)
+                if (currText !== prevText) {
+                    if (currText === '') {
+                        authorEmail = null; editorEmail = null;
+                    } else {
+                        authorEmail = authorEmail || window.auth?.currentUser?.email;
+                        editorEmail = window.auth?.currentUser?.email;
+                    }
+                }
+
+                window[`tempSchedules_${dateStr}`][fId][p] = { 
+                    subject: subject.toUpperCase() === 'X' ? '' : subject, 
+                    memo, 
+                    supplies,
+                    authorEmail,
+                    editorEmail
+                };
             });
         });
     },
@@ -346,7 +376,7 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
-            ev.editorEmail = auth?.currentUser?.email; // 🔥 내용 수정 시 이메일 확실히 기록
+            ev.editorEmail = window.auth?.currentUser?.email; // 필드 변경 시 수정자 갱신
         }
         
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
@@ -361,12 +391,11 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
-        const userEmail = auth?.currentUser?.email; // 🔥
-        const uid = auth?.currentUser?.uid;
+        const userEmail = window.auth?.currentUser?.email;
         
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-            authorId: uid,
+            authorId: window.auth?.currentUser?.uid,
             authorEmail: userEmail, 
             editorEmail: userEmail, 
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
@@ -421,7 +450,7 @@ export const CompactEventHelper = {
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
-        ev.editorEmail = auth?.currentUser?.email; // 🔥 라벨 수정 시에도 권한 확실히 기록
+        ev.editorEmail = window.auth?.currentUser?.email; // 라벨 수정 시에도 권한 갱신
         
         const isActive = ev.labelIds.includes(labelId);
         const labelObj = getEventLabels().find(l => l.id === labelId);
