@@ -58,7 +58,8 @@ export const formatEventListToText = (eventList) => {
     }).join('\n');
 };
 
-export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'normal') => {
+// 💡 fId 파라미터를 추가하여 과거 데이터의 꼬리표 누락 방지
+export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'normal', fId = 'personal') => {
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
@@ -128,13 +129,13 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;` : 
             `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
 
-        // 🌟 공유 그룹 일정일 경우 최근 수정자/작성자 아이디 표시 로직 추가
-        const isSharedGroup = e.sharedGroupId && e.sharedGroupId !== 'personal';
+        // 🌟 명확하게 fId를 통해 공유그룹 여부 판별 (과거데이터 포함)
+        const isSharedGroup = fId !== 'personal';
         let authorTag = '';
         if (isSharedGroup) {
             const emailStr = e.editorEmail || e.authorEmail || '';
             const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-            authorTag = `<span style="font-size:0.7rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-right:4px; border:1px solid #e2e8f0; font-weight:bold;" title="최근 수정자: ${emailStr}">👤${authorName}</span>`;
+            authorTag = `<span style="font-size:0.7rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-right:4px; border:1px solid #e2e8f0; font-weight:bold;" title="최근 수정자: ${emailStr || '과거데이터'}">👤${authorName}</span>`;
         }
 
         html += `
@@ -157,7 +158,7 @@ export const EventManager = {
         if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
             if (window.dayViewInstance.currentEvents[index]) {
                 window.dayViewInstance.currentEvents[index].completed = willBeComplete;
-                window.dayViewInstance.currentEvents[index].editorEmail = window.auth?.currentUser?.email; // 🌟 완료 상태 변경 시에도 수정자 기록
+                window.dayViewInstance.currentEvents[index].editorEmail = window.auth?.currentUser?.email;
             }
         }
         if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][index]) {
@@ -207,7 +208,7 @@ export const EventManager = {
 
                 if (eventList[index]) {
                     eventList[index].completed = willBeComplete;
-                    eventList[index].editorEmail = window.auth?.currentUser?.email; // 🌟
+                    eventList[index].editorEmail = window.auth?.currentUser?.email; 
                     const newText = formatEventListToText(eventList);
                     await setDoc(docRef, { eventList: eventList, eventText: newText, updatedAt: Date.now() }, { merge: true });
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents(); 
@@ -361,7 +362,7 @@ export const EventManager = {
         const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`; 
 
         const targetCol = sharedGroupId ? getGroupCol(sharedGroupId, 'events') : getUserCol('events');
-        const userEmail = auth?.currentUser?.email; // 🌟 작성자 메일 수집
+        const userEmail = window.auth?.currentUser?.email;
 
         for(let i=0; i<totalDays; i++) {
             const dStr = datesToSave[i];
@@ -371,9 +372,9 @@ export const EventManager = {
 
             list.push({ 
                 id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
-                authorId: auth?.currentUser?.uid,
-                authorEmail: userEmail, // 🌟 작성자 기록
-                editorEmail: userEmail, // 🌟 초기 수정자 기록
+                authorId: window.auth?.currentUser?.uid,
+                authorEmail: userEmail, 
+                editorEmail: userEmail, 
                 labelIds: labelId ? [labelId] : [], 
                 label: labelName, labels: [labelName], 
                 content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
@@ -507,6 +508,7 @@ export const EventManager = {
 
         const getBase = (c) => (c || '').replace(/\s*\(\d+\/\d+\).*/, '').trim();
         const cleanNewContent = getBase(newContent);
+        const userEmail = window.auth?.currentUser?.email;
 
         const matchEvent = (e) => {
             if (e.groupId !== groupId) return false;
@@ -518,7 +520,7 @@ export const EventManager = {
                 if (matchEvent(e)) {
                     const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                     e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                    e.editorEmail = window.auth?.currentUser?.email; // 🌟
+                    e.editorEmail = userEmail; 
                 }
             });
         }
@@ -530,7 +532,7 @@ export const EventManager = {
                     if (matchEvent(e)) {
                         const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                         e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                        e.editorEmail = window.auth?.currentUser?.email; // 🌟
+                        e.editorEmail = userEmail; 
                     }
                 });
             }
@@ -542,7 +544,6 @@ export const EventManager = {
             const colsToSearch = [getUserCol('events'), ...myGroups.map(g => getGroupCol(g.id, 'events'))];
 
             let batch = writeBatch(db); let count = 0; let batchPromises = []; 
-            const userEmail = auth?.currentUser?.email;
 
             for (const col of colsToSearch) {
                 let q = col;
@@ -558,7 +559,7 @@ export const EventManager = {
                         if (matchEvent(e)) {
                             const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                             e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                            e.editorEmail = userEmail; // 🌟
+                            e.editorEmail = userEmail; 
                             docChanged = true;
                         }
                     });
@@ -769,7 +770,7 @@ export const EventManager = {
 
             let batch = writeBatch(db); let opCount = 0; let batchPromises = [];
             let addedCount = 0; let skippedCount = 0;
-            const userEmail = auth?.currentUser?.email; // 🌟 작성자 기록
+            const userEmail = window.auth?.currentUser?.email;
 
             for (const dateStr of targetDates) {
                 const docData = existingEventsMap[dateStr] || {};
@@ -783,9 +784,9 @@ export const EventManager = {
                 if (!list.some(ev => (ev.label === this.currentLabelName || (ev.labels && ev.labels.includes(this.currentLabelName))) && ev.content === content)) {
                     list.push({ 
                         id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
-                        authorId: auth?.currentUser?.uid,
-                        authorEmail: userEmail, // 🌟 작성자
-                        editorEmail: userEmail, // 🌟 초기 수정자
+                        authorId: window.auth?.currentUser?.uid,
+                        authorEmail: userEmail, 
+                        editorEmail: userEmail, 
                         labelIds: labelId ? [labelId] : [], 
                         label: this.currentLabelName, labels: [this.currentLabelName], 
                         content: content, completed: false,

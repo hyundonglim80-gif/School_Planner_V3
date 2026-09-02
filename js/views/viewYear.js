@@ -118,7 +118,9 @@ export class YearView extends BaseView {
                 
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
-                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
+                
+                // 💡 뷰어 렌더링 시 fId를 직접 넘겨 안전성을 보장
+                let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact', fId)}</div>` : '';
 
                 const jList = jMap[dateStr]?.[fId] || [];
                 const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
@@ -542,7 +544,7 @@ export class YearView extends BaseView {
         const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
                 ...e, 
                 id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || auth?.currentUser?.uid, 
+                authorId: e.authorId || window.auth?.currentUser?.uid, 
                 sharedGroupId: e.sharedGroupId || 'personal'
             }));
         return { dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) };
