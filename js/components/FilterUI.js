@@ -4,7 +4,6 @@ import { store } from '../core/store.js';
 
 export const FilterUI = {
     renderUnifiedFilter: function(myGroups) {
-        // 기본값 설정: 처음에는 'personal(개인)'만 활성화
         if (!window.activeUnifiedFilters) {
             window.activeUnifiedFilters = ['personal'];
         }
@@ -12,14 +11,12 @@ export const FilterUI = {
         const container = document.getElementById('unified-filter-container');
         if (!container) return;
 
-        // 🔥 공유 그룹이 없으면 상단 필터 영역을 아예 숨김
         if (!myGroups || myGroups.length === 0) {
             container.style.display = 'none';
             container.innerHTML = '';
             return;
         }
 
-        // 공유 그룹이 1개라도 있으면 영역을 표시
         container.style.display = 'flex';
 
         const isPersonalActive = window.activeUnifiedFilters.includes('personal');
@@ -54,12 +51,20 @@ export const FilterUI = {
             }
         } else {
             window.activeUnifiedFilters.push(filterId);
+            
+            // 🔥 추가됨: 공유 그룹 활성화 시 안내 메시지
+            if (filterId !== 'personal') {
+                alert("🌐 공유 그룹 데이터가 켜졌습니다.\n원활한 협업을 위해 지금부터 [실시간 동기화(상시 온라인)] 모드로 작동합니다.");
+            }
         }
         
         if (window.currentMyGroups) {
             this.renderUnifiedFilter(window.currentMyGroups);
         }
-        if(window.render) window.render();
+        
+        // 필터 변경 시 동기화 아이콘 상태 업데이트
+        if (window.updateSyncUI) window.updateSyncUI();
+        if (window.render) window.render();
     }
 };
 

@@ -258,3 +258,67 @@ export const installPWA = async () => {
         alert("이미 기기에 설치되어 있거나 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치해주세요.");
     }
 };
+
+// 🔥 [Local-First 동기화 관리 로직 추가]
+window.pendingLocalChanges = false;
+
+// 데이터 수정이 발생했을 때 꼬리표를 달고 아이콘을 띄우는 함수
+window.markLocalChanges = () => {
+    // 현재 공유 그룹이 켜져 있는지 확인
+    const isGroupActive = window.activeUnifiedFilters && window.activeUnifiedFilters.some(id => id !== 'personal');
+    
+    // 공유 그룹이 꺼져있는 순수 '개인 모드'일 때만 동기화 필요 상태로 전환
+    if (!isGroupActive) {
+        window.pendingLocalChanges = true;
+        window.updateSyncUI();
+    }
+};
+
+// 동기화 버튼 표시/숨김 제어 함수
+window.updateSyncUI = () => {
+    const syncBtn = document.getElementById('btn-sync-status');
+    if (!syncBtn) return;
+    
+    const isGroupActive = window.activeUnifiedFilters && window.activeUnifiedFilters.some(id => id !== 'personal');
+    
+    if (isGroupActive) {
+        // 그룹이 켜져있으면 상시 동기화 모드이므로 아이콘 숨김
+        syncBtn.style.display = 'none'; 
+    } else {
+        // 개인 모드일 때 변경사항이 있으면 버튼 표시
+        syncBtn.style.display = window.pendingLocalChanges ? 'flex' : 'none';
+    }
+};
+
+// 동기화 버튼 클릭 시 실행될 함수 (임시 연출, 네트워크 차단/연결은 추후 적용)
+window.executeLocalSync = () => {
+    const syncBtn = document.getElementById('btn-sync-status');
+    if (syncBtn) {
+        syncBtn.innerHTML = '<span style="font-size: 1.1rem; animation: spin 1s linear infinite; display: inline-block;">🔄</span> 동기화 중...';
+        syncBtn.style.color = '#059669';
+        syncBtn.style.background = '#d1fae5';
+        syncBtn.style.borderColor = '#6ee7b7';
+    }
+    
+    // 추후 이 곳에 dbAPI.enableNetwork() 등의 통신 재개 로직이 들어갑니다.
+    // 현재는 1초 후 동기화 완료로 연출
+    setTimeout(() => {
+        window.pendingLocalChanges = false;
+        window.updateSyncUI(); // 아이콘 사라짐
+        
+        // 버튼 스타일 초기화 (다음을 위해)
+        if (syncBtn) {
+            syncBtn.innerHTML = '<span style="font-size: 1.1rem;">🔄</span> 동기화 필요';
+            syncBtn.style.color = '#d97706';
+            syncBtn.style.background = '#fffbeb';
+            syncBtn.style.borderColor = '#fcd34d';
+        }
+    }, 1000);
+};
+
+// 💡 기존의 saveCurrentViewData 함수를 덮어씌워(오버라이드) 저장 시 markLocalChanges를 호출하도록 연결
+const originalSaveCurrentViewData = window.saveCurrentViewData;
+window.saveCurrentViewData = async (silent = false) => {
+    await originalSaveCurrentViewData(silent); // 기존 저장 로직 실행
+    window.markLocalChanges(); // 개인 모드라면 '동기화 필요' 아이콘 표시
+};
