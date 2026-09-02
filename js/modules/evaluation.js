@@ -367,7 +367,7 @@ export const EvaluationManager = {
 
         const titleText = actualGroupId ? `${ev.title} (공유됨${isAuthor ? '' : ' - 읽기전용'})` : `${ev.title} (개인)`;
         const deleteBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" class="modal-delete-btn" style="padding:10px 16px; border:1px solid #fca5a5; border-radius:6px;">삭제</button>` : `<div></div>`;
-        const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" class="modal-btn-primary">저장 및 닫기</button>` : '';
+        const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" class="modal-btn-primary">저장</button>` : ''; // 🔥 텍스트 변경
 
         const html = `
             <div style="max-height:60vh; overflow-y:auto; padding-right:5px; border-radius:8px; border:1px solid #e2e8f0; background:#fff;">
@@ -379,7 +379,7 @@ export const EvaluationManager = {
             <div class="modal-footer-actions" style="justify-content:space-between; border-top:none;">
                 ${deleteBtnHtml}
                 <div style="display:flex; gap:10px;">
-                    <button onclick="document.getElementById('eval-viewer-modal').remove()" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569;">${isAuthor ? '취소' : '닫기'}</button>
+                    <button onclick="document.getElementById('eval-viewer-modal').remove()" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569;">닫기</button> <!-- 🔥 텍스트 변경 -->
                     ${saveBtnHtml}
                 </div>
             </div>
@@ -410,8 +410,11 @@ export const EvaluationManager = {
         });
 
         await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
-        document.getElementById('eval-viewer-modal').remove();
+        
+        // document.getElementById('eval-viewer-modal').remove(); 🔥 이 줄을 삭제하여 창이 닫히지 않게 합니다.
         if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
+        
+        alert("✅ 성공적으로 저장되었습니다."); // 🔥 저장이 완료되었음을 알림
     },
 
     deleteEvaluation: async function(evalId) {

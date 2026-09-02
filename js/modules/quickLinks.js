@@ -44,7 +44,7 @@ export const QuickLinksManager = {
                 <p style="margin:0; font-size:0.95rem;">
                     💡 <b>링크 설정</b><br>
                     메모 상단에 고정할 자주 쓰는 웹 주소나 구글 문서 링크를 관리합니다.<br>
-                    순서를 바꾸려면 우측 화살표를 누르고, 완료 후 아래 <b>[저장 및 적용]</b> 버튼을 꼭 눌러주세요.
+                    순서를 바꾸려면 우측 화살표를 누르고, 완료 후 아래 <b>[저장]</b> 버튼을 꼭 눌러주세요.
                 </p>
             </div>
             <div id="quick-links-settings-list" style="display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; margin-bottom:15px; padding-right:5px;"></div>
@@ -58,12 +58,12 @@ export const QuickLinksManager = {
                 </div>
             </div>
 
-            <div class="modal-footer-actions">
-                <button onclick="window.QuickLinksManager.saveSettingsAndClose()" class="modal-btn-primary" style="width:100%; padding:12px; border-radius:6px; font-weight:bold;">💾 저장 및 적용</button>
+            <div class="modal-footer-actions" style="display:flex; gap:10px;">
+                <button onclick="window.QuickLinksManager.settingsModal.close()" class="modal-btn-secondary" style="flex:1; padding:12px; border-radius:6px; font-weight:bold; background:#f1f5f9; color:#475569; border:none; cursor:pointer;">닫기</button>
+                <button onclick="window.QuickLinksManager.saveSettings()" class="modal-btn-primary" style="flex:2; padding:12px; border-radius:6px; font-weight:bold; border:none; cursor:pointer; background:#2563eb; color:#fff;">💾 저장</button>
             </div>
         `;
 
-        // 🌟 수정: DOM 요소를 먼저 찾아서 안전하게 지우고, 모달 인스턴스 전용 닫기 함수(.close) 호출
         const existingElement = document.getElementById('quick-links-settings-modal');
         if (existingElement) existingElement.remove();
         
@@ -144,7 +144,7 @@ export const QuickLinksManager = {
         }, 50);
     },
 
-    saveSettingsAndClose: async function() {
+    saveSettings: async function() {
         for (let i = 0; i < window.tempEditingLinks.length; i++) {
             if (!window.tempEditingLinks[i].name || !window.tempEditingLinks[i].url) {
                 return alert(`${i + 1}번째 링크의 이름이나 주소가 비어있습니다.`);
@@ -154,15 +154,8 @@ export const QuickLinksManager = {
         this.currentLinks = [...window.tempEditingLinks];
         await this.saveLinks(this.currentLinks);
         
-        // 🌟 수정: 모달을 안전하게 닫도록 처리
-        if (this.settingsModal && typeof this.settingsModal.close === 'function') {
-            this.settingsModal.close();
-        } else {
-            const existingElement = document.getElementById('quick-links-settings-modal');
-            if (existingElement) existingElement.remove();
-        }
-
         this.renderLinks();
+        alert("✅ 링크 설정이 성공적으로 저장되었습니다.");
     }
 };
 

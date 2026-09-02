@@ -167,7 +167,6 @@ export const goToDay = (dateStr) => {
 
     store.currentDate = new Date(dateStr); 
     
-    // 💡 [UI 핵심] 상단 타이틀 영역에 이전(◀) / 다음(▶) 네비게이션 버튼과 단축키 툴팁 적용
     const titleHtml = `
         <div style="display:flex; align-items:center; justify-content:center; gap:15px; width:100%;">
             <button id="day-modal-prev-btn" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#f1f5f9; border:none; cursor:pointer; font-size:1.1rem; color:#475569; transition:all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.background='#e2e8f0'; this.style.color='#0f172a';" onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>이전 날짜 (Ctrl + ⬅️)</span>">◀</button>
@@ -176,7 +175,7 @@ export const goToDay = (dateStr) => {
         </div>
     `;
 
-    // 💡 [UI 핵심] 하단에 주말 보이기/숨기기 버튼 추가 및 단축키 툴팁 세팅
+    // 🔥 [수정 1] 하단 닫기/저장 버튼 HTML 구조 분리
     const html = `
         <div style="display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0;">
             <div id="day-modal-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; background: #f8fafc;">
@@ -192,19 +191,18 @@ export const goToDay = (dateStr) => {
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">취소</button>
-                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Ctrl + Enter</span>">💾 저장 및 닫기</button>
+                    <!-- 🔥 닫기와 저장 버튼을 명확하게 분리 -->
+                    <button id="day-modal-cancel-btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">닫기</button>
+                    <button id="day-modal-save-btn" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.2s; box-shadow: 0 4px 6px rgba(37,99,235,0.2);" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 8px rgba(37,99,235,0.3)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(37,99,235,0.2)';" data-tooltip="<span style='color:#fbbf24; font-size:0.85rem; font-weight:bold;'>단축키: Ctrl + Enter</span>">💾 저장</button>
                 </div>
             </div>
         </div>
     `;
 
-    // 💡 [핵심 로직] 팝업창 전용 단축키 스나이퍼 (app.js의 차단을 무시하고 팝업창 안에서 단축키 감지)
     const handleModalKeydown = (e) => {
         const tag = e.target.tagName.toLowerCase();
         const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
         
-        // 글자를 입력 중이지 않을 때 방향키 로직 작동
         if (!isInput) {
             if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
                 e.preventDefault(); document.getElementById('day-modal-prev-btn')?.click();
@@ -217,7 +215,7 @@ export const goToDay = (dateStr) => {
             }
         }
         
-        // Ctrl+Enter는 텍스트 작성 중에도 바로 저장되도록 항상 감지
+        // 🔥 단축키(Ctrl+Enter)를 눌러도 '저장(day-modal-save-btn)'만 클릭되도록 유지
         if (e.ctrlKey && e.key === 'Enter') {
             e.preventDefault(); document.getElementById('day-modal-save-btn')?.click();
         }
@@ -230,14 +228,13 @@ export const goToDay = (dateStr) => {
         content: html,
         onClose: () => {
             if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
-            // 팝업이 닫히면 단축키 리스너를 깔끔하게 해제
             document.removeEventListener('keydown', handleModalKeydown);
             if (window.render) window.render(); 
         }
     });
 
     dayModal.open();
-    document.addEventListener('keydown', handleModalKeydown); // 팝업 전용 단축키 켜기
+    document.addEventListener('keydown', handleModalKeydown); 
 
     setTimeout(() => {
         const modalContainer = document.getElementById('day-modal-body');
@@ -274,9 +271,7 @@ export const goToDay = (dateStr) => {
             }
         }
 
-        // 💡 [기능 연결] 이전/다음 날짜 네비게이션 함수
         const navigateDay = async (dir) => {
-            // 1. 현재 창의 수정 사항 자동 저장
             if (store.hasUnsavedChanges && window.dayViewInstance) {
                 const saveBtn = document.getElementById('day-modal-save-btn');
                 if(saveBtn) { saveBtn.innerHTML = '⏳'; saveBtn.style.opacity = '0.7'; }
@@ -285,7 +280,6 @@ export const goToDay = (dateStr) => {
             }
             store.hasUnsavedChanges = false;
 
-            // 2. 날짜 계산 (주말 숨기기 상태면 토/일 자동 건너뛰기)
             const d = new Date(store.currentDate);
             d.setDate(d.getDate() + dir);
             
@@ -299,7 +293,6 @@ export const goToDay = (dateStr) => {
 
             const newDateStr = formatDate(d);
             
-            // 3. 현재 팝업 깔끔하게 닫고 새 팝업 띄우기
             dayModal.close();
             setTimeout(() => window.goToDay(newDateStr), 50);
         };
@@ -310,7 +303,6 @@ export const goToDay = (dateStr) => {
         const nextBtn = document.getElementById('day-modal-next-btn');
         if (nextBtn) nextBtn.onclick = () => navigateDay(1);
 
-        // 💡 [기능 연결] 주말 토글 버튼
         const toggleWeekendBtn = document.getElementById('day-modal-toggle-weekend-btn');
         if (toggleWeekendBtn) {
             toggleWeekendBtn.onclick = (e) => {
@@ -321,7 +313,6 @@ export const goToDay = (dateStr) => {
             };
         }
 
-        // 💡 [기능 연결] 수업 토글 버튼
         const toggleClassBtn = document.getElementById('day-modal-toggle-class-btn');
         if (toggleClassBtn) {
             toggleClassBtn.onclick = (e) => {
@@ -347,6 +338,7 @@ export const goToDay = (dateStr) => {
             window.dayViewInstance.renderEditor().then(() => { store.mode = prevMode; });
         }
 
+        // 🔥 [수정 2] 저장을 눌렀을 때 창을 닫지 않도록 수정
         document.getElementById('day-modal-save-btn').onclick = async () => {
             if (window.dayViewInstance) {
                 try {
@@ -355,16 +347,22 @@ export const goToDay = (dateStr) => {
                     await window.dayViewInstance.save();
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
                     store.hasUnsavedChanges = false;
-                    dayModal.close();
+                    
+                    // dayModal.close(); 🔥 삭제하여 창을 유지합니다.
+                    
+                    btn.innerHTML = '✅ 저장됨';
+                    btn.style.opacity = '1';
+                    setTimeout(() => { btn.innerHTML = '💾 저장'; }, 2000); // 2초 후 원래 텍스트 복구
                 } catch (err) {
                     console.error("저장 중 에러 발생:", err);
                     alert("저장 중 오류가 발생했습니다: " + err.message);
-                    document.getElementById('day-modal-save-btn').innerHTML = '💾 저장 및 닫기';
+                    document.getElementById('day-modal-save-btn').innerHTML = '💾 저장';
                     document.getElementById('day-modal-save-btn').style.opacity = '1';
                 }
-            } else { dayModal.close(); }
+            }
         };
         
+        // 닫기 버튼 로직
         document.getElementById('day-modal-cancel-btn').onclick = () => { store.hasUnsavedChanges = false; dayModal.close(); };
     }, 100);
 };

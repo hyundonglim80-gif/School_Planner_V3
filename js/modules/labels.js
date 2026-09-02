@@ -190,8 +190,9 @@ export const LabelManager = {
             </div>
         </div>
         
-        <div class="modal-footer-actions" style="margin-top: 20px;">
-            <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="width: 100%; background: #2563eb; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer;">💾 저장 및 클라우드 반영</button>
+        <div class="modal-footer-actions" style="margin-top: 20px; display: flex; gap: 10px;">
+            <button onclick="window.LabelManager.unifiedModal.close()" class="modal-btn-secondary" style="flex:1; background:#f1f5f9; color:#475569; padding:10px; border-radius:6px; font-weight:bold; border:none; cursor:pointer;">닫기</button>
+            <button onclick="window.LabelManager.saveEventLabels(event)" class="modal-btn-primary" style="flex:2; background:#2563eb; color:#fff; padding:10px; border-radius:6px; font-weight:bold; border:none; cursor:pointer;">💾 저장</button>
         </div>`;
     },
 
@@ -266,12 +267,10 @@ export const LabelManager = {
   },
 
   removeEventLabel: function(index) {
-      // 필수 라벨(시스템 라벨) 삭제 금지 로직을 제거하여 모든 라벨 삭제 가능
       window.tempEditingLabels.splice(index, 1);
       this.renderEventLabels(); 
   },
 
-  // 🌟 [수정 1] 즉시 반영을 위한 렌더링 검사 로직 보완 (팝업창 안에 에디터가 있는 경우 처리)
   triggerImmediateRender: function() {
       const dayModalBody = document.getElementById('day-modal-body');
       if (dayModalBody && window.dayViewInstance) {
@@ -302,8 +301,11 @@ export const LabelManager = {
           catch (err) { console.error(err); }
       }
 
+      let btn = e && e.target ? e.target : null;
+      let btnOriginalText = btn ? btn.textContent : "";
+
       if (deletedIds.length > 0 && window.db) {
-          if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
+          if (btn) { btn.textContent = "클라우드 찌꺼기 데이터 정리 중..."; btn.disabled = true; }
 
           try {
               const eventsSnap = await getDocs(getUserCol('events'));
@@ -334,9 +336,10 @@ export const LabelManager = {
           } catch (err) { console.error("일정 라벨 정리 오류:", err); }
       }
 
-      if (this.unifiedModal) this.unifiedModal.close();
-      alert("일정 라벨 설정이 성공적으로 저장되었습니다.");
-      this.triggerImmediateRender(); // 🌟 모달 닫힌 직후 즉시 렌더링 반영
+      if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
+      
+      alert("✅ 일정 라벨 설정이 성공적으로 저장되었습니다.");
+      this.triggerImmediateRender(); 
   },
 
   getJournalContentHTML: function() {
@@ -360,8 +363,9 @@ export const LabelManager = {
           </div>
       </div>
       
-      <div class="modal-footer-actions">
-          <button onclick="window.LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal" style="width:100%; border-radius:6px; font-weight:bold; padding:10px;">💾 저장 및 클라우드 반영</button>
+      <div class="modal-footer-actions" style="display:flex; gap:10px;">
+          <button onclick="window.LabelManager.unifiedModal.close()" class="modal-btn-secondary" style="flex:1; background:#f1f5f9; color:#475569; padding:10px; border-radius:6px; font-weight:bold; border:none; cursor:pointer;">닫기</button>
+          <button onclick="window.LabelManager.saveJournalLabels(event)" class="modal-btn-primary journal" style="flex:2; border-radius:6px; font-weight:bold; padding:10px;">💾 저장</button>
       </div>
     `;
   },
@@ -427,8 +431,11 @@ export const LabelManager = {
           try { await setDoc(doc(getUserCol('settings'), 'labels'), { journalLabels: dataToSave }, { merge: true }); } catch (err) {}
       }
 
+      let btn = e && e.target ? e.target : null;
+      let btnOriginalText = btn ? btn.textContent : "";
+
       if (deletedIds.length > 0 && window.db) {
-          if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
+          if (btn) { btn.textContent = "클라우드 찌꺼기 데이터 정리 중..."; btn.disabled = true; }
 
           try {
               const snap = await getDocs(getUserCol('journals'));
@@ -459,9 +466,10 @@ export const LabelManager = {
           } catch (err) { console.error(err); }
       }
 
-      if (this.unifiedModal) this.unifiedModal.close();
-      alert("기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
-      this.triggerImmediateRender(); // 🌟 모달 닫힌 직후 즉시 렌더링 반영
+      if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
+      
+      alert("✅ 기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+      this.triggerImmediateRender(); 
   },
 
   getMemoLabels: function() {
@@ -491,8 +499,9 @@ export const LabelManager = {
           </div>
       </div>
       
-      <div class="modal-footer-actions">
-          <button onclick="window.LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="width:100%; border-radius:6px; font-weight:bold; padding:10px; background:#059669;">💾 저장 및 클라우드 반영</button>
+      <div class="modal-footer-actions" style="display:flex; gap:10px;">
+          <button onclick="window.LabelManager.unifiedModal.close()" class="modal-btn-secondary" style="flex:1; background:#f1f5f9; color:#475569; padding:10px; border-radius:6px; font-weight:bold; border:none; cursor:pointer;">닫기</button>
+          <button onclick="window.LabelManager.saveMemoLabels(event)" class="modal-btn-primary success" style="flex:2; border-radius:6px; font-weight:bold; padding:10px; background:#059669;">💾 저장</button>
       </div>
     `;
   },
@@ -554,8 +563,11 @@ export const LabelManager = {
         try { await setDoc(doc(getUserCol('settings'), 'labels'), { memoLabels: dataToSave }, { merge: true }); } catch (err) {}
     }
     
+    let btn = e && e.target ? e.target : null;
+    let btnOriginalText = btn ? btn.textContent : "";
+
     if (deletedIds.length > 0 && window.db) {
-        if (e && e.target) { e.target.textContent = "클라우드 찌꺼기 데이터 정리 중..."; e.target.disabled = true; }
+        if (btn) { btn.textContent = "클라우드 찌꺼기 데이터 정리 중..."; btn.disabled = true; }
 
         try {
             const snap = await getDocs(getUserCol('tasks'));
@@ -579,8 +591,9 @@ export const LabelManager = {
         } catch(err) { console.error(err); }
     }
 
-    if (this.unifiedModal) this.unifiedModal.close();
-    alert("메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+    if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
+
+    alert("✅ 메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
     
     if (typeof window.render === 'function') {
         window.render(true); 

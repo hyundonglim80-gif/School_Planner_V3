@@ -65,7 +65,7 @@ export const RosterManager = {
             </div>
 
             <div class="modal-footer-actions" style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
-                <button onclick="window.RosterManager.modalInstance.close()" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">취소</button>
+                <button onclick="window.RosterManager.modalInstance.close()" style="padding:10px 20px; border:none; background:#f1f5f9; color:#475569; border-radius:6px; font-weight:bold; cursor:pointer;">닫기</button>
                 <button onclick="window.RosterManager.saveRoster(event)" style="padding:10px 20px; border:none; background:#10b981; color:#fff; border-radius:6px; font-weight:bold; cursor:pointer;" title="명렬표 정보를 저장합니다.">저장</button>
             </div>
         `;
@@ -387,7 +387,7 @@ export const RosterManager = {
                 }
             }
 
-            this.modalInstance.close();
+            // this.modalInstance.close(); 🔥 이 줄을 삭제하여 창이 닫히지 않게 합니다.
             if (typeof window.render === 'function') window.render();
             alert("✅ 명렬표 저장 및 구글 시트 연동이 완료되었습니다.");
         } catch (e) {
