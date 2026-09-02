@@ -1,8 +1,9 @@
 // js/ui/templateHelpers.js
+
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
 
-// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거됨)
+// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -119,6 +120,7 @@ export const CompactEventHelper = {
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
+            ev.editorEmail = window.auth?.currentUser?.email; // 🌟 시간 변경 시에도 에디터 이메일 갱신
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
@@ -202,7 +204,6 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 다중 라벨 순회 검색 정렬
         list.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -248,7 +249,6 @@ export const CompactEventHelper = {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 삭제 기능 연결 (인라인 파싱 오류 원천 차단)
             const deleteBtnHtml = isAuthor 
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
@@ -264,6 +264,14 @@ export const CompactEventHelper = {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
+            // 🌟 공유 그룹일 경우 최근 수정자/작성자 아이디 배지 표시 로직
+            let authorHtml = '';
+            if (fId !== 'personal') {
+                const emailStr = e.editorEmail || e.authorEmail || '';
+                const authorName = emailStr ? emailStr.split('@')[0] : '익명';
+                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr}">👤 ${authorName}</div>`;
+            }
+
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -271,6 +279,7 @@ export const CompactEventHelper = {
                         ${chipsHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${authorHtml}
                         ${timeHtml}
                         ${deleteBtnHtml}
                     </div>
@@ -335,9 +344,9 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
+            ev.editorEmail = window.auth?.currentUser?.email; // 🌟 필드 값이 변경될 때마다 최근 수정자 이메일 갱신
         }
         
-        // 🔥 추가됨: 변경된 필드가 '완료 여부(completed)'일 때만 즉시 자동 저장
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
             window.saveCurrentViewData(true);
         }
@@ -350,17 +359,19 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
+        const userEmail = window.auth?.currentUser?.email; // 🌟
         
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
             authorId: window.auth?.currentUser?.uid,
+            authorEmail: userEmail, // 🌟 작성자 기록
+            editorEmail: userEmail, // 🌟 초기 수정자 기록
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
             content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
         });
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
-    // 🌟 안전하게 분리된 삭제 함수
     requestRemoveCompactEvent(dateStr, eventId, fId) {
         this.syncCompactEventInputs(dateStr); 
         const evList = window[`tempEvents_${dateStr}`];
@@ -407,6 +418,7 @@ export const CompactEventHelper = {
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
+        ev.editorEmail = window.auth?.currentUser?.email; // 🌟 라벨 수정 시에도 에디터 갱신
         
         const isActive = ev.labelIds.includes(labelId);
         const labelObj = getEventLabels().find(l => l.id === labelId);
@@ -418,7 +430,6 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
-            // 🔥 추가됨: 라벨 해제 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }
@@ -470,7 +481,6 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
-            // 🔥 추가됨: 라벨 추가 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }
