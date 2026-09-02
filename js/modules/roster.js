@@ -1,5 +1,6 @@
 // js/modules/roster.js
-import { dbAPI } from '../api/database.js'; 
+import { dbAPI, getUserCol } from '../api/database.js'; 
+import { doc, getDoc } from "firebase/firestore";
 
 export const RosterManager = {
     modalInstance: null,
@@ -53,7 +54,7 @@ export const RosterManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h4 style="margin:0; color:#0f172a;">📋 학생 명단</h4>
                 <div style="display:flex; gap:6px; align-items:center;">
-                    <button onclick="window.RosterManager.importFromGoogleSheet()" style="background:#e0f2fe; color:#0284c7; border:1px solid #bae6fd; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold; margin-right:6px;" title="구글 시트에서 명단을 가져옵니다.">📊 시트에서 가져오기</button>
+                    <button onclick="window.RosterManager.importFromGoogleSheet()" style="background:#e0f2fe; color:#0284c7; border:1px solid #bae6fd; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold; margin-right:6px;" title="구글 시트의 해당 학급 탭에서 명단을 가져옵니다.">📊 시트에서 가져오기</button>
                     <button onclick="window.RosterManager.removeAllStudents()" style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;" title="현재 학급의 모든 학생을 명단에서 삭제합니다.">🗑️ 모두 삭제</button>
                     <input type="number" id="roster-add-count" placeholder="명수" min="1" style="width:60px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; text-align:center;" onkeydown="if(event.key==='Enter') window.RosterManager.addStudent()">
                     <button onclick="window.RosterManager.addStudent()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:0.9rem; font-weight:bold;">+ 학생 추가</button>
@@ -71,42 +72,88 @@ export const RosterManager = {
     },
 
     importFromGoogleSheet: async function() {
-        const url = prompt("구글 시트 주소(URL)를 입력해주세요.\n(주의: 시트의 A열은 '번호', B열은 '이름', C열은 '성별(선택)'이어야 합니다.)");
-        if (!url) return;
-        const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-        if (!match) return alert("올바른 구글 시트 URL이 아닙니다.");
-        const sheetId = match[1];
+        const currentClass = this.rosterList[this.currentIndex];
+        const { year, grade, classNum } = currentClass;
+
+        if (!year || !grade || !classNum) {
+            return alert("가져올 학급의 학년도, 학년, 반 정보를 먼저 위 칸에 입력해주세요.");
+        }
 
         try {
             const token = await window.getValidGoogleToken(); 
             if (!token) return alert("구글 로그인이 필요합니다.");
 
-            const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const meta = await metaRes.json();
-            if (!meta.sheets) throw new Error("시트 정보를 읽을 수 없습니다. (권한을 확인하세요)");
-            const firstSheetName = meta.sheets[0].properties.title;
+            // 백업된 구글 시트 ID 가져오기
+            const docSnap = await getDoc(doc(getUserCol('settings'), 'backup_config'));
+            if (!docSnap.exists() || !docSnap.data().spreadsheetId) {
+                return alert("연결된 구글 시트 백업본이 없습니다.\n[더보기 > 내보내기/가져오기] 메뉴에서 구글 시트로 백업을 먼저 1회 진행해주세요.");
+            }
+            const spreadsheetId = docSnap.data().spreadsheetId;
+            const sheetName = `조사표_${year}-${grade}-${classNum}`;
 
-            const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(firstSheetName)}!A:C`, { headers: { 'Authorization': `Bearer ${token}` } });
+            // 1. 해당 학급의 시트 데이터 요청
+            const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A:C`, { 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+
+            if (!dataRes.ok) {
+                // 시트가 없을 경우 자동 생성 및 안내
+                if (confirm(`[${sheetName}] 탭이 백업 시트에 존재하지 않습니다.\n해당 학급의 시트 탭을 자동으로 생성하시겠습니까?`)) {
+                    // 시트 추가
+                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetName } } }] })
+                    });
+                    
+                    // 기본 헤더 행 쓰기
+                    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A1?valueInputOption=USER_ENTERED`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: [["번호", "이름", "성별"]] })
+                    });
+
+                    alert(`✅ 시트 생성이 완료되었습니다!\n\n곧 열리는 구글 시트의 [${sheetName}] 탭에 학생 번호와 이름을 등록하신 뒤, 앱으로 돌아와 다시 '시트에서 가져오기'를 눌러주세요.`);
+                    window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
+                }
+                return;
+            }
+
             const data = await dataRes.json();
-            if (!data.values || data.values.length === 0) return alert("데이터가 비어있습니다.");
+            const rows = data.values || [];
+
+            if (rows.length === 0) {
+                alert(`[${sheetName}] 시트에 등록된 학생 데이터가 없습니다.\n시트에 번호와 이름을 등록해주세요.`);
+                window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
+                return;
+            }
 
             const newStudents = [];
-            data.values.forEach((row, i) => {
-                if (i === 0 && (row[0]==='번호' || row[0]==='순번')) return; 
+            let startIndex = 0;
+            
+            // 헤더(번호, 이름)가 있는 행을 찾아 그 다음 줄부터 읽기
+            const headerIndex = rows.findIndex(r => r[0] === '번호' || r[0] === '순번');
+            if (headerIndex !== -1) startIndex = headerIndex + 1;
+
+            for (let i = startIndex; i < rows.length; i++) {
+                const row = rows[i];
                 const num = parseInt(row[0], 10);
                 const name = row[1] ? row[1].trim() : '';
                 const gender = row[2] ? (row[2].trim() === '남' || row[2].trim().toUpperCase() === 'M' ? 'M' : (row[2].trim() === '여' || row[2].trim().toUpperCase() === 'F' ? 'F' : '')) : '';
-                if (!isNaN(num) && name) newStudents.push({ num, name, gender, isActive: true });
-            });
+                
+                if (!isNaN(num) && name) {
+                    newStudents.push({ num, name, gender, isActive: true });
+                }
+            }
 
             if (newStudents.length > 0) {
-                if (confirm(`총 ${newStudents.length}명의 학생 데이터를 찾았습니다. 현재 학급 명단을 이 데이터로 교체하시겠습니까?`)) {
+                if (confirm(`[${sheetName}] 시트에서 총 ${newStudents.length}명의 학생을 찾았습니다.\n현재 앱의 명단을 이 데이터로 교체하시겠습니까?`)) {
                     this.rosterList[this.currentIndex].students = newStudents;
                     this.renderStudentList();
-                    alert("성공적으로 불러왔습니다. 창 하단의 '저장' 버튼을 눌러야 최종 반영됩니다.");
+                    alert("✅ 성공적으로 반영되었습니다.\n팝업창 하단의 '저장' 버튼을 눌러야 완전히 적용됩니다.");
                 }
             } else {
-                alert("유효한 학생 데이터를 찾지 못했습니다.");
+                alert("유효한 학생 데이터(번호, 이름)를 찾지 못했습니다.\n시트의 A열과 B열에 데이터를 올바르게 입력했는지 확인해주세요.");
             }
         } catch(e) {
             alert("가져오기 실패: " + e.message);
@@ -221,7 +268,7 @@ export const RosterManager = {
         if (!container) return;
 
         if (currentStudents.length === 0) {
-            container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px;">등록된 학생이 없습니다. 우측 상단에서 직접 추가하세요.</div>';
+            container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px;">등록된 학생이 없습니다. 우측 상단에서 직접 추가하거나 시트에서 가져오세요.</div>';
             return;
         }
 
