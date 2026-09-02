@@ -1,7 +1,7 @@
 // js/views/viewYear.js
 import { BaseView } from '../components/BaseView.js';
 import { store } from '../core/store.js';
-import { formatDate, isRedDay, getHolidayName } from '../core/utils.js';
+import { formatDate, isRedDay, getHolidayName, getEventLabels } from '../core/utils.js'; // getEventLabels 추가됨
 import { dbAPI } from '../api/database.js'; 
 import { auth } from '../api/firebaseInit.js'; 
 import { generateEventBadgesHTML } from '../core/eventManager.js';
@@ -91,6 +91,7 @@ export class YearView extends BaseView {
         const allDates = new Set([...Object.keys(eMap), ...Object.keys(sMap), ...Object.keys(jMap), ...Object.keys(vMap)]);
         const filters = window.activeUnifiedFilters;
         const filterCount = filters.length;
+        const masterEventLabels = getEventLabels(); // 💡 라벨 정보를 불러옵니다.
 
         allDates.forEach(dateStr => {
             let hasContent = false; let contentHtml = ''; let allProcessedEventsForDate = [];
@@ -102,7 +103,19 @@ export class YearView extends BaseView {
                 const iconColor = isPersonal ? '#2563eb' : '#059669';
                 const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
-                const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+                // 💡 뷰어 필터링 처리: 달력 표시 옵션이 체크된 라벨만 보이게 합니다.
+                const fEvents = (eMap[dateStr]?.eventList || []).filter(e => {
+                    if ((e.sharedGroupId || 'personal') !== fId) return false;
+                    
+                    const eLabels = e.labelIds || [];
+                    if (eLabels.length === 0) return true; // 라벨이 없는 경우 기본적으로 표시
+                    
+                    return eLabels.some(id => {
+                        const match = masterEventLabels.find(l => l.id === id);
+                        return match && match.showInCalendar !== false;
+                    });
+                });
+                
                 const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
                 allProcessedEventsForDate.push(...processedEvents);
                 let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
@@ -327,6 +340,8 @@ export class YearView extends BaseView {
 
             filters.forEach(fId => {
                 window[`tempSchedules_${item.dateStr}`][fId] = item.data.periods?.[fId] || {};
+                
+                // 💡 에디터에서는 필터링을 하지 않고 일정을 모두 불러와 데이터 유실을 방지합니다.
                 (item.eventData.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId).forEach(e => {
                     window[`tempEvents_${item.dateStr}`].push({ ...e, labelIds: e.labelIds || [], sharedGroupId: fId === 'personal' ? null : fId });
                 });
@@ -350,7 +365,6 @@ export class YearView extends BaseView {
 
                 let eventContent = `<div id="compact-events-${item.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(item.dateStr, fId)}</div>`;
                 
-                // 💡 [기록, 조사표, 첨부파일 아이콘 추가]
                 const jList = item.journalData[fId] || [];
                 const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
                 const vList = item.evalData[fId] || [];
@@ -451,7 +465,6 @@ export class YearView extends BaseView {
         const rawList = window[`tempEvents_${dateStr}`] || [];
         const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
                 ...e, 
-                // 💡 [버그 해결] 라벨 ID 등 기존 메타데이터 보존 처리
                 id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
                 authorId: e.authorId || auth?.currentUser?.uid, 
                 sharedGroupId: e.sharedGroupId || 'personal'
