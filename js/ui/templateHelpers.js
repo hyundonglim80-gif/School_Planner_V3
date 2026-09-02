@@ -1,10 +1,8 @@
 // js/ui/templateHelpers.js
-
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
-import { auth } from '../api/firebaseInit.js'; // 🔥 사용자 정보(auth) 임포트 추가
 
-// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업
+// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거됨)
 window.showCustomAlarmPopup = function(messages) {
     let popup = document.getElementById('sp3-super-alarm-popup');
     
@@ -121,7 +119,6 @@ export const CompactEventHelper = {
                 ev.time = `${dVal || dateStr}T${finalT}`;
             }
             ev.alarmTriggered = false; 
-            ev.editorEmail = auth?.currentUser?.email; // 🔥 auth 객체 사용
         }
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
@@ -205,6 +202,7 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
+        // 🌟 다중 라벨 순회 검색 정렬
         list.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -220,14 +218,12 @@ export const CompactEventHelper = {
         });
 
         const realTodayStr = formatDate(new Date());
-        const uid = auth?.currentUser?.uid; // 🔥 auth 객체 직접 사용
+        const uid = window.auth?.currentUser?.uid;
         
         return list.map((e) => {
             if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
 
-            // 💡 여기서 과거 데이터(!e.authorId)는 누구나 권한을 갖게 예외 처리됨
             const isAuthor = !e.authorId || !uid || e.authorId === uid;
-            
             const eLabelIds = e.labelIds || [];
             const isCompleted = !!e.completed;
             const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
@@ -252,6 +248,7 @@ export const CompactEventHelper = {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
+            // 🌟 삭제 기능 연결 (인라인 파싱 오류 원천 차단)
             const deleteBtnHtml = isAuthor 
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
@@ -267,13 +264,6 @@ export const CompactEventHelper = {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
-            let authorHtml = '';
-            if (fId !== 'personal') {
-                const emailStr = e.editorEmail || e.authorEmail || '';
-                const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-                authorHtml = `<div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; display:inline-flex; align-items:center; font-weight:bold; margin-right:4px;" title="최근 수정자: ${emailStr || '과거데이터'}">👤 ${authorName}</div>`;
-            }
-
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -281,14 +271,13 @@ export const CompactEventHelper = {
                         ${chipsHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                        ${authorHtml}
                         ${timeHtml}
                         ${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
-                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '작성자 본인만 수정할 수 있습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
+                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -346,9 +335,9 @@ export const CompactEventHelper = {
         const ev = window[`tempEvents_${dateStr}`]?.find(e => e.id === eventId);
         if (ev) {
             ev[field] = value;
-            ev.editorEmail = auth?.currentUser?.email; // 🔥 내용 수정 시 이메일 확실히 기록
         }
         
+        // 🔥 추가됨: 변경된 필드가 '완료 여부(completed)'일 때만 즉시 자동 저장
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
             window.saveCurrentViewData(true);
         }
@@ -361,20 +350,17 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
-        const userEmail = auth?.currentUser?.email; // 🔥
-        const uid = auth?.currentUser?.uid;
         
         window[`tempEvents_${dateStr}`].push({ 
             id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-            authorId: uid,
-            authorEmail: userEmail, 
-            editorEmail: userEmail, 
+            authorId: window.auth?.currentUser?.uid,
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
             content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
         });
         document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
     },
 
+    // 🌟 안전하게 분리된 삭제 함수
     requestRemoveCompactEvent(dateStr, eventId, fId) {
         this.syncCompactEventInputs(dateStr); 
         const evList = window[`tempEvents_${dateStr}`];
@@ -421,7 +407,6 @@ export const CompactEventHelper = {
         const ev = evList?.find(e => e.id === eventId);
         if (!ev) return;
         ev.labelIds = ev.labelIds || [];
-        ev.editorEmail = auth?.currentUser?.email; // 🔥 라벨 수정 시에도 권한 확실히 기록
         
         const isActive = ev.labelIds.includes(labelId);
         const labelObj = getEventLabels().find(l => l.id === labelId);
@@ -433,6 +418,7 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
+            // 🔥 추가됨: 라벨 해제 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }
@@ -472,8 +458,8 @@ export const CompactEventHelper = {
                 };
 
                 labelObj.isPeriod 
-                    ? window.openPeriodModal(dateStr, labelObj.name, ev.content, callback, labelId)
-                    : window.openRecurringModal(dateStr, labelObj.name, ev.content, callback, labelId);
+                    ? window.openPeriodModal(dateStr, labelObj.name, evContent, callback, labelId)
+                    : window.openRecurringModal(dateStr, labelObj.name, evContent, callback, labelId);
                 return; 
             }
             
@@ -484,6 +470,7 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
+            // 🔥 추가됨: 라벨 추가 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }

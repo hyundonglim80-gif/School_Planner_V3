@@ -5,8 +5,7 @@ import { formatDate, parseLocalDate, getEventLabels, getJournalLabels, getLabelS
 import { dbAPI, getUserCol, getGroupCol } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js';
 import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList } from '../core/eventManager.js';
-// 💡 runTransaction 임포트 추가
-import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch, runTransaction } from "firebase/firestore";
+import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 
@@ -251,10 +250,15 @@ export class MonthView extends BaseView {
               const iconColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
+              // 💡 뷰어 필터링 처리: 달력 표시 옵션이 체크된 라벨만 보이게 합니다.
               const fEvents = finalEvents.filter(e => {
                   if ((e.sharedGroupId || 'personal') !== fId) return false;
+                  
                   const eLabels = e.labelIds || [];
+                  // 라벨이 하나도 지정되지 않은 일정은 기본적으로 보이게 처리
                   if (eLabels.length === 0) return true;
+                  
+                  // 지정된 라벨들 중 하나라도 showInCalendar 속성이 true(또는 undefined)인 경우가 있어야 표시
                   return eLabels.some(id => {
                       const match = masterEventLabels.find(l => l.id === id);
                       return match && match.showInCalendar !== false;
@@ -336,7 +340,7 @@ export class MonthView extends BaseView {
               }
           });
 
-          const isRed = isRedDay(dateStr, finalEvents);
+          const isRed = isRedDay(dateStr, finalEvents); // 휴일 계산은 모든 일정을 대상으로 유지합니다.
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#334155');
           const holidayName = getHolidayName(dateStr);
           const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
@@ -388,6 +392,7 @@ export class MonthView extends BaseView {
               const periods = sMap[dateStr]?.[fId] || {};
               window[`tempSchedules_${dateStr}`][fId] = periods;
 
+              // 💡 에디터에서는 수정 및 라벨 관리를 위해 필터링 없이 모든 일정을 불러와 줍니다. (숨겨서 데이터가 날아가는 것을 방지)
               const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               fEvents.forEach(e => {
                   let labelIds = e.labelIds || [];
@@ -634,45 +639,15 @@ export class MonthView extends BaseView {
   }
 
   syncCompactEventInputs(dateStr) { CompactEventHelper.syncCompactEventInputs(dateStr); }
+  
   syncAllCompactEventInputs() { 
       if (this.renderedDateStrings) {
           this.renderedDateStrings.forEach(dateStr => this.syncCompactEventInputs(dateStr)); 
       }
   }
+  
   syncScheduleInputs() { CompactEventHelper.syncScheduleInputs('data-month-schedule-date', 'edit-class-cell'); }
 
-  // 💡 백그라운드 동기화 UI 업데이트 헬퍼
-  updateSyncUI(isSyncing) {
-      let indicator = document.getElementById('sync-status-indicator');
-      if (!indicator) return;
-
-      if (isSyncing || window.pendingWrites > 0) {
-          indicator.style.display = 'flex';
-          indicator.innerHTML = `<div style="width:14px; height:14px; border:2px solid #fbbf24; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div> 데이터 동기화 중...`;
-          indicator.style.color = '#d97706';
-          indicator.style.backgroundColor = '#fffbeb';
-          indicator.style.borderColor = '#fcd34d';
-      } else {
-          indicator.innerHTML = `✅ 동기화 완료`;
-          indicator.style.color = '#059669';
-          indicator.style.backgroundColor = '#ecfdf5';
-          indicator.style.borderColor = '#6ee7b7';
-          setTimeout(() => { if (window.pendingWrites === 0) indicator.style.display = 'none'; }, 2000);
-      }
-  }
-
-  // 💡 공유 그룹 실시간 동기화 알림 (1회성)
-  showGroupRealtimeNotice() {
-      if (window.hasShownGroupNotice) return;
-      window.hasShownGroupNotice = true;
-      const toast = document.createElement('div');
-      toast.innerHTML = `👥 <b>실시간 동기화 모드</b><br>공유그룹 데이터는 즉시 데이터베이스에 반영되며, 동시 수정 시 덮어쓰기 없이 모든 기록이 보존됩니다.`;
-      toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:#eff6ff; color:#1e40af; padding:15px; border-left:4px solid #3b82f6; border-radius:4px; box-shadow:0 4px 6px rgba(0,0,0,0.1); z-index:9999;";
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
-  }
-
-  // 💡 오프라인 퍼스트(캐시) 및 백그라운드 업로드 로직으로 재설계된 Save 메서드
   async save() {
     if (this.isRendering) return; 
     this.syncScheduleInputs(); 
@@ -694,98 +669,8 @@ export class MonthView extends BaseView {
         }
     }
 
-    // 1. 낙관적 업데이트: 시스템이 캐시 데이터로 즉각 동작하도록 상태 초기화 (사용자 딜레이 없음)
+    await saveCalendarData(snapshot, this.myGroups, window.activeUnifiedFilters);
     store.hasUnsavedChanges = false;
-    
-    // 2. 백그라운드 큐 등록 및 UI 업데이트
-    window.pendingWrites = (window.pendingWrites || 0) + 1;
-    this.updateSyncUI(true);
-
-    // 3. await 없이 백그라운드로 실행시켜 시스템 속도 유지
-    this.executeBackgroundSync(snapshot).then(() => {
-        window.pendingWrites = Math.max(0, window.pendingWrites - 1);
-        this.updateSyncUI(false);
-    }).catch(e => {
-        console.error("백그라운드 동기화 오류:", e);
-        window.pendingWrites = Math.max(0, window.pendingWrites - 1);
-        this.updateSyncUI(false);
-    });
-  }
-
-  // 💡 트랜잭션을 통한 다중 사용자 동시성 제어 및 백그라운드 업로드 함수
-  async executeBackgroundSync(snapshot) {
-      for (const item of snapshot) {
-          const { dateStr, validEvents, schedulesData } = item;
-
-          // [개인 데이터 처리] 캐시를 믿고 단순 덮어쓰기 적용
-          const personalEvents = validEvents.filter(e => e.sharedGroupId === 'personal');
-          const personalSchedules = schedulesData['personal'];
-
-          if (personalEvents.length > 0 || personalSchedules) {
-              const docRef = doc(getUserCol('events'), dateStr);
-              await setDoc(docRef, { 
-                  eventList: personalEvents, 
-                  schedules: personalSchedules || {},
-                  updatedAt: Date.now() 
-              }, { merge: true });
-          }
-
-          // [공유 그룹 데이터 처리] 다중 사용자 충돌 방지 로직 적용
-          const groupIds = Object.keys(schedulesData).filter(id => id !== 'personal');
-          validEvents.forEach(e => {
-              if (e.sharedGroupId !== 'personal' && !groupIds.includes(e.sharedGroupId)) groupIds.push(e.sharedGroupId);
-          });
-
-          if (groupIds.length > 0) this.showGroupRealtimeNotice();
-
-          for (const gId of groupIds) {
-              const gEvents = validEvents.filter(e => e.sharedGroupId === gId);
-              const gSchedules = schedulesData[gId] || {};
-              const groupDocRef = doc(getGroupCol(gId, 'events'), dateStr);
-
-              // Transaction으로 클라우드 최신 데이터를 읽어온 후 내 데이터와 병합
-              await runTransaction(db, async (transaction) => {
-                  const docSnap = await transaction.get(groupDocRef);
-                  const existingData = docSnap.exists() ? docSnap.data() : { eventList: [], schedules: {} };
-                  const existingEvents = existingData.eventList || [];
-                  const existingSchedules = existingData.schedules || {};
-
-                  // 1) 이벤트 병합: 누가 동시에 수정했는지 확인
-                  const mergedEvents = [...existingEvents];
-
-                  gEvents.forEach(newEv => {
-                      const existingIdx = mergedEvents.findIndex(e => e.id === newEv.id);
-                      if (existingIdx !== -1) {
-                          const isDifferent = JSON.stringify(mergedEvents[existingIdx]) !== JSON.stringify(newEv);
-                          // 남이 먼저 수정한 것을 내가 덮어쓰지 않고 새로운 ID를 부여해 복제 보존시킴
-                          if (isDifferent && mergedEvents[existingIdx].authorId !== newEv.authorId) {
-                              mergedEvents.push({ ...newEv, id: newEv.id + '_conflict_' + Date.now() });
-                          } else {
-                              mergedEvents[existingIdx] = newEv; // 내가 수정한 것은 정상 업데이트
-                          }
-                      } else {
-                          mergedEvents.push(newEv); // 새로운 이벤트 추가
-                      }
-                  });
-
-                  // 2) 시간표(Schedules) 병합
-                  const mergedSchedules = { ...existingSchedules };
-                  Object.keys(gSchedules).forEach(period => {
-                      mergedSchedules[period] = gSchedules[period];
-                  });
-
-                  // 트랜잭션 기록 완료
-                  transaction.set(groupDocRef, { 
-                      eventList: mergedEvents, 
-                      schedules: mergedSchedules,
-                      updatedAt: Date.now() 
-                  }, { merge: true });
-              });
-          }
-      }
-      
-      // 하위 호환성을 위해 기존 모듈 비동기 백그라운드 호출 (DB 트랜잭션은 위에서 이미 처리됨)
-      saveCalendarData(snapshot, this.myGroups, window.activeUnifiedFilters).catch(e => console.warn(e));
   }
 }
 

@@ -128,19 +128,10 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;` : 
             `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
 
-        // 🌟 공유 그룹 일정일 경우 최근 수정자/작성자 아이디 표시 로직 추가
-        const isSharedGroup = e.sharedGroupId && e.sharedGroupId !== 'personal';
-        let authorTag = '';
-        if (isSharedGroup) {
-            const emailStr = e.editorEmail || e.authorEmail || '';
-            const authorName = emailStr ? emailStr.split('@')[0] : '익명';
-            authorTag = `<span style="font-size:0.7rem; color:#64748b; background:#f1f5f9; padding:1px 4px; border-radius:4px; margin-right:4px; border:1px solid #e2e8f0; font-weight:bold;" title="최근 수정자: ${emailStr}">👤${authorName}</span>`;
-        }
-
         html += `
         <div id="evt-row-${dateStr}-${index}" style="${layoutStyle}">
             ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${authorTag}${groupIcon}${pureContent}</span>
+            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
         </div>`;
     });
     html += `</div>`;
@@ -155,14 +146,10 @@ export const EventManager = {
         const willBeComplete = !currentStatus;
 
         if (window.dayViewInstance && window.dayViewInstance.dateStr === dateStr && window.dayViewInstance.currentEvents) {
-            if (window.dayViewInstance.currentEvents[index]) {
-                window.dayViewInstance.currentEvents[index].completed = willBeComplete;
-                window.dayViewInstance.currentEvents[index].editorEmail = window.auth?.currentUser?.email; // 🌟 완료 상태 변경 시에도 수정자 기록
-            }
+            if (window.dayViewInstance.currentEvents[index]) window.dayViewInstance.currentEvents[index].completed = willBeComplete;
         }
         if (window[`tempEvents_${dateStr}`] && window[`tempEvents_${dateStr}`][index]) {
             window[`tempEvents_${dateStr}`][index].completed = willBeComplete;
-            window[`tempEvents_${dateStr}`][index].editorEmail = window.auth?.currentUser?.email;
         }
 
         const rowEl = document.getElementById(`evt-row-${dateStr}-${index}`);
@@ -184,10 +171,10 @@ export const EventManager = {
                 let inner = textEl.innerHTML;
                 if (willBeComplete) {
                     textEl.style.color = '#94a3b8'; textEl.style.textDecoration = 'line-through'; textEl.style.fontStyle = 'italic';
-                    if (!inner.startsWith('✓ ')) textEl.innerHTML = '✓ ' + inner;
+                    if (!inner.includes('✓ ')) textEl.innerHTML = '✓ ' + inner;
                 } else {
                     textEl.style.color = '#1e293b'; textEl.style.textDecoration = 'none'; textEl.style.fontStyle = 'normal';
-                    if (inner.startsWith('✓ ')) textEl.innerHTML = inner.replace('✓ ', '');
+                    if (inner.includes('✓ ')) textEl.innerHTML = inner.replace('✓ ', '');
                 }
             }
         }
@@ -207,7 +194,6 @@ export const EventManager = {
 
                 if (eventList[index]) {
                     eventList[index].completed = willBeComplete;
-                    eventList[index].editorEmail = window.auth?.currentUser?.email; // 🌟
                     const newText = formatEventListToText(eventList);
                     await setDoc(docRef, { eventList: eventList, eventText: newText, updatedAt: Date.now() }, { merge: true });
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents(); 
@@ -289,6 +275,7 @@ export const EventManager = {
             
             if (opCount > 0) batchPromises.push(batch.commit());
             
+            // 💡 [버그 방어] 오프라인 타임아웃 0.3초 설정
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
@@ -361,7 +348,6 @@ export const EventManager = {
         const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`; 
 
         const targetCol = sharedGroupId ? getGroupCol(sharedGroupId, 'events') : getUserCol('events');
-        const userEmail = auth?.currentUser?.email; // 🌟 작성자 메일 수집
 
         for(let i=0; i<totalDays; i++) {
             const dStr = datesToSave[i];
@@ -372,8 +358,6 @@ export const EventManager = {
             list.push({ 
                 id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
                 authorId: auth?.currentUser?.uid,
-                authorEmail: userEmail, // 🌟 작성자 기록
-                editorEmail: userEmail, // 🌟 초기 수정자 기록
                 labelIds: labelId ? [labelId] : [], 
                 label: labelName, labels: [labelName], 
                 content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
@@ -382,6 +366,7 @@ export const EventManager = {
             batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
         }
 
+        // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
         await Promise.race([
             batch.commit(),
             new Promise(resolve => setTimeout(resolve, 300))
@@ -467,6 +452,7 @@ export const EventManager = {
             }
             if (count > 0) batchPromises.push(batch.commit());
             
+            // 💡 [버그 방어] 오프라인일 때 서버 응답 무한 대기로 멈추는 현상 해결 (타임아웃 적용)
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
@@ -478,6 +464,7 @@ export const EventManager = {
         if (onConfirm) onConfirm();
     },
 
+    // 🌟 [추가된 부분] 그룹 일정 내용 일괄 수정 모달
     showGroupUpdateModal: function(baseDateStr, groupId, oldContent, newContent, onConfirmGroup, onOnlyThisDay, onCancel) {
         const modalHtml = `
         <div id="group-update-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
@@ -502,6 +489,7 @@ export const EventManager = {
         document.getElementById('btn-upd-cancel').onclick = () => { document.getElementById('group-update-modal').remove(); if (onCancel) onCancel(); };
     },
 
+    // 🌟 [추가된 부분] 일괄 수정 처리 로직
     executeGroupUpdate: async function(mode, baseDateStr, groupId, oldContent, newContent, onConfirm) {
         document.getElementById('group-update-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#059669; text-align:center;">⏳ 일괄 수정 처리 중...</div>`;
 
@@ -518,7 +506,6 @@ export const EventManager = {
                 if (matchEvent(e)) {
                     const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                     e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                    e.editorEmail = window.auth?.currentUser?.email; // 🌟
                 }
             });
         }
@@ -530,7 +517,6 @@ export const EventManager = {
                     if (matchEvent(e)) {
                         const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                         e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                        e.editorEmail = window.auth?.currentUser?.email; // 🌟
                     }
                 });
             }
@@ -542,7 +528,6 @@ export const EventManager = {
             const colsToSearch = [getUserCol('events'), ...myGroups.map(g => getGroupCol(g.id, 'events'))];
 
             let batch = writeBatch(db); let count = 0; let batchPromises = []; 
-            const userEmail = auth?.currentUser?.email;
 
             for (const col of colsToSearch) {
                 let q = col;
@@ -558,7 +543,6 @@ export const EventManager = {
                         if (matchEvent(e)) {
                             const suffixMatch = (e.content || '').match(/\s*\(\d+\/\d+\).*/);
                             e.content = cleanNewContent + (suffixMatch ? suffixMatch[0] : '');
-                            e.editorEmail = userEmail; // 🌟
                             docChanged = true;
                         }
                     });
@@ -769,7 +753,6 @@ export const EventManager = {
 
             let batch = writeBatch(db); let opCount = 0; let batchPromises = [];
             let addedCount = 0; let skippedCount = 0;
-            const userEmail = auth?.currentUser?.email; // 🌟 작성자 기록
 
             for (const dateStr of targetDates) {
                 const docData = existingEventsMap[dateStr] || {};
@@ -784,8 +767,6 @@ export const EventManager = {
                     list.push({ 
                         id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5),
                         authorId: auth?.currentUser?.uid,
-                        authorEmail: userEmail, // 🌟 작성자
-                        editorEmail: userEmail, // 🌟 초기 수정자
                         labelIds: labelId ? [labelId] : [], 
                         label: this.currentLabelName, labels: [this.currentLabelName], 
                         content: content, completed: false,
@@ -802,6 +783,7 @@ export const EventManager = {
 
             if (opCount > 0) batchPromises.push(batch.commit());
             
+            // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
