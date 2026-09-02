@@ -1175,31 +1175,118 @@ export class DayView extends BaseView {
         try {
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
-                const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
-                const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-                promises.push(setDoc(doc(evCol, dateStr), { 
-                    eventList: pEvents,
-                    eventText: window.formatEventListToText ? window.formatEventListToText(pEvents) : '',
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                promises.push((async () => {
+                    const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+                    const pJournals = snapshot[0].journalsData[fId] || [];
+                    const pSchedules = snapshot[0].schedulesData[fId] || {};
 
-                const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-                promises.push(setDoc(doc(scCol, dateStr), { 
-                    periods: snapshot[0].schedulesData[fId] || {}, 
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                    const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
+                    const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+                    const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
-                const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-                promises.push(setDoc(doc(jrCol, dateStr), {
-                    entries: snapshot[0].journalsData[fId] || [], 
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                    // ==========================================
+                    // 1. 일정(Events) 동시성 병합 로직
+                    // ==========================================
+                    let finalEvents = pEvents;
+                    const evRef = doc(evCol, dateStr);
+                    try {
+                        const evSnap = await getDoc(evRef);
+                        if (evSnap.exists()) {
+                            const remoteEvents = evSnap.data().eventList || [];
+                            const originalEvents = this.originalEventsBackup?.[fId]?.events || [];
+                            
+                            const remoteMap = new Map(remoteEvents.map(e => [e.id, e]));
+                            const originalMap = new Map(originalEvents.map(e => [e.id, e]));
+                            const localMap = new Map(pEvents.map(e => [e.id, e]));
+                            
+                            const mergedMap = new Map();
+                            
+                            // 원격(다른 유저) 데이터를 기준으로 탐색
+                            remoteEvents.forEach(re => {
+                                if (originalMap.has(re.id) && !localMap.has(re.id)) {
+                                    // Case A: 내가 로컬에서 삭제버튼을 눌러 지운 항목 -> 병합하지 않음(삭제 인정)
+                                } else if (localMap.has(re.id)) {
+                                    // Case B: 둘 다 존재하지만 내가 수정한 경우 -> 내 수정본 우선 반영
+                                    mergedMap.set(re.id, localMap.get(re.id));
+                                } else {
+                                    // Case C: 내 원본엔 없었는데 원격에 생긴 경우 -> 다른 유저가 동시 추가한 항목! (보존)
+                                    mergedMap.set(re.id, re);
+                                }
+                            });
+                            
+                            // 내 로컬에서 새롭게 추가한 항목들 덧붙이기
+                            pEvents.forEach(le => {
+                                if (!mergedMap.has(le.id)) mergedMap.set(le.id, le);
+                            });
+                            
+                            finalEvents = Array.from(mergedMap.values());
+                        }
+                    } catch(err) { console.warn("일정 병합 중 오류:", err); }
+
+                    await setDoc(evRef, { 
+                        eventList: finalEvents,
+                        eventText: window.formatEventListToText ? window.formatEventListToText(finalEvents) : '',
+                        updatedAt: Date.now() 
+                    }, { merge: true });
+
+                    // ==========================================
+                    // 2. 기록(Journals) 동시성 병합 로직
+                    // ==========================================
+                    let finalJournals = pJournals;
+                    const jrRef = doc(jrCol, dateStr);
+                    try {
+                        const jrSnap = await getDoc(jrRef);
+                        if (jrSnap.exists()) {
+                            const remoteJournals = jrSnap.data().entries || [];
+                            const originalJournals = this.originalEventsBackup?.[fId]?.journals || [];
+                            
+                            const originalMap = new Map(originalJournals.map(j => [j.id, j]));
+                            const localMap = new Map(pJournals.map(j => [j.id, j]));
+                            const mergedMap = new Map();
+                            
+                            remoteJournals.forEach(rj => {
+                                if (originalMap.has(rj.id) && !localMap.has(rj.id)) { /* 내가 삭제함 */ }
+                                else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
+                                else mergedMap.set(rj.id, rj); // 다른 유저가 추가함
+                            });
+                            pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
+                            finalJournals = Array.from(mergedMap.values());
+                        }
+                    } catch(err) { console.warn("기록 병합 중 오류:", err); }
+
+                    await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
+
+                    // ==========================================
+                    // 3. 수업(Schedules) 동시성 병합 로직
+                    // ==========================================
+                    let finalSchedules = { ...pSchedules };
+                    const scRef = doc(scCol, dateStr);
+                    try {
+                        const scSnap = await getDoc(scRef);
+                        if (scSnap.exists()) {
+                            const remotePeriods = scSnap.data().periods || {};
+                            const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
+                            
+                            // 각 교시별로 비교
+                            for (let p in remotePeriods) {
+                                const rJson = JSON.stringify(remotePeriods[p] || {});
+                                const oJson = JSON.stringify(originalPeriods[p] || {});
+                                const lJson = JSON.stringify(pSchedules[p] || {});
+                                
+                                // 나는 해당 교시를 건드리지 않았는데, 다른 유저가 교시 내용을 수정했다면
+                                if (oJson === lJson && rJson !== oJson) {
+                                    finalSchedules[p] = remotePeriods[p]; // 다른 유저의 수정 내용 보존
+                                }
+                            }
+                        }
+                    } catch(err) { console.warn("수업 병합 중 오류:", err); }
+
+                    await setDoc(scRef, { periods: finalSchedules, updatedAt: Date.now() }, { merge: true });
+
+                })());
             });
             
-            await Promise.race([
-                Promise.all(promises),
-                new Promise(resolve => setTimeout(resolve, 300))
-            ]);
+            await Promise.all(promises);
             
             store.hasUnsavedChanges = false;
         } catch(e) {
