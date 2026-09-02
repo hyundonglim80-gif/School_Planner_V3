@@ -285,12 +285,18 @@ export class MonthView extends BaseView {
               let attachmentCount = 0;
               validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
 
-              // 🌟 기록/조사표 작성자 태그 생성
+              // 🌟 기록 및 조사표 아이디 표시 (이메일이 없으면 익명으로 예외처리)
               let jAuthors = [...new Set(validJournals.map(j => j.editorEmail || j.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-              let jAuthorStr = (fId !== 'personal' && jAuthors.length > 0) ? ` (👤${jAuthors.join(', ')})` : '';
+              let jAuthorStr = '';
+              if (fId !== 'personal' && validJournals.length > 0) {
+                  jAuthorStr = jAuthors.length > 0 ? ` (👤${jAuthors.join(', ')})` : ` (👤익명)`;
+              }
 
               let vAuthors = [...new Set(vList.map(v => v.editorEmail || v.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-              let vAuthorStr = (fId !== 'personal' && vAuthors.length > 0) ? ` (👤${vAuthors.join(', ')})` : '';
+              let vAuthorStr = '';
+              if (fId !== 'personal' && vList.length > 0) {
+                  vAuthorStr = vAuthors.length > 0 ? ` (👤${vAuthors.join(', ')})` : ` (👤익명)`;
+              }
 
               let metaBadges = '';
               if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}${jAuthorStr}</span>`;
@@ -314,15 +320,15 @@ export class MonthView extends BaseView {
                           let fontSize = text.length >= 5 ? "0.45rem" : (text.length === 4 ? "0.55rem" : (text.length === 3 ? "0.65rem" : "0.75rem"));
                           let letterSpacing = text.length >= 5 ? "-1.5px" : (text.length === 4 ? "-1px" : (text.length === 3 ? "-0.5px" : "normal"));
                           
-                          // 🌟 수업(뷰어) 아이디 표시
+                          // 🌟 수업(뷰어) 아이디 표시 (이메일이 없으면 익명으로 예외처리)
                           let authorHtml = '';
-                          if (fId !== 'personal' && (pObj.editorEmail || pObj.authorEmail)) {
-                              const emailStr = pObj.editorEmail || pObj.authorEmail;
-                              const authorName = emailStr.split('@')[0];
+                          if (fId !== 'personal' && text !== '') {
+                              const emailStr = pObj.editorEmail || pObj.authorEmail || '';
+                              const authorName = emailStr ? emailStr.split('@')[0] : '익명';
                               authorHtml = `<span style="font-size:0.5rem; color:#059669; margin-left:2px; font-weight:normal;">(👤${authorName})</span>`;
                           }
 
-                          return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="최근 수정: ${pObj.editorEmail || pObj.authorEmail || '정보없음'}">${text}${authorHtml}</div>`;
+                          return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden;" title="최근 수정: ${pObj.editorEmail || pObj.authorEmail || '과거데이터'}">${text}${authorHtml}</div>`;
                       }
                       return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
                   }).join('');
@@ -430,12 +436,18 @@ export class MonthView extends BaseView {
               let attachmentCount = 0;
               validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
 
-              // 🌟 기록/조사표 작성자 태그 생성
+              // 🌟 기록 및 조사표 아이디 표시 (이메일 없으면 익명으로 예외처리)
               let jAuthors = [...new Set(validJournals.map(j => j.editorEmail || j.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-              let jAuthorStr = (fId !== 'personal' && jAuthors.length > 0) ? ` (👤${jAuthors.join(', ')})` : '';
+              let jAuthorStr = '';
+              if (fId !== 'personal' && validJournals.length > 0) {
+                  jAuthorStr = jAuthors.length > 0 ? ` (👤${jAuthors.join(', ')})` : ` (👤익명)`;
+              }
 
               let vAuthors = [...new Set(vList.map(v => v.editorEmail || v.authorEmail).filter(Boolean))].map(e => e.split('@')[0]);
-              let vAuthorStr = (fId !== 'personal' && vAuthors.length > 0) ? ` (👤${vAuthors.join(', ')})` : '';
+              let vAuthorStr = '';
+              if (fId !== 'personal' && vList.length > 0) {
+                  vAuthorStr = vAuthors.length > 0 ? ` (👤${vAuthors.join(', ')})` : ` (👤익명)`;
+              }
 
               let metaBadges = '';
               if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}${jAuthorStr}</span>`;
@@ -489,11 +501,11 @@ export class MonthView extends BaseView {
                       if (pObj.memo) cellText += pObj.memo + " ";
                       if (pObj.supplies) cellText += `[${pObj.supplies}]`;
                       
-                      // 🌟 수업(에디터) 아이디 표시 (입력 텍스트와 완벽히 분리된 레이어 구조 적용)
+                      // 🌟 수업(에디터) 텍스트 편집 방해 금지 레이어 (이메일 없으면 익명 표시)
                       let authorHtml = '';
-                      if (fId !== 'personal' && (pObj.editorEmail || pObj.authorEmail)) {
-                          const emailStr = pObj.editorEmail || pObj.authorEmail;
-                          const authorName = emailStr.split('@')[0];
+                      if (fId !== 'personal' && cellText.trim() !== '') {
+                          const emailStr = pObj.editorEmail || pObj.authorEmail || '';
+                          const authorName = emailStr ? emailStr.split('@')[0] : '익명';
                           authorHtml = `<div contenteditable="false" style="position:absolute; top:2px; right:2px; font-size:0.65rem; color:#059669; background:rgba(209,250,229,0.9); padding:1px 4px; border-radius:4px; pointer-events:none; font-weight:bold; border:1px solid #6ee7b7; z-index:2;">👤${authorName}</div>`;
                       }
 
