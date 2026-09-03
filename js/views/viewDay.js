@@ -714,19 +714,25 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
-        events.sort((a, b) => {
-            let aRank = 9999, bRank = 9999;
-            (a.labelIds || []).forEach(id => {
-                const r = allLabelsObj.findIndex(l => l.id === id);
-                if (r !== -1 && r < aRank) aRank = r;
+        // 🌟 수정: 보기 모드는 라벨 순서 정렬, 작성 모드는 등록된 순서(ID) 유지
+        if (store.mode !== 'editor') {
+            events.sort((a, b) => {
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = allLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = allLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
             });
-            (b.labelIds || []).forEach(id => {
-                const r = allLabelsObj.findIndex(l => l.id === id);
-                if (r !== -1 && r < bRank) bRank = r;
-            });
-            if (aRank !== bRank) return aRank - bRank;
-            return (a.id || '').localeCompare(b.id || '');
-        });
+        } else {
+            // 작성 모드일 경우 생성 시 부여된 타임스탬프 기반 ID로 오름차순 정렬
+            events.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+        }
 
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
@@ -809,19 +815,7 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        journals.sort((a, b) => {
-            let aRank = 9999, bRank = 9999;
-            (a.labelIds || []).forEach(id => {
-                const r = allLabelsObj.findIndex(l => l.id === id);
-                if (r !== -1 && r < aRank) aRank = r;
-            });
-            (b.labelIds || []).forEach(id => {
-                const r = allLabelsObj.findIndex(l => l.id === id);
-                if (r !== -1 && r < bRank) bRank = r;
-            });
-            if (aRank !== bRank) return aRank - bRank;
-            return (a.id || '').localeCompare(b.id || '');
-        });
+        journals.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
 
         // 🌟 [복구완료] 하루-작성 모드의 '오늘 기록' 라벨은 숨김 없이 항상 표시되도록 원래 구조로 복원
         container.innerHTML = journals.map((j, idx) => {

@@ -230,14 +230,15 @@ export const saveCurrentViewData = async (silent = false) => {
         }
         
         if (!silent) {
-            // 🌟 [수정 2] 강제 스크롤 방지 (render(true) -> render() 로 변경)
             setTimeout(() => window.render(), 100);
+            // 🚨 수정된 부분: 저장 후 거슬리는 알림창 대신 Toast 호출
+            window.showToast('저장되었습니다.');
         }
     } catch(e) { console.error("Save execution error:", e); }
 
     if (editorBtn && !silent) {
         editorBtn.innerHTML = '저장 완료'; editorBtn.style.opacity = '1';
-        setTimeout(() => { if (store.mode === 'editor') editorBtn.innerHTML = '저장'; }, 1500); 
+        setTimeout(() => { if (store.mode === 'editor') editorBtn.innerHTML = '작성'; }, 1500); 
     }
 };
 
@@ -322,3 +323,20 @@ window.saveCurrentViewData = async (silent = false) => {
     await originalSaveCurrentViewData(silent); // 기존 저장 로직 실행
     window.markLocalChanges(); // 개인 모드라면 '동기화 필요' 아이콘 표시
 };
+
+export const showToast = (message, duration = 2000) => {
+    let toast = document.getElementById('sp3-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'sp3-toast';
+        toast.style.cssText = 'position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); color: #fff; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 1rem; z-index: 999999; opacity: 0; transition: opacity 0.3s ease-in-out; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+        document.body.appendChild(toast);
+    }
+    toast.innerText = message;
+    toast.style.opacity = '1';
+    
+    if (window.toastTimer) clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
+};
+
+window.showToast = showToast; // 전역 스코프 등록
