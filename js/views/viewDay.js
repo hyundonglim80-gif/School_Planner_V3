@@ -10,13 +10,13 @@ import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEven
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
-import { DayTemplates } from '../ui/dayTemplates.js';
-import { DayDragManager } from '../modules/dayDragManager.js'; 
 
 export class DayView extends BaseView {
     constructor(container) {
         super(container);
         this.currentEvalList = []; 
+        this.draggedPeriod = null; 
+        this.draggedFilterId = null;
         this.myGroups = [];
         this.dayData = {}; 
         this.lockedDateStr = null; 
@@ -186,10 +186,7 @@ export class DayView extends BaseView {
             const themeColor = isPersonal ? '#2563eb' : '#10b981';
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
-            const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => {
-                const linkBadgeHtml = DayTemplates.getViewerEventLinkBadge(e, dateStr, fId);
-                return { ...e, content: e.content + linkBadgeHtml };
-            });
+            const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
             processedEvents.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
@@ -220,9 +217,29 @@ export class DayView extends BaseView {
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
-                return DayTemplates.getViewerPeriodRow(p, pObj, periodName, fId, evalBadges, dateStr);
+                
+                // 🚨 수정됨: 수업 뷰어의 링크 배지
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+
+                return `
+                <tr data-period="${p}">
+                    <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
+                    <td style="width: 120px; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</div></td>
+                    <td style="vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div></td>
+                    <td style="width: 25%; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
+                        <div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>
+                        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                            <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                                ${linkBadge}
+                                ${evalBadges}
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
             }).join('');
 
+            // 🚨 수정됨: 누락되었던 <tbody> 와 </table> 정상 복구 및 머리글 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
@@ -266,7 +283,32 @@ export class DayView extends BaseView {
             });
 
             const jListHtml = journals.length > 0 ? journals.map(j => {
-                return DayTemplates.getViewerJournalEntry(j, dateStr, fId, masterJournalLabels, getLabelStyle);
+                const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
+                const chipsHtml = lNames.map(lName => {
+                    const style = getLabelStyle(lName, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; margin-right:6px; white-space:nowrap; vertical-align:middle;">${lName}</span>`;
+                }).join('');
+
+                const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map(a => {
+                    const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
+                    return `
+                    <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; color:#0f172a; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
+                        <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
+                        <span style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                    </div>`;
+                }).join('') + `</div>` : '';
+
+                // 🚨 수정됨: 기록 뷰어의 링크 배지
+                const linkCount = (j.linkedItems || []).length;
+                const linkBadgeHtml = linkCount > 0 
+                    ? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                    : '';
+
+                return `
+                    <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
+                        <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}${linkBadgeHtml}</div>
+                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1; margin-left:6px;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
+                    </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 
             journalsHtml += `
@@ -392,9 +434,45 @@ export class DayView extends BaseView {
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
-                return DayTemplates.getEditorPeriodRow(p, pObj, periodName, fId, evalBadges, dateStr);
+                
+                // 🚨 수정됨: 에디터 모드의 수업 링크 배지
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+				
+                return `
+                <tr id="period-row-${fId}-${p}" data-period="${p}" 
+                    ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p}, '${fId}')"
+                    ondragend="window.dayViewInstance.handlePeriodDragEnd(event, '${fId}')"
+                    ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                    ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                    ondragleave="this.style.backgroundColor='';"
+                    ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handlePeriodDrop(event, ${p}, '${fId}');"
+                    style="transition: background-color 0.2s;">
+                  
+                  <td class="period-cell" 
+                      onmouseenter="document.getElementById('period-row-${fId}-${p}').setAttribute('draggable', 'true')"
+                      onmouseleave="document.getElementById('period-row-${fId}-${p}').removeAttribute('draggable')"
+                      style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="이곳을 드래그하여 사이에 끼워넣기">
+                      <div style="display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none;">
+                          <span style="font-size:1.2rem; color:#94a3b8;">≡</span>
+                          <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
+                      </div>
+                  </td>
+                  <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.subject || ''}</td>
+                  <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.memo || ''}</td>
+                  <td style="text-align: left; vertical-align: top;">
+                    <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
+                    <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                        <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${linkBadge}
+                            ${evalBadges}
+                        </div>
+                    </div>
+                  </td>
+                </tr>`;
             }).join('');
 
+            // 🚨 수정됨: 머리글 📌 비고 칸 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
@@ -467,15 +545,165 @@ export class DayView extends BaseView {
     }
 
     handlePeriodDragStart(event, period, filterId) {
-        DayDragManager.handleDragStart(this, event, period, filterId);
+        window.dayViewInstance.draggedPeriod = period;
+        window.dayViewInstance.draggedFilterId = filterId;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(period)); 
+        setTimeout(() => {
+            const row = event.target.closest('tr');
+            if (row) row.style.opacity = '0.4';
+            const tableContainer = event.target.closest('.table-container');
+            if (tableContainer) tableContainer.classList.add('is-dragging'); 
+        }, 0);
     }
 
     handlePeriodDragEnd(event, filterId) {
-        DayDragManager.handleDragEnd(this, event, filterId);
+        const tbody = document.getElementById(`schedule-tbody-${filterId}`);
+        if (tbody) {
+            tbody.querySelectorAll('tr').forEach(tr => { 
+                tr.style.opacity = '1'; 
+                tr.style.backgroundColor = '';
+                tr.removeAttribute('draggable');
+            });
+        }
+        const tableContainer = event.target.closest('.table-container');
+        if (tableContainer) tableContainer.classList.remove('is-dragging');
+        window.dayViewInstance.draggedPeriod = null;
+        window.dayViewInstance.draggedFilterId = null;
     }
 
     handlePeriodDrop(event, targetPeriod, filterId) {
-        DayDragManager.handleDrop(this, event, targetPeriod, filterId);
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const tableContainer = event.target.closest('.table-container');
+        if (tableContainer) tableContainer.classList.remove('is-dragging');
+        
+        let sourcePeriodStr = '';
+        try { sourcePeriodStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
+        
+        const sourcePeriod = parseInt(sourcePeriodStr, 10) || window.dayViewInstance.draggedPeriod;
+        if (!sourcePeriod || sourcePeriod === targetPeriod || window.dayViewInstance.draggedFilterId !== filterId) return;
+
+        window.dayViewInstance.executeClassInsert(sourcePeriod, targetPeriod, filterId);
+        window.dayViewInstance.draggedPeriod = null;
+        window.dayViewInstance.draggedFilterId = null;
+    }
+
+    executeClassInsert(sourceP, targetP, fId) {
+        if (sourceP === targetP) return;
+        
+        this.syncScheduleInputs(fId);
+
+        const s = parseInt(sourceP, 10);
+        const t = parseInt(targetP, 10);
+        const schedules = this.dayData[fId].schedules;
+        const sourceData = schedules[s] ? { ...schedules[s] } : null;
+
+        if (s < t) {
+            for (let i = s; i < t; i++) {
+                if (schedules[i + 1]) schedules[i] = { ...schedules[i + 1] };
+                else delete schedules[i];
+            }
+        } else {
+            for (let i = s; i > t; i--) {
+                if (schedules[i - 1]) schedules[i] = { ...schedules[i - 1] };
+                else delete schedules[i];
+            }
+        }
+
+        if (sourceData) schedules[t] = sourceData;
+        else delete schedules[t];
+
+        let evalChanged = false;
+        this.currentEvalList.forEach(ev => {
+            const eSource = ev.context?.source || (ev.periodStr ? 'schedule' : 'journal');
+            const targetGid = fId === 'personal' ? null : fId;
+            if (eSource === 'schedule' && ev.groupId === targetGid) {
+                const savedPeriod = ev.periodStr || ev.context?.period || '';
+                const p = parseInt(String(savedPeriod).replace(/[^0-9]/g, ''), 10);
+                
+                if (p === s) {
+                    ev.periodStr = String(t);
+                    if (ev.context) ev.context.period = t;
+                    evalChanged = true;
+                } else if (s < t && p > s && p <= t) {
+                    ev.periodStr = String(p - 1);
+                    if (ev.context) ev.context.period = p - 1;
+                    evalChanged = true;
+                } else if (s > t && p >= t && p < s) {
+                    ev.periodStr = String(p + 1);
+                    if (ev.context) ev.context.period = p + 1;
+                    evalChanged = true;
+                }
+            }
+        });
+
+        store.hasUnsavedChanges = true;
+
+        const tbody = document.getElementById(`schedule-tbody-${fId}`);
+        if (tbody) {
+            tbody.innerHTML = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
+                const p = i + 1;
+                const pObj = schedules[p] || {};
+                const periodName = store.periodNames[i] || p + '교시';
+                const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
+                
+                // 🚨 드래그 후 렌더링 시 링크 배지 재생성
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+
+                return `
+                <tr id="period-row-${fId}-${p}" data-period="${p}" 
+                    ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p}, '${fId}')"
+                    ondragend="window.dayViewInstance.handlePeriodDragEnd(event, '${fId}')"
+                    ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                    ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                    ondragleave="this.style.backgroundColor='';"
+                    ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handlePeriodDrop(event, ${p}, '${fId}');"
+                    style="transition: background-color 0.2s;">
+                  
+                  <td class="period-cell" 
+                      onmouseenter="document.getElementById('period-row-${fId}-${p}').setAttribute('draggable', 'true')"
+                      onmouseleave="document.getElementById('period-row-${fId}-${p}').removeAttribute('draggable')"
+                      style="padding:4px; vertical-align:middle; text-align:center; background:#f8fafc; cursor:grab;" title="이곳을 드래그하여 사이에 끼워넣기">
+                      <div style="display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none;">
+                          <span style="font-size:1.2rem; color:#94a3b8;">≡</span>
+                          <span style="font-weight:900; color:#475569; font-size:0.95rem;">${periodName}</span>
+                      </div>
+                  </td>
+                  <td class="editable-cell cell-subject" contenteditable="true" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.subject || ''}</td>
+                  <td class="editable-cell cell-memo" contenteditable="true" style="text-align: left;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.memo || ''}</td>
+                  <td style="text-align: left; vertical-align: top;">
+                    <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
+                    <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                        <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${linkBadge}
+                            ${evalBadges}
+                        </div>
+                    </div>
+                  </td>
+                </tr>`;
+            }).join('');
+        }
+
+        if (evalChanged) {
+            const targetGid = fId === 'personal' ? null : fId;
+            const scheduleEvals = this.currentEvalList.filter(e => e.context?.source === 'schedule' && e.groupId === targetGid);
+            const journalEvals = this.currentEvalList.filter(e => e.context?.source === 'journal' && e.groupId === targetGid);
+            
+            dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, scheduleEvals, targetGid).catch(e => console.warn(e));
+            if (journalEvals.length > 0) {
+                dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, journalEvals, targetGid).catch(e => console.warn(e));
+            }
+        }
+        
+        if (typeof window.saveCurrentViewData === 'function') {
+            window.saveCurrentViewData(true);
+        } else {
+            this.save();
+            store.hasUnsavedChanges = false;
+        }
     }
 
     requestRemoveEvent(fId, idx) {
@@ -541,7 +769,82 @@ export class DayView extends BaseView {
 
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
-            return DayTemplates.getEditorEventEntry(ev, idx, fId, isAuthor, allLabelsObj, this.lockedDateStr || this.dateStr, getLabelStyle);
+            const eLabelIds = ev.labelIds || [];
+            const isCompleted = !!ev.completed;
+            const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
+
+            let forwardedBadge = '';
+            if (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr)) {
+                forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
+            }
+
+            const deleteBtnHtml = isAuthor 
+                ? `<button class="modal-delete-btn" onclick="window.dayViewInstance.requestRemoveEvent('${fId}', ${idx})" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
+                : '';
+
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = eLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'event'); 
+                
+                const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
+                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; ${chipCursorStyle} ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
+
+            const checkboxHtml = canComplete 
+                ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.dayViewInstance.updateEventStatus('${fId}', ${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+                : '';
+
+            const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
+            const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
+            const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+
+            const timeVal = ev.time || '';
+            const timeColor = timeVal ? '#2563eb' : '#94a3b8';
+            const timeBg = timeVal ? '#eff6ff' : '#f8fafc';
+            const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
+
+            const timeHtml = isAuthor 
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                       <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
+                     </div>` 
+                  : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
+
+            // 🚨 수정됨: 하루 일정 카드에 링크 생성(🔗 연결)과 확인(📑) 버튼 완벽 분리 적용
+            const linkCount = (ev.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 
+                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                : '';
+            const linkBtnHtml = isAuthor
+                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                  : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
+
+            const authorBadge = (fId !== 'personal' && ev.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
+                : '';
+
+            return `
+            <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                    <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
+                        ${chipsHtml}${forwardedBadge}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${linkBtnHtml} 
+                        ${timeHtml}
+                        ${authorBadge}${deleteBtnHtml}
+                    </div>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                    ${checkboxHtml}
+                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent('${fId}', ${idx}, this.value)">${pureContent}</textarea>
+                </div>
+            </div>`;
         }).join('');
 
         setTimeout(() => { container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta)); }, 0);
@@ -576,7 +879,60 @@ export class DayView extends BaseView {
 
         container.innerHTML = journals.map((j, idx) => {
             const isAuthor = !j.authorId || !uid || j.authorId === uid;
-            return DayTemplates.getEditorJournalEntry(j, idx, fId, isAuthor, allLabelsObj, this.lockedDateStr || this.dateStr, getLabelStyle);
+            const jLabelIds = j.labelIds || [];
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = jLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'journal'); 
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; cursor:pointer; ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
+
+            const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
+                const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
+                return `
+                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
+                    <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
+                    <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
+                    <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
+                </div>`;
+            }).join('') + `</div>` : '';
+
+            const uploadId = `journal-upload-${fId}-${idx}`;
+            const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
+
+            // 🚨 수정됨: 기록 영역의 링크 생성(🔗 연결)과 확인(📑) 버튼 분리
+            const linkCount = (j.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 
+                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                : '';
+            const linkBtnHtml = isAuthor
+                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+
+            const authorBadge = (fId !== 'personal' && j.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
+                : '';
+
+            return `
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
+                <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
+                    ${linkBtnHtml} 
+                    ${authorBadge}
+                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+                </div>
+                <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
+                <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
+                    <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                    
+                    <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
+                </div>
+                ${isUploading}${attachmentsHtml}
+            </div>`;
         }).join('');
 
         setTimeout(() => { container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta)); }, 0);
@@ -922,8 +1278,6 @@ export class DayView extends BaseView {
                             remoteEvents.forEach(re => {
                                 if (originalMap.has(re.id) && !localMap.has(re.id)) {
                                 } else if (localMap.has(re.id)) {
-                                    // 🚨 링크 정보 강제 동기화 (LinkManager 변경사항 덮어쓰기 방지)
-                                    localMap.get(re.id).linkedItems = re.linkedItems || [];
                                     mergedMap.set(re.id, localMap.get(re.id)); 
                                 } else {
                                     mergedMap.set(re.id, re); 
@@ -958,11 +1312,8 @@ export class DayView extends BaseView {
                             
                             remoteJournals.forEach(rj => {
                                 if (originalMap.has(rj.id) && !localMap.has(rj.id)) { }
-                                else if (localMap.has(rj.id)) {
-                                    // 🚨 링크 정보 강제 동기화
-                                    localMap.get(rj.id).linkedItems = rj.linkedItems || [];
-                                    mergedMap.set(rj.id, localMap.get(rj.id));
-                                } else mergedMap.set(rj.id, rj); 
+                                else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
+                                else mergedMap.set(rj.id, rj); 
                             });
                             pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
                             finalJournals = Array.from(mergedMap.values());
@@ -980,28 +1331,12 @@ export class DayView extends BaseView {
                             const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
                             
                             for (let p in remotePeriods) {
-                                // 링크 정보는 로컬 변경 검사에서 무시 (LinkManager가 직접 DB를 수정하기 때문)
-                                const rJson = JSON.stringify({ ...remotePeriods[p], linkedItems: [] });
-                                const oJson = JSON.stringify({ ...originalPeriods[p], linkedItems: [] });
-                                const lJson = JSON.stringify({ ...(pSchedules[p] || {}), linkedItems: [] });
+                                const rJson = JSON.stringify(remotePeriods[p] || {});
+                                const oJson = JSON.stringify(originalPeriods[p] || {});
+                                const lJson = JSON.stringify(pSchedules[p] || {});
                                 
                                 if (oJson === lJson && rJson !== oJson) {
-                                    finalSchedules[p] = { ...remotePeriods[p] }; 
-                                }
-                            }
-                            
-                            // 🚨 모든 교시(1~10교시)의 링크 정보를 DB(remote) 기준으로 강제 상속시킴
-                            for (let i = 1; i <= 10; i++) {
-                                const p = String(i);
-                                if (finalSchedules[p] || remotePeriods[p]) {
-                                    if (!finalSchedules[p]) finalSchedules[p] = { subject: '', memo: '', supplies: '' };
-                                    
-                                    finalSchedules[p].linkedItems = remotePeriods[p] ? (remotePeriods[p].linkedItems || []) : [];
-                                    
-                                    // 알맹이가 완전히 비어있고 링크마저 없다면 해당 교시 삭제
-                                    if (!finalSchedules[p].subject && !finalSchedules[p].memo && !finalSchedules[p].supplies && (!finalSchedules[p].linkedItems || finalSchedules[p].linkedItems.length === 0)) {
-                                        delete finalSchedules[p];
-                                    }
+                                    finalSchedules[p] = remotePeriods[p]; 
                                 }
                             }
                         }
