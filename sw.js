@@ -1,6 +1,6 @@
 // sw.js (Service Worker)
 // 🌟 캐시 버전을 v6로 올려 브라우저가 새로운 서비스 워커를 설치하도록 유도
-const CACHE_NAME = 'sp3-offline-cache-v3.752';
+const CACHE_NAME = 'sp3-offline-cache-v3.751';
 
 self.addEventListener('install', event => {
     self.skipWaiting();
