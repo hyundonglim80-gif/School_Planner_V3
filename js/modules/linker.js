@@ -387,14 +387,27 @@ export const LinkManager = {
 
         // 2. 도착지(Target) 역방향 링크 주입
         let sourceTitleLabel = '연결된 항목';
-        if (this.sourceData.type === 'schedule_header') sourceTitleLabel = `${document.getElementById('linker-source-period').value}교시 수업`;
+        
+        // 🔥 수정 1: 기본 ID를 가져오되, 식별을 위한 변수로 분리합니다.
+        let safeTargetId = this.sourceData.id;
+
+        if (this.sourceData.type === 'schedule_header') {
+            const sp = document.getElementById('linker-source-period').value;
+            sourceTitleLabel = `${sp}교시 수업`;
+            
+            // 🔥 수정 2: 출발지가 '수업'이어서 ID가 null인 경우, 날짜와 교시를 조합해 고유 ID를 강제로 생성합니다.
+            safeTargetId = `class_${this.sourceData.dateStr}_${sp}`;
+        }
         else if (this.sourceData.type === 'event') sourceTitleLabel = '일정';
         else if (this.sourceData.type === 'journal') sourceTitleLabel = '기록';
         else if (this.sourceData.type === 'memo') sourceTitleLabel = '메모';
 
         const sourceMeta = {
             targetType: this.sourceData.type === 'schedule_header' ? 'schedule' : this.sourceData.type,
-            targetId: this.sourceData.id,
+            
+            // 🔥 수정 3: 생성된 고유 식별자(safeTargetId)를 삽입합니다.
+            targetId: safeTargetId,
+            
             targetDate: this.sourceData.dateStr || '',
             targetPeriod: this.sourceData.type === 'schedule_header' ? document.getElementById('linker-source-period').value : (this.sourceData.period || ''),
             title: `[${this.sourceData.dateStr || '메모'}] ${sourceTitleLabel}`
