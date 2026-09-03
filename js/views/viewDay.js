@@ -212,14 +212,16 @@ export class DayView extends BaseView {
               ${eventBadges}
             </div>`;
 
-            const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+            const periodRowsHtml = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
+                
+                // 🚨 수정됨: 수업 뷰어의 링크 배지
                 const linkCount = (pObj.linkedItems || []).length;
-				const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
-				
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+
                 return `
                 <tr data-period="${p}">
                     <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
@@ -228,33 +230,40 @@ export class DayView extends BaseView {
                     <td style="width: 25%; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
                         <div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>
                         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                            <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">${evalBadges}</div>
+                            <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                                ${linkBadge}
+                                ${evalBadges}
+                            </div>
                         </div>
                     </td>
                 </tr>`;
             }).join('');
 
+            // 🚨 수정됨: 누락되었던 <tbody> 와 </table> 정상 복구 및 머리글 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
                   <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
               </div>
               <table style="text-align: center; border-collapse: collapse; width: 100%;">
-			  <thead>
+                <thead>
                   <tr style="border-bottom: 1px solid #cbd5e1;">
                     <th style="width: 60px; padding: 10px;">교시</th>
                     <th style="width: 120px; padding: 10px;">수업</th>
                     <th style="padding: 10px;">📝 수업 메모</th>
-                    <!-- 🚨 수정됨: min-width 강제 할당 및 내부 줄바꿈 방지(nowrap) 적용 -->
                     <th style="width: 25%; min-width: 140px; position:relative; padding: 4px;">
-						<div style="display:flex; gap:4px; align-items:center; justify-content:center; white-space: nowrap;">
-							<span style="font-size:0.85rem;">📌 비고</span>
-							<button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:1px 4px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;">+조사표</button>
-							<button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:1px 4px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;" title="해당 일자 교시와 데이터를 연결합니다.">+링크</button>
-						</div>
-					</th>
+                        <div style="display:flex; gap:4px; align-items:center; justify-content:center; white-space: nowrap;">
+                            <span style="font-size:0.85rem;">📌 비고</span>
+                            <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:1px 4px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;">+조사표</button>
+                            <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:1px 4px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;" title="해당 일자 교시와 데이터를 연결합니다.">+링크</button>
+                        </div>
+                    </th>
                   </tr>
                 </thead>
+                <tbody id="schedule-tbody-${fId}">
+                    ${periodRowsHtml}
+                </tbody>
+              </table>
             </div>`;
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
@@ -289,10 +298,16 @@ export class DayView extends BaseView {
                     </div>`;
                 }).join('') + `</div>` : '';
 
+                // 🚨 수정됨: 기록 뷰어의 링크 배지
+                const linkCount = (j.linkedItems || []).length;
+                const linkBadgeHtml = linkCount > 0 
+                    ? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                    : '';
+
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
-                        <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}</div>
-                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
+                        <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}${linkBadgeHtml}</div>
+                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1; margin-left:6px;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
                     </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 
@@ -414,13 +429,15 @@ export class DayView extends BaseView {
               <button onclick="window.dayViewInstance.addEventEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${bgColor}; color:${themeColor}; border:2px dashed ${bColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>`;
 
-            const periodRowsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+            const periodRowsHtml = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
+                
+                // 🚨 수정됨: 에디터 모드의 수업 링크 배지
                 const linkCount = (pObj.linkedItems || []).length;
-				const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 				
                 return `
                 <tr id="period-row-${fId}-${p}" data-period="${p}" 
@@ -447,7 +464,7 @@ export class DayView extends BaseView {
                     <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
                     <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
                         <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
-                            ${linkBadge} <!-- 🚨 수정됨: 뱃지 삽입 -->
+                            ${linkBadge}
                             ${evalBadges}
                         </div>
                     </div>
@@ -455,26 +472,26 @@ export class DayView extends BaseView {
                 </tr>`;
             }).join('');
 
+            // 🚨 수정됨: 머리글 📌 비고 칸 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
                   <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
                   <div style="font-size:0.8rem; color:#64748b;">💡 왼쪽 '≡' 영역을 잡아 끌어다 놓으세요.</div>
               </div>
-              <table style="text-align: center;">
+              <table style="text-align: center; width: 100%;">
                 <thead>
                   <tr>
                     <th style="width: 75px;">교시</th>
                     <th style="width: 120px;">수업</th>
                     <th>📝 수업 메모</th>
-                    <!-- 🚨 수정됨: min-width 강제 할당 및 내부 줄바꿈 방지(nowrap) 적용 -->
-                    <th style="width: 25%; min-width: 140px; position:relative; padding: 4px;">
-						<div style="display:flex; gap:4px; align-items:center; justify-content:center; white-space: nowrap;">
-							<span style="font-size:0.85rem;">📌 비고</span>
-							<button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:1px 4px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;">+조사표</button>
-							<button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:1px 4px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;" title="해당 일자 교시와 데이터를 연결합니다.">+링크</button>
-						</div>
-					</th>
+                    <th style="width: 25%; min-width: 140px; position:relative; padding: 4px; border-bottom:none;">
+                        <div style="display:flex; gap:4px; align-items:center; justify-content:center; white-space: nowrap;">
+                            <span style="font-size:0.85rem;">📌 비고</span>
+                            <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:1px 4px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;">+조사표</button>
+                            <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:1px 4px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:3px; font-size:0.65rem; cursor:pointer; font-weight:bold; letter-spacing:-0.5px;" title="해당 일자 교시와 데이터를 연결합니다.">+링크</button>
+                        </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody id="schedule-tbody-${fId}">${periodRowsHtml}</tbody>
@@ -626,12 +643,16 @@ export class DayView extends BaseView {
 
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (tbody) {
-            tbody.innerHTML = Array.from({ length: this.maxPeriod }).map((_, i) => {
+            tbody.innerHTML = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 
+                // 🚨 드래그 후 렌더링 시 링크 배지 재생성
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+
                 return `
                 <tr id="period-row-${fId}-${p}" data-period="${p}" 
                     ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p}, '${fId}')"
@@ -657,7 +678,7 @@ export class DayView extends BaseView {
                     <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
                     <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
                         <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
-                            ${linkBadge} <!-- 🚨 수정됨: 뱃지 삽입 -->
+                            ${linkBadge}
                             ${evalBadges}
                         </div>
                     </div>
@@ -728,7 +749,6 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
-        // 🌟 수정: 보기 모드는 라벨 순서 정렬, 작성 모드는 등록된 순서(ID) 유지
         if (store.mode !== 'editor') {
             events.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
@@ -744,7 +764,6 @@ export class DayView extends BaseView {
                 return (a.id || '').localeCompare(b.id || '');
             });
         } else {
-            // 작성 모드일 경우 생성 시 부여된 타임스탬프 기반 ID로 오름차순 정렬
             events.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
         }
 
@@ -796,7 +815,7 @@ export class DayView extends BaseView {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
-            // 🔥 [추가됨] 링크 버튼 렌더링
+            // 🚨 수정됨: 하루 일정 카드에 링크 생성(🔗 연결)과 확인(📑) 버튼 완벽 분리 적용
             const linkCount = (ev.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 
                 ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
@@ -805,7 +824,6 @@ export class DayView extends BaseView {
                   ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
                   : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
-            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && ev.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
                 : '';
@@ -817,7 +835,7 @@ export class DayView extends BaseView {
                         ${chipsHtml}${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                        ${linkBtnHtml} <!-- 🔥 여기에 링크 버튼 삽입 -->
+                        ${linkBtnHtml} 
                         ${timeHtml}
                         ${authorBadge}${deleteBtnHtml}
                     </div>
@@ -839,7 +857,6 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        // 🌟 수정: 보기 모드는 라벨 순서 정렬, 작성 모드는 등록된 순서(ID) 유지
         if (store.mode !== 'editor') {
             journals.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
@@ -860,7 +877,6 @@ export class DayView extends BaseView {
 
         const uid = auth?.currentUser?.uid;
 
-        // 🌟 [복구완료] 하루-작성 모드의 '오늘 기록' 라벨은 숨김 없이 항상 표시되도록 원래 구조로 복원
         container.innerHTML = journals.map((j, idx) => {
             const isAuthor = !j.authorId || !uid || j.authorId === uid;
             const jLabelIds = j.labelIds || [];
@@ -888,17 +904,15 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
-            // 🔥 [추가됨] 기록용 링크 뱃지 및 버튼 HTML 추가
-            // renderJournalEntries 함수 내부의 const linkBtnHtml = ... 부분을 아래 코드로 교체하세요
-			const linkCount = (j.linkedItems || []).length;
-			const linkBadgeHtml = linkCount > 0 
-				? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
-				: '';
-			const linkBtnHtml = isAuthor
-				? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
-				: (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+            // 🚨 수정됨: 기록 영역의 링크 생성(🔗 연결)과 확인(📑) 버튼 분리
+            const linkCount = (j.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 
+                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                : '';
+            const linkBtnHtml = isAuthor
+                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
-            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && j.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
                 : '';
@@ -906,7 +920,7 @@ export class DayView extends BaseView {
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
-                    ${linkBtnHtml} <!-- 🔥 여기에 링크 버튼 삽입 -->
+                    ${linkBtnHtml} 
                     ${authorBadge}
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
@@ -980,7 +994,7 @@ export class DayView extends BaseView {
         if (ev.labelIds.includes(labelId)) {
             ev.labelIds = ev.labelIds.filter(id => id !== labelId);
             this.renderEventEntries(fId);
-            await this.save(); // 🔥 추가됨: 라벨 해제 시 즉시 자동 저장
+            await this.save(); 
         } else {
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
@@ -1012,7 +1026,7 @@ export class DayView extends BaseView {
 
             ev.labelIds.push(labelId);
             this.renderEventEntries(fId);
-            await this.save(); // 🔥 추가됨: 라벨 추가 시 즉시 자동 저장
+            await this.save(); 
         }
     }
 
@@ -1020,7 +1034,7 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].completed = isCompleted;
         this.renderEventEntries(fId);
-        this.save(); // 🔥 추가됨: 체크박스 클릭 시 즉시 자동 저장
+        this.save(); 
     }
 
     updateEventContent(fId, idx, val) {
@@ -1117,7 +1131,6 @@ export class DayView extends BaseView {
             const memo = row.querySelector('.cell-memo').innerText.trim();
             const supplies = row.querySelector('.cell-supplies').innerText.trim();
             
-            // 🚨 수정됨: 기존 linkedItems 보존
             const oldObj = this.dayData[fId].schedules[p] || {};
             if (subject || memo || supplies || (oldObj.linkedItems && oldObj.linkedItems.length > 0)) { 
                 this.dayData[fId].schedules[p] = { 
@@ -1215,7 +1228,6 @@ export class DayView extends BaseView {
             validEvents.forEach(e => {
                 if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!e.authorId && auth?.currentUser?.uid) e.authorId = auth.currentUser.uid;
-                // [추가된 부분] 내 일정일 경우 닉네임 도장 찍기
                 if (e.authorId === auth?.currentUser?.uid) {
                     e.authorName = localStorage.getItem('sp3_nickname') || e.authorName || '';
                 }
@@ -1229,7 +1241,6 @@ export class DayView extends BaseView {
             validJournals.forEach(j => {
                 if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!j.authorId && auth?.currentUser?.uid) j.authorId = auth.currentUser.uid;
-                // [추가된 부분] 내 기록일 경우 닉네임 도장 찍기
                 if (j.authorId === auth?.currentUser?.uid) {
                     j.authorName = localStorage.getItem('sp3_nickname') || j.authorName || '';
                 }
@@ -1250,9 +1261,6 @@ export class DayView extends BaseView {
                     const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
                     const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
-                    // ==========================================
-                    // 1. 일정(Events) 동시성 병합 로직
-                    // ==========================================
                     let finalEvents = pEvents;
                     const evRef = doc(evCol, dateStr);
                     try {
@@ -1269,11 +1277,10 @@ export class DayView extends BaseView {
                             
                             remoteEvents.forEach(re => {
                                 if (originalMap.has(re.id) && !localMap.has(re.id)) {
-                                    // 내가 로컬에서 지운 항목 무시
                                 } else if (localMap.has(re.id)) {
-                                    mergedMap.set(re.id, localMap.get(re.id)); // 내 수정본 반영
+                                    mergedMap.set(re.id, localMap.get(re.id)); 
                                 } else {
-                                    mergedMap.set(re.id, re); // 타 유저가 동시 추가한 항목 보존
+                                    mergedMap.set(re.id, re); 
                                 }
                             });
                             
@@ -1291,9 +1298,6 @@ export class DayView extends BaseView {
                         updatedAt: Date.now() 
                     }, { merge: true });
 
-                    // ==========================================
-                    // 2. 기록(Journals) 동시성 병합 로직
-                    // ==========================================
                     let finalJournals = pJournals;
                     const jrRef = doc(jrCol, dateStr);
                     try {
@@ -1318,9 +1322,6 @@ export class DayView extends BaseView {
 
                     await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
 
-                    // ==========================================
-                    // 3. 수업(Schedules) 동시성 병합 로직
-                    // ==========================================
                     let finalSchedules = { ...pSchedules };
                     const scRef = doc(scCol, dateStr);
                     try {
