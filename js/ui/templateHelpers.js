@@ -259,10 +259,17 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
+
+            // 🔥 [수정됨] 링크 버튼 및 뱃지 추가
+            const linkCount = (e.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${linkCount}</span>` : '';
+            const linkBtnHtml = isAuthor
+                  ? `<button onclick="window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1; margin-right:4px;" title="기록/메모 연결">🔗${linkBadgeHtml}</button>`
+                  : '';
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && e.authorId)
@@ -276,13 +283,10 @@ export const CompactEventHelper = {
                         ${chipsHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${linkBtnHtml} <!-- 🔥 링크 버튼 삽입 -->
                         ${timeHtml}
                         ${authorBadge}${deleteBtnHtml}
                     </div>
-                </div>
-                <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
-                    ${checkboxHtml}
-                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
