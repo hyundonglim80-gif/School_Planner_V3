@@ -393,9 +393,10 @@ export const EvaluationManager = {
         this.viewerModal.open();
     },
 
-    // 🌟 추가된 함수: 메타데이터 수정 블럭 생성
+    // 🌟 수정된 함수: 메타데이터 수정 블럭 생성 (학급 정보 추가)
     getMetaEditHtml: function(ev) {
         const subjOptions = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'].map(s => `<option value="${s}" ${s===ev.subject?'selected':''}>${s}</option>`).join('');
+        
         const maxPeriod = store.periodNames ? store.periodNames.length : 6;
         let periodOptions = '';
         for (let i = 1; i <= maxPeriod; i++) {
@@ -404,6 +405,15 @@ export const EvaluationManager = {
         }
         periodOptions += `<option value="journal" ${ev.context.source === 'journal' ? 'selected' : ''}>기록 (오늘 기록 칸)</option>`;
 
+        // 학급(명렬표) 옵션 렌더링
+        let rosterOptions = '<option value="">명렬표 선택</option>';
+        if (this.roster && this.roster.length > 0) {
+            rosterOptions = this.roster.map((r, i) => {
+                const isSelected = (ev.rosterMeta && ev.rosterMeta.year == r.year && ev.rosterMeta.grade == r.grade && ev.rosterMeta.classNum == r.classNum) ? 'selected' : '';
+                return `<option value="${i}" ${isSelected}>${r.year}학년도 ${r.grade}학년 ${r.classNum}반 (${r.students ? r.students.length : 0}명)</option>`;
+            }).join('');
+        }
+
         return `
             <div style="margin-bottom:15px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc; padding:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="const d=document.getElementById('eval-meta-edit-panel'); d.style.display=d.style.display==='none'?'flex':'none';">
@@ -411,9 +421,15 @@ export const EvaluationManager = {
                     <span style="color:#64748b; font-size:0.85rem;">▼ 펼치기</span>
                 </div>
                 <div id="eval-meta-edit-panel" style="display:none; flex-direction:column; gap:10px; margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:12px;">
-                    <div>
-                        <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">조사표 제목</label>
-                        <input type="text" id="edit-eval-title" value="${ev.title}" class="eval-input" style="padding:6px 10px;">
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">조사표 제목</label>
+                            <input type="text" id="edit-eval-title" value="${ev.title}" class="eval-input" style="padding:6px 10px;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">대상 학급(명렬표)</label>
+                            <select id="edit-eval-roster" class="eval-input" style="padding:6px 10px;">${rosterOptions}</select>
+                        </div>
                     </div>
                     <div style="display:flex; gap:10px;">
                         <div style="flex:1;">
@@ -429,7 +445,7 @@ export const EvaluationManager = {
                             <select id="edit-eval-subject" class="eval-input" style="padding:6px 10px;"><option value="">선택 안함</option>${subjOptions}</select>
                         </div>
                     </div>
-                    <div style="text-align:right;">
+                    <div style="text-align:right; margin-top:4px;">
                         <button onclick="window.EvaluationManager.saveMetaData('${ev.id}')" style="background:#2563eb; color:#fff; border:none; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer;">정보 업데이트</button>
                     </div>
                 </div>
@@ -437,7 +453,7 @@ export const EvaluationManager = {
         `;
     },
 
-    // 🌟 추가된 함수: 메타데이터 업데이트 실행
+    // 🌟 수정된 함수: 메타데이터 업데이트 실행 (학급 변경 로직 포함)
     saveMetaData: async function(evalId) {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
@@ -446,8 +462,25 @@ export const EvaluationManager = {
         const newDate = document.getElementById('edit-eval-date').value;
         const newPeriodVal = document.getElementById('edit-eval-period').value;
         const newSubject = document.getElementById('edit-eval-subject').value;
+        const newRosterIdx = document.getElementById('edit-eval-roster').value;
 
         if (!newTitle) return alert("제목을 입력하세요.");
+        if (!newRosterIdx) return alert("대상 학급을 선택해주세요.");
+
+        const selectedRoster = this.roster[parseInt(newRosterIdx, 10)];
+        const isRosterChanged = !ev.rosterMeta || 
+                                ev.rosterMeta.year != selectedRoster.year || 
+                                ev.rosterMeta.grade != selectedRoster.grade || 
+                                ev.rosterMeta.classNum != selectedRoster.classNum;
+
+        // 학급이 변경되었을 경우 경고 및 데이터 스냅샷 교체 처리
+        if (isRosterChanged) {
+            if (!confirm("대상 학급을 변경하면 새 학급의 학생 명단으로 교체됩니다.\n(※ 기존에 입력된 평가 기록 중 번호가 일치하지 않는 학생의 데이터는 보이지 않게 됩니다.)\n정말 변경하시겠습니까?")) {
+                return;
+            }
+            ev.rosterMeta = { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum };
+            ev.studentsSnapshot = selectedRoster.students.filter(s => s.isActive !== false).map(s => ({ num: s.num, name: s.name, gender: s.gender }));
+        }
 
         ev.title = newTitle;
         ev.subject = newSubject;
@@ -488,7 +521,9 @@ export const EvaluationManager = {
             if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
             document.getElementById('eval-viewer-modal')?.remove();
             this.openViewer(this.currentDateStr, evalId);
-            if (window.showToast) window.showToast("기본 정보가 업데이트 되었습니다.");
+            
+            const msg = isRosterChanged ? "학급 및 기본 정보가 업데이트 되었습니다." : "기본 정보가 업데이트 되었습니다.";
+            if (window.showToast) window.showToast(msg);
         }
     },
 
