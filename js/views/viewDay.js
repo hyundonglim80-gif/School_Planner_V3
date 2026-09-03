@@ -11,7 +11,7 @@ import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } fr
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 import { DayTemplates } from '../ui/dayTemplates.js';
-import { DayDragManager } from '../modules/dayDragManager.js'; // 🌟 신규 모듈 추가
+import { DayDragManager } from '../modules/dayDragManager.js'; 
 
 export class DayView extends BaseView {
     constructor(container) {
@@ -466,7 +466,6 @@ export class DayView extends BaseView {
         };
     }
 
-    // 🌟 분리된 DayDragManager로 위임
     handlePeriodDragStart(event, period, filterId) {
         DayDragManager.handleDragStart(this, event, period, filterId);
     }
@@ -923,6 +922,8 @@ export class DayView extends BaseView {
                             remoteEvents.forEach(re => {
                                 if (originalMap.has(re.id) && !localMap.has(re.id)) {
                                 } else if (localMap.has(re.id)) {
+                                    // 🚨 링크 정보 강제 동기화 (LinkManager 변경사항 덮어쓰기 방지)
+                                    localMap.get(re.id).linkedItems = re.linkedItems || [];
                                     mergedMap.set(re.id, localMap.get(re.id)); 
                                 } else {
                                     mergedMap.set(re.id, re); 
@@ -957,8 +958,11 @@ export class DayView extends BaseView {
                             
                             remoteJournals.forEach(rj => {
                                 if (originalMap.has(rj.id) && !localMap.has(rj.id)) { }
-                                else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
-                                else mergedMap.set(rj.id, rj); 
+                                else if (localMap.has(rj.id)) {
+                                    // 🚨 링크 정보 강제 동기화
+                                    localMap.get(rj.id).linkedItems = rj.linkedItems || [];
+                                    mergedMap.set(rj.id, localMap.get(rj.id));
+                                } else mergedMap.set(rj.id, rj); 
                             });
                             pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
                             finalJournals = Array.from(mergedMap.values());
@@ -976,12 +980,28 @@ export class DayView extends BaseView {
                             const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
                             
                             for (let p in remotePeriods) {
-                                const rJson = JSON.stringify(remotePeriods[p] || {});
-                                const oJson = JSON.stringify(originalPeriods[p] || {});
-                                const lJson = JSON.stringify(pSchedules[p] || {});
+                                // 링크 정보는 로컬 변경 검사에서 무시 (LinkManager가 직접 DB를 수정하기 때문)
+                                const rJson = JSON.stringify({ ...remotePeriods[p], linkedItems: [] });
+                                const oJson = JSON.stringify({ ...originalPeriods[p], linkedItems: [] });
+                                const lJson = JSON.stringify({ ...(pSchedules[p] || {}), linkedItems: [] });
                                 
                                 if (oJson === lJson && rJson !== oJson) {
-                                    finalSchedules[p] = remotePeriods[p]; 
+                                    finalSchedules[p] = { ...remotePeriods[p] }; 
+                                }
+                            }
+                            
+                            // 🚨 모든 교시(1~10교시)의 링크 정보를 DB(remote) 기준으로 강제 상속시킴
+                            for (let i = 1; i <= 10; i++) {
+                                const p = String(i);
+                                if (finalSchedules[p] || remotePeriods[p]) {
+                                    if (!finalSchedules[p]) finalSchedules[p] = { subject: '', memo: '', supplies: '' };
+                                    
+                                    finalSchedules[p].linkedItems = remotePeriods[p] ? (remotePeriods[p].linkedItems || []) : [];
+                                    
+                                    // 알맹이가 완전히 비어있고 링크마저 없다면 해당 교시 삭제
+                                    if (!finalSchedules[p].subject && !finalSchedules[p].memo && !finalSchedules[p].supplies && (!finalSchedules[p].linkedItems || finalSchedules[p].linkedItems.length === 0)) {
+                                        delete finalSchedules[p];
+                                    }
                                 }
                             }
                         }

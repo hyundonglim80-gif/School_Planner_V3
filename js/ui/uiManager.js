@@ -231,14 +231,20 @@ export const saveCurrentViewData = async (silent = false) => {
         
         if (!silent) {
             setTimeout(() => window.render(), 100);
-            // 🚨 수정된 부분: 저장 후 거슬리는 알림창 대신 Toast 호출
             window.showToast('저장되었습니다.');
         }
     } catch(e) { console.error("Save execution error:", e); }
 
     if (editorBtn && !silent) {
         editorBtn.innerHTML = '저장 완료'; editorBtn.style.opacity = '1';
-        setTimeout(() => { if (store.mode === 'editor') editorBtn.innerHTML = '작성'; }, 1500); 
+        setTimeout(() => { 
+            // 🚨 수정: 에디터 모드일 경우 원래 버튼명인 '저장'으로 복구
+            if (store.mode === 'editor') {
+                editorBtn.innerHTML = '저장'; 
+            } else {
+                editorBtn.innerHTML = '작성'; 
+            }
+        }, 1500); 
     }
 };
 
@@ -260,22 +266,16 @@ export const installPWA = async () => {
     }
 };
 
-// 🔥 [Local-First 동기화 관리 로직 추가]
 window.pendingLocalChanges = false;
 
-// 데이터 수정이 발생했을 때 꼬리표를 달고 아이콘을 띄우는 함수
 window.markLocalChanges = () => {
-    // 현재 공유 그룹이 켜져 있는지 확인
     const isGroupActive = window.activeUnifiedFilters && window.activeUnifiedFilters.some(id => id !== 'personal');
-    
-    // 공유 그룹이 꺼져있는 순수 '개인 모드'일 때만 동기화 필요 상태로 전환
     if (!isGroupActive) {
         window.pendingLocalChanges = true;
         window.updateSyncUI();
     }
 };
 
-// 동기화 버튼 표시/숨김 제어 함수
 window.updateSyncUI = () => {
     const syncBtn = document.getElementById('btn-sync-status');
     if (!syncBtn) return;
@@ -283,15 +283,12 @@ window.updateSyncUI = () => {
     const isGroupActive = window.activeUnifiedFilters && window.activeUnifiedFilters.some(id => id !== 'personal');
     
     if (isGroupActive) {
-        // 그룹이 켜져있으면 상시 동기화 모드이므로 아이콘 숨김
         syncBtn.style.display = 'none'; 
     } else {
-        // 개인 모드일 때 변경사항이 있으면 버튼 표시
         syncBtn.style.display = window.pendingLocalChanges ? 'flex' : 'none';
     }
 };
 
-// 동기화 버튼 클릭 시 실행될 함수 (임시 연출, 네트워크 차단/연결은 추후 적용)
 window.executeLocalSync = () => {
     const syncBtn = document.getElementById('btn-sync-status');
     if (syncBtn) {
@@ -301,13 +298,10 @@ window.executeLocalSync = () => {
         syncBtn.style.borderColor = '#6ee7b7';
     }
     
-    // 추후 이 곳에 dbAPI.enableNetwork() 등의 통신 재개 로직이 들어갑니다.
-    // 현재는 1초 후 동기화 완료로 연출
     setTimeout(() => {
         window.pendingLocalChanges = false;
-        window.updateSyncUI(); // 아이콘 사라짐
+        window.updateSyncUI(); 
         
-        // 버튼 스타일 초기화 (다음을 위해)
         if (syncBtn) {
             syncBtn.innerHTML = '<span style="font-size: 1.1rem;">🔄</span> 동기화 필요';
             syncBtn.style.color = '#d97706';
@@ -317,11 +311,10 @@ window.executeLocalSync = () => {
     }, 1000);
 };
 
-// 💡 기존의 saveCurrentViewData 함수를 덮어씌워(오버라이드) 저장 시 markLocalChanges를 호출하도록 연결
 const originalSaveCurrentViewData = window.saveCurrentViewData;
 window.saveCurrentViewData = async (silent = false) => {
-    await originalSaveCurrentViewData(silent); // 기존 저장 로직 실행
-    window.markLocalChanges(); // 개인 모드라면 '동기화 필요' 아이콘 표시
+    await originalSaveCurrentViewData(silent); 
+    window.markLocalChanges(); 
 };
 
 export const showToast = (message, duration = 2000) => {
@@ -339,4 +332,4 @@ export const showToast = (message, duration = 2000) => {
     window.toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
 };
 
-window.showToast = showToast; // 전역 스코프 등록
+window.showToast = showToast;

@@ -54,7 +54,7 @@ export const DayDragManager = {
         this.draggedFilterId = null;
     },
 
-    executeClassInsert(instance, sourceP, targetP, fId) {
+    async executeClassInsert(instance, sourceP, targetP, fId) {
         if (sourceP === targetP) return;
         
         instance.syncScheduleInputs(fId);
@@ -127,10 +127,11 @@ export const DayDragManager = {
             }
         }
         
+        // 🚨 드래그 앤 드롭 후 즉시 저장 피드백이 보이도록 변경
         if (typeof window.saveCurrentViewData === 'function') {
-            window.saveCurrentViewData(true);
+            await window.saveCurrentViewData(false); // false로 주어 저장 완료 피드백을 발생시킵니다.
         } else {
-            instance.save();
+            await instance.save();
             store.hasUnsavedChanges = false;
         }
     }
