@@ -10,7 +10,7 @@ import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEven
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
-import { DayTemplates } from '../ui/dayTemplates.js'; // 🌟 신규 모듈 추가
+import { DayTemplates } from '../ui/dayTemplates.js';
 
 export class DayView extends BaseView {
     constructor(container) {
@@ -187,7 +187,11 @@ export class DayView extends BaseView {
             const themeColor = isPersonal ? '#2563eb' : '#10b981';
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
-            const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
+            // 🚨 수정됨: 보기 모드 일정 카드에 📑 링크 연결 배지를 주입합니다.
+            const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => {
+                const linkBadgeHtml = DayTemplates.getViewerEventLinkBadge(e, dateStr, fId);
+                return { ...e, content: e.content + linkBadgeHtml };
+            });
             
             processedEvents.sort((a, b) => {
                 let aRank = 9999, bRank = 9999;
@@ -213,7 +217,6 @@ export class DayView extends BaseView {
               ${eventBadges}
             </div>`;
 
-            // 🌟 템플릿 사용
             const periodRowsHtml = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = this.dayData[fId].schedules[p] || {};
@@ -264,7 +267,6 @@ export class DayView extends BaseView {
                 return (a.id || '').localeCompare(b.id || '');
             });
 
-            // 🌟 템플릿 사용
             const jListHtml = journals.length > 0 ? journals.map(j => {
                 return DayTemplates.getViewerJournalEntry(j, dateStr, fId, masterJournalLabels, getLabelStyle);
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
@@ -387,7 +389,6 @@ export class DayView extends BaseView {
               <button onclick="window.dayViewInstance.addEventEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${bgColor}; color:${themeColor}; border:2px dashed ${bColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 일정 추가</button>
             </div>`;
 
-            // 🌟 템플릿 사용
             const periodRowsHtml = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = this.dayData[fId].schedules[p] || {};
@@ -566,7 +567,6 @@ export class DayView extends BaseView {
 
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (tbody) {
-            // 🌟 템플릿 사용
             tbody.innerHTML = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
                 const p = i + 1;
                 const pObj = schedules[p] || {};
@@ -656,7 +656,6 @@ export class DayView extends BaseView {
             events.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
         }
 
-        // 🌟 템플릿 사용
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             return DayTemplates.getEditorEventEntry(ev, idx, fId, isAuthor, allLabelsObj, this.lockedDateStr || this.dateStr, getLabelStyle);
@@ -692,7 +691,6 @@ export class DayView extends BaseView {
 
         const uid = auth?.currentUser?.uid;
 
-        // 🌟 템플릿 사용
         container.innerHTML = journals.map((j, idx) => {
             const isAuthor = !j.authorId || !uid || j.authorId === uid;
             return DayTemplates.getEditorJournalEntry(j, idx, fId, isAuthor, allLabelsObj, this.lockedDateStr || this.dateStr, getLabelStyle);

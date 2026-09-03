@@ -224,5 +224,12 @@ export const DayTemplates = {
                 <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}${linkBadgeHtml}</div>
                 <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1; margin-left:6px;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
             </div>`;
+    },
+
+    // 6. 뷰어 모드: 일정(Event)의 텍스트에 삽입될 링크 배지 HTML 생성 (🚨 신규 추가)
+    getViewerEventLinkBadge(ev, lockedDateStr, fId) {
+        const linkCount = (ev.linkedItems || []).length;
+        if (linkCount === 0) return '';
+        return ` <button onclick="window.LinkManager.openViewer('${lockedDateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 5px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; vertical-align:middle;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>`;
     }
 };
