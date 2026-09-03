@@ -782,6 +782,13 @@ export class DayView extends BaseView {
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
+            // 🔥 [추가됨] 링크 버튼 렌더링
+            const linkCount = (ev.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${linkCount}</span>` : '';
+            const linkBtnHtml = isAuthor 
+                  ? `<button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1; margin-right:4px;" title="기록/메모 연결">🔗${linkBadgeHtml}</button>`
+                  : '';
+
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && ev.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
@@ -794,6 +801,7 @@ export class DayView extends BaseView {
                         ${chipsHtml}${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                        ${linkBtnHtml} <!-- 🔥 여기에 링크 버튼 삽입 -->
                         ${timeHtml}
                         ${authorBadge}${deleteBtnHtml}
                     </div>
@@ -815,10 +823,30 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        journals.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+        // 🌟 수정: 보기 모드는 라벨 순서 정렬, 작성 모드는 등록된 순서(ID) 유지
+        if (store.mode !== 'editor') {
+            journals.sort((a, b) => {
+                let aRank = 9999, bRank = 9999;
+                (a.labelIds || []).forEach(id => {
+                    const r = allLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < aRank) aRank = r;
+                });
+                (b.labelIds || []).forEach(id => {
+                    const r = allLabelsObj.findIndex(l => l.id === id);
+                    if (r !== -1 && r < bRank) bRank = r;
+                });
+                if (aRank !== bRank) return aRank - bRank;
+                return (a.id || '').localeCompare(b.id || '');
+            });
+        } else {
+            journals.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+        }
+
+        const uid = auth?.currentUser?.uid;
 
         // 🌟 [복구완료] 하루-작성 모드의 '오늘 기록' 라벨은 숨김 없이 항상 표시되도록 원래 구조로 복원
         container.innerHTML = journals.map((j, idx) => {
+            const isAuthor = !j.authorId || !uid || j.authorId === uid;
             const jLabelIds = j.labelIds || [];
             const chipsHtml = allLabelsObj.map(lObj => {
                 const isActive = jLabelIds.includes(lObj.id);
@@ -844,6 +872,13 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
+            // 🔥 [추가됨] 기록용 링크 뱃지 및 버튼 HTML 추가
+            const linkCount = (j.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${linkCount}</span>` : '';
+            const linkBtnHtml = isAuthor
+                  ? `<button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1; margin-right:8px;" title="메모/일정 연결">🔗${linkBadgeHtml}</button>`
+                  : '';
+
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && j.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
@@ -852,6 +887,7 @@ export class DayView extends BaseView {
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
+                    ${linkBtnHtml} <!-- 🔥 여기에 링크 버튼 삽입 -->
                     ${authorBadge}
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>

@@ -453,7 +453,7 @@ export const EvaluationManager = {
         `;
     },
 
-    // 🌟 수정된 함수: 메타데이터 업데이트 실행 (학급 변경 로직 포함)
+    // 🌟 수정된 함수: 메타데이터 업데이트 실행 (위치 이동 즉시 반영)
     saveMetaData: async function(evalId) {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return;
@@ -473,11 +473,8 @@ export const EvaluationManager = {
                                 ev.rosterMeta.grade != selectedRoster.grade || 
                                 ev.rosterMeta.classNum != selectedRoster.classNum;
 
-        // 학급이 변경되었을 경우 경고 및 데이터 스냅샷 교체 처리
         if (isRosterChanged) {
-            if (!confirm("대상 학급을 변경하면 새 학급의 학생 명단으로 교체됩니다.\n(※ 기존에 입력된 평가 기록 중 번호가 일치하지 않는 학생의 데이터는 보이지 않게 됩니다.)\n정말 변경하시겠습니까?")) {
-                return;
-            }
+            if (!confirm("대상 학급을 변경하면 새 학급의 학생 명단으로 교체됩니다.\n정말 변경하시겠습니까?")) return;
             ev.rosterMeta = { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum };
             ev.studentsSnapshot = selectedRoster.students.filter(s => s.isActive !== false).map(s => ({ num: s.num, name: s.name, gender: s.gender }));
         }
@@ -485,43 +482,40 @@ export const EvaluationManager = {
         ev.title = newTitle;
         ev.subject = newSubject;
         
-        // 날짜가 변경되었을 경우 데이터 이동 처리
-        if (ev.dateStr !== newDate) {
+        // 🚨 위치(날짜 또는 교시/유형) 변경 감지 로직 추가
+        const oldPeriodVal = ev.context.source === 'journal' ? 'journal' : String(ev.periodStr);
+        const isLocationChanged = (ev.dateStr !== newDate) || (oldPeriodVal !== newPeriodVal);
+
+        if (isLocationChanged) {
             const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
             
-            // 1. 기존 날짜에서 제거 및 저장
             this.currentEvalList = this.currentEvalList.filter(e => e.id !== evalId);
             await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
             
-            // 2. 새 날짜로 데이터 세팅
             ev.dateStr = newDate;
             ev.periodStr = newPeriodVal === 'journal' ? '' : parseInt(newPeriodVal, 10);
             ev.context.source = newPeriodVal === 'journal' ? 'journal' : 'schedule';
             ev.context.period = ev.periodStr;
 
-            // 3. 새 날짜에 데이터 로드 후 병합 저장
             const newDateList = await dbAPI.loadEvaluations(newDate, actualGroupId);
             newDateList.push(ev);
             await dbAPI.saveEvaluations(newDate, newDateList, actualGroupId);
 
             document.getElementById('eval-viewer-modal')?.remove();
-            if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
             
-            // 4. 새 날짜 기준으로 뷰어 다시 열기
+            // 🔥 핵심: 위치가 바뀌면 달력을 강제로 다시 그려 즉시 이동된 것을 보여줍니다.
+            if (typeof window.render === 'function') window.render(false);
+            
             this.openViewer(newDate, evalId);
-            if (window.showToast) window.showToast("날짜와 정보가 변경되어 이동되었습니다.");
+            if (window.showToast) window.showToast("위치와 정보가 변경되어 이동되었습니다.");
         } else {
-            ev.periodStr = newPeriodVal === 'journal' ? '' : parseInt(newPeriodVal, 10);
-            ev.context.source = newPeriodVal === 'journal' ? 'journal' : 'schedule';
-            ev.context.period = ev.periodStr;
-
             const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
             await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
             
             if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
             document.getElementById('eval-viewer-modal')?.remove();
-            this.openViewer(this.currentDateStr, evalId);
             
+            this.openViewer(this.currentDateStr, evalId);
             const msg = isRosterChanged ? "학급 및 기본 정보가 업데이트 되었습니다." : "기본 정보가 업데이트 되었습니다.";
             if (window.showToast) window.showToast(msg);
         }
