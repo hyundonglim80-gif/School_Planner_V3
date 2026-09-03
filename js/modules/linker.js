@@ -354,64 +354,74 @@ export const LinkManager = {
         }).join('');
     },
 
-    // 🌟 저장 로직 (현재 화면의 인메모리 데이터에 바인딩)
-    saveLinks: function() {
-        if (this.selectedLinks.length === 0) return alert("연결할 대상을 장바구니에 담아주세요.");
+    // 🌟 수정됨: 저장 로직 고도화 및 DB 즉시 저장
+    saveLinks: async function() {
+        const selectedPeriod = document.getElementById('linker-period') ? document.getElementById('linker-period').value : '';
+        const checkboxes = document.querySelectorAll('.linker-checkbox:checked');
+        const selectedLinks = Array.from(checkboxes).map(cb => ({
+            targetType: cb.getAttribute('data-type'),
+            targetId: cb.value,
+            targetPeriod: selectedPeriod
+        }));
 
-        // 1. 소스가 '수업 표 헤더'일 경우, 링크를 부착할 주체(Source)가 '해당 교시의 수업'이 됩니다.
-        let actualSourceId = this.sourceData.id;
-        let actualSourceType = this.sourceData.type;
+        if (selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
+
+        const updateLinks = (targetArray) => {
+            selectedLinks.forEach(link => {
+                if (!targetArray.some(l => l.targetId === link.targetId)) {
+                    targetArray.push(link);
+                }
+            });
+        };
 
         if (this.sourceData.type === 'schedule_header') {
             const sp = document.getElementById('linker-source-period').value;
-            actualSourceType = 'schedule';
-            actualSourceId = `class_${this.sourceData.dateStr}_${sp}`;
-            
-            // 전역 캐시에 해당 교시 스케줄 객체 확보
-            window[`tempSchedules_${this.sourceData.dateStr}`] = window[`tempSchedules_${this.sourceData.dateStr}`] || {};
-            const groupSchedules = window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] || {};
-            groupSchedules[sp] = groupSchedules[sp] || { subject: '', memo: '', supplies: '', linkedItems: [] };
-            
-            // 데이터 병합
-            groupSchedules[sp].linkedItems = groupSchedules[sp].linkedItems || [];
-            this.selectedLinks.forEach(link => {
-                if (!groupSchedules[sp].linkedItems.some(l => l.targetId === link.targetId)) {
-                    groupSchedules[sp].linkedItems.push({ targetType: link.targetType, targetId: link.targetId, targetPeriod: link.targetPeriod || null });
-                }
-            });
-            window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] = groupSchedules;
+            // Week/Month 뷰
+            if (window[`tempSchedules_${this.sourceData.dateStr}`]) {
+                const grp = window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] || {};
+                grp[sp] = grp[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
+                grp[sp].linkedItems = grp[sp].linkedItems || [];
+                updateLinks(grp[sp].linkedItems);
+                window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] = grp;
+            }
+            // Day 뷰
+            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
+            if (dData && dData.schedules) {
+                dData.schedules[sp] = dData.schedules[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
+                dData.schedules[sp].linkedItems = dData.schedules[sp].linkedItems || [];
+                updateLinks(dData.schedules[sp].linkedItems);
+            }
         } 
-        else if (actualSourceType === 'event') {
+        else if (this.sourceData.type === 'event') {
             const evList = window[`tempEvents_${this.sourceData.dateStr}`] || [];
-            const ev = evList.find(e => e.id === actualSourceId);
-            if (ev) {
-                ev.linkedItems = ev.linkedItems || [];
-                this.selectedLinks.forEach(link => {
-                    if (!ev.linkedItems.some(l => l.targetId === link.targetId)) ev.linkedItems.push({ targetType: link.targetType, targetId: link.targetId });
-                });
+            const ev = evList.find(e => e.id === this.sourceData.id);
+            if (ev) { ev.linkedItems = ev.linkedItems || []; updateLinks(ev.linkedItems); }
+            
+            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
+            if (dData && dData.events) {
+                const dev = dData.events.find(e => e.id === this.sourceData.id);
+                if (dev) { dev.linkedItems = dev.linkedItems || []; updateLinks(dev.linkedItems); }
             }
         }
-        else if (actualSourceType === 'journal') {
-            // Journal 인메모리 객체를 찾아 연결 (viewDay.js 등에서 관리하는 this.dayData 참조)
-            const dData = window[`${store.scope}ViewInstance`]?.dayData?.[this.sourceData.fId];
+        else if (this.sourceData.type === 'journal') {
+            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
             if (dData && dData.journals) {
-                const jr = dData.journals.find(j => j.id === actualSourceId);
-                if (jr) {
-                    jr.linkedItems = jr.linkedItems || [];
-                    this.selectedLinks.forEach(link => {
-                        if (!jr.linkedItems.some(l => l.targetId === link.targetId)) jr.linkedItems.push({ targetType: link.targetType, targetId: link.targetId });
-                    });
-                }
+                const jr = dData.journals.find(j => j.id === this.sourceData.id);
+                if (jr) { jr.linkedItems = jr.linkedItems || []; updateLinks(jr.linkedItems); }
             }
         }
         
         window.store.hasUnsavedChanges = true;
         
-        if (window.showToast) window.showToast('✅ 데이터가 연결되었습니다. 저장을 누르면 완전히 반영됩니다.');
+        // 🚨 핵심 수정: 메모리가 날아가지 않도록 DB에 우선 저장 후 렌더링 호출
+        if (typeof window.saveCurrentViewData === 'function') {
+            await window.saveCurrentViewData(true); 
+        } else if (window.render) {
+            window.render(false);
+        }
+
+        if (window.showToast) window.showToast('✅ 데이터가 연결되었습니다.');
         document.getElementById('linker-modal').remove();
-        
-        // 화면 리렌더링
-        if (window.render) window.render(false);
     }
 };
 

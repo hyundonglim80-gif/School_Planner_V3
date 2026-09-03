@@ -336,10 +336,17 @@ export const CompactEventHelper = {
                         memo = text;
                     }
                 }
-                window[`tempSchedules_${dateStr}`][fId][p] = { subject: subject.toUpperCase() === 'X' ? '' : subject, memo, supplies };
+                // 🚨 수정됨: 타이핑 시 기존에 담겨있던 linkedItems 속성을 보존함
+                const oldObj = window[`tempSchedules_${dateStr}`][fId][p] || {};
+                window[`tempSchedules_${dateStr}`][fId][p] = { 
+                    subject: subject.toUpperCase() === 'X' ? '' : subject, 
+                    memo, 
+                    supplies,
+                    linkedItems: oldObj.linkedItems || [] 
+                };
             });
         });
-    },
+    }
 
     updateCompactEvent(dateStr, eventId, field, value) {
         store.hasUnsavedChanges = true;

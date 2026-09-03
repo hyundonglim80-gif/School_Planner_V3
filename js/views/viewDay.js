@@ -217,7 +217,9 @@ export class DayView extends BaseView {
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
-                
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<div style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; font-weight:bold; cursor:pointer;" title="연결된 항목 보기">🔗 ${linkCount}</div>` : '';
+				
                 return `
                 <tr data-period="${p}">
                     <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
@@ -417,7 +419,9 @@ export class DayView extends BaseView {
                 const pObj = this.dayData[fId].schedules[p] || {};
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
-                
+                const linkCount = (pObj.linkedItems || []).length;
+                const linkBadge = linkCount > 0 ? `<div style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; font-weight:bold; cursor:pointer;" title="연결된 항목 보기">🔗 ${linkCount}</div>` : '';
+				
                 return `
                 <tr id="period-row-${fId}-${p}" data-period="${p}" 
                     ondragstart="window.dayViewInstance.handlePeriodDragStart(event, ${p}, '${fId}')"
@@ -442,7 +446,8 @@ export class DayView extends BaseView {
                   <td style="text-align: left; vertical-align: top;">
                     <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
                     <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                        <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+                        <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${linkBadge} <!-- 🚨 수정됨: 뱃지 삽입 -->
                             ${evalBadges}
                         </div>
                     </div>
@@ -651,7 +656,8 @@ export class DayView extends BaseView {
                   <td style="text-align: left; vertical-align: top;">
                     <div class="editable-cell cell-supplies" contenteditable="true" style="color: #d97706; font-weight: 600; min-height:20px; outline:none;" oninput="window.dayViewInstance.syncScheduleInputs('${fId}')">${pObj.supplies || ''}</div>
                     <div contenteditable="false" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                        <div class="eval-badges-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+                        <div class="eval-badges-container" data-badge-period="${p}" style="display:flex; flex-wrap:wrap; gap:6px;">
+                            ${linkBadge} <!-- 🚨 수정됨: 뱃지 삽입 -->
                             ${evalBadges}
                         </div>
                     </div>
@@ -1096,20 +1102,29 @@ export class DayView extends BaseView {
 
         const wrapper = tbody.closest('.day-schedule-wrapper');
         const wasHidden = wrapper && window.getComputedStyle(wrapper).display === 'none';
-        
         if (wasHidden) wrapper.style.display = 'flex';
 
-        this.dayData[fId].schedules = {};
+        this.dayData[fId].schedules = this.dayData[fId].schedules || {};
+        
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
             const p = row.getAttribute('data-period');
             const subject = row.querySelector('.cell-subject').innerText.trim();
             const memo = row.querySelector('.cell-memo').innerText.trim();
             const supplies = row.querySelector('.cell-supplies').innerText.trim();
-            if (subject || memo || supplies) this.dayData[fId].schedules[p] = { subject, memo, supplies };
+            
+            // 🚨 수정됨: 기존 linkedItems 보존
+            const oldObj = this.dayData[fId].schedules[p] || {};
+            if (subject || memo || supplies || (oldObj.linkedItems && oldObj.linkedItems.length > 0)) { 
+                this.dayData[fId].schedules[p] = { 
+                    subject, memo, supplies,
+                    linkedItems: oldObj.linkedItems || []
+                }; 
+            } else {
+                delete this.dayData[fId].schedules[p];
+            }
         });
 
         if (wasHidden) wrapper.style.display = 'none';
-        
         store.hasUnsavedChanges = true;
     }
 

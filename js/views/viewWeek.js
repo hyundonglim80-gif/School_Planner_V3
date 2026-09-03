@@ -342,10 +342,18 @@ export class WeekView extends BaseView {
                   const periods = sMap[d.dateStr]?.[fId] || {};
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let content = '';
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;"><span class="badge-tag">${pObj.subject}</span></div>`;
+                      
+                      // 🚨 수정됨: 뱃지 생성 및 삽입
+                      const linkCount = (pObj.linkedItems || []).length;
+                      const linkBadge = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-right:4px; font-weight:bold;">🔗 ${linkCount}</span>` : '';
+
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag">${pObj.subject}</span></div>`;
+                      else if (linkCount > 0) content += `<div style="margin-bottom: 4px;">${linkBadge}</div>`;
+
                       if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
                       if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
-                      return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
+                      
+                      return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${content}</td>`;
                   }).join('');
 
                   // 🚨 뷰어 모드: +링크 버튼 숨김 처리됨
@@ -456,12 +464,20 @@ export class WeekView extends BaseView {
                   const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   
                   const periods = window[`tempSchedules_${d.dateStr}`][fId];
-                  const periodCellsHtml = Array.from({ length: maxP }).map((_, i) => {
-                      const p = i + 1; const pObj = periods[p] || {}; let cellText = "";
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
-                      if (pObj.memo) cellText += pObj.memo + " ";
-                      if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-                      return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+                  const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
+                      const p = i + 1; const pObj = periods[p] || {}; let content = '';
+                      
+                      // 🚨 수정됨: 뱃지 생성 및 삽입
+                      const linkCount = (pObj.linkedItems || []).length;
+                      const linkBadge = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-right:4px; font-weight:bold;">🔗 ${linkCount}</span>` : '';
+
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag">${pObj.subject}</span></div>`;
+                      else if (linkCount > 0) content += `<div style="margin-bottom: 4px;">${linkBadge}</div>`;
+
+                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                      
+                      return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${content}</td>`;
                   }).join('');
 
                   // 🚨 에디터 모드: +링크 버튼 표시
