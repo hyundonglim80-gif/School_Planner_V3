@@ -238,14 +238,14 @@ export class DayView extends BaseView {
                   <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
               </div>
               <table style="text-align: center; border-collapse: collapse; width: 100%;">
-<thead>
+			  <thead>
                   <tr style="border-bottom: 1px solid #cbd5e1;">
                     <th style="width: 60px; padding: 10px;">교시</th>
                     <th style="width: 120px; padding: 10px;">수업</th>
                     <th style="padding: 10px;">📝 수업 메모</th>
-                    <!-- 🚨 내부 div로 flex를 감싸서 테이블 깨짐 방지 -->
-                    <th style="width: 25%; position:relative; padding: 10px;">
-                        <div style="display:flex; gap:6px; align-items:center; justify-content:center;">
+                    <!-- 🚨 수정됨: min-width 강제 할당 및 내부 줄바꿈 방지(nowrap) 적용 -->
+                    <th style="width: 25%; min-width: 180px; position:relative; padding: 10px;">
+                        <div style="display:flex; gap:6px; align-items:center; justify-content:center; white-space: nowrap;">
                             📌 비고
                             <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:3px 8px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;">+ 조사표</button>
                             <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:3px 8px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;" title="해당 일자 교시와 데이터를 연결합니다.">+ 링크</button>
@@ -462,10 +462,13 @@ export class DayView extends BaseView {
                     <th style="width: 75px;">교시</th>
                     <th style="width: 120px;">수업</th>
                     <th>📝 수업 메모</th>
-                    <!-- 🚨 수정된 부분: +링크 버튼 추가 및 정렬 -->
-                    <th style="width: 25%; position:relative; display:flex; gap:6px; align-items:center; justify-content:center; border-bottom:none;">📌 비고
-                        <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:3px 8px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;">+ 조사표</button>
-                        <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:3px 8px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;" title="해당 일자 교시와 데이터를 연결합니다.">+ 링크</button>
+                    <!-- 🚨 수정됨: min-width 강제 할당 및 내부 줄바꿈 방지(nowrap) 적용 -->
+                    <th style="width: 25%; min-width: 180px; position:relative; border-bottom:none;">
+                        <div style="display:flex; gap:6px; align-items:center; justify-content:center; white-space: nowrap;">
+                            📌 비고
+                            <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:3px 8px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;">+ 조사표</button>
+                            <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:3px 8px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;" title="해당 일자 교시와 데이터를 연결합니다.">+ 링크</button>
+                        </div>
                     </th>
                   </tr>
                 </thead>
