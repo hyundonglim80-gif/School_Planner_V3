@@ -83,11 +83,21 @@ export const LinkManager = {
                 </div>
             </div>
             
-            <div class="modal-footer-actions">
-                <button onclick="document.getElementById('linker-modal').remove()" class="modal-btn-secondary">취소</button>
-                <button onclick="window.LinkManager.saveLinks()" class="modal-btn-primary">연결 저장</button>
+            <!-- 🚨 수정됨: 저장과 닫기 버튼 명확히 분리 -->
+            <div class="modal-footer-actions" style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="window.LinkManager.closeModal()" class="modal-btn-secondary" style="padding:10px 24px; font-size:1rem; font-weight:bold;">닫기</button>
+                <button onclick="window.LinkManager.saveLinks()" class="modal-btn-primary" style="padding:10px 24px; font-size:1rem; font-weight:bold;">연결 저장</button>
             </div>
         `;
+    },
+
+    // 🚨 수정됨: 팝업창 닫기 전용 함수 (닫을 때 화면 즉시 새로고침)
+    closeModal: function() {
+        const modal = document.getElementById('linker-modal');
+        if (modal) modal.remove();
+        if (typeof window.render === 'function') {
+            window.render(); 
+        }
     },
 
     switchTab: function(tab) {
@@ -231,10 +241,11 @@ export const LinkManager = {
 
         const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
         let items = this.tabData[this.currentTab] || [];
+        
         if (keyword) items = items.filter(i => (i.title || '').toLowerCase().includes(keyword));
 
         if (items.length === 0) {
-            area.innerHTML = `<div style="padding:30px; text-align:center; color:#94a3b8;">해당 데이터가 없습니다.</div>`;
+            area.innerHTML = `<div style="padding:30px; text-align:center; color:#94a3b8;">해당 기간/키워드에 맞는 데이터가 없습니다.</div>`;
             return;
         }
 
@@ -323,7 +334,7 @@ export const LinkManager = {
         }).join('');
     },
 
-    // 🚨 핵심 로직: 연결 시 양방향 메모리 및 DB 업데이트 수행
+    // 🚨 수정됨: 창 닫기 없이 저장만 수행 (연속 저장 가능)
     saveLinks: async function() {
         if (this.selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
 
@@ -374,7 +385,7 @@ export const LinkManager = {
             }
         }
 
-        // 2. 도착지(Target) 역방향 링크 주입을 위한 메타데이터 생성
+        // 2. 도착지(Target) 역방향 링크 주입
         let sourceTitleLabel = '연결된 항목';
         if (this.sourceData.type === 'schedule_header') sourceTitleLabel = `${document.getElementById('linker-source-period').value}교시 수업`;
         else if (this.sourceData.type === 'event') sourceTitleLabel = '일정';
@@ -397,18 +408,18 @@ export const LinkManager = {
         
         if (typeof window.saveCurrentViewData === 'function') {
             await window.saveCurrentViewData(true); 
-        } else if (window.render) {
-            window.render(false);
         }
 
-        if (window.showToast) window.showToast('✅ 데이터가 양방향으로 연결되었습니다.');
-        document.getElementById('linker-modal').remove();
+        if (window.showToast) window.showToast('✅ 데이터가 성공적으로 연결되었습니다.');
+        
+        // 🚨 저장 후 창을 닫지 않고, 체크/장바구니만 초기화하여 연속 작업이 가능하게 함
+        this.selectedLinks = [];
+        this.renderListArea();
+        this.renderTray();
     },
 
-    // 🚨 메모리 및 DB에 역방향 링크 삽입
     addReverseLink: async function(targetLink, sourceMeta, fId) {
         try {
-            // 1. 메모리 주입 (새로고침 없이 실시간 뱃지 생성을 위함)
             if (targetLink.targetType === 'event') {
                 if (window[`tempEvents_${targetLink.targetDate}`]) {
                     const ev = window[`tempEvents_${targetLink.targetDate}`].find(e => e.id === targetLink.targetId);
@@ -440,7 +451,6 @@ export const LinkManager = {
                 }
             }
 
-            // 2. DB 주입
             const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
             if (targetLink.targetType === 'event') {
                 const docRef = doc(colFunc('events'), targetLink.targetDate);
@@ -499,7 +509,6 @@ export const LinkManager = {
         } catch (e) { console.error("역방향 링크 저장 오류:", e); }
     },
 
-    // 🚨 연결된 내용을 보는 팝업 UI 생성 및 장구핀 이동 버튼 
     openViewer: async function(dateStr, id, fId, type, period = '') {
         let linkedItems = [];
         if (type === 'event') {
@@ -549,7 +558,28 @@ export const LinkManager = {
                 </div>
             `;
         }
-        document.getElementById('linker-viewer-body').innerHTML = html || '<div style="color:#94a3b8; text-align:center; padding:20px;">연결된 항목의 데이터를 찾을 수 없습니다.</div>';
+
+        if (!html) {
+            html = '<div style="color:#94a3b8; text-align:center; padding:20px;">연결된 항목의 데이터를 찾을 수 없습니다.</div>';
+        }
+
+        // 🚨 뷰어 팝업에도 새로고침을 동반하는 [닫기] 버튼 추가
+        html += `
+            <div style="text-align:center; margin-top:20px; padding-top:15px; border-top:1px solid #e2e8f0;">
+                <button onclick="window.LinkManager.closeViewer()" style="background:#64748b; color:white; padding:10px 24px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:1rem; transition:0.2s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#64748b'">닫기 (새로고침)</button>
+            </div>
+        `;
+
+        document.getElementById('linker-viewer-body').innerHTML = html;
+    },
+
+    // 🚨 뷰어 전용 닫기 (닫으면서 새로고침)
+    closeViewer: function() {
+        const modal = document.getElementById('linker-viewer-modal');
+        if (modal) modal.remove();
+        if (typeof window.render === 'function') {
+            window.render();
+        }
     },
 
     fetchItemText: async function(type, dateStr, id, period, fId) {

@@ -798,10 +798,12 @@ export class DayView extends BaseView {
 
             // 🔥 [추가됨] 링크 버튼 렌더링
             const linkCount = (ev.linkedItems || []).length;
-            const linkBadgeHtml = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${linkCount}</span>` : '';
-            const linkBtnHtml = isAuthor 
-                  ? `<button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1; margin-right:4px;" title="기록/메모 연결">🔗${linkBadgeHtml}</button>`
-                  : '';
+            const linkBadgeHtml = linkCount > 0 
+                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                : '';
+            const linkBtnHtml = isAuthor
+                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                  : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && ev.authorId)
