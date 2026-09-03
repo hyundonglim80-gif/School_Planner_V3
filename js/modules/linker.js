@@ -127,7 +127,7 @@ export const LinkManager = {
     fetchMemoData: async function() {
         try {
             let allMemos = await dbAPI.loadMemos() || [];
-            allMemos.forEach(m => m.fId = 'personal'); // 기본은 개인
+            allMemos.forEach(m => m.fId = 'personal'); 
             
             const myGroups = await dbAPI.loadMyGroups() || [];
             for (const group of myGroups) {
@@ -285,7 +285,6 @@ export const LinkManager = {
             const safeTitle = (item.title || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ").replace(/\r/g, "");
             const displayTitle = (item.title || '').replace(/\n/g, " ").replace(/\r/g, "");
 
-            // 🚨 선택 시 fId(그룹)를 같이 넘겨줌
             return `
                 <div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''" onclick="window.LinkManager.toggleSelection('${item.id}', '${item.type}', '${safeTitle}', '${item.date || ''}', '${item.fId}')">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} style="margin-right:10px; width:16px; height:16px; accent-color:#3b82f6; pointer-events:none;">
@@ -316,7 +315,6 @@ export const LinkManager = {
         if (idx !== -1) {
             this.selectedLinks.splice(idx, 1);
         } else {
-            // 🚨 대상의 그룹 식별자(targetFId) 저장
             this.selectedLinks.push({ targetType: type, targetId: id, targetDate: date, title: title, targetFId: fId });
         }
         this.renderListArea();
@@ -332,7 +330,6 @@ export const LinkManager = {
         const title = `${sDate} ${sPeriod}교시 수업`;
 
         if (!this.selectedLinks.some(l => l.targetId === fakeId)) {
-            // 수업 연결 시 현재 선택된 그룹 fId 할당
             this.selectedLinks.push({ targetType: 'schedule', targetId: fakeId, targetDate: sDate, targetPeriod: sPeriod, title: title, targetFId: this.sourceData.fId });
             this.renderTray();
         }
@@ -415,7 +412,7 @@ export const LinkManager = {
                     memo.linkedItems = memo.linkedItems || []; 
                     updateLinks(memo.linkedItems); 
                     if (window.dbAPI && window.dbAPI.updateMemo) {
-                        window.dbAPI.updateMemo(this.sourceData.id, { linkedItems: memo.linkedItems }, memo.groupId).catch(e=>console.warn(e));
+                        await window.dbAPI.updateMemo(this.sourceData.id, { linkedItems: memo.linkedItems }, this.sourceData.fId);
                     }
                 }
             }
@@ -440,7 +437,7 @@ export const LinkManager = {
             targetDate: this.sourceData.dateStr || '',
             targetPeriod: this.sourceData.type === 'schedule_header' ? document.getElementById('linker-source-period').value : (this.sourceData.period || ''),
             title: `[${this.sourceData.dateStr || '메모'}] ${sourceTitleLabel}`,
-            targetFId: this.sourceData.fId // 🚨 역방향을 위해 출처 그룹 식별자 저장
+            targetFId: this.sourceData.fId 
         };
 
         for (const link of this.selectedLinks) {
@@ -459,12 +456,10 @@ export const LinkManager = {
         this.renderTray();
     },
 
-    // 🚨 그룹 간의 링크도 저장될 수 있도록 tFId(대상 그룹)을 사용하여 DB 업데이트
     addReverseLink: async function(targetLink, sourceMeta, sourceFId) {
         const tFId = targetLink.targetFId || sourceFId; 
 
         try {
-            // [1] 메모리에 추가 (화면 배지 즉시 생성)
             if (targetLink.targetType === 'event') {
                 if (window[`tempEvents_${targetLink.targetDate}`]) {
                     const ev = window[`tempEvents_${targetLink.targetDate}`].find(e => e.id === targetLink.targetId);
@@ -492,11 +487,15 @@ export const LinkManager = {
             } else if (targetLink.targetType === 'memo') {
                 if (window.memoViewInstance?.memoItems) {
                     const memo = window.memoViewInstance.memoItems.find(m => m.firestoreId === targetLink.targetId);
-                    if (memo) { memo.linkedItems = memo.linkedItems || []; if (!memo.linkedItems.some(l => l.targetId === sourceMeta.targetId)) memo.linkedItems.push(sourceMeta); }
+                    if (memo) { 
+                        memo.linkedItems = memo.linkedItems || []; 
+                        if (!memo.linkedItems.some(l => l.targetId === sourceMeta.targetId)) {
+                            memo.linkedItems.push(sourceMeta);
+                        }
+                    }
                 }
             }
 
-            // [2] DB에 추가
             const colFunc = tFId === 'personal' ? getUserCol : (col) => getGroupCol(tFId, col);
             if (targetLink.targetType === 'event') {
                 const docRef = doc(colFunc('events'), targetLink.targetDate);
@@ -593,17 +592,15 @@ export const LinkManager = {
 
         let html = '';
         for (const link of linkedItems) {
-            const tFId = link.targetFId || fId; // 타겟 그룹 ID 도출
+            const tFId = link.targetFId || fId; 
             const text = await this.fetchItemText(link.targetType, link.targetDate, link.targetId, link.targetPeriod, tFId);
             const icon = link.targetType === 'event' ? '📌' : (link.targetType === 'journal' ? '📔' : (link.targetType === 'memo' ? '📝' : '🏫'));
             
-            // 🚨 수정됨: 날짜가 표시되도록 보완
             let displayTitle = link.title || '';
             if (!displayTitle.includes('[')) {
                 displayTitle = `[${link.targetDate || '날짜없음'}] ${displayTitle}`;
             }
 
-            // 🚨 개별 삭제 버튼 및 이동 버튼 추가
             html += `
                 <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -631,7 +628,6 @@ export const LinkManager = {
         document.getElementById('linker-viewer-body').innerHTML = html;
     },
 
-    // 🚨 뷰어 모달 정상 종료 처리 (스크롤 버그 해결)
     closeViewer: function() {
         if (this.viewerModal) {
             this.viewerModal.close();
@@ -646,7 +642,6 @@ export const LinkManager = {
         }
     },
 
-    // 🚨 양쪽 데이터베이스 및 메모리에서 모두 연결 삭제
     deleteLinkConnection: async function(sType, sDate, sId, sPeriod, sFId, tType, tDate, tId, tPeriod, tFId) {
         if (!confirm("이 연결을 해제하시겠습니까? (양쪽 모두에서 연결이 끊어집니다)")) return;
 
@@ -664,13 +659,10 @@ export const LinkManager = {
             this.viewerModal.close();
             this.viewerModal = null;
         }
-        
-        // 목록 갱신을 위해 뷰어 팝업 다시 열기
         this.openViewer(sDate, sId, sFId, sType, sPeriod);
     },
 
     _removeLinkFromSide: async function(type, dateStr, id, period, fId, targetIdToRemove) {
-        // [1] 메모리(화면) 삭제
         if (type === 'event') {
             if (window[`tempEvents_${dateStr}`]) {
                 const ev = window[`tempEvents_${dateStr}`].find(e => e.id === id);
@@ -701,13 +693,12 @@ export const LinkManager = {
                 if (m) {
                     m.linkedItems = (m.linkedItems || []).filter(l => l.targetId !== targetIdToRemove);
                     if (window.dbAPI && window.dbAPI.updateMemo) {
-                        window.dbAPI.updateMemo(id, { linkedItems: m.linkedItems }, fId).catch(e=>console.warn(e));
+                        await window.dbAPI.updateMemo(id, { linkedItems: m.linkedItems }, fId);
                     }
                 }
             }
         }
 
-        // [2] DB 삭제
         try {
             const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
             if (type === 'event') {
@@ -821,7 +812,6 @@ export const LinkManager = {
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
-    // 🚨 스크롤 버그를 방지하는 모달 안전 종료 후 이동
     navigateAndClose: function(dateStr, type) {
         if (this.viewerModal) {
             this.viewerModal.close();

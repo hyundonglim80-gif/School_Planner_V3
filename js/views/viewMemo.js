@@ -194,6 +194,8 @@ export class MemoView extends BaseView {
         this.memoItems = data;
         this.loadMemoLabels(); this._drawHTML();
     } else {
+        // 🚨 버그 수정 핵심: 메모리 데이터가 증발하기 전에 화면을 우선 유지하도록 _drawHTML() 먼저 호출
+        this._drawHTML(); 
         this.fetchAllMemos().then(data => {
             if (data === null) return; 
             this.memoItems = data; this.loadMemoLabels();
@@ -424,16 +426,15 @@ export class MemoView extends BaseView {
         groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${item.groupName} (읽기전용)</div>`;
     }
     
-    // 🚨 1. 링크 생성 버튼(🔗)과 확인 버튼(📑)의 완벽한 분리 
-    // 🚨 수정됨: 메모에도 날짜(memoDateStr)를 추출하여 링크 매니저로 전달
-	const memoDateStr = formatDate(new Date(item.createdAt || Date.now()));
-	const linkCount = (item.linkedItems || []).length;
-	const linkBadgeHtml = linkCount > 0 
-		? `<button onclick="window.LinkManager.openViewer('${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}', 'memo')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
-		: '';
-	const linkBtnHtml = isAuthor
-		? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('memo', '${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}')" style="background:#fff; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
-		: (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+    // 🚨 메모 카드 생성 시 날짜를 정확히 추적하여 링크 매니저로 전달
+    const memoDateStr = formatDate(new Date(item.createdAt || Date.now()));
+    const linkCount = (item.linkedItems || []).length;
+    const linkBadgeHtml = linkCount > 0 
+        ? `<button onclick="window.LinkManager.openViewer('${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}', 'memo')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+        : '';
+    const linkBtnHtml = isAuthor
+        ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('memo', '${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}')" style="background:#fff; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+        : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
     let attachmentsHtml = '';
     if (item.attachments && item.attachments.length > 0) {
@@ -452,12 +453,8 @@ export class MemoView extends BaseView {
     }
 
     const textStatusClass = isCompleted ? 'completed' : (isAuthor ? 'active' : 'readonly');
-    
-    const hasAttachments = (item.attachments && item.attachments.length > 0) || item.imageUrl ? 'true' : 'false';
-    const isRegistered = (item.text || '').trim() !== '' || hasAttachments === 'true';
     const forceShow = this.lastInteractedMemo === item.firestoreId;
-    
-    const hideCondition = isRegistered && !forceShow && !isCompleted;
+    const hideCondition = ((item.text || '').trim() !== '' || item.attachments?.length > 0 || item.imageUrl) && !forceShow && !isCompleted;
     const finalLabelsDisplay = hideCondition ? 'none' : 'flex';
 
     const focusHandler = `document.getElementById('memo-labels-${item.firestoreId}').style.display='flex'; window.memoViewInstance.lastInteractedMemo='${item.firestoreId}';`;
@@ -477,17 +474,15 @@ export class MemoView extends BaseView {
 
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" style="position:relative; padding-top:12px;" ${dragAttributes}>
-        <!-- Top Right Delete Button -->
         ${isAuthor ? `<div style="position:absolute; top:8px; right:8px;">${deleteBtnHtml}</div>` : ''}
         
-        <!-- Middle Row: Labels, Group, Attach Button -->
         <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-right:24px; min-height:24px; margin-bottom:8px;">
             <div id="memo-labels-${item.firestoreId}" class="label-chip-container" style="margin:0; display:${finalLabelsDisplay}; flex-wrap:wrap; gap:4px; transition:0.2s; flex:1;">
                 ${allLabelsHtml}
             </div>
             
             <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
-                ${linkBtnHtml} <!-- 🚨 링크 분리된 버튼 위치 -->
+                ${linkBtnHtml} 
                 ${groupButtonsHtml}
                 ${authorBadge}
                 ${isAuthor && !isCompleted ? `
@@ -497,7 +492,6 @@ export class MemoView extends BaseView {
             </div>
         </div>
         
-        <!-- Checkbox, Drag Handle, Text, Attachments -->
         <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
           <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
