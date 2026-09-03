@@ -34,11 +34,18 @@ export const LinkManager = {
         
         this.modal.open();
         
-        // 초기 데이터 세팅 (메모는 한 번에 다 불러옴)
-        document.getElementById('linker-period-select').value = '1month';
+        // 🔥 수정됨: 1. 탭 UI를 먼저 그려서 내부 검색 필터 요소들을 DOM에 생성합니다.
+        this.switchTab('event'); 
+        
+        // 2. 이제 DOM에 존재하는 필터 요소의 값을 안전하게 설정합니다.
+        const periodSelect = document.getElementById('linker-period-select');
+        if (periodSelect) periodSelect.value = '1month';
+        
         this.updateDateRangeUI();
+        
+        // 3. 백그라운드에서 데이터를 불러와 목록을 채워줍니다.
         await this.fetchMemoData();
-        await this.fetchDateRangeData(); // 일정, 기록 1개월치 로드
+        await this.fetchDateRangeData(); 
     },
 
     getModalHtml: function() {
