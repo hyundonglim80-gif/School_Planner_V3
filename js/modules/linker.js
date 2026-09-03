@@ -123,7 +123,6 @@ export const LinkManager = {
         if (customDiv) customDiv.style.display = val === 'custom' ? 'flex' : 'none';
     },
 
-    // 🚨 메모 데이터 가져올 때 타겟 그룹 ID(fId) 정확히 매핑
     fetchMemoData: async function() {
         try {
             let allMemos = await dbAPI.loadMemos() || [];
@@ -141,7 +140,7 @@ export const LinkManager = {
                 title: m.text, 
                 date: formatDate(new Date(m.createdAt || Date.now())), 
                 type: 'memo',
-                fId: m.fId // 그룹 식별자 저장
+                fId: m.fId
             })).sort((a,b) => b.date.localeCompare(a.date));
         } catch (e) { console.warn(e); }
     },
@@ -812,6 +811,7 @@ export const LinkManager = {
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
+    // 🚨 팝업 강제 삭제 대신 정상적인 close 함수 호출 및 메인 렌더링
     navigateAndClose: function(dateStr, type) {
         if (this.viewerModal) {
             this.viewerModal.close();
@@ -822,10 +822,28 @@ export const LinkManager = {
             if (window.decreaseModalCount) window.decreaseModalCount();
         }
 
+        // 스크롤 잠금 강제 해제
+        document.body.style.overflow = '';
+        if (typeof window.activeModalCount !== 'undefined') window.activeModalCount = 0;
+
         if (type === 'memo') {
-            if (window.setScope) window.setScope('memo');
+            if (window.store) {
+                window.store.scope = 'memo';
+                window.store.mode = 'editor';
+            }
+            if (typeof window.render === 'function') window.render();
         } else if (dateStr && dateStr !== 'undefined') {
-            if (window.goToDay) window.goToDay(dateStr);
+            if (window.store) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    window.store.currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                }
+                window.store.scope = 'day';
+                window.store.mode = 'editor';
+            }
+            if (typeof window.render === 'function') {
+                window.render(true);
+            }
         } else {
             return alert('이동할 수 없는 항목입니다.');
         }
