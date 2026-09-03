@@ -168,8 +168,9 @@ export const LinkManager = {
                 });
             });
 
+            // 🚨 수정된 부분: jList 오타를 jMap으로 변경
             Object.keys(jMap).forEach(dStr => {
-                const fJournals = jList[dStr]?.[fId] || [];
+                const fJournals = jMap[dStr]?.[fId] || []; 
                 fJournals.forEach(j => {
                     if(j.content?.trim()) journals.push({ id: j.id, title: j.content, date: dStr, type: 'journal' });
                 });
@@ -181,6 +182,7 @@ export const LinkManager = {
             this.currentPage = 1;
             this.renderListArea();
         } catch (e) {
+            console.error("Linker Data Load Error:", e); // 디버깅용 콘솔 로그 추가
             document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; color:#ef4444;">오류가 발생했습니다.</div>`;
         }
     },
