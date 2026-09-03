@@ -348,13 +348,9 @@ export class WeekView extends BaseView {
                       return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
                   }).join('');
 
-                  // 🔥 [수정됨] 뷰어 모드에서도 +링크 버튼 표시
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
-                      수업${badgeHtml}<br>
-                      <button onclick="window.LinkManager.openModal('schedule_header', '${d.dateStr}', null, '${fId}')" style="margin-top:4px; padding:2px 6px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:4px; font-size:0.75rem; cursor:pointer; font-weight:bold;" title="교시를 선택해 데이터를 연결합니다.">+ 링크</button>
-                    </td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
                     ${periodCellsHtml}
                   </tr>`;
               });
@@ -411,37 +407,6 @@ export class WeekView extends BaseView {
           let rowsHtmlForDate = '';
 
           filters.forEach((fId, idx) => {
-              const isPersonal = fId === 'personal';
-              const gIcon = isPersonal ? '🔒' : '👥'; 
-              const badgeColor = isPersonal ? '#2563eb' : '#059669';
-              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
-              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
-              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
-
-              let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
-              
-              if (idx === 0) {
-                  rowsHtmlForDate += `
-                  <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
-                    <td rowspan="${totalRows}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
-                      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                        <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
-                        <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
-                        ${holidayHtml}
-                      </div>
-                    </td>
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
-                  </tr>`;
-              } else {
-                  rowsHtmlForDate += `
-                  <tr class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}</td>
-                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
-                  </tr>`;
-              }
-          });
-
           if (store.showClass) {
               const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               

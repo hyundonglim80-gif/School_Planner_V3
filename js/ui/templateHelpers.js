@@ -202,7 +202,7 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 🌟 다중 라벨 순회 검색 정렬
+        // 다중 라벨 순회 검색 정렬
         list.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -248,7 +248,6 @@ export const CompactEventHelper = {
             const textStyle = !isAuthor ? 'background:#f1f5f9; color:#64748b; cursor:not-allowed;' : textBaseStyle;
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
-            // 🌟 삭제 기능 연결 (인라인 파싱 오류 원천 차단)
             const deleteBtnHtml = isAuthor 
                   ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
@@ -259,19 +258,17 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="알림 설정">
+                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
-            // 🔥 [수정됨] 링크 버튼 및 뱃지 추가
             const linkCount = (e.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 ? `<span style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${linkCount}</span>` : '';
             const linkBtnHtml = isAuthor
                   ? `<button onclick="window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1; margin-right:4px;" title="기록/메모 연결">🔗${linkBadgeHtml}</button>`
                   : '';
 
-            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && e.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
                 : '';
@@ -283,10 +280,15 @@ export const CompactEventHelper = {
                         ${chipsHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                        ${linkBtnHtml} <!-- 🔥 링크 버튼 삽입 -->
+                        ${linkBtnHtml}
                         ${timeHtml}
                         ${authorBadge}${deleteBtnHtml}
                     </div>
+                </div>
+                <!-- 🚨 아래의 텍스트 입력 영역이 누락되었던 부분입니다 -->
+                <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                    ${checkboxHtml}
+                    <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
