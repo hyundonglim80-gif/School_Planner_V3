@@ -348,6 +348,7 @@ export class WeekView extends BaseView {
                       return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
                   }).join('');
 
+                  // 🚨 뷰어 모드: +링크 버튼 숨김 처리됨
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
@@ -407,6 +408,40 @@ export class WeekView extends BaseView {
           let rowsHtmlForDate = '';
 
           filters.forEach((fId, idx) => {
+              const isPersonal = fId === 'personal';
+              const gIcon = isPersonal ? '🔒' : '👥'; 
+              const badgeColor = isPersonal ? '#2563eb' : '#059669';
+              const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
+              const groupTitle = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+              const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
+
+              let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
+              
+              // 🚨 에디터 모드: +일정 추가 버튼 표시
+              const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
+
+              if (idx === 0) {
+                  rowsHtmlForDate += `
+                  <tr data-week-date="${d.dateStr}" class="week-row-${d.dateStr}">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="width: 70px; vertical-align: middle; text-align: center; padding: 8px 4px; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">
+                      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <span onclick="window.goToDay('${d.dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor: pointer;" title="${d.dateStr} 일 보기로 이동">${d.dateDisplay}</span>
+                        <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${d.day}</span>
+                        ${holidayHtml}
+                      </div>
+                    </td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
+                  </tr>`;
+              } else {
+                  rowsHtmlForDate += `
+                  <tr class="week-row-${d.dateStr}">
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정${badgeHtml}<br>${addBtnHtml}</td>
+                    <td colspan="${maxP}" style="text-align: left; padding: 6px 10px; background: #f0f9ff; vertical-align:top; border: 1px solid #cbd5e1;">${eventContent}</td>
+                  </tr>`;
+              }
+          });
+
           if (store.showClass) {
               const pNamesHtml = (store.periodNames || ["1","2","3","4","5","6"]).map(name => `<td style="font-weight: bold; background: #f8fafc; color: #334155; width: ${100 / maxP}%; text-align: center; border: 1px solid #cbd5e1; position: static !important; z-index: auto !important; transform: none !important;">${name}</td>`).join('');
               
@@ -429,7 +464,7 @@ export class WeekView extends BaseView {
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
-                  // 🔥 [수정됨] 편집 모드에서도 +링크 버튼 추가
+                  // 🚨 에디터 모드: +링크 버튼 표시
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
@@ -502,7 +537,6 @@ export class WeekView extends BaseView {
                 }
             }, 50);
         } else {
-            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
             this.container.innerHTML = `
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
@@ -580,7 +614,6 @@ export class WeekView extends BaseView {
                 }
             }, 50);
         } else {
-            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
             this.container.innerHTML = `
               <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top: 15px;">
