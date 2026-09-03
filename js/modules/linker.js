@@ -370,18 +370,11 @@ export const LinkManager = {
 
     // 🌟 수정됨: 저장 로직 고도화 및 DB 즉시 저장
     saveLinks: async function() {
-        const selectedPeriod = document.getElementById('linker-period') ? document.getElementById('linker-period').value : '';
-        const checkboxes = document.querySelectorAll('.linker-checkbox:checked');
-        const selectedLinks = Array.from(checkboxes).map(cb => ({
-            targetType: cb.getAttribute('data-type'),
-            targetId: cb.value,
-            targetPeriod: selectedPeriod
-        }));
-
-        if (selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
+        // DOM을 탐색할 필요 없이, 이미 관리 중인 this.selectedLinks 배열을 사용합니다.
+        if (this.selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
 
         const updateLinks = (targetArray) => {
-            selectedLinks.forEach(link => {
+            this.selectedLinks.forEach(link => {
                 if (!targetArray.some(l => l.targetId === link.targetId)) {
                     targetArray.push(link);
                 }
