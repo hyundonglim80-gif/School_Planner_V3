@@ -1,9 +1,9 @@
 // js/modules/linker.js
-import { dbAPI, getUserCol, getGroupCol } from '../api/database.js'; // getUserCol, getGroupCol 추가
+import { dbAPI, getUserCol, getGroupCol } from '../api/database.js';
 import { store } from '../core/store.js';
 import { formatDate, getSemesterDates } from '../core/utils.js';
 import { fetchCalendarData } from '../core/calendarDataManager.js';
-import { doc, getDoc, setDoc } from "firebase/firestore"; // DB 제어를 위해 추가
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export const LinkManager = {
     modal: null,
@@ -348,7 +348,6 @@ export const LinkManager = {
             });
         };
 
-        // 1. 메모리에 출발지(Source) 업데이트
         if (this.sourceData.type === 'schedule_header') {
             const sp = document.getElementById('linker-source-period').value;
             if (window[`tempSchedules_${this.sourceData.dateStr}`]) {
@@ -384,7 +383,6 @@ export const LinkManager = {
             }
         }
 
-        // 2. 역방향 연결 정보 생성 (도착지에 저장될 정보)
         let sourceTitleLabel = '연결된 항목';
         if (this.sourceData.type === 'schedule_header') sourceTitleLabel = `${document.getElementById('linker-source-period').value}교시 수업`;
         else if (this.sourceData.type === 'event') sourceTitleLabel = '일정';
@@ -398,7 +396,6 @@ export const LinkManager = {
             title: `[${this.sourceData.dateStr}] ${sourceTitleLabel}`
         };
 
-        // 3. DB에 도착지(Target) 역방향 업데이트
         for (const link of this.selectedLinks) {
             await this.addReverseLink(link, sourceMeta, this.sourceData.fId);
         }
@@ -415,7 +412,6 @@ export const LinkManager = {
         document.getElementById('linker-modal').remove();
     },
 
-    // 🌟 추가됨: 역방향 링크를 DB에 즉시 업데이트하는 함수
     addReverseLink: async function(targetLink, sourceMeta, fId) {
         try {
             const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
@@ -466,9 +462,7 @@ export const LinkManager = {
         } catch (e) { console.error("역방향 링크 저장 오류:", e); }
     },
 
-    // 🌟 추가됨: 내용 확인 및 직접 수정, 이동 버튼을 포함하는 뷰어 팝업
     openViewer: async function(dateStr, id, fId, type, period = '') {
-        // 현재 메모리(화면)에서 연결된 항목 배열 찾기
         let linkedItems = [];
         if (type === 'event') {
             const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
@@ -516,7 +510,6 @@ export const LinkManager = {
         document.getElementById('linker-viewer-body').innerHTML = html || '<div style="color:#94a3b8; text-align:center; padding:20px;">연결된 항목의 데이터를 찾을 수 없습니다.</div>';
     },
 
-    // 🌟 추가됨: 뷰어에 표시하기 위해 DB에서 실시간 텍스트 긁어오기
     fetchItemText: async function(type, dateStr, id, period, fId) {
         try {
             const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
@@ -546,7 +539,6 @@ export const LinkManager = {
         return '';
     },
 
-    // 🌟 추가됨: 뷰어에서 내용 직접 수정 후 DB 바로 쏘기
     updateItemText: async function(type, dateStr, id, period, fId) {
         const newVal = document.getElementById(`edit-link-${id}`).value;
         try {
@@ -573,7 +565,7 @@ export const LinkManager = {
                 if (snap.exists()) {
                     const periods = snap.data().periods || {};
                     if (periods[period]) { 
-                        periods[period].memo = newVal; // 편의상 메모 영역에 덮어씀
+                        periods[period].memo = newVal; 
                         await setDoc(ref, { periods: periods }, { merge: true }); 
                     }
                 }
@@ -585,7 +577,6 @@ export const LinkManager = {
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
-    // 🌟 추가됨: 이동 버튼 클릭 시 팝업 닫고 해당 날짜로 이동
     navigateAndClose: function(dateStr) {
         if (!dateStr || dateStr === 'undefined') return alert('이동할 수 없는 항목입니다.');
         if (window.goToDay) window.goToDay(dateStr);

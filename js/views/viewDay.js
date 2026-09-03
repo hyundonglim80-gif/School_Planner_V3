@@ -218,7 +218,7 @@ export class DayView extends BaseView {
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 const linkCount = (pObj.linkedItems || []).length;
-                const linkBadge = linkCount > 0 ? `<div style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; font-weight:bold; cursor:pointer;" title="연결된 항목 보기">🔗 ${linkCount}</div>` : '';
+const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">${linkCount}</button>` : '';
 				
                 return `
                 <tr data-period="${p}">
@@ -887,13 +887,14 @@ const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewe
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
             // 🔥 [추가됨] 기록용 링크 뱃지 및 버튼 HTML 추가
-            const linkCount = (j.linkedItems || []).length;
-const linkBadgeHtml = linkCount > 0 
-    ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#fde047'" onmouseout="this.style.background='#fef08a'" title="연결된 항목 보기 및 수정">${linkCount}</button>` 
-    : '';
-const linkBtnHtml = isAuthor
-      ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="메모/일정 연결">🔗</button>${linkBadgeHtml}</div>`
-      : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+            // renderJournalEntries 함수 내부의 const linkBtnHtml = ... 부분을 아래 코드로 교체하세요
+			const linkCount = (j.linkedItems || []).length;
+			const linkBadgeHtml = linkCount > 0 
+				? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#fde047'" onmouseout="this.style.background='#fef08a'" title="연결된 항목 보기 및 수정">${linkCount}</button>` 
+				: '';
+			const linkBtnHtml = isAuthor
+				  ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.8rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="메모/일정 연결">🔗</button>${linkBadgeHtml}</div>`
+				  : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && j.authorId)
