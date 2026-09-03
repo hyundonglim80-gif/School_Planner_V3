@@ -346,7 +346,7 @@ export const CompactEventHelper = {
                 };
             });
         });
-    }
+    },
 
     updateCompactEvent(dateStr, eventId, field, value) {
         store.hasUnsavedChanges = true;
