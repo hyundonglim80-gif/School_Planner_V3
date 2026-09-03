@@ -542,8 +542,7 @@ export const LinkManager = {
                 const docRef = doc(colFunc('tasks'), targetLink.targetId);
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
-                    const itemData = snap.data();
-                    const linkedItems = itemData.linkedItems || [];
+                    const linkedItems = snap.data().linkedItems || [];
                     if (!linkedItems.some(l => l.targetId === sourceMeta.targetId)) {
                         linkedItems.push(sourceMeta);
                         await setDoc(docRef, { linkedItems: linkedItems }, { merge: true });
@@ -644,8 +643,16 @@ export const LinkManager = {
     deleteLinkConnection: async function(sType, sDate, sId, sPeriod, sFId, tType, tDate, tId, tPeriod, tFId) {
         if (!confirm("이 연결을 해제하시겠습니까? (양쪽 모두에서 연결이 끊어집니다)")) return;
 
-        await this._removeLinkFromSide(sType, sDate, sId, sPeriod, sFId, tId);
-        await this._removeLinkFromSide(tType, tDate, tId, tPeriod, tFId, sId);
+        // 💡 [버그 해결 핵심]
+        // 수업(schedule)의 경우 뷰어 오픈 시 id가 null 속성으로 넘어와 HTML 상에서 'null' 또는 'undefined' 문자열이 되는 현상 방지
+        // 정확한 고유 ID 포맷(class_YYYY-MM-DD_P)을 재조립하여 역방향 필터링 시 누락되지 않도록 보정합니다.
+        const actualSourceId = (sType === 'schedule' || sType === 'schedule_header') && (sId === 'null' || sId === 'undefined' || !sId) 
+            ? `class_${sDate}_${sPeriod}` : sId;
+        const actualTargetId = (tType === 'schedule' || tType === 'schedule_header') && (tId === 'null' || tId === 'undefined' || !tId) 
+            ? `class_${tDate}_${tPeriod}` : tId;
+
+        await this._removeLinkFromSide(sType, sDate, actualSourceId, sPeriod, sFId, actualTargetId);
+        await this._removeLinkFromSide(tType, tDate, actualTargetId, tPeriod, tFId, actualSourceId);
 
         window.store.hasUnsavedChanges = true;
         if (typeof window.saveCurrentViewData === 'function') {
@@ -658,7 +665,10 @@ export const LinkManager = {
             this.viewerModal.close();
             this.viewerModal = null;
         }
-        this.openViewer(sDate, sId, sFId, sType, sPeriod);
+        
+        // 뷰어 창을 삭제된 상태로 리로드 (복원된 null ID를 유지하여 오픈)
+        const restoreSId = (sType === 'schedule' || sType === 'schedule_header') ? null : actualSourceId;
+        this.openViewer(sDate, restoreSId, sFId, sType, sPeriod);
     },
 
     _removeLinkFromSide: async function(type, dateStr, id, period, fId, targetIdToRemove) {
@@ -799,8 +809,29 @@ export const LinkManager = {
                 if (snap.exists()) {
                     const periods = snap.data().periods || {};
                     if (periods[period]) { 
-                        periods[period].memo = newVal; 
+                        let newMemo = newVal.trim();
+                        let newSubj = periods[period].subject || '';
+                        
+                        // 💡 [버그 방지 추가] 사용자가 뷰어에서 텍스트를 수정할 때 [과목명]을 포함해서 수정한 경우를 대비한 파싱 로직
+                        const match = newMemo.match(/^\[(.*?)\]/);
+                        if (match) {
+                            newSubj = match[1].trim();
+                            newMemo = newMemo.replace(/^\[(.*?)\]\s*/, '').trim();
+                        }
+                        
+                        periods[period].subject = newSubj;
+                        periods[period].memo = newMemo; 
                         await setDoc(ref, { periods: periods }, { merge: true }); 
+                        
+                        // 메모리 즉시 반영 (편집 중 데이터 유실 방지)
+                        if (window[`tempSchedules_${dateStr}`]?.[fId]?.[period]) {
+                            window[`tempSchedules_${dateStr}`][fId][period].subject = newSubj;
+                            window[`tempSchedules_${dateStr}`][fId][period].memo = newMemo;
+                        }
+                        if (window.dayViewInstance?.dayData?.[fId]?.schedules?.[period]) {
+                            window.dayViewInstance.dayData[fId].schedules[period].subject = newSubj;
+                            window.dayViewInstance.dayData[fId].schedules[period].memo = newMemo;
+                        }
                     }
                 }
             } else if (type === 'memo') {
@@ -811,7 +842,6 @@ export const LinkManager = {
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
-    // 🚨 팝업 강제 삭제 대신 정상적인 close 함수 호출 및 메인 렌더링
     navigateAndClose: function(dateStr, type) {
         if (this.viewerModal) {
             this.viewerModal.close();
@@ -822,7 +852,6 @@ export const LinkManager = {
             if (window.decreaseModalCount) window.decreaseModalCount();
         }
 
-        // 스크롤 잠금 강제 해제
         document.body.style.overflow = '';
         if (typeof window.activeModalCount !== 'undefined') window.activeModalCount = 0;
 
