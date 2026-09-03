@@ -11,13 +11,12 @@ import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } fr
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 import { DayTemplates } from '../ui/dayTemplates.js';
+import { DayDragManager } from '../modules/dayDragManager.js'; // 🌟 신규 모듈 추가
 
 export class DayView extends BaseView {
     constructor(container) {
         super(container);
         this.currentEvalList = []; 
-        this.draggedPeriod = null; 
-        this.draggedFilterId = null;
         this.myGroups = [];
         this.dayData = {}; 
         this.lockedDateStr = null; 
@@ -187,7 +186,6 @@ export class DayView extends BaseView {
             const themeColor = isPersonal ? '#2563eb' : '#10b981';
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
-            // 🚨 수정됨: 보기 모드 일정 카드에 📑 링크 연결 배지를 주입합니다.
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => {
                 const linkBadgeHtml = DayTemplates.getViewerEventLinkBadge(e, dateStr, fId);
                 return { ...e, content: e.content + linkBadgeHtml };
@@ -468,131 +466,17 @@ export class DayView extends BaseView {
         };
     }
 
+    // 🌟 분리된 DayDragManager로 위임
     handlePeriodDragStart(event, period, filterId) {
-        window.dayViewInstance.draggedPeriod = period;
-        window.dayViewInstance.draggedFilterId = filterId;
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', String(period)); 
-        setTimeout(() => {
-            const row = event.target.closest('tr');
-            if (row) row.style.opacity = '0.4';
-            const tableContainer = event.target.closest('.table-container');
-            if (tableContainer) tableContainer.classList.add('is-dragging'); 
-        }, 0);
+        DayDragManager.handleDragStart(this, event, period, filterId);
     }
 
     handlePeriodDragEnd(event, filterId) {
-        const tbody = document.getElementById(`schedule-tbody-${filterId}`);
-        if (tbody) {
-            tbody.querySelectorAll('tr').forEach(tr => { 
-                tr.style.opacity = '1'; 
-                tr.style.backgroundColor = '';
-                tr.removeAttribute('draggable');
-            });
-        }
-        const tableContainer = event.target.closest('.table-container');
-        if (tableContainer) tableContainer.classList.remove('is-dragging');
-        window.dayViewInstance.draggedPeriod = null;
-        window.dayViewInstance.draggedFilterId = null;
+        DayDragManager.handleDragEnd(this, event, filterId);
     }
 
     handlePeriodDrop(event, targetPeriod, filterId) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        const tableContainer = event.target.closest('.table-container');
-        if (tableContainer) tableContainer.classList.remove('is-dragging');
-        
-        let sourcePeriodStr = '';
-        try { sourcePeriodStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
-        
-        const sourcePeriod = parseInt(sourcePeriodStr, 10) || window.dayViewInstance.draggedPeriod;
-        if (!sourcePeriod || sourcePeriod === targetPeriod || window.dayViewInstance.draggedFilterId !== filterId) return;
-
-        window.dayViewInstance.executeClassInsert(sourcePeriod, targetPeriod, filterId);
-        window.dayViewInstance.draggedPeriod = null;
-        window.dayViewInstance.draggedFilterId = null;
-    }
-
-    executeClassInsert(sourceP, targetP, fId) {
-        if (sourceP === targetP) return;
-        
-        this.syncScheduleInputs(fId);
-
-        const s = parseInt(sourceP, 10);
-        const t = parseInt(targetP, 10);
-        const schedules = this.dayData[fId].schedules;
-        const sourceData = schedules[s] ? { ...schedules[s] } : null;
-
-        if (s < t) {
-            for (let i = s; i < t; i++) {
-                if (schedules[i + 1]) schedules[i] = { ...schedules[i + 1] };
-                else delete schedules[i];
-            }
-        } else {
-            for (let i = s; i > t; i--) {
-                if (schedules[i - 1]) schedules[i] = { ...schedules[i - 1] };
-                else delete schedules[i];
-            }
-        }
-
-        if (sourceData) schedules[t] = sourceData;
-        else delete schedules[t];
-
-        let evalChanged = false;
-        this.currentEvalList.forEach(ev => {
-            const eSource = ev.context?.source || (ev.periodStr ? 'schedule' : 'journal');
-            const targetGid = fId === 'personal' ? null : fId;
-            if (eSource === 'schedule' && ev.groupId === targetGid) {
-                const savedPeriod = ev.periodStr || ev.context?.period || '';
-                const p = parseInt(String(savedPeriod).replace(/[^0-9]/g, ''), 10);
-                
-                if (p === s) {
-                    ev.periodStr = String(t);
-                    if (ev.context) ev.context.period = t;
-                    evalChanged = true;
-                } else if (s < t && p > s && p <= t) {
-                    ev.periodStr = String(p - 1);
-                    if (ev.context) ev.context.period = p - 1;
-                    evalChanged = true;
-                } else if (s > t && p >= t && p < s) {
-                    ev.periodStr = String(p + 1);
-                    if (ev.context) ev.context.period = p + 1;
-                    evalChanged = true;
-                }
-            }
-        });
-
-        store.hasUnsavedChanges = true;
-
-        const tbody = document.getElementById(`schedule-tbody-${fId}`);
-        if (tbody) {
-            tbody.innerHTML = Array.from({ length: this.maxPeriod || 6 }).map((_, i) => {
-                const p = i + 1;
-                const pObj = schedules[p] || {};
-                const periodName = store.periodNames[i] || p + '교시';
-                const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
-                return DayTemplates.getEditorPeriodRow(p, pObj, periodName, fId, evalBadges, this.lockedDateStr || this.dateStr);
-            }).join('');
-        }
-
-        if (evalChanged) {
-            const targetGid = fId === 'personal' ? null : fId;
-            const scheduleEvals = this.currentEvalList.filter(e => e.context?.source === 'schedule' && e.groupId === targetGid);
-            const journalEvals = this.currentEvalList.filter(e => e.context?.source === 'journal' && e.groupId === targetGid);
-            
-            dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, scheduleEvals, targetGid).catch(e => console.warn(e));
-            if (journalEvals.length > 0) {
-                dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, journalEvals, targetGid).catch(e => console.warn(e));
-            }
-        }
-        
-        if (typeof window.saveCurrentViewData === 'function') {
-            window.saveCurrentViewData(true);
-        } else {
-            this.save();
-            store.hasUnsavedChanges = false;
-        }
+        DayDragManager.handleDrop(this, event, targetPeriod, filterId);
     }
 
     requestRemoveEvent(fId, idx) {
