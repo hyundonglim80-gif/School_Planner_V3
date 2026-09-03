@@ -261,10 +261,9 @@ export const EvaluationManager = {
         const ev = this.currentEvalList.find(e => e.id === evalId);
         if (!ev) return alert("해당 평가 데이터를 찾을 수 없습니다.");
 
-        // 🔥 [추가됨] 명렬표 안전 동기화 로직 (방안 A: 전출생 태그 보호 & 신규생 자동 추가)
-        if (this.roster === null) {
-            try { this.roster = await dbAPI.loadRoster(); } catch(e) { this.roster = []; }
-        }
+        // 🌟 수정 1: 전역 캐시에 의존하지 않고 항상 DB에서 최신 명렬표를 강제로 재로드하여 동기화 보장
+        try { this.roster = await dbAPI.loadRoster(); } catch(e) { this.roster = []; }
+
         if (ev.rosterMeta && this.roster) {
             const matchedRoster = this.roster.find(r => r.year == ev.rosterMeta.year && r.grade == ev.rosterMeta.grade && r.classNum == ev.rosterMeta.classNum);
             if (matchedRoster) {
@@ -367,9 +366,13 @@ export const EvaluationManager = {
 
         const titleText = actualGroupId ? `${ev.title} (공유됨${isAuthor ? '' : ' - 읽기전용'})` : `${ev.title} (개인)`;
         const deleteBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" class="modal-delete-btn" style="padding:10px 16px; border:1px solid #fca5a5; border-radius:6px;">삭제</button>` : `<div></div>`;
-        const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" class="modal-btn-primary">저장</button>` : ''; // 🔥 텍스트 변경
+        const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" class="modal-btn-primary">저장</button>` : ''; 
+
+        // 🌟 수정 2: 메타데이터 수정 UI 블럭 추가
+        const metaEditHtml = isAuthor ? this.getMetaEditHtml(ev) : '';
 
         const html = `
+            ${metaEditHtml}
             <div style="max-height:60vh; overflow-y:auto; padding-right:5px; border-radius:8px; border:1px solid #e2e8f0; background:#fff;">
                 <table class="eval-table" id="eval-viewer-table">
                     <thead><tr>${headersHtml}</tr>${isAuthor ? applyAllHtml : ''}</thead>
@@ -379,7 +382,7 @@ export const EvaluationManager = {
             <div class="modal-footer-actions" style="justify-content:space-between; border-top:none;">
                 ${deleteBtnHtml}
                 <div style="display:flex; gap:10px;">
-                    <button onclick="document.getElementById('eval-viewer-modal').remove()" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569;">닫기</button> <!-- 🔥 텍스트 변경 -->
+                    <button onclick="document.getElementById('eval-viewer-modal').remove()" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569;">닫기</button> 
                     ${saveBtnHtml}
                 </div>
             </div>
@@ -388,6 +391,105 @@ export const EvaluationManager = {
         if (this.viewerModal) document.getElementById('eval-viewer-modal')?.remove();
         this.viewerModal = new window.Modal({ id: 'eval-viewer-modal', title: titleText, width: '680px', content: html });
         this.viewerModal.open();
+    },
+
+    // 🌟 추가된 함수: 메타데이터 수정 블럭 생성
+    getMetaEditHtml: function(ev) {
+        const subjOptions = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'].map(s => `<option value="${s}" ${s===ev.subject?'selected':''}>${s}</option>`).join('');
+        const maxPeriod = store.periodNames ? store.periodNames.length : 6;
+        let periodOptions = '';
+        for (let i = 1; i <= maxPeriod; i++) {
+            const isSelected = (ev.context.source === 'schedule' && String(ev.periodStr) === String(i)) ? 'selected' : '';
+            periodOptions += `<option value="${i}" ${isSelected}>${store.periodNames[i-1] || `${i}교시`}</option>`;
+        }
+        periodOptions += `<option value="journal" ${ev.context.source === 'journal' ? 'selected' : ''}>기록 (오늘 기록 칸)</option>`;
+
+        return `
+            <div style="margin-bottom:15px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc; padding:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="const d=document.getElementById('eval-meta-edit-panel'); d.style.display=d.style.display==='none'?'flex':'none';">
+                    <span style="font-weight:bold; color:#1e40af; font-size:0.95rem;">⚙️ 기본 정보 수정</span>
+                    <span style="color:#64748b; font-size:0.85rem;">▼ 펼치기</span>
+                </div>
+                <div id="eval-meta-edit-panel" style="display:none; flex-direction:column; gap:10px; margin-top:12px; border-top:1px dashed #cbd5e1; padding-top:12px;">
+                    <div>
+                        <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">조사표 제목</label>
+                        <input type="text" id="edit-eval-title" value="${ev.title}" class="eval-input" style="padding:6px 10px;">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">날짜</label>
+                            <input type="date" id="edit-eval-date" value="${ev.dateStr}" class="eval-input" style="padding:6px 10px;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">위치</label>
+                            <select id="edit-eval-period" class="eval-input" style="padding:6px 10px;">${periodOptions}</select>
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">교과</label>
+                            <select id="edit-eval-subject" class="eval-input" style="padding:6px 10px;"><option value="">선택 안함</option>${subjOptions}</select>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <button onclick="window.EvaluationManager.saveMetaData('${ev.id}')" style="background:#2563eb; color:#fff; border:none; padding:6px 15px; border-radius:4px; font-weight:bold; cursor:pointer;">정보 업데이트</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    // 🌟 추가된 함수: 메타데이터 업데이트 실행
+    saveMetaData: async function(evalId) {
+        const ev = this.currentEvalList.find(e => e.id === evalId);
+        if (!ev) return;
+
+        const newTitle = document.getElementById('edit-eval-title').value.trim();
+        const newDate = document.getElementById('edit-eval-date').value;
+        const newPeriodVal = document.getElementById('edit-eval-period').value;
+        const newSubject = document.getElementById('edit-eval-subject').value;
+
+        if (!newTitle) return alert("제목을 입력하세요.");
+
+        ev.title = newTitle;
+        ev.subject = newSubject;
+        
+        // 날짜가 변경되었을 경우 데이터 이동 처리
+        if (ev.dateStr !== newDate) {
+            const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
+            
+            // 1. 기존 날짜에서 제거 및 저장
+            this.currentEvalList = this.currentEvalList.filter(e => e.id !== evalId);
+            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
+            
+            // 2. 새 날짜로 데이터 세팅
+            ev.dateStr = newDate;
+            ev.periodStr = newPeriodVal === 'journal' ? '' : parseInt(newPeriodVal, 10);
+            ev.context.source = newPeriodVal === 'journal' ? 'journal' : 'schedule';
+            ev.context.period = ev.periodStr;
+
+            // 3. 새 날짜에 데이터 로드 후 병합 저장
+            const newDateList = await dbAPI.loadEvaluations(newDate, actualGroupId);
+            newDateList.push(ev);
+            await dbAPI.saveEvaluations(newDate, newDateList, actualGroupId);
+
+            document.getElementById('eval-viewer-modal')?.remove();
+            if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
+            
+            // 4. 새 날짜 기준으로 뷰어 다시 열기
+            this.openViewer(newDate, evalId);
+            if (window.showToast) window.showToast("날짜와 정보가 변경되어 이동되었습니다.");
+        } else {
+            ev.periodStr = newPeriodVal === 'journal' ? '' : parseInt(newPeriodVal, 10);
+            ev.context.source = newPeriodVal === 'journal' ? 'journal' : 'schedule';
+            ev.context.period = ev.periodStr;
+
+            const actualGroupId = (this.currentGroupId === 'personal' || this.currentGroupId === '') ? null : this.currentGroupId;
+            await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
+            
+            if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
+            document.getElementById('eval-viewer-modal')?.remove();
+            this.openViewer(this.currentDateStr, evalId);
+            if (window.showToast) window.showToast("기본 정보가 업데이트 되었습니다.");
+        }
     },
 
     saveViewerData: async function(evalId) {
@@ -411,10 +513,10 @@ export const EvaluationManager = {
 
         await dbAPI.saveEvaluations(this.currentDateStr, this.currentEvalList, actualGroupId);
         
-        // document.getElementById('eval-viewer-modal').remove(); 🔥 이 줄을 삭제하여 창이 닫히지 않게 합니다.
         if (window.dayViewInstance && window.dayViewInstance.dateStr === this.currentDateStr) window.dayViewInstance.refreshEvalBadges();
         
-        alert("✅ 성공적으로 저장되었습니다."); // 🔥 저장이 완료되었음을 알림
+        if (window.showToast) window.showToast("성공적으로 저장되었습니다.");
+        else alert("✅ 성공적으로 저장되었습니다.");
     },
 
     deleteEvaluation: async function(evalId) {
