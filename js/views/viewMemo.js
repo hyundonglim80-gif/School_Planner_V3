@@ -425,13 +425,15 @@ export class MemoView extends BaseView {
     }
     
     // 🚨 1. 링크 생성 버튼(🔗)과 확인 버튼(📑)의 완벽한 분리 
-    const linkCount = (item.linkedItems || []).length;
-    const linkBadgeHtml = linkCount > 0 
-        ? `<button onclick="window.LinkManager.openViewer(null, '${item.firestoreId}', '${item.groupId || 'personal'}', 'memo')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
-        : '';
-    const linkBtnHtml = isAuthor
-        ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('memo', null, '${item.firestoreId}', '${item.groupId || 'personal'}')" style="background:#fff; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
-        : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+    // 🚨 수정됨: 메모에도 날짜(memoDateStr)를 추출하여 링크 매니저로 전달
+	const memoDateStr = formatDate(new Date(item.createdAt || Date.now()));
+	const linkCount = (item.linkedItems || []).length;
+	const linkBadgeHtml = linkCount > 0 
+		? `<button onclick="window.LinkManager.openViewer('${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}', 'memo')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+		: '';
+	const linkBtnHtml = isAuthor
+		? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('memo', '${memoDateStr}', '${item.firestoreId}', '${item.groupId || 'personal'}')" style="background:#fff; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+		: (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
     let attachmentsHtml = '';
     if (item.attachments && item.attachments.length > 0) {
