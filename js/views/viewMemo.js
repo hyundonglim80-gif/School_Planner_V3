@@ -453,12 +453,18 @@ export class MemoView extends BaseView {
     const hasAttachments = (item.attachments && item.attachments.length > 0) || item.imageUrl ? 'true' : 'false';
     const isRegistered = (item.text || '').trim() !== '' || hasAttachments === 'true';
     const forceShow = this.lastInteractedMemo === item.firestoreId;
-    const hideCondition = isRegistered && !forceShow && isAuthor && !isCompleted;
+    
+    // 🚨 수정: isAuthor 조건 제거 (작성자가 아니어도 라벨을 기본적으로 숨김)
+    const hideCondition = isRegistered && !forceShow && !isCompleted;
     const finalLabelsDisplay = hideCondition ? 'none' : 'flex';
 
     const focusHandler = `document.getElementById('memo-labels-${item.firestoreId}').style.display='flex'; window.memoViewInstance.lastInteractedMemo='${item.firestoreId}';`;
     const blurHandler = `window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText); setTimeout(() => { if(window.memoViewInstance.lastInteractedMemo !== '${item.firestoreId}') { const el = document.getElementById('memo-labels-${item.firestoreId}'); if(el) el.style.display='none'; } }, 250);`;
-    const editableAttr = (isCompleted || !isAuthor) ? '' : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+    
+    // 🚨 수정: 읽기 전용(공유받은 메모)일 경우, 텍스트를 클릭하면 라벨이 토글되도록 처리
+    const editableAttr = (isCompleted || !isAuthor) 
+        ? `onclick="const el=document.getElementById('memo-labels-${item.firestoreId}'); el.style.display=el.style.display==='none'?'flex':'none';"` 
+        : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
 
     const uploadId = `memo-upload-${item.firestoreId}`;
     const isUploadingHtml = item.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
