@@ -1,148 +1,408 @@
 // js/modules/linker.js
 import { dbAPI } from '../api/database.js';
 import { store } from '../core/store.js';
+import { formatDate, getSemesterDates } from '../core/utils.js';
+import { fetchCalendarData } from '../core/calendarDataManager.js'; // 데이터 조회를 위해 임포트
 
 export const LinkManager = {
     modal: null,
-    sourceData: null, // { type, dateStr, id, fId }
-    memoItems: [],
-    journalItems: [],
+    sourceData: null, // { type, dateStr, id, fId, period }
+    
+    currentTab: 'event', // 'event', 'schedule', 'journal', 'memo'
+    tabData: { event: [], journal: [], memo: [] }, // 로드된 데이터 캐시
+    selectedLinks: [], // [{ targetType, targetId, targetDate, targetPeriod, title }]
+    
+    currentPage: 1,
+    itemsPerPage: 8, // 한 페이지당 표시할 항목 수
 
-    openModal: async function(sourceType, dateStr, sourceId, fId) {
-        this.sourceData = { type: sourceType, dateStr, id: sourceId, fId };
-        
-        // 메모 및 당일 기록 데이터 로드
-        try {
-            this.memoItems = await dbAPI.loadMemos() || [];
-            const jList = await dbAPI.loadJournals(dateStr, fId === 'personal' ? null : fId) || [];
-            this.journalItems = jList.entries || [];
-        } catch (e) {
-            console.warn("데이터 로드 실패", e);
-        }
+    openModal: async function(sourceType, dateStr, sourceId, fId, sourcePeriod = '') {
+        this.sourceData = { type: sourceType, dateStr, id: sourceId, fId, period: sourcePeriod };
+        this.selectedLinks = [];
+        this.tabData = { event: [], journal: [], memo: [] };
+        this.currentPage = 1;
+        this.currentTab = 'event';
 
         const existingModal = document.getElementById('linker-modal');
         if (existingModal) existingModal.remove();
 
         this.modal = new window.Modal({
             id: 'linker-modal',
-            title: '🔗 관련 기록/메모 연결',
-            width: '500px',
+            title: '🔗 관련 데이터 연결 (다중 선택 가능)',
+            width: '600px',
             content: this.getModalHtml()
         });
         
         this.modal.open();
-        this.renderList();
+        
+        // 초기 데이터 세팅 (메모는 한 번에 다 불러옴)
+        document.getElementById('linker-period-select').value = '1month';
+        this.updateDateRangeUI();
+        await this.fetchMemoData();
+        await this.fetchDateRangeData(); // 일정, 기록 1개월치 로드
     },
 
     getModalHtml: function() {
-        const periodOptions = ['적용 안 함 (하루 전체)', '1교시', '2교시', '3교시', '4교시', '5교시', '6교시']
-            .map((p, i) => `<option value="${i === 0 ? '' : i}">${p}</option>`).join('');
+        // 수업 표 헤더에서 [+링크]를 눌렀을 경우, '어느 교시에 달 것인가?'를 먼저 정해야 함
+        let sourcePeriodHtml = '';
+        if (this.sourceData.type === 'schedule_header') {
+            sourcePeriodHtml = `
+                <div style="background:#eff6ff; padding:12px; border-radius:8px; border:1px solid #bfdbfe; margin-bottom:15px; display:flex; align-items:center; gap:10px;">
+                    <span style="font-weight:bold; color:#1e40af;">📌 링크를 추가할 교시:</span>
+                    <select id="linker-source-period" class="eval-input" style="width:120px; padding:6px;">
+                        ${[1,2,3,4,5,6].map(p => `<option value="${p}">${p}교시</option>`).join('')}
+                    </select>
+                </div>
+            `;
+        }
 
         return `
-            <div style="display:flex; flex-direction:column; gap:15px; max-height:60vh; padding-right:5px;">
-                <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
-                    <label style="font-weight:bold; font-size:0.95rem; display:block; margin-bottom:6px; color:#1e40af;">📌 연결될 교시 선택</label>
-                    <select id="linker-period" class="eval-input" style="width:100%; padding:8px;">${periodOptions}</select>
+            <div style="display:flex; flex-direction:column; max-height:75vh; padding-right:5px;">
+                ${sourcePeriodHtml}
+                
+                <!-- 탭 메뉴 -->
+                <div style="display:flex; gap:5px; margin-bottom:15px;">
+                    <button class="linker-tab-btn active" id="tab-event" onclick="window.LinkManager.switchTab('event')">📌 일정</button>
+                    <button class="linker-tab-btn" id="tab-schedule" onclick="window.LinkManager.switchTab('schedule')">🏫 수업</button>
+                    <button class="linker-tab-btn" id="tab-journal" onclick="window.LinkManager.switchTab('journal')">📔 기록</button>
+                    <button class="linker-tab-btn" id="tab-memo" onclick="window.LinkManager.switchTab('memo')">📝 메모</button>
                 </div>
 
-                <div style="display:flex; gap:10px;">
-                    <button class="modal-btn-secondary" onclick="window.LinkManager.switchTab('journal')" id="tab-journal" style="flex:1; background:#fdf2f8; color:#be185d; border-color:#fbcfe8;">당일 기록</button>
-                    <button class="modal-btn-secondary" onclick="window.LinkManager.switchTab('memo')" id="tab-memo" style="flex:1; background:#f1f5f9; color:#475569; border-color:#cbd5e1;">전체 메모</button>
+                <style>
+                    .linker-tab-btn { flex:1; padding:10px; font-weight:bold; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#64748b; cursor:pointer; transition:0.2s; }
+                    .linker-tab-btn.active { background:#eff6ff; color:#1e40af; border-color:#3b82f6; box-shadow:0 2px 4px rgba(59,130,246,0.1); }
+                </style>
+
+                <!-- 동적 탭 컨텐츠 영역 -->
+                <div id="linker-tab-content" style="flex:1; display:flex; flex-direction:column; gap:10px; min-height:350px;">
+                    <!-- 내용 렌더링 -->
                 </div>
 
-                <div>
-                    <input type="text" id="linker-search" placeholder="키워드 검색..." onkeyup="window.LinkManager.renderList()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;">
-                </div>
-
-                <div id="linker-list-container" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1; min-height:200px; border:1px solid #e2e8f0; padding:10px; border-radius:6px; background:#f8fafc;">
-                    <!-- 리스트 렌더링 영역 -->
+                <!-- 선택된 항목 트레이 (장바구니) -->
+                <div style="margin-top:15px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+                    <div style="font-weight:bold; font-size:0.9rem; color:#475569; margin-bottom:8px;">🛒 선택된 연결 항목 (<span id="linker-selected-count">0</span>)</div>
+                    <div id="linker-selected-tray" style="display:flex; flex-wrap:wrap; gap:6px;">
+                        <span style="color:#94a3b8; font-size:0.85rem;">선택된 항목이 없습니다.</span>
+                    </div>
                 </div>
             </div>
+            
             <div class="modal-footer-actions">
                 <button onclick="document.getElementById('linker-modal').remove()" class="modal-btn-secondary">취소</button>
-                <button onclick="window.LinkManager.saveLinks()" class="modal-btn-primary">연결 완료</button>
+                <button onclick="window.LinkManager.saveLinks()" class="modal-btn-primary">연결 저장</button>
             </div>
         `;
     },
 
-    currentTab: 'journal',
-
     switchTab: function(tab) {
         this.currentTab = tab;
-        const jTab = document.getElementById('tab-journal');
-        const mTab = document.getElementById('tab-memo');
-        
-        if (tab === 'journal') {
-            jTab.style.background = '#fdf2f8'; jTab.style.color = '#be185d'; jTab.style.borderColor = '#fbcfe8';
-            mTab.style.background = '#f1f5f9'; mTab.style.color = '#475569'; mTab.style.borderColor = '#cbd5e1';
-        } else {
-            mTab.style.background = '#eff6ff'; mTab.style.color = '#1e40af'; mTab.style.borderColor = '#bfdbfe';
-            jTab.style.background = '#f1f5f9'; jTab.style.color = '#475569'; jTab.style.borderColor = '#cbd5e1';
-        }
-        this.renderList();
+        this.currentPage = 1;
+        document.querySelectorAll('.linker-tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+        this.renderTabContent();
     },
 
-    renderList: function() {
-        const keyword = document.getElementById('linker-search').value.toLowerCase();
-        const container = document.getElementById('linker-list-container');
-        let items = this.currentTab === 'journal' ? this.journalItems : this.memoItems;
-        
-        if (keyword) {
-            items = items.filter(item => (item.content || item.text || '').toLowerCase().includes(keyword));
+    updateDateRangeUI: function() {
+        const val = document.getElementById('linker-period-select')?.value;
+        const customDiv = document.getElementById('linker-custom-date-div');
+        if (customDiv) {
+            customDiv.style.display = val === 'custom' ? 'flex' : 'none';
+        }
+    },
+
+    // 메모 데이터 전체 로드
+    fetchMemoData: async function() {
+        try {
+            const allMemos = await dbAPI.loadMemos() || [];
+            this.tabData.memo = allMemos.map(m => ({ id: m.firestoreId, title: m.text, date: m.createdAt, type: 'memo' }))
+                                        .sort((a,b) => b.date - a.date); // 최신순
+        } catch (e) { console.warn(e); }
+    },
+
+    // 선택된 기간의 일정/기록 로드
+    fetchDateRangeData: async function() {
+        const periodSelect = document.getElementById('linker-period-select');
+        if (!periodSelect) return;
+        const val = periodSelect.value;
+        const today = new Date();
+        let startStr = '', endStr = '';
+
+        if (val === '1month') {
+            const past = new Date(); past.setDate(today.getDate() - 30);
+            const future = new Date(); future.setDate(today.getDate() + 30);
+            startStr = formatDate(past); endStr = formatDate(future);
+        } else if (val === 'sem1') {
+            const dates = getSemesterDates(1, store.semesterConfig);
+            startStr = dates.start; endStr = dates.end;
+        } else if (val === 'sem2') {
+            const dates = getSemesterDates(2, store.semesterConfig);
+            startStr = dates.start; endStr = dates.end;
+        } else if (val === 'year') {
+            startStr = `${today.getFullYear()}-03-01`; endStr = `${today.getFullYear()+1}-02-28`;
+        } else if (val === 'custom') {
+            startStr = document.getElementById('linker-custom-start').value;
+            endStr = document.getElementById('linker-custom-end').value;
         }
 
-        if (items.length === 0) {
-            container.innerHTML = `<div style="text-align:center; color:#94a3b8; padding:20px 0;">해당 항목이 없습니다.</div>`;
+        if (!startStr || !endStr) return alert("날짜를 올바르게 설정해주세요.");
+
+        document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; padding:30px; color:#3b82f6; font-weight:bold;">데이터를 불러오는 중...⏳</div>`;
+
+        try {
+            const myGroups = await dbAPI.loadMyGroups() || [];
+            const { eMap, jMap } = await fetchCalendarData(startStr, endStr, myGroups);
+            
+            let events = [], journals = [];
+            const fId = this.sourceData.fId;
+
+            Object.keys(eMap).forEach(dStr => {
+                const fEvents = (eMap[dStr].eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+                fEvents.forEach(e => {
+                    if(e.content?.trim()) events.push({ id: e.id, title: e.content, date: dStr, type: 'event' });
+                });
+            });
+
+            Object.keys(jMap).forEach(dStr => {
+                const fJournals = jList[dStr]?.[fId] || [];
+                fJournals.forEach(j => {
+                    if(j.content?.trim()) journals.push({ id: j.id, title: j.content, date: dStr, type: 'journal' });
+                });
+            });
+
+            this.tabData.event = events.sort((a,b) => b.date.localeCompare(a.date)); // 최신 날짜순
+            this.tabData.journal = journals.sort((a,b) => b.date.localeCompare(a.date));
+
+            this.currentPage = 1;
+            this.renderListArea();
+        } catch (e) {
+            document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; color:#ef4444;">오류가 발생했습니다.</div>`;
+        }
+    },
+
+    renderTabContent: function() {
+        const contentDiv = document.getElementById('linker-tab-content');
+        
+        // 1. 수업 탭일 경우: 폼(Form) UI 렌더링
+        if (this.currentTab === 'schedule') {
+            contentDiv.innerHTML = `
+                <div style="background:#f8fafc; padding:20px; border:1px solid #cbd5e1; border-radius:8px;">
+                    <h4 style="margin-top:0; color:#0f766e; margin-bottom:15px;">🏫 수업 지정하여 연결</h4>
+                    <div style="display:flex; gap:10px; margin-bottom:15px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">날짜</label>
+                            <input type="date" id="linker-schedule-date" value="${formatDate(new Date())}" class="eval-input" style="padding:8px 10px;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.85rem; font-weight:bold; color:#475569; display:block; margin-bottom:4px;">교시</label>
+                            <select id="linker-schedule-period" class="eval-input" style="padding:8px 10px;">
+                                ${[1,2,3,4,5,6].map(p => `<option value="${p}">${p}교시</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="window.LinkManager.addScheduleLink()" style="width:100%; padding:10px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">이 교시를 장바구니에 담기 ⬇️</button>
+                </div>
+            `;
             return;
         }
 
-        container.innerHTML = items.map(item => {
-            const id = item.id || item.firestoreId;
-            const text = item.content || item.text || '';
+        // 2. 일정/기록/메모 탭일 경우: 검색바 + 리스트 + 페이지네이션 UI
+        const isMemo = this.currentTab === 'memo';
+        const dateFilterHtml = isMemo ? '' : `
+            <div style="display:flex; gap:8px; align-items:center;">
+                <select id="linker-period-select" onchange="window.LinkManager.updateDateRangeUI()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155;">
+                    <option value="1month">최근 ±1개월</option>
+                    <option value="sem1">1학기 전체</option>
+                    <option value="sem2">2학기 전체</option>
+                    <option value="year">학년도 전체</option>
+                    <option value="custom">직접 지정</option>
+                </select>
+                <div id="linker-custom-date-div" style="display:none; gap:5px; align-items:center;">
+                    <input type="date" id="linker-custom-start" class="eval-input" style="padding:6px;"> ~ 
+                    <input type="date" id="linker-custom-end" class="eval-input" style="padding:6px;">
+                </div>
+                <button onclick="window.LinkManager.fetchDateRangeData()" class="modal-btn-secondary" style="padding:8px 12px;">조회</button>
+            </div>
+        `;
+
+        contentDiv.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                ${dateFilterHtml}
+                <div><input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;"></div>
+            </div>
+            <!-- 리스트 및 페이징 영역 -->
+            <div id="linker-list-area" style="flex:1; display:flex; flex-direction:column; border:1px solid #e2e8f0; border-radius:6px; background:#fff; overflow:hidden;">
+            </div>
+        `;
+        
+        this.renderListArea();
+    },
+
+    renderListArea: function() {
+        const area = document.getElementById('linker-list-area');
+        if (!area) return;
+
+        const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
+        let items = this.tabData[this.currentTab] || [];
+        
+        if (keyword) items = items.filter(i => (i.title || '').toLowerCase().includes(keyword));
+
+        if (items.length === 0) {
+            area.innerHTML = `<div style="padding:30px; text-align:center; color:#94a3b8;">해당 기간/키워드에 맞는 데이터가 없습니다.</div>`;
+            return;
+        }
+
+        // 페이지네이션 계산
+        const totalPages = Math.ceil(items.length / this.itemsPerPage);
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+        const pageItems = items.slice(startIndex, startIndex + this.itemsPerPage);
+
+        // 리스트 HTML
+        const listHtml = pageItems.map(item => {
+            const isChecked = this.selectedLinks.some(l => l.targetId === item.id);
+            const dateStr = item.date ? `<span style="font-size:0.75rem; color:#94a3b8; margin-right:8px; display:inline-block; width:70px;">${item.type === 'memo' ? formatDate(new Date(item.date)) : item.date}</span>` : '';
             return `
-                <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; background:#fff; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer;">
-                    <input type="checkbox" class="linker-checkbox" value="${id}" data-type="${this.currentTab}" style="margin-top:4px; width:16px; height:16px; accent-color:#2563eb;">
-                    <span style="font-size:0.95rem; color:#334155; line-height:1.4;">${text}</span>
-                </label>
+                <div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''" onclick="window.LinkManager.toggleSelection('${item.id}', '${item.type}', '${item.title.replace(/'/g, "\\'")}', '${item.date || ''}')">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} style="margin-right:10px; width:16px; height:16px; accent-color:#3b82f6; pointer-events:none;">
+                    ${dateStr}
+                    <span style="font-size:0.95rem; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${item.title}</span>
+                </div>
+            `;
+        }).join('');
+
+        // 페이징 버튼 HTML
+        let pageBtns = '';
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= this.currentPage - 2 && i <= this.currentPage + 2)) {
+                const activeStyle = i === this.currentPage ? 'background:#3b82f6; color:#fff;' : 'background:#f1f5f9; color:#475569;';
+                pageBtns += `<button onclick="window.LinkManager.currentPage=${i}; window.LinkManager.renderListArea()" style="padding:4px 10px; border:none; border-radius:4px; cursor:pointer; font-weight:bold; margin:0 2px; ${activeStyle}">${i}</button>`;
+            } else if (i === this.currentPage - 3 || i === this.currentPage + 3) {
+                pageBtns += `<span style="margin:0 4px; color:#94a3b8;">...</span>`;
+            }
+        }
+
+        area.innerHTML = `
+            <div style="flex:1; overflow-y:auto;">${listHtml}</div>
+            <div style="padding:10px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:center; display:flex; justify-content:center; align-items:center; flex-wrap:wrap;">
+                ${pageBtns}
+            </div>
+        `;
+    },
+
+    // 아이템 체크박스 토글
+    toggleSelection: function(id, type, title, date) {
+        const idx = this.selectedLinks.findIndex(l => l.targetId === id);
+        if (idx !== -1) {
+            this.selectedLinks.splice(idx, 1);
+        } else {
+            this.selectedLinks.push({ targetType: type, targetId: id, targetDate: date, title: title });
+        }
+        this.renderListArea();
+        this.renderTray();
+    },
+
+    // 수업을 장바구니에 담기
+    addScheduleLink: function() {
+        const sDate = document.getElementById('linker-schedule-date').value;
+        const sPeriod = document.getElementById('linker-schedule-period').value;
+        if (!sDate || !sPeriod) return;
+
+        const fakeId = `class_${sDate}_${sPeriod}`;
+        const title = `${sDate} ${sPeriod}교시 수업`;
+
+        if (!this.selectedLinks.some(l => l.targetId === fakeId)) {
+            this.selectedLinks.push({ targetType: 'schedule', targetId: fakeId, targetDate: sDate, targetPeriod: sPeriod, title: title });
+            this.renderTray();
+            if(window.showToast) window.showToast('담겼습니다.');
+        }
+    },
+
+    // 장바구니 삭제
+    removeLink: function(id) {
+        this.selectedLinks = this.selectedLinks.filter(l => l.targetId !== id);
+        this.renderListArea();
+        this.renderTray();
+    },
+
+    // 트레이 렌더링
+    renderTray: function() {
+        document.getElementById('linker-selected-count').innerText = this.selectedLinks.length;
+        const tray = document.getElementById('linker-selected-tray');
+        
+        if (this.selectedLinks.length === 0) {
+            tray.innerHTML = `<span style="color:#94a3b8; font-size:0.85rem;">선택된 항목이 없습니다.</span>`;
+            return;
+        }
+
+        tray.innerHTML = this.selectedLinks.map(l => {
+            const icon = l.targetType === 'event' ? '📌' : (l.targetType === 'journal' ? '📔' : (l.targetType === 'memo' ? '📝' : '🏫'));
+            return `
+                <div style="display:inline-flex; align-items:center; background:#e0f2fe; border:1px solid #bae6fd; padding:4px 8px; border-radius:6px; font-size:0.85rem; color:#0369a1;">
+                    <span style="margin-right:4px;">${icon}</span>
+                    <span style="max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:bold;">${l.title}</span>
+                    <button onclick="window.LinkManager.removeLink('${l.targetId}')" style="margin-left:6px; background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:0;">✖</button>
+                </div>
             `;
         }).join('');
     },
 
+    // 🌟 저장 로직 (현재 화면의 인메모리 데이터에 바인딩)
     saveLinks: function() {
-        const selectedPeriod = document.getElementById('linker-period').value;
-        const checkboxes = document.querySelectorAll('.linker-checkbox:checked');
-        const selectedLinks = Array.from(checkboxes).map(cb => ({
-            targetType: cb.getAttribute('data-type'),
-            targetId: cb.value,
-            targetPeriod: selectedPeriod
-        }));
+        if (this.selectedLinks.length === 0) return alert("연결할 대상을 장바구니에 담아주세요.");
 
-        if (selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
+        // 1. 소스가 '수업 표 헤더'일 경우, 링크를 부착할 주체(Source)가 '해당 교시의 수업'이 됩니다.
+        let actualSourceId = this.sourceData.id;
+        let actualSourceType = this.sourceData.type;
 
-        // 현재 작성중인 데이터 캐시에 링크 주입 (임시 윈도우 객체 활용)
-        const evList = window[`tempEvents_${this.sourceData.dateStr}`] || [];
-        const ev = evList.find(e => e.id === this.sourceData.id);
-        
-        if (ev) {
-            ev.linkedItems = ev.linkedItems || [];
-            // 중복 방지 병합
-            selectedLinks.forEach(link => {
-                if (!ev.linkedItems.some(l => l.targetId === link.targetId)) {
-                    ev.linkedItems.push(link);
+        if (this.sourceData.type === 'schedule_header') {
+            const sp = document.getElementById('linker-source-period').value;
+            actualSourceType = 'schedule';
+            actualSourceId = `class_${this.sourceData.dateStr}_${sp}`;
+            
+            // 전역 캐시에 해당 교시 스케줄 객체 확보
+            window[`tempSchedules_${this.sourceData.dateStr}`] = window[`tempSchedules_${this.sourceData.dateStr}`] || {};
+            const groupSchedules = window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] || {};
+            groupSchedules[sp] = groupSchedules[sp] || { subject: '', memo: '', supplies: '', linkedItems: [] };
+            
+            // 데이터 병합
+            groupSchedules[sp].linkedItems = groupSchedules[sp].linkedItems || [];
+            this.selectedLinks.forEach(link => {
+                if (!groupSchedules[sp].linkedItems.some(l => l.targetId === link.targetId)) {
+                    groupSchedules[sp].linkedItems.push({ targetType: link.targetType, targetId: link.targetId, targetPeriod: link.targetPeriod || null });
                 }
             });
-            window.store.hasUnsavedChanges = true;
-            
-            // UI 즉시 반영
-            if (window.CompactEventHelper) {
-                window.CompactEventHelper.syncCompactEventInputs(this.sourceData.dateStr);
-                const container = document.getElementById(`compact-events-${this.sourceData.dateStr}-${this.sourceData.fId}`);
-                if (container) container.innerHTML = window.CompactEventHelper.generateCompactEventEditor(this.sourceData.dateStr, this.sourceData.fId);
+            window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] = groupSchedules;
+        } 
+        else if (actualSourceType === 'event') {
+            const evList = window[`tempEvents_${this.sourceData.dateStr}`] || [];
+            const ev = evList.find(e => e.id === actualSourceId);
+            if (ev) {
+                ev.linkedItems = ev.linkedItems || [];
+                this.selectedLinks.forEach(link => {
+                    if (!ev.linkedItems.some(l => l.targetId === link.targetId)) ev.linkedItems.push({ targetType: link.targetType, targetId: link.targetId });
+                });
             }
         }
-
-        if (window.showToast) window.showToast('✅ 항목이 연결되었습니다. 저장을 눌러 반영하세요.');
+        else if (actualSourceType === 'journal') {
+            // Journal 인메모리 객체를 찾아 연결 (viewDay.js 등에서 관리하는 this.dayData 참조)
+            const dData = window[`${store.scope}ViewInstance`]?.dayData?.[this.sourceData.fId];
+            if (dData && dData.journals) {
+                const jr = dData.journals.find(j => j.id === actualSourceId);
+                if (jr) {
+                    jr.linkedItems = jr.linkedItems || [];
+                    this.selectedLinks.forEach(link => {
+                        if (!jr.linkedItems.some(l => l.targetId === link.targetId)) jr.linkedItems.push({ targetType: link.targetType, targetId: link.targetId });
+                    });
+                }
+            }
+        }
+        
+        window.store.hasUnsavedChanges = true;
+        
+        if (window.showToast) window.showToast('✅ 데이터가 연결되었습니다. 저장을 누르면 완전히 반영됩니다.');
         document.getElementById('linker-modal').remove();
+        
+        // 화면 리렌더링
+        if (window.render) window.render(false);
     }
 };
 

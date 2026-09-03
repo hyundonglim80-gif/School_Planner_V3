@@ -348,9 +348,13 @@ export class WeekView extends BaseView {
                       return `<td style="vertical-align: top; text-align: left; padding: 8px; height: var(--week-cell-height); border: 1px solid #cbd5e1;">${content}</td>`;
                   }).join('');
 
+                  // 🔥 [수정됨] 뷰어 모드에서도 +링크 버튼 표시
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+                      수업${badgeHtml}<br>
+                      <button onclick="window.LinkManager.openModal('schedule_header', '${d.dateStr}', null, '${fId}')" style="margin-top:4px; padding:2px 6px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:4px; font-size:0.75rem; cursor:pointer; font-weight:bold;" title="교시를 선택해 데이터를 연결합니다.">+ 링크</button>
+                    </td>
                     ${periodCellsHtml}
                   </tr>`;
               });
@@ -460,9 +464,13 @@ export class WeekView extends BaseView {
                       return `<td class="editable-cell week-period-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
+                  // 🔥 [수정됨] 편집 모드에서도 +링크 버튼 추가
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
-                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
+                      수업${badgeHtml}<br>
+                      <button onclick="window.LinkManager.openModal('schedule_header', '${d.dateStr}', null, '${fId}')" style="margin-top:4px; padding:2px 6px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:4px; font-size:0.75rem; cursor:pointer; font-weight:bold;" title="교시를 선택해 데이터를 연결합니다.">+ 링크</button>
+                    </td>
                     ${periodCellsHtml}
                   </tr>`;
               });
@@ -529,15 +537,21 @@ export class WeekView extends BaseView {
                 }
             }, 50);
         } else {
+            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
-            const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
             this.container.innerHTML = `
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
-                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
+                    <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-week-container">
                         ${colgroupHtml}
-                        ${chunkHtml}
+                        <tbody id="lazy-week-tbody"><tr><td colspan="${maxP + 2}" style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
                     </table>
                 </div>`;
+            
+            const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
+            requestAnimationFrame(() => {
+                const tbody = document.getElementById('lazy-week-tbody');
+                if (tbody) tbody.outerHTML = chunkHtml;
+            });
         }
     } finally {
         this.isRendering = false;
@@ -601,16 +615,22 @@ export class WeekView extends BaseView {
                 }
             }, 50);
         } else {
+            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const startOfWeekStr = this.getWeekDates()[0].dateStr;
-            const chunkHtml = await this.buildEditorChunk(startOfWeekStr);
             this.container.innerHTML = `
               <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top: 15px;">
                 <table id="week-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="border-bottom: 2px solid #cbd5e1;">${headerTr}</thead>
-                  ${chunkHtml}
+                  <tbody id="lazy-editor-tbody"><tr><td colspan="${maxP + 2}" style="padding:40px; color:#94a3b8; font-weight:bold;">편집 시트를 로드하고 있습니다...</td></tr></tbody>
                 </table>
               </div>`;
+            
+            const chunkHtml = await this.buildEditorChunk(startOfWeekStr);
+            requestAnimationFrame(() => {
+                const tbody = document.getElementById('lazy-editor-tbody');
+                if (tbody) tbody.outerHTML = chunkHtml;
+            });
         }
     } finally {
         this.isRendering = false;

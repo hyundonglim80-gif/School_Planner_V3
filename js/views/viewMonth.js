@@ -488,7 +488,12 @@ export class MonthView extends BaseView {
                       return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
-                  rowsHtmlForDate += `<tr data-month-schedule-date="${dateStr}" data-fid="${fId}" class="month-row-${dateStr}"><td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">수업<br>${badgeHtml}</td>${periodCellsHtml}</tr>`;
+                  // 🔥 [수정됨] 편집 모드에서도 +링크 버튼 표시
+                  rowsHtmlForDate += `<tr data-month-schedule-date="${dateStr}" data-fid="${fId}" class="month-row-${dateStr}">
+                    <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">
+                      수업<br>${badgeHtml}<br>
+                      <button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="margin-top:4px; padding:2px 6px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:4px; font-size:0.75rem; cursor:pointer; font-weight:bold;" title="교시를 선택해 데이터를 연결합니다.">+ 링크</button>
+                    </td>${periodCellsHtml}</tr>`;
               });
           }
           return rowsHtmlForDate;
@@ -510,7 +515,6 @@ export class MonthView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         if (this.isInfiniteMode) {
-            // ... (기존 무한 스크롤 로직 유지) ...
             const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
             currentTargetDate.setMonth(currentTargetDate.getMonth() - 2); 
 
@@ -549,24 +553,19 @@ export class MonthView extends BaseView {
                     window.scrollTo({ top: y, behavior: 'instant' });
                 }
             }, 50);
-
         } else {
-            // 🔥 [추가됨] 무한스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
+            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const y = store.currentDate.getFullYear();
             const m = store.currentDate.getMonth();
             
-            // 뼈대만 먼저 렌더링하여 화면 멈춤(Freezing) 방지
             this.container.innerHTML = `
               <div style="padding-top:15px;">
                 <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-month-container">
                     <tbody id="lazy-month-tbody"><tr><td style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
                 </table>
               </div>`;
-
-            // 백그라운드에서 전체 청크 데이터 조립
+              
             const chunkHtml = await this.buildViewerChunk(y, m);
-            
-            // requestAnimationFrame을 활용해 메인 스레드 블로킹 해소 후 삽입
             requestAnimationFrame(() => {
                 const tbody = document.getElementById('lazy-month-tbody');
                 if (tbody) {
@@ -597,7 +596,6 @@ export class MonthView extends BaseView {
         this.renderedDateStrings = [];
 
         if (this.isInfiniteMode) {
-            // ... (기존 무한 스크롤 에디터 로직 유지) ...
             const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
             currentTargetDate.setMonth(currentTargetDate.getMonth() - 2);
 
@@ -625,8 +623,19 @@ export class MonthView extends BaseView {
             this.setupInfiniteObserver('editor');
             this.setupChunkObserver();
 
+            setTimeout(() => {
+                const todayY = store.currentDate.getFullYear();
+                const todayM = store.currentDate.getMonth();
+                const targetChunk = document.querySelector(`.month-chunk[data-y="${todayY}"][data-m="${todayM}"]`);
+                if (targetChunk) {
+                    const header = document.querySelector('.app-header');
+                    const offset = header ? header.offsetHeight : 0;
+                    const y = targetChunk.getBoundingClientRect().top + window.pageYOffset - offset - 15;
+                    window.scrollTo({ top: y, behavior: 'instant' });
+                }
+            }, 50);
         } else {
-            // 🔥 [추가됨] 무한스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
+            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const y = store.currentDate.getFullYear();
             const m = store.currentDate.getMonth();
             
@@ -638,9 +647,8 @@ export class MonthView extends BaseView {
                   <tbody id="lazy-editor-tbody"><tr><td colspan="${maxP + 2}" style="padding:40px; color:#94a3b8; font-weight:bold;">편집 시트를 로드하고 있습니다...</td></tr></tbody>
                 </table>
               </div>`;
-
+              
             const chunkHtml = await this.buildEditorChunk(y, m);
-            
             requestAnimationFrame(() => {
                 const tbody = document.getElementById('lazy-editor-tbody');
                 if (tbody) {
@@ -697,7 +705,7 @@ export class MonthView extends BaseView {
   }
 }
 
-const instance = new MonthView(document.getElementById("main-view"));
+const instance = new MonthView(document.getElementById("main-view")); 
 Object.assign(window, {
     monthViewInstance: instance,
     renderMonthViewer: (c) => { instance.container = c; instance.renderViewer(); },

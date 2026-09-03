@@ -243,9 +243,10 @@ export class DayView extends BaseView {
                     <th style="width: 60px; padding: 10px;">교시</th>
                     <th style="width: 120px; padding: 10px;">수업</th>
                     <th style="padding: 10px;">📝 수업 메모</th>
-                    <th style="width: 25%; position:relative; padding: 10px;">📌 비고
-                        <button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="margin-left:8px; padding:3px 10px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;">+ 조사표</button>
-                    </th>
+                    <th style="width: 25%; position:relative; padding: 10px; display:flex; gap:6px; align-items:center; justify-content:center;">📌 비고
+						<button onclick="window.EvaluationManager.currentGroupId = '${isPersonal ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule')" style="padding:3px 8px; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;">+ 조사표</button>
+						<button onclick="window.LinkManager.openModal('schedule_header', '${dateStr}', null, '${fId}')" style="padding:3px 8px; background:#fef08a; color:#854d0e; border:1px solid #fde047; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:bold;" title="해당 일자 교시와 데이터를 연결합니다.">+ 링크</button>
+					</th>
                   </tr>
                 </thead>
                 <tbody id="schedule-tbody-${fId}">${periodRowsHtml}</tbody>
