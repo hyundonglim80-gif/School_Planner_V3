@@ -126,6 +126,7 @@ export const LinkManager = {
     },
 
     // 선택된 기간의 일정/기록 로드
+    // 선택된 기간의 일정/기록 로드
     fetchDateRangeData: async function() {
         const periodSelect = document.getElementById('linker-period-select');
         if (!periodSelect) return;
@@ -164,15 +165,17 @@ export const LinkManager = {
             Object.keys(eMap).forEach(dStr => {
                 const fEvents = (eMap[dStr].eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
                 fEvents.forEach(e => {
-                    if(e.content?.trim()) events.push({ id: e.id, title: e.content, date: dStr, type: 'event' });
+                    const eId = e.id || ('ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5));
+                    if(e.content?.trim()) events.push({ id: eId, title: e.content, date: dStr, type: 'event' });
                 });
             });
 
-            // 🚨 수정된 부분: jList 오타를 jMap으로 변경
             Object.keys(jMap).forEach(dStr => {
                 const fJournals = jMap[dStr]?.[fId] || []; 
                 fJournals.forEach(j => {
-                    if(j.content?.trim()) journals.push({ id: j.id, title: j.content, date: dStr, type: 'journal' });
+                    // 🚨 고유 ID가 없는 과거 데이터용 방어 코드 추가
+                    const jId = j.id || ('jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5));
+                    if(j.content?.trim()) journals.push({ id: jId, title: j.content, date: dStr, type: 'journal' });
                 });
             });
 
@@ -182,11 +185,10 @@ export const LinkManager = {
             this.currentPage = 1;
             this.renderListArea();
         } catch (e) {
-            console.error("Linker Data Load Error:", e); // 디버깅용 콘솔 로그 추가
+            console.error("Linker Data Load Error:", e);
             document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; color:#ef4444;">오류가 발생했습니다.</div>`;
         }
     },
-
     renderTabContent: function() {
         const contentDiv = document.getElementById('linker-tab-content');
         
@@ -269,11 +271,23 @@ export const LinkManager = {
         const listHtml = pageItems.map(item => {
             const isChecked = this.selectedLinks.some(l => l.targetId === item.id);
             const dateStr = item.date ? `<span style="font-size:0.75rem; color:#94a3b8; margin-right:8px; display:inline-block; width:70px;">${item.type === 'memo' ? formatDate(new Date(item.date)) : item.date}</span>` : '';
+            
+            // 🚨 핵심 수정: 텍스트에 줄바꿈(\n)이나 따옴표가 있을 경우 onclick 이벤트가 깨지는 현상 방지
+            const safeTitle = (item.title || '')
+                .replace(/\\/g, "\\\\")
+                .replace(/'/g, "\\'")
+                .replace(/"/g, "&quot;")
+                .replace(/\n/g, " ") // 줄바꿈은 공백으로 치환하여 에러 방지
+                .replace(/\r/g, "");
+
+            // 화면에 보여지는 타이틀도 줄바꿈을 공백으로 표시 (목록에서 한 줄로 깔끔하게 보이도록)
+            const displayTitle = (item.title || '').replace(/\n/g, " ").replace(/\r/g, "");
+
             return `
-                <div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''" onclick="window.LinkManager.toggleSelection('${item.id}', '${item.type}', '${item.title.replace(/'/g, "\\'")}', '${item.date || ''}')">
+                <div style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''" onclick="window.LinkManager.toggleSelection('${item.id}', '${item.type}', '${safeTitle}', '${item.date || ''}')">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} style="margin-right:10px; width:16px; height:16px; accent-color:#3b82f6; pointer-events:none;">
                     ${dateStr}
-                    <span style="font-size:0.95rem; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${item.title}</span>
+                    <span style="font-size:0.95rem; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;" title="${safeTitle}">${displayTitle}</span>
                 </div>
             `;
         }).join('');
