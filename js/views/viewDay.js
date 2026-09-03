@@ -890,11 +890,11 @@ export class DayView extends BaseView {
             // renderJournalEntries 함수 내부의 const linkBtnHtml = ... 부분을 아래 코드로 교체하세요
 			const linkCount = (j.linkedItems || []).length;
 			const linkBadgeHtml = linkCount > 0 
-				? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` 
+				? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
 				: '';
 			const linkBtnHtml = isAuthor
-				  ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 4px; border-radius:4px; line-height:1;" title="메모/일정 연결">🔗</button>${linkBadgeHtml}</div>`
-				  : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+				? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+				: (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
             // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
             const authorBadge = (fId !== 'personal' && j.authorId)

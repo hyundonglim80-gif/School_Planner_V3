@@ -20,8 +20,8 @@ export class MemoView extends BaseView {
     this.myGroups = [];
     this.activeGroupFilters = null;
     this.isAllGroupsVisible = true;
-    this.lastInteractedMemo = null; // 🌟 라벨 팝업 유지용 상태 변수 추가
-    this.currentNewMemoGroupIds = []; // 🔥 단일 ID에서 다중 선택(배열)로 변경
+    this.lastInteractedMemo = null;
+    this.currentNewMemoGroupIds = [];
   }
 
   loadMemoLabels() {
@@ -85,7 +85,6 @@ export class MemoView extends BaseView {
     });
   }
 
-  // 🌟 (신규 메모용) 상단 파일 업로드
   async handleFileUpload(inputElement) {
       const files = inputElement.files;
       if (!files || files.length === 0) return;
@@ -120,7 +119,6 @@ export class MemoView extends BaseView {
       }
   }
 
-  // 🌟 (기존 메모용) 파일 첨부 업로드 함수
   async handleMemoItemAttachmentUpload(firestoreId, inputEl) {
       const files = inputEl.files;
       if (!files || files.length === 0) return;
@@ -146,7 +144,6 @@ export class MemoView extends BaseView {
       }
   }
 
-  // 🌟 (기존 메모용) 첨부파일 삭제 함수
   removeMemoAttachment(firestoreId, aIdx) {
       if (confirm("첨부된 파일 링크를 삭제하시겠습니까?\n(※ 구글 드라이브의 실제 파일은 삭제되지 않습니다.)")) {
           const item = this.memoItems.find(m => m.firestoreId === firestoreId);
@@ -211,7 +208,6 @@ export class MemoView extends BaseView {
       if (textarea.scrollHeight > 50) textarea.style.height = textarea.scrollHeight + 'px'; 
   }
 
-  // 🔥 [변경됨] 새 메모 다중 공유 토글 (개인 버튼 제외)
   toggleNewMemoShare(groupId) {
       if (this.currentNewMemoGroupIds.includes(groupId)) {
           this.currentNewMemoGroupIds = this.currentNewMemoGroupIds.filter(id => id !== groupId);
@@ -221,7 +217,6 @@ export class MemoView extends BaseView {
       this._drawHTML();
   }
 
-  // 🔥 [변경됨] 기존 메모 다중 공유 토글
   toggleMemoShare(firestoreId, groupId) {
       const item = this.memoItems.find(m => m.firestoreId === firestoreId);
       if (!item) return;
@@ -234,7 +229,6 @@ export class MemoView extends BaseView {
       }
       this._drawHTML();
 
-      // DB 업데이트 (다중 그룹 속성 저장 지원 필요)
       if (window.dbAPI && typeof window.dbAPI.updateMemoShare === 'function') {
           window.dbAPI.updateMemoShare(firestoreId, item.sharedGroupIds).catch(e => console.warn(e));
       } else {
@@ -294,7 +288,6 @@ export class MemoView extends BaseView {
         }).join('') + `</div>`;
     }
 
-    // 🔥 [변경됨] 새 메모 다중 공유 UI 적용
     const newMemoGroupChipsHtml = `
         <div class="group-toggle-wrap" style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">공유 대상:</span>
@@ -419,7 +412,6 @@ export class MemoView extends BaseView {
 
     unknownLabels.forEach(lName => { allLabelsHtml += `<div class="label-chip active" style="padding: 2px 8px; font-size: 0.8rem; min-width: auto; background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; font-weight: bold; cursor: default;">${lName}</div>`; });
 
-    // 🔥 [변경됨] 기존 메모 카드 다중 공유 버튼 렌더링
     let groupButtonsHtml = '';
     if (isAuthor) {
         const sharedIds = item.sharedGroupIds || (item.groupId ? [item.groupId] : []);
@@ -431,7 +423,16 @@ export class MemoView extends BaseView {
     } else {
         groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${item.groupName} (읽기전용)</div>`;
     }
-        
+    
+    // 🚨 1. 링크 생성 버튼(🔗)과 확인 버튼(📑)의 완벽한 분리 
+    const linkCount = (item.linkedItems || []).length;
+    const linkBadgeHtml = linkCount > 0 
+        ? `<button onclick="window.LinkManager.openViewer(null, '${item.firestoreId}', '${item.groupId || 'personal'}', 'memo')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+        : '';
+    const linkBtnHtml = isAuthor
+        ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('memo', null, '${item.firestoreId}', '${item.groupId || 'personal'}')" style="background:#fff; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+        : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
+
     let attachmentsHtml = '';
     if (item.attachments && item.attachments.length > 0) {
         attachmentsHtml = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + item.attachments.map((a, aIdx) => {
@@ -454,14 +455,12 @@ export class MemoView extends BaseView {
     const isRegistered = (item.text || '').trim() !== '' || hasAttachments === 'true';
     const forceShow = this.lastInteractedMemo === item.firestoreId;
     
-    // 🚨 수정: isAuthor 조건 제거 (작성자가 아니어도 라벨을 기본적으로 숨김)
     const hideCondition = isRegistered && !forceShow && !isCompleted;
     const finalLabelsDisplay = hideCondition ? 'none' : 'flex';
 
     const focusHandler = `document.getElementById('memo-labels-${item.firestoreId}').style.display='flex'; window.memoViewInstance.lastInteractedMemo='${item.firestoreId}';`;
     const blurHandler = `window.memoViewInstance.updateMemoText('${item.firestoreId}', this.innerText); setTimeout(() => { if(window.memoViewInstance.lastInteractedMemo !== '${item.firestoreId}') { const el = document.getElementById('memo-labels-${item.firestoreId}'); if(el) el.style.display='none'; } }, 250);`;
     
-    // 🚨 수정: 읽기 전용(공유받은 메모)일 경우, 텍스트를 클릭하면 라벨이 토글되도록 처리
     const editableAttr = (isCompleted || !isAuthor) 
         ? `onclick="const el=document.getElementById('memo-labels-${item.firestoreId}'); el.style.display=el.style.display==='none'?'flex':'none';"` 
         : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
@@ -486,6 +485,7 @@ export class MemoView extends BaseView {
             </div>
             
             <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
+                ${linkBtnHtml} <!-- 🚨 링크 분리된 버튼 위치 -->
                 ${groupButtonsHtml}
                 ${authorBadge}
                 ${isAuthor && !isCompleted ? `
@@ -585,7 +585,6 @@ export class MemoView extends BaseView {
     const text = input.value.trim();
     if (!text && (!this.pendingAttachments || this.pendingAttachments.length === 0)) return;
 
-    // 🔥 [변경됨] 다중 공유 속성을 포함하여 새 메모 추가 (기본적으로 모두 내 메모로 소속)
     const newMemo = { 
         text: text, completed: false, order: -Date.now(), createdAt: Date.now(),
         labels: [...this.currentNewLabels], 
@@ -598,7 +597,6 @@ export class MemoView extends BaseView {
     input.value = ""; input.style.height = '50px'; 
     this.pendingAttachments = []; store.hasUnsavedChanges = false; 
 
-    // 주 그룹(소유자)은 null(개인)으로 지정하여 저장합니다.
     dbAPI.addMemo(newMemo, null).catch(e => console.warn(e));
     setTimeout(() => this.renderViewer(), 100);
   }

@@ -29,7 +29,7 @@ export const LinkManager = {
 
         this.modal = new window.Modal({
             id: 'linker-modal',
-            title: '🔗 관련 데이터 연결 (다중 선택 가능)',
+            title: '🔗 새 데이터 연결하기 (다중 선택 가능)',
             width: '600px',
             content: this.getModalHtml()
         });
@@ -41,7 +41,6 @@ export const LinkManager = {
         if (periodSelect) periodSelect.value = '1month';
         
         this.updateDateRangeUI();
-        
         await this.fetchMemoData();
         await this.fetchDateRangeData(); 
     },
@@ -62,7 +61,6 @@ export const LinkManager = {
         return `
             <div style="display:flex; flex-direction:column; max-height:75vh; padding-right:5px;">
                 ${sourcePeriodHtml}
-                
                 <div style="display:flex; gap:5px; margin-bottom:15px;">
                     <button class="linker-tab-btn active" id="tab-event" onclick="window.LinkManager.switchTab('event')">📌 일정</button>
                     <button class="linker-tab-btn" id="tab-schedule" onclick="window.LinkManager.switchTab('schedule')">🏫 수업</button>
@@ -109,8 +107,7 @@ export const LinkManager = {
     fetchMemoData: async function() {
         try {
             const allMemos = await dbAPI.loadMemos() || [];
-            this.tabData.memo = allMemos.map(m => ({ id: m.firestoreId, title: m.text, date: m.createdAt, type: 'memo' }))
-                                        .sort((a,b) => b.date - a.date);
+            this.tabData.memo = allMemos.map(m => ({ id: m.firestoreId, title: m.text, date: m.createdAt, type: 'memo' })).sort((a,b) => b.date - a.date);
         } catch (e) { console.warn(e); }
     },
 
@@ -138,7 +135,7 @@ export const LinkManager = {
             endStr = document.getElementById('linker-custom-end').value;
         }
 
-        if (!startStr || !endStr) return alert("날짜를 올바르게 설정해주세요.");
+        if (!startStr || !endStr) return;
 
         document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; padding:30px; color:#3b82f6; font-weight:bold;">데이터를 불러오는 중...⏳</div>`;
 
@@ -171,7 +168,6 @@ export const LinkManager = {
             this.currentPage = 1;
             this.renderListArea();
         } catch (e) {
-            console.error("Linker Data Load Error:", e);
             document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; color:#ef4444;">오류가 발생했습니다.</div>`;
         }
     },
@@ -224,10 +220,8 @@ export const LinkManager = {
                 ${dateFilterHtml}
                 <div><input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;"></div>
             </div>
-            <div id="linker-list-area" style="flex:1; display:flex; flex-direction:column; border:1px solid #e2e8f0; border-radius:6px; background:#fff; overflow:hidden;">
-            </div>
+            <div id="linker-list-area" style="flex:1; display:flex; flex-direction:column; border:1px solid #e2e8f0; border-radius:6px; background:#fff; overflow:hidden;"></div>
         `;
-        
         this.renderListArea();
     },
 
@@ -237,11 +231,10 @@ export const LinkManager = {
 
         const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
         let items = this.tabData[this.currentTab] || [];
-        
         if (keyword) items = items.filter(i => (i.title || '').toLowerCase().includes(keyword));
 
         if (items.length === 0) {
-            area.innerHTML = `<div style="padding:30px; text-align:center; color:#94a3b8;">해당 기간/키워드에 맞는 데이터가 없습니다.</div>`;
+            area.innerHTML = `<div style="padding:30px; text-align:center; color:#94a3b8;">해당 데이터가 없습니다.</div>`;
             return;
         }
 
@@ -253,7 +246,6 @@ export const LinkManager = {
         const listHtml = pageItems.map(item => {
             const isChecked = this.selectedLinks.some(l => l.targetId === item.id);
             const dateStr = item.date ? `<span style="font-size:0.75rem; color:#94a3b8; margin-right:8px; display:inline-block; width:70px;">${item.type === 'memo' ? formatDate(new Date(item.date)) : item.date}</span>` : '';
-            
             const safeTitle = (item.title || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ").replace(/\r/g, "");
             const displayTitle = (item.title || '').replace(/\n/g, " ").replace(/\r/g, "");
 
@@ -278,19 +270,14 @@ export const LinkManager = {
 
         area.innerHTML = `
             <div style="flex:1; overflow-y:auto;">${listHtml}</div>
-            <div style="padding:10px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:center; display:flex; justify-content:center; align-items:center; flex-wrap:wrap;">
-                ${pageBtns}
-            </div>
+            <div style="padding:10px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:center;">${pageBtns}</div>
         `;
     },
 
     toggleSelection: function(id, type, title, date) {
         const idx = this.selectedLinks.findIndex(l => l.targetId === id);
-        if (idx !== -1) {
-            this.selectedLinks.splice(idx, 1);
-        } else {
-            this.selectedLinks.push({ targetType: type, targetId: id, targetDate: date, title: title });
-        }
+        if (idx !== -1) this.selectedLinks.splice(idx, 1);
+        else this.selectedLinks.push({ targetType: type, targetId: id, targetDate: date, title: title });
         this.renderListArea();
         this.renderTray();
     },
@@ -306,7 +293,6 @@ export const LinkManager = {
         if (!this.selectedLinks.some(l => l.targetId === fakeId)) {
             this.selectedLinks.push({ targetType: 'schedule', targetId: fakeId, targetDate: sDate, targetPeriod: sPeriod, title: title });
             this.renderTray();
-            if(window.showToast) window.showToast('담겼습니다.');
         }
     },
 
@@ -337,17 +323,17 @@ export const LinkManager = {
         }).join('');
     },
 
+    // 🚨 핵심 로직: 연결 시 양방향 메모리 및 DB 업데이트 수행
     saveLinks: async function() {
         if (this.selectedLinks.length === 0) return alert("연결할 항목을 선택해주세요.");
 
         const updateLinks = (targetArray) => {
             this.selectedLinks.forEach(link => {
-                if (!targetArray.some(l => l.targetId === link.targetId)) {
-                    targetArray.push(link);
-                }
+                if (!targetArray.some(l => l.targetId === link.targetId)) targetArray.push(link);
             });
         };
 
+        // 1. 출발지(Source) 업데이트
         if (this.sourceData.type === 'schedule_header') {
             const sp = document.getElementById('linker-source-period').value;
             if (window[`tempSchedules_${this.sourceData.dateStr}`]) {
@@ -355,7 +341,6 @@ export const LinkManager = {
                 grp[sp] = grp[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
                 grp[sp].linkedItems = grp[sp].linkedItems || [];
                 updateLinks(grp[sp].linkedItems);
-                window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] = grp;
             }
             const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
             if (dData && dData.schedules) {
@@ -382,18 +367,26 @@ export const LinkManager = {
                 if (jr) { jr.linkedItems = jr.linkedItems || []; updateLinks(jr.linkedItems); }
             }
         }
+        else if (this.sourceData.type === 'memo') {
+            if (window.memoViewInstance?.memoItems) {
+                const memo = window.memoViewInstance.memoItems.find(m => m.firestoreId === this.sourceData.id);
+                if (memo) { memo.linkedItems = memo.linkedItems || []; updateLinks(memo.linkedItems); }
+            }
+        }
 
+        // 2. 도착지(Target) 역방향 링크 주입을 위한 메타데이터 생성
         let sourceTitleLabel = '연결된 항목';
         if (this.sourceData.type === 'schedule_header') sourceTitleLabel = `${document.getElementById('linker-source-period').value}교시 수업`;
         else if (this.sourceData.type === 'event') sourceTitleLabel = '일정';
         else if (this.sourceData.type === 'journal') sourceTitleLabel = '기록';
+        else if (this.sourceData.type === 'memo') sourceTitleLabel = '메모';
 
         const sourceMeta = {
             targetType: this.sourceData.type === 'schedule_header' ? 'schedule' : this.sourceData.type,
             targetId: this.sourceData.id,
-            targetDate: this.sourceData.dateStr,
+            targetDate: this.sourceData.dateStr || '',
             targetPeriod: this.sourceData.type === 'schedule_header' ? document.getElementById('linker-source-period').value : (this.sourceData.period || ''),
-            title: `[${this.sourceData.dateStr}] ${sourceTitleLabel}`
+            title: `[${this.sourceData.dateStr || '메모'}] ${sourceTitleLabel}`
         };
 
         for (const link of this.selectedLinks) {
@@ -412,10 +405,43 @@ export const LinkManager = {
         document.getElementById('linker-modal').remove();
     },
 
+    // 🚨 메모리 및 DB에 역방향 링크 삽입
     addReverseLink: async function(targetLink, sourceMeta, fId) {
         try {
+            // 1. 메모리 주입 (새로고침 없이 실시간 뱃지 생성을 위함)
+            if (targetLink.targetType === 'event') {
+                if (window[`tempEvents_${targetLink.targetDate}`]) {
+                    const ev = window[`tempEvents_${targetLink.targetDate}`].find(e => e.id === targetLink.targetId);
+                    if (ev) { ev.linkedItems = ev.linkedItems || []; if (!ev.linkedItems.some(l => l.targetId === sourceMeta.targetId)) ev.linkedItems.push(sourceMeta); }
+                }
+                if (window.dayViewInstance?.dayData?.[fId]?.events) {
+                    const ev = window.dayViewInstance.dayData[fId].events.find(e => e.id === targetLink.targetId);
+                    if (ev) { ev.linkedItems = ev.linkedItems || []; if (!ev.linkedItems.some(l => l.targetId === sourceMeta.targetId)) ev.linkedItems.push(sourceMeta); }
+                }
+            } else if (targetLink.targetType === 'journal') {
+                if (window.dayViewInstance?.dayData?.[fId]?.journals) {
+                    const jr = window.dayViewInstance.dayData[fId].journals.find(j => j.id === targetLink.targetId);
+                    if (jr) { jr.linkedItems = jr.linkedItems || []; if (!jr.linkedItems.some(l => l.targetId === sourceMeta.targetId)) jr.linkedItems.push(sourceMeta); }
+                }
+            } else if (targetLink.targetType === 'schedule') {
+                if (window[`tempSchedules_${targetLink.targetDate}`]) {
+                    const grp = window[`tempSchedules_${targetLink.targetDate}`][fId] || {};
+                    const pObj = grp[targetLink.targetPeriod];
+                    if (pObj) { pObj.linkedItems = pObj.linkedItems || []; if (!pObj.linkedItems.some(l => l.targetId === sourceMeta.targetId)) pObj.linkedItems.push(sourceMeta); }
+                }
+                if (window.dayViewInstance?.dayData?.[fId]?.schedules) {
+                    const pObj = window.dayViewInstance.dayData[fId].schedules[targetLink.targetPeriod];
+                    if (pObj) { pObj.linkedItems = pObj.linkedItems || []; if (!pObj.linkedItems.some(l => l.targetId === sourceMeta.targetId)) pObj.linkedItems.push(sourceMeta); }
+                }
+            } else if (targetLink.targetType === 'memo') {
+                if (window.memoViewInstance?.memoItems) {
+                    const memo = window.memoViewInstance.memoItems.find(m => m.firestoreId === targetLink.targetId);
+                    if (memo) { memo.linkedItems = memo.linkedItems || []; if (!memo.linkedItems.some(l => l.targetId === sourceMeta.targetId)) memo.linkedItems.push(sourceMeta); }
+                }
+            }
+
+            // 2. DB 주입
             const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-            
             if (targetLink.targetType === 'event') {
                 const docRef = doc(colFunc('events'), targetLink.targetDate);
                 const snap = await getDoc(docRef);
@@ -458,10 +484,22 @@ export const LinkManager = {
                         }
                     }
                 }
+            } else if (targetLink.targetType === 'memo') {
+                const docRef = doc(colFunc('tasks'), targetLink.targetId);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const itemData = snap.data();
+                    const linkedItems = itemData.linkedItems || [];
+                    if (!linkedItems.some(l => l.targetId === sourceMeta.targetId)) {
+                        linkedItems.push(sourceMeta);
+                        await setDoc(docRef, { linkedItems: linkedItems }, { merge: true });
+                    }
+                }
             }
         } catch (e) { console.error("역방향 링크 저장 오류:", e); }
     },
 
+    // 🚨 연결된 내용을 보는 팝업 UI 생성 및 장구핀 이동 버튼 
     openViewer: async function(dateStr, id, fId, type, period = '') {
         let linkedItems = [];
         if (type === 'event') {
@@ -476,6 +514,10 @@ export const LinkManager = {
             const sData = window[`tempSchedules_${dateStr}`]?.[fId] || window.dayViewInstance?.dayData?.[fId]?.schedules || {};
             const pObj = sData[period];
             if (pObj) linkedItems = pObj.linkedItems || [];
+        } else if (type === 'memo') {
+            const memoList = window.memoViewInstance?.memoItems || [];
+            const m = memoList.find(e => e.firestoreId === id);
+            if (m) linkedItems = m.linkedItems || [];
         }
 
         const existingModal = document.getElementById('linker-viewer-modal');
@@ -483,7 +525,7 @@ export const LinkManager = {
 
         this.viewerModal = new window.Modal({
             id: 'linker-viewer-modal',
-            title: '🔗 연결된 상세 항목 (수정 가능)',
+            title: '📑 연결된 데이터 확인 (수정 가능)',
             width: '550px',
             content: `<div id="linker-viewer-body" style="padding:20px; text-align:center; font-weight:bold; color:#3b82f6;">실시간 데이터를 불러오는 중입니다...⏳</div>`
         });
@@ -495,17 +537,17 @@ export const LinkManager = {
             const icon = link.targetType === 'event' ? '📌' : (link.targetType === 'journal' ? '📔' : (link.targetType === 'memo' ? '📝' : '🏫'));
             
             html += `
-				<div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-					<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-						<span style="font-weight:bold; color:#1e40af; font-size:0.95rem;">${icon} ${link.title}</span>
-						<button onclick="window.LinkManager.navigateAndClose('${link.targetDate}')" style="background:#fef08a; border:1px solid #fde047; color:#854d0e; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s; display:flex; align-items:center; gap:4px;" onmouseover="this.style.background='#fde047'" onmouseout="this.style.background='#fef08a'" title="해당 페이지로 이동">📌 이동</button>
-					</div>
-					<textarea id="edit-link-${link.targetId}" style="width:100%; min-height:60px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; outline:none; resize:vertical; font-size:0.95rem; line-height:1.4;" onfocus="this.style.height=this.scrollHeight+'px'">${text}</textarea>
-					<div style="text-align:right; margin-top:8px;">
-						<button onclick="window.LinkManager.updateItemText('${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${fId}')" style="background:#10b981; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:0.9rem; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">수정 내용 반영</button>
-					</div>
-				</div>
-			`;
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-weight:bold; color:#1e40af; font-size:0.95rem;">${icon} ${link.title}</span>
+                        <button onclick="window.LinkManager.navigateAndClose('${link.targetDate}', '${link.targetType}')" style="background:#fef08a; border:1px solid #fde047; color:#854d0e; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s; display:flex; align-items:center; gap:4px;" onmouseover="this.style.background='#fde047'" onmouseout="this.style.background='#fef08a'" title="해당 페이지로 이동">📌 이동</button>
+                    </div>
+                    <textarea id="edit-link-${link.targetId}" style="width:100%; min-height:60px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; outline:none; resize:vertical; font-size:0.95rem; line-height:1.4;" onfocus="this.style.height=this.scrollHeight+'px'">${text}</textarea>
+                    <div style="text-align:right; margin-top:8px;">
+                        <button onclick="window.LinkManager.updateItemText('${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${fId}')" style="background:#10b981; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:0.9rem; cursor:pointer; font-weight:bold; transition:0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">수정 내용 반영</button>
+                    </div>
+                </div>
+            `;
         }
         document.getElementById('linker-viewer-body').innerHTML = html || '<div style="color:#94a3b8; text-align:center; padding:20px;">연결된 항목의 데이터를 찾을 수 없습니다.</div>';
     },
@@ -577,9 +619,15 @@ export const LinkManager = {
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
-    navigateAndClose: function(dateStr) {
-        if (!dateStr || dateStr === 'undefined') return alert('이동할 수 없는 항목입니다.');
-        if (window.goToDay) window.goToDay(dateStr);
+    navigateAndClose: function(dateStr, type) {
+        if (type === 'memo') {
+            if (window.setScope) window.setScope('memo');
+        } else if (dateStr && dateStr !== 'undefined') {
+            if (window.goToDay) window.goToDay(dateStr);
+        } else {
+            return alert('이동할 수 없는 항목입니다.');
+        }
+        
         const modal = document.getElementById('linker-viewer-modal');
         if (modal) modal.remove();
     }

@@ -266,11 +266,11 @@ export const CompactEventHelper = {
             // 🚨 수정됨: 일정의 링크 생성(🔗)과 확인(📑) 버튼 분리
 			const linkCount = (e.linkedItems || []).length;
 			const linkBadgeHtml = linkCount > 0 
-				? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${e.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` 
+				? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${e.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
 				: '';
 			const linkBtnHtml = isAuthor
-				  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 4px; border-radius:4px; line-height:1;" title="기록/메모 링크 연결">🔗</button>${linkBadgeHtml}</div>`
-				  : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
+				? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+				: (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && e.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
