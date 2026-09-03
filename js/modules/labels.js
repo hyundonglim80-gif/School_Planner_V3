@@ -160,10 +160,10 @@ export const LabelManager = {
         return `
         <div style="font-size:0.9rem; color:#475569; margin-bottom:15px; line-height:1.5; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">
             💡 <b>라벨 속성 안내</b><br>
+            - <b>달력표시</b>: 체크 시 월간/연간 뷰에서 해당 라벨이 지정된 일정이 보입니다.<br>
             - <b>수업삭제</b>: 지정된 날짜의 수업 과목명을 자동으로 비웁니다.<br>
             - <b>완료</b>: 체크박스가 생성되며 미완료 시 다음 날로 자동 이월됩니다.<br>
-            - <b>기간</b>: 선택 시 연속 기간 등록 달력 팝업이 실행됩니다.<br>
-            - <b>반복</b>: 선택 시 매주/매월 반복 등록 팝업이 실행됩니다.
+            - <b>기간/반복</b>: 연속 기간 또는 매주/매월 반복 팝업이 실행됩니다.
         </div>
         <div id="event-label-list-container" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; margin-bottom:15px;"></div>
         
@@ -183,6 +183,7 @@ export const LabelManager = {
             </div>
             
             <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.85rem; color:#1e293b;">
+                <label style="cursor:pointer;"><input type="checkbox" id="new-label-calendar" checked> 📆 달력표시</label>
                 <label style="cursor:pointer;"><input type="checkbox" id="new-label-skip"> 🚫 수업삭제</label>
                 <label style="cursor:pointer;"><input type="checkbox" id="new-label-forward"> ✅ 완료</label>
                 <label style="cursor:pointer;"><input type="checkbox" id="new-label-period"> 📅 기간</label>
@@ -206,37 +207,43 @@ export const LabelManager = {
         const recurChecked = label.isRecur ? 'checked' : '';
         const forwardChecked = label.isForward ? 'checked' : '';
         const skipChecked = label.isSkip ? 'checked' : '';
+        const calendarChecked = label.showInCalendar !== false ? 'checked' : ''; // 기존 데이터 호환을 위해 undefined는 true로 취급
+        
         const style = palette[label.color || 'blue'] || { border: '#93c5fd', bg: '#dbeafe', text: '#1e40af' };
         
         return `
         <div class="modal-input-row" draggable="true" ondragstart="window.LabelManager.handleDragStart(event, ${index}, 'event')" ondragover="window.LabelManager.handleDragOver(event)" ondrop="window.LabelManager.handleDrop(event, ${index}, 'event')" ondragend="this.style.opacity='1';" style="transition:0.2s;">
             <div style="display:flex; align-items:center;"><span style="font-size:1.4rem; color:#94a3b8; cursor:grab; padding-right:4px;">≡</span></div>
-            <input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); window.LabelManager.renderEventLabels();" style="width:80px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">
-            <select onchange="window.tempEditingLabels[${index}].color = this.value; window.LabelManager.renderEventLabels();" style="padding:4px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer; width:65px;">
+            <input type="text" value="${label.name}" onchange="window.tempEditingLabels[${index}].name = this.value.trim(); window.LabelManager.renderEventLabels();" style="width:75px; padding:4px; border:1px solid #cbd5e1; border-radius:4px; outline:none; font-weight:bold; color:#1e293b;">
+            <select onchange="window.tempEditingLabels[${index}].color = this.value; window.LabelManager.renderEventLabels();" style="padding:4px; border-radius:4px; border:1px solid ${style.border}; background:${style.bg}; color:${style.text}; font-weight:bold; outline:none; cursor:pointer; width:60px;">
                 ${Object.keys(this.colorNames).map(k => `<option value="${k}" ${label.color === k ? 'selected' : ''}>${this.colorNames[k]}</option>`).join('')}
             </select>
             <div style="flex:1;"></div>
-            <div style="display:flex; gap:10px; align-items:center; text-align:center;">
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;">
+            <div style="display:flex; gap:8px; align-items:center; text-align:center;">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.6rem; font-weight:bold; color:${label.showInCalendar !== false ? '#f59e0b' : '#94a3b8'}; cursor:pointer;">
+                    <span>달력</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].showInCalendar = this.checked; window.LabelManager.renderEventLabels();" ${calendarChecked} class="modal-checkbox" style="margin-top:2px;">
+                </label>
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.6rem; font-weight:bold; color:${label.isPeriod ? '#2563eb' : '#94a3b8'}; cursor:pointer;">
                     <span>기간</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isPeriod = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isForward = false; window.tempEditingLabels[${index}].isRecur = false; } window.LabelManager.renderEventLabels();" ${periodChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isRecur ? '#16a34a' : '#94a3b8'}; cursor:pointer;">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.6rem; font-weight:bold; color:${label.isRecur ? '#16a34a' : '#94a3b8'}; cursor:pointer;">
                     <span>반복</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isRecur = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isForward = false; } window.LabelManager.renderEventLabels();" ${recurChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.6rem; font-weight:bold; color:${label.isForward ? '#059669' : '#94a3b8'}; cursor:pointer;">
                     <span>완료</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isForward = this.checked; if(this.checked){ window.tempEditingLabels[${index}].isPeriod = false; window.tempEditingLabels[${index}].isRecur = false; } window.LabelManager.renderEventLabels();" ${forwardChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
-                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.65rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;">
+                <label style="display:flex; flex-direction:column; align-items:center; font-size:0.6rem; font-weight:bold; color:${label.isSkip ? '#ef4444' : '#94a3b8'}; cursor:pointer;">
                     <span>수업삭제</span><input type="checkbox" onchange="window.tempEditingLabels[${index}].isSkip = this.checked; window.LabelManager.renderEventLabels();" ${skipChecked} class="modal-checkbox" style="margin-top:2px;">
                 </label>
             </div>
-            <button onclick="window.LabelManager.removeEventLabel(${index});" class="modal-delete-btn" style="padding:4px; margin-left:4px;" title="삭제">✖</button>
+            <button onclick="window.LabelManager.removeEventLabel(${index});" class="modal-delete-btn" style="padding:4px; margin-left:2px;" title="삭제">✖</button>
         </div>`;
     }).join('');
   },
 
   addNewEventLabel: function() {
     const nameInput = document.getElementById('new-label-name');
+    const calendarCheck = document.getElementById('new-label-calendar');
     const periodCheck = document.getElementById('new-label-period');
     const recurCheck = document.getElementById('new-label-recur');
     const forwardCheck = document.getElementById('new-label-forward');
@@ -254,11 +261,13 @@ export const LabelManager = {
         isRecur: recurCheck.checked,
         isForward: forwardCheck.checked, 
         isSkip: skipCheck.checked, 
+        showInCalendar: calendarCheck ? calendarCheck.checked : true,
         color: color,
         isSystem: false 
     });
     
     nameInput.value = ''; 
+    if (calendarCheck) calendarCheck.checked = true;
     periodCheck.checked = false; 
     recurCheck.checked = false;
     forwardCheck.checked = false; 

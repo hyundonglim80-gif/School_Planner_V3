@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=800">
   <title>SP3.7</title>
-  <link rel="stylesheet" href="css/style.css?v=3.751">
+  <link rel="stylesheet" href="css/style.css?v=3.752">
   <link rel="manifest" href="manifest.json">
   
   <script type="importmap">
@@ -55,8 +55,14 @@
             <div class="title-group" style="display: flex; align-items: center; gap: 10px;">
                 <h1 style="font-size: var(--font-header-title); color: var(--primary-color); margin: 0;" id="app-title">SP3.7</h1>
                 <div style="display: flex; align-items: center; gap: 6px;">
-                    <button id="network-toggle-btn" style="background: #10b981; color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; display: flex; align-items: center; justify-content: center;" title="온라인 (클릭 시 오프라인 모드로 변경)">🌐</button>
-                    <button id="manual-sync-btn" style="display: none; background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc; width: 34px; height: 34px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s; align-items: center; justify-content: center;" title="클라우드와 수동 동기화">🔄</button>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                    <!-- 🔥 개인 모드에서 변경사항이 있을 때만 나타나는 동기화 버튼 -->
+                    <button id="btn-sync-status" onclick="window.executeLocalSync()" style="display: none; background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; align-items: center; gap: 6px;" title="클라우드에 변경사항을 한 번에 동기화합니다.">
+                        <span style="font-size: 1.1rem;">🔄</span> 동기화 필요
+                    </button>
+                    <!-- 애니메이션 효과용 스타일 추가 -->
+                    <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
+                </div>
                 </div>
             </div>
 

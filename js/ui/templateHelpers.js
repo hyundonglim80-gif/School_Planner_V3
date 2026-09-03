@@ -259,10 +259,15 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
+
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && e.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
+                : '';
 
             return `
             <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
@@ -272,7 +277,7 @@ export const CompactEventHelper = {
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
-                        ${deleteBtnHtml}
+                        ${authorBadge}${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">

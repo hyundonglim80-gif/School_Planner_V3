@@ -102,7 +102,6 @@ export class MonthView extends BaseView {
       if (this.observer) this.observer.disconnect();
       const currentRenderId = this.renderId; 
       
-      // 🔥 최적화를 위해 오차 범위를 100px로 줄여 적용
       this.observer = new IntersectionObserver(async (entries) => {
           if (window.isAutoScrollingMonth || window.activeModalCount > 0) return; 
 
@@ -241,7 +240,6 @@ export class MonthView extends BaseView {
           const dayOfWeekNum = dateObj.getDay();
 
           const finalEvents = eMap[dateStr]?.eventList || [];
-          const filteredEvents = finalEvents.filter(e => filters.includes(e.sharedGroupId || 'personal'));
           
           let contentHtml = '';
           
@@ -252,7 +250,21 @@ export class MonthView extends BaseView {
               const iconColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
-              const fEvents = filteredEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+              // 💡 뷰어 필터링 처리: 달력 표시 옵션이 체크된 라벨만 보이게 합니다.
+              const fEvents = finalEvents.filter(e => {
+                  if ((e.sharedGroupId || 'personal') !== fId) return false;
+                  
+                  const eLabels = e.labelIds || [];
+                  // 라벨이 하나도 지정되지 않은 일정은 기본적으로 보이게 처리
+                  if (eLabels.length === 0) return true;
+                  
+                  // 지정된 라벨들 중 하나라도 showInCalendar 속성이 true(또는 undefined)인 경우가 있어야 표시
+                  return eLabels.some(id => {
+                      const match = masterEventLabels.find(l => l.id === id);
+                      return match && match.showInCalendar !== false;
+                  });
+              });
+
               const processedEvents = fEvents.map(e => ({ ...e, labelIds: e.labelIds || [] }));
               
               processedEvents.sort((a, b) => {
@@ -328,7 +340,7 @@ export class MonthView extends BaseView {
               }
           });
 
-          const isRed = isRedDay(dateStr, filteredEvents);
+          const isRed = isRedDay(dateStr, finalEvents); // 휴일 계산은 모든 일정을 대상으로 유지합니다.
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#334155');
           const holidayName = getHolidayName(dateStr);
           const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
@@ -380,6 +392,7 @@ export class MonthView extends BaseView {
               const periods = sMap[dateStr]?.[fId] || {};
               window[`tempSchedules_${dateStr}`][fId] = periods;
 
+              // 💡 에디터에서는 수정 및 라벨 관리를 위해 필터링 없이 모든 일정을 불러와 줍니다. (숨겨서 데이터가 날아가는 것을 방지)
               const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               fEvents.forEach(e => {
                   let labelIds = e.labelIds || [];
@@ -497,9 +510,8 @@ export class MonthView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         if (this.isInfiniteMode) {
-            // 🔥 1. 모바일 환경을 위해 앞뒤 2개월 포함 총 5개월치 미리 렌더링
             const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
-            currentTargetDate.setMonth(currentTargetDate.getMonth() - 2); // 2개월 전으로 이동
+            currentTargetDate.setMonth(currentTargetDate.getMonth() - 2); 
 
             this.renderedDateStrings = [];
             this.loadedMonths = [];
@@ -525,7 +537,6 @@ export class MonthView extends BaseView {
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
 
-            // 🔥 2. 렌더링 직후 화면을 가운데 '이번 달' 위치로 자동 정렬
             setTimeout(() => {
                 const todayY = store.currentDate.getFullYear();
                 const todayM = store.currentDate.getMonth();
@@ -571,7 +582,6 @@ export class MonthView extends BaseView {
         this.renderedDateStrings = [];
 
         if (this.isInfiniteMode) {
-            // 🔥 1. 앞뒤 2개월 포함 총 5개월치 렌더링
             const currentTargetDate = new Date(store.currentDate.getFullYear(), store.currentDate.getMonth(), 1);
             currentTargetDate.setMonth(currentTargetDate.getMonth() - 2);
 
@@ -599,7 +609,6 @@ export class MonthView extends BaseView {
             this.setupInfiniteObserver('editor');
             this.setupChunkObserver();
 
-            // 🔥 2. 스크롤 정렬
             setTimeout(() => {
                 const todayY = store.currentDate.getFullYear();
                 const todayM = store.currentDate.getMonth();
@@ -650,12 +659,20 @@ export class MonthView extends BaseView {
     for(const dateStr of datesToSave) {
         const rawList = window[`tempEvents_${dateStr}`];
         if (rawList !== undefined) {
-            const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => ({
-                ...e, 
-                id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
-                authorId: e.authorId || auth?.currentUser?.uid, 
-                sharedGroupId: e.sharedGroupId || 'personal'
-            }));
+            const validEvents = rawList.filter(e => e.content?.trim() || e.labelIds?.length > 0).map(e => {
+                const authorId = e.authorId || auth?.currentUser?.uid;
+                let authorName = e.authorName || '';
+                if (authorId === auth?.currentUser?.uid) {
+                    authorName = localStorage.getItem('sp3_nickname') || authorName;
+                }
+                return {
+                    ...e, 
+                    id: e.id || 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+                    authorId: authorId, 
+                    authorName: authorName,
+                    sharedGroupId: e.sharedGroupId || 'personal'
+                };
+            });
             snapshot.push({ dateStr, validEvents, schedulesData: JSON.parse(JSON.stringify(window[`tempSchedules_${dateStr}`] || {})) });
         }
     }

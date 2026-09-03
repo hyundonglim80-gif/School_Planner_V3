@@ -771,21 +771,25 @@ export class DayView extends BaseView {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}', ${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
+
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && ev.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
+                : '';
 
             return `
             <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
-                        ${chipsHtml}
-                        ${forwardedBadge}
+                        ${chipsHtml}${forwardedBadge}
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                         ${timeHtml}
-                        ${deleteBtnHtml}
+                        ${authorBadge}${deleteBtnHtml}
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
@@ -846,20 +850,25 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
+            // [추가된 부분] 공유 그룹일 때 작성자 배지 생성
+            const authorBadge = (fId !== 'personal' && j.authorId)
+                ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
+                : '';
+
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
-                <div style="position:absolute; top:8px; right:8px;">
-                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}', ${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+                <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
+                    ${authorBadge}
+                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
                 <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
                     <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                     
                     <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}', ${idx}, this)">
+                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
                 </div>
-                ${isUploading}
-                ${attachmentsHtml}
+                ${isUploading}${attachmentsHtml}
             </div>`;
         }).join('');
 
@@ -1148,6 +1157,10 @@ export class DayView extends BaseView {
             validEvents.forEach(e => {
                 if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!e.authorId && auth?.currentUser?.uid) e.authorId = auth.currentUser.uid;
+                // [추가된 부분] 내 일정일 경우 닉네임 도장 찍기
+                if (e.authorId === auth?.currentUser?.uid) {
+                    e.authorName = localStorage.getItem('sp3_nickname') || e.authorName || '';
+                }
                 e.sharedGroupId = fId === 'personal' ? null : fId;
                 snapshot[0].validEvents.push(e);
             });
@@ -1158,6 +1171,10 @@ export class DayView extends BaseView {
             validJournals.forEach(j => {
                 if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!j.authorId && auth?.currentUser?.uid) j.authorId = auth.currentUser.uid;
+                // [추가된 부분] 내 기록일 경우 닉네임 도장 찍기
+                if (j.authorId === auth?.currentUser?.uid) {
+                    j.authorName = localStorage.getItem('sp3_nickname') || j.authorName || '';
+                }
                 delete j.isUploading;
             });
             snapshot[0].journalsData[fId] = validJournals;
@@ -1166,25 +1183,109 @@ export class DayView extends BaseView {
         try {
             const promises = [];
             window.activeUnifiedFilters.forEach(fId => {
-                const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
-                const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-                promises.push(setDoc(doc(evCol, dateStr), { 
-                    eventList: pEvents,
-                    eventText: window.formatEventListToText ? window.formatEventListToText(pEvents) : '',
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                promises.push((async () => {
+                    const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+                    const pJournals = snapshot[0].journalsData[fId] || [];
+                    const pSchedules = snapshot[0].schedulesData[fId] || {};
 
-                const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-                promises.push(setDoc(doc(scCol, dateStr), { 
-                    periods: snapshot[0].schedulesData[fId] || {}, 
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                    const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
+                    const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+                    const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
-                const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-                promises.push(setDoc(doc(jrCol, dateStr), {
-                    entries: snapshot[0].journalsData[fId] || [], 
-                    updatedAt: Date.now() 
-                }, { merge: true }));
+                    // ==========================================
+                    // 1. 일정(Events) 동시성 병합 로직
+                    // ==========================================
+                    let finalEvents = pEvents;
+                    const evRef = doc(evCol, dateStr);
+                    try {
+                        const evSnap = await getDoc(evRef);
+                        if (evSnap.exists()) {
+                            const remoteEvents = evSnap.data().eventList || [];
+                            const originalEvents = this.originalEventsBackup?.[fId]?.events || [];
+                            
+                            const remoteMap = new Map(remoteEvents.map(e => [e.id, e]));
+                            const originalMap = new Map(originalEvents.map(e => [e.id, e]));
+                            const localMap = new Map(pEvents.map(e => [e.id, e]));
+                            
+                            const mergedMap = new Map();
+                            
+                            remoteEvents.forEach(re => {
+                                if (originalMap.has(re.id) && !localMap.has(re.id)) {
+                                    // 내가 로컬에서 지운 항목 무시
+                                } else if (localMap.has(re.id)) {
+                                    mergedMap.set(re.id, localMap.get(re.id)); // 내 수정본 반영
+                                } else {
+                                    mergedMap.set(re.id, re); // 타 유저가 동시 추가한 항목 보존
+                                }
+                            });
+                            
+                            pEvents.forEach(le => {
+                                if (!mergedMap.has(le.id)) mergedMap.set(le.id, le);
+                            });
+                            
+                            finalEvents = Array.from(mergedMap.values());
+                        }
+                    } catch(err) { console.warn("일정 병합 오류:", err); }
+
+                    await setDoc(evRef, { 
+                        eventList: finalEvents,
+                        eventText: window.formatEventListToText ? window.formatEventListToText(finalEvents) : '',
+                        updatedAt: Date.now() 
+                    }, { merge: true });
+
+                    // ==========================================
+                    // 2. 기록(Journals) 동시성 병합 로직
+                    // ==========================================
+                    let finalJournals = pJournals;
+                    const jrRef = doc(jrCol, dateStr);
+                    try {
+                        const jrSnap = await getDoc(jrRef);
+                        if (jrSnap.exists()) {
+                            const remoteJournals = jrSnap.data().entries || [];
+                            const originalJournals = this.originalEventsBackup?.[fId]?.journals || [];
+                            
+                            const originalMap = new Map(originalJournals.map(j => [j.id, j]));
+                            const localMap = new Map(pJournals.map(j => [j.id, j]));
+                            const mergedMap = new Map();
+                            
+                            remoteJournals.forEach(rj => {
+                                if (originalMap.has(rj.id) && !localMap.has(rj.id)) { }
+                                else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
+                                else mergedMap.set(rj.id, rj); 
+                            });
+                            pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
+                            finalJournals = Array.from(mergedMap.values());
+                        }
+                    } catch(err) { console.warn("기록 병합 오류:", err); }
+
+                    await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
+
+                    // ==========================================
+                    // 3. 수업(Schedules) 동시성 병합 로직
+                    // ==========================================
+                    let finalSchedules = { ...pSchedules };
+                    const scRef = doc(scCol, dateStr);
+                    try {
+                        const scSnap = await getDoc(scRef);
+                        if (scSnap.exists()) {
+                            const remotePeriods = scSnap.data().periods || {};
+                            const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
+                            
+                            for (let p in remotePeriods) {
+                                const rJson = JSON.stringify(remotePeriods[p] || {});
+                                const oJson = JSON.stringify(originalPeriods[p] || {});
+                                const lJson = JSON.stringify(pSchedules[p] || {});
+                                
+                                if (oJson === lJson && rJson !== oJson) {
+                                    finalSchedules[p] = remotePeriods[p]; 
+                                }
+                            }
+                        }
+                    } catch(err) { console.warn("수업 병합 오류:", err); }
+
+                    await setDoc(scRef, { periods: finalSchedules, updatedAt: Date.now() }, { merge: true });
+
+                })());
             });
             
             await Promise.race([
