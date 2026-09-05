@@ -126,19 +126,27 @@ window.activeModalCount = 0;
 
 window.increaseModalCount = () => { 
     window.activeModalCount++; 
-    document.body.style.overflow = 'hidden'; 
 };
 
 window.decreaseModalCount = () => { 
     if (window.activeModalCount > 0) window.activeModalCount--; 
-    if (window.activeModalCount === 0) {
-        document.body.style.overflow = ''; 
-    }
 };
+
+// 화면에 실제로 모달 요소가 표시되고 있는지 지속적으로 감시하여 배경 스크롤(overflow)을 제어합니다.
+setInterval(() => {
+    const activeOverlay = document.querySelector('.modal-overlay:not(.hidden), [id*="modal-overlay"]:not(.hidden), .super-alarm-overlay:not(.hidden), #day-modal-body');
+    const hasModal = activeOverlay && activeOverlay.id !== 'main-view' && activeOverlay.offsetParent !== null;
+    
+    if (hasModal) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+        window.activeModalCount = 0; // 안전장치로 동기화
+    }
+}, 300);
 
 // 화면에 실제로 모달 요소가 표시되고 있는지 단축키/휠 입력 시 검사합니다.
 const isModalOpen = () => {
-    if (window.activeModalCount > 0) return true;
     const activeOverlay = document.querySelector('.modal-overlay:not(.hidden), [id*="modal-overlay"]:not(.hidden), .super-alarm-overlay:not(.hidden), #day-modal-body');
     if (activeOverlay && activeOverlay.id !== 'main-view' && activeOverlay.offsetParent !== null) {
         return true;
