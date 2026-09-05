@@ -345,14 +345,17 @@ export class MemoView extends BaseView {
             </div>
 
             <div class="memo-main-area">
-                <div style="margin-bottom:5px; font-weight:bold; font-size:1.1rem; color:#0f172a;">진행 (${activeMemos.length})</div>
+                <div style="margin-bottom:5px; font-weight:bold; font-size:1.1rem; color:#0f172a; cursor:pointer; display:flex; align-items:center; justify-content:space-between;" onclick="const el=document.getElementById('active-memo-list'); el.style.display=el.style.display==='none'?'block':'none'; const icon=this.querySelector('.toggle-icon'); icon.innerText=el.style.display==='none'?'▼':'▲';">
+                    <span>진행 (${activeMemos.length})</span>
+                    <span class="toggle-icon" style="color:#64748b;">▲</span>
+                </div>
                 <div id="active-memo-list">${activeMemos.length === 0 ? `<p style="text-align:center; color:#94a3b8; font-size:1.1rem; padding: 20px 0;">조건에 맞는 메모가 없습니다.</p>` : activeMemos.map((item, i) => this.generateMemoHTML(item, false)).join('')}</div>
 
-                <div style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; font-weight:bold; font-size:1.1rem; color:#0f172a;">
-                  <span>완료 (${completedMemos.length})</span>
-                  ${completedMemos.length > 0 ? `<button onclick="window.memoViewInstance.clearCompletedMemos()" class="modal-delete-btn" style="background:#ef4444; color:#fff; padding:4px 10px; border-radius:6px; font-size:1rem;">🗑️ 전체 비우기</button>` : ''}
+                <div style="margin-top:30px; display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; font-weight:bold; font-size:1.1rem; color:#0f172a; cursor:pointer;" onclick="const el=document.getElementById('completed-memo-list'); el.style.display=el.style.display==='none'?'block':'none'; const icon=this.querySelector('.toggle-icon'); if(icon) icon.innerText=el.style.display==='none'?'▼':'▲';">
+                  <span>완료 (${completedMemos.length}) <span class="toggle-icon" style="color:#64748b; font-size:1rem; margin-left:6px;">▲</span></span>
+                  ${completedMemos.length > 0 ? `<button onclick="event.stopPropagation(); window.memoViewInstance.clearCompletedMemos()" class="modal-delete-btn" style="background:#ef4444; color:#fff; padding:4px 10px; border-radius:6px; font-size:1rem;">🗑️ 전체 비우기</button>` : ''}
                 </div>
-                <div>${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.1rem; margin-top:20px;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => this.generateMemoHTML(item, true)).join('')}</div>
+                <div id="completed-memo-list">${completedMemos.length === 0 ? '<p style="text-align:center; color:#94a3b8; font-size:1.1rem; margin-top:20px;">아직 완료된 항목이 없습니다.</p>' : completedMemos.map((item, i) => this.generateMemoHTML(item, true)).join('')}</div>
             </div>
         </div>
       </div>

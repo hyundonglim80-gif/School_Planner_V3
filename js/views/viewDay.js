@@ -330,13 +330,16 @@ export class DayView extends BaseView {
 
             journalsHtml += `
             <div class="day-journal-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; cursor:pointer;" onclick="const contentDiv = this.nextElementSibling; const isHidden = contentDiv.style.display === 'none'; contentDiv.style.display = isHidden ? 'block' : 'none'; const icon = this.querySelector('.toggle-icon'); if(icon) icon.innerText = isHidden ? '▲' : '▼';">
                   <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                  <span class="toggle-icon" style="color:${isPersonal ? '#be185d' : '#9d174d'}; font-size:1.2rem;">▲</span>
               </div>
-              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
-                  ${this.generateEvalBadgesHtml('journal', null, fId)}
+              <div class="journal-content-collapse" style="display:block;">
+                  <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                      ${this.generateEvalBadgesHtml('journal', null, fId)}
+                  </div>
+                  <div style="display:flex; flex-direction:column;">${jListHtml}</div>
               </div>
-              <div style="display:flex; flex-direction:column;">${jListHtml}</div>
             </div>`;
         });
 
@@ -528,15 +531,17 @@ export class DayView extends BaseView {
 
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; cursor:pointer;" onclick="if(event.target.tagName === 'BUTTON') return; const contentDiv = this.nextElementSibling; const isHidden = contentDiv.style.display === 'none'; contentDiv.style.display = isHidden ? 'block' : 'none'; const icon = this.querySelector('.toggle-icon'); if(icon) icon.innerText = isHidden ? '▲' : '▼';">
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold; display:flex; align-items:center; gap:8px;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span><span class="toggle-icon" style="color:${isPersonal ? '#be185d' : '#9d174d'}; font-size:1.2rem;">▲</span></h3>
                 <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
               </div>
-              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
-                  ${this.generateEvalBadgesHtml('journal', null, fId)}
+              <div class="journal-content-collapse" style="display:block;">
+                  <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                      ${this.generateEvalBadgesHtml('journal', null, fId)}
+                  </div>
+                  <div id="journal-entries-container-${fId}" style="width: 100%;"></div>
+                  <button onclick="window.dayViewInstance.addJournalEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${jBgColor}; color:${jThemeColor}; border:2px dashed ${jBColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 기록 추가</button>
               </div>
-              <div id="journal-entries-container-${fId}" style="width: 100%;"></div>
-              <button onclick="window.dayViewInstance.addJournalEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${jBgColor}; color:${jThemeColor}; border:2px dashed ${jBColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 기록 추가</button>
             </div>`;
         });
 

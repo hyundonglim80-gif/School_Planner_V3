@@ -50,6 +50,8 @@
 html {
   min-height: 100vh;
   background-color: var(--bg-body);
+  overflow-y: auto !important;
+  overflow-x: hidden;
 }
 body { 
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
@@ -57,7 +59,9 @@ body {
   color: #0f172a; 
   padding: 0; 
   margin: 0; 
-  min-height: 100vh; /* 추가됨: 콘텐츠 길이에 맞춰 배경색 연장 */
+  min-height: 100vh;
+  overflow-y: auto !important;
+  overflow-x: hidden;
 }
 
 .editable-cell, .clean-cell-memo, .daily-event-list li, .period-card div {
