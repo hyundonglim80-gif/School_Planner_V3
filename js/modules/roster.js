@@ -389,7 +389,7 @@ export const RosterManager = {
 
             // this.modalInstance.close(); 🔥 이 줄을 삭제하여 창이 닫히지 않게 합니다.
             if (typeof window.render === 'function') window.render();
-            alert("✅ 명렬표 저장 및 구글 시트 연동이 완료되었습니다.");
+            if (window.showToast) window.showToast('✅ 명렬표 저장 및 구글 시트 연동이 완료되었습니다.');
         } catch (e) {
             console.error(e);
             alert("명렬표 저장 중 오류가 발생했습니다.");

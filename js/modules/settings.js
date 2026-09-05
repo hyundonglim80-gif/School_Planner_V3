@@ -19,8 +19,9 @@ export const SettingsModule = {
       <button onclick="SettingsModule.addPeriodInput()" class="modal-btn-dashed">
           + 새로운 시간/활동 추가
       </button>
-      <div class="modal-footer-actions">
-          <button onclick="SettingsModule.saveSettings(event)" class="modal-btn-primary">저장 및 적용</button>
+      <div class="modal-footer-actions" style="display:flex; gap:10px;">
+          <button onclick="SettingsModule.modalInstance.close()" class="modal-btn-secondary" style="flex:1; background:#f1f5f9; color:#475569; padding:10px; border-radius:6px; font-weight:bold; border:none; cursor:pointer;">닫기</button>
+          <button onclick="SettingsModule.saveSettings(event)" class="modal-btn-primary" style="flex:2;">저장 및 적용</button>
       </div>
     `;
   },
@@ -87,8 +88,8 @@ export const SettingsModule = {
       }, { merge: true });
 
       store.periodNames = [...finalNames];
-      this.modalInstance.close(); 
       if (typeof window.render === 'function') window.render(); 
+      if (window.showToast) window.showToast('✅ 시수 설정이 저장되었습니다.');
     } catch (e) {
       alert("설정 저장에 실패했습니다.");
     } finally {

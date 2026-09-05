@@ -224,7 +224,7 @@ export const TimetableModule = {
       this.currentTemplateName = cleanName;
       await this.syncToCloud();
       this.refreshModalContent();
-      alert(`✅ [${cleanName}] 시간표가 저장되었습니다.`);
+      if (window.showToast) window.showToast(`✅ [${cleanName}] 시간표가 저장되었습니다.`);
   },
 
   deleteSelectedTemplate: async function() {
@@ -252,7 +252,7 @@ export const TimetableModule = {
 
       store.semesterConfig = { sem1Start: s1, sem1End: e1, sem2Start: s2, sem2End: e2 };
       await this.syncToCloud();
-      alert("✅ 학사일정(학기 날짜)이 클라우드에 저장되었습니다.");
+      if (window.showToast) window.showToast('✅ 학사일정(학기 날짜)이 저장되었습니다.');
   },
 
   setApplyDates: function(term) {
@@ -364,8 +364,7 @@ export const TimetableModule = {
       if (opCount > 0) batchPromises.push(batch.commit());
       await Promise.all(batchPromises);
 
-      this.modalInstance.close();
-      alert(`✅ 시간표 덮어쓰기 완료!\n- 적용된 날짜: ${appliedCount}일\n- 제외된 날짜(휴일 등): ${skippedCount}일`);
+      if (window.showToast) window.showToast(`✅ 시간표 덮어쓰기 완료! 적용: ${appliedCount}일 / 제외: ${skippedCount}일`);
       if (typeof window.render === 'function') window.render();
 
     } catch(e) {

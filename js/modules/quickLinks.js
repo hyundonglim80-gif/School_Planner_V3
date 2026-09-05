@@ -155,7 +155,7 @@ export const QuickLinksManager = {
         await this.saveLinks(this.currentLinks);
         
         this.renderLinks();
-        alert("✅ 링크 설정이 성공적으로 저장되었습니다.");
+        if (window.showToast) window.showToast('✅ 링크 설정이 저장되었습니다.');
     }
 };
 

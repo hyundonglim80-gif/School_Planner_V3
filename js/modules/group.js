@@ -240,5 +240,5 @@ window.GroupManager = GroupManager;
         const nick = document.getElementById('my-group-nickname').value.trim();
         if(!nick) return alert("닉네임을 입력해주세요.");
         localStorage.setItem('sp3_nickname', nick);
-        alert("닉네임이 저장되었습니다. 이후 작성글부터 닉네임이 적용됩니다.");
+        if (window.showToast) window.showToast('✅ 닉네임이 저장되었습니다. 이후 작성글부터 적용됩니다.');
     };

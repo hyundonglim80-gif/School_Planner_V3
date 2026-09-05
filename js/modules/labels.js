@@ -348,7 +348,7 @@ export const LabelManager = {
 
       if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
       
-      alert("✅ 일정 라벨 설정이 성공적으로 저장되었습니다.");
+      if (window.showToast) window.showToast('✅ 일정 라벨 설정이 저장되었습니다.');
       this.triggerImmediateRender(); 
   },
 
@@ -479,7 +479,7 @@ export const LabelManager = {
 
       if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
       
-      alert("✅ 기록 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+      if (window.showToast) window.showToast('✅ 기록 라벨 설정이 저장되었습니다.');
       this.triggerImmediateRender(); 
   },
 
@@ -604,7 +604,7 @@ export const LabelManager = {
 
     if (btn) { btn.textContent = btnOriginalText; btn.disabled = false; }
 
-    alert("✅ 메모 라벨 설정이 클라우드에 성공적으로 저장되었습니다.");
+    if (window.showToast) window.showToast('✅ 메모 라벨 설정이 저장되었습니다.');
     
     if (typeof window.render === 'function') {
         window.render(true); 
