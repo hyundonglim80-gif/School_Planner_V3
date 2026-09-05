@@ -301,6 +301,7 @@ export const LabelManager = {
       const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
       localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(dataToSave));
+      if (window.invalidateLabelCache) window.invalidateLabelCache();
       
       oldLabels.length = 0;
       dataToSave.forEach(l => oldLabels.push(l));
@@ -432,6 +433,7 @@ export const LabelManager = {
       const deletedIds = oldLabels.map(l => l.id).filter(id => !newIds.includes(id));
 
       localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(dataToSave));
+      if (window.invalidateLabelCache) window.invalidateLabelCache();
       
       oldLabels.length = 0;
       dataToSave.forEach(l => oldLabels.push(l));

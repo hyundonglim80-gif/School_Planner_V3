@@ -36,23 +36,7 @@ import './views/viewMonth.js';
 import './views/viewYear.js';
 import './views/viewMemo.js';
 
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-        for (let registration of registrations) {
-            registration.unregister().then(() => {
-                console.log("SP3.7: 낡은 서비스 워커 강제 해제 완료");
-            });
-        }
-    });
-    if (window.caches) {
-        caches.keys().then(keys => {
-            keys.forEach(key => {
-                caches.delete(key);
-                console.log("SP3.7: 앱 캐시 스토리지 청소 완료:", key);
-            });
-        });
-    }
-}
+
 
 window.promptDownloadFile = function(fileName, downloadUrl) {
     if (confirm(`"${fileName}" 파일을 다운로드하시겠습니까?`)) {
@@ -152,30 +136,15 @@ window.decreaseModalCount = () => {
     }
 };
 
-// 화면에 실제로 모달 요소가 표시되고 있는지 0.1초마다 감지하여 완벽하게 방어합니다.
+// 화면에 실제로 모달 요소가 표시되고 있는지 단축키/휠 입력 시 검사합니다.
 const isModalOpen = () => {
-    let modalVisible = window.activeModalCount > 0;
-    
-    // 모달창, 오버레이, 하루 모달 본문 등의 클래스/ID를 가진 요소가 display: none이 아닌 상태로 떠있는지 체크
-    const overlays = document.querySelectorAll('.modal-overlay, [id*="modal-overlay"], .super-alarm-overlay, #day-modal-body');
-    overlays.forEach(el => {
-        if (window.getComputedStyle(el).display !== 'none' && el.id !== 'main-view') {
-            modalVisible = true;
-        }
-    });
-
-    if (modalVisible) {
-        document.body.style.overflow = 'hidden'; // 강제 스크롤 차단
+    if (window.activeModalCount > 0) return true;
+    const activeOverlay = document.querySelector('.modal-overlay:not(.hidden), [id*="modal-overlay"]:not(.hidden), .super-alarm-overlay:not(.hidden), #day-modal-body');
+    if (activeOverlay && activeOverlay.id !== 'main-view' && activeOverlay.offsetParent !== null) {
         return true;
-    } else {
-        document.body.style.overflow = ''; // 강제 스크롤 허용
-        return false;
     }
+    return false;
 };
-
-// DOM 변화를 감시하여 모달창이 열리면 자동으로 스크롤을 막습니다.
-const modalObserver = new MutationObserver(() => isModalOpen());
-modalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
 // ==========================================================================
 // 📜 상하 스와이프 및 마우스 휠 페이지 이동 로직

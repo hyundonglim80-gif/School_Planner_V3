@@ -29,19 +29,26 @@ export class DayView extends BaseView {
     }
 
     async loadEvaluationsForDay(dateStr) {
-        let allEvals = [];
         const filtersToLoad = window.activeUnifiedFilters || ['personal'];
         
-        for (const f of filtersToLoad) {
+        const evalPromises = filtersToLoad.map(async f => {
             const gid = f === 'personal' ? null : f;
             const evals = await dbAPI.loadEvaluations(dateStr, gid) || [];
             evals.forEach(e => e.groupId = gid);
-            allEvals = allEvals.concat(evals.filter(e => e.context?.source === 'schedule'));
-        }
+            return evals.filter(e => e.context?.source === 'schedule');
+        });
 
-        const journalEvals = await dbAPI.loadEvaluations(dateStr, null) || [];
-        journalEvals.forEach(e => e.groupId = null);
-        allEvals = allEvals.concat(journalEvals.filter(e => e.context?.source === 'journal'));
+        const journalPromise = dbAPI.loadEvaluations(dateStr, null).then(journalEvals => {
+            (journalEvals || []).forEach(e => e.groupId = null);
+            return (journalEvals || []).filter(e => e.context?.source === 'journal');
+        }).catch(() => []);
+
+        const [scheduleEvalsResults, journalEvals] = await Promise.all([
+            Promise.all(evalPromises),
+            journalPromise
+        ]);
+
+        let allEvals = scheduleEvalsResults.flat().concat(journalEvals);
 
         const uniqueEvals = [];
         const ids = new Set();
@@ -143,29 +150,39 @@ export class DayView extends BaseView {
         const filters = window.activeUnifiedFilters;
         let hasCacheError = false;
 
-        for (const fId of filters) {
-            this.dayData[fId] = { events: [], schedules: {}, journals: [] };
-
+        const filterDataPromises = filters.map(async (fId) => {
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            let evDoc = null;
-            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
+            const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+            const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
+
+            const [evDoc, scDoc, jrDoc] = await Promise.all([
+                getDoc(doc(evCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
+                getDoc(doc(scCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
+                getDoc(doc(jrCol, dateStr)).catch(e => { hasCacheError = true; return null; })
+            ]);
+
             let eList = [];
             if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
-            this.dayData[fId].events = eList;
 
-            const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            let scDoc = null;
-            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
-            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
+            return {
+                fId,
+                events: eList,
+                schedules: (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {},
+                journals: (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : []
+            };
+        });
 
-            const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            let jrDoc = null;
-            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
-            this.dayData[fId].journals = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
-        }
+        const filterResults = await Promise.all(filterDataPromises);
+        filterResults.forEach(res => {
+            this.dayData[res.fId] = {
+                events: res.events,
+                schedules: res.schedules,
+                journals: res.journals
+            };
+        });
 
         if (hasCacheError) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) return;
@@ -355,12 +372,17 @@ export class DayView extends BaseView {
         const masterLabels = getEventLabels();
         let hasCacheError = false;
 
-        for (const fId of filters) {
-            this.dayData[fId] = { events: [], schedules: {}, journals: [] };
-
+        const filterEditorPromises = filters.map(async (fId) => {
             const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-            let evDoc = null;
-            try { evDoc = await getDoc(doc(evCol, dateStr)); } catch(e) { hasCacheError = true; }
+            const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+            const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
+
+            const [evDoc, scDoc, jrDoc] = await Promise.all([
+                getDoc(doc(evCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
+                getDoc(doc(scCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
+                getDoc(doc(jrCol, dateStr)).catch(e => { hasCacheError = true; return null; })
+            ]);
+
             let eList = [];
             if (evDoc && evDoc.exists()) {
                 eList = this.parseEvents(evDoc.data());
@@ -377,16 +399,7 @@ export class DayView extends BaseView {
                 return { ...e, labelIds };
             });
             if (eList.length === 0) eList.push(this.createEmptyEvent(fId));
-            this.dayData[fId].events = eList;
 
-            const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-            let scDoc = null;
-            try { scDoc = await getDoc(doc(scCol, dateStr)); } catch(e) { hasCacheError = true; }
-            this.dayData[fId].schedules = (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {};
-
-            const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
-            let jrDoc = null;
-            try { jrDoc = await getDoc(doc(jrCol, dateStr)); } catch(e) { hasCacheError = true; }
             let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
             jList = jList.map(j => ({ ...j, labelIds: j.labelIds || [], attachments: j.attachments || [] }));
             if (jList.length === 0) {
@@ -394,8 +407,23 @@ export class DayView extends BaseView {
                 const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
                 jList.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
             }
-            this.dayData[fId].journals = jList;
-        }
+
+            return {
+                fId,
+                events: eList,
+                schedules: (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {},
+                journals: jList
+            };
+        });
+
+        const editorResults = await Promise.all(filterEditorPromises);
+        editorResults.forEach(res => {
+            this.dayData[res.fId] = {
+                events: res.events,
+                schedules: res.schedules,
+                journals: res.journals
+            };
+        });
 
         if (hasCacheError) {
             if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderEditor')) return;

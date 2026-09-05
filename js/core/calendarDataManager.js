@@ -7,16 +7,10 @@ import { getEventLabels } from './utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventManager.js';
 
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
-    try {
-        await getDoc(doc(getUserCol('events'), startStr));
-    } catch (e) {
-        throw new Error("CACHE_MISS");
-    }
-
     const eMap = {}, sMap = {}, jMap = {}, vMap = {};
     const promises = [];
 
-    // 1. 개인 일정
+    // 1. 개인 일정 (캐시/오프라인 에러 체크 통합)
     promises.push(
         getDocs(query(getUserCol('events'), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr))).then(snap => {
             snap.forEach(docSnap => {
@@ -25,7 +19,10 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
                 let pList = data.eventList || (data.eventText ? parseRawEventTextToEventList(data.eventText) : []);
                 pList.forEach(e => { e.sharedGroupId = null; eMap[docSnap.id].eventList.push(e); });
             });
-        }).catch(e => console.warn(e))
+        }).catch(e => {
+            console.warn(e);
+            throw new Error("CACHE_MISS");
+        })
     );
 
     // 2. 그룹 일정
@@ -118,7 +115,53 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
     let opCount = 0;
     let batchPromises = [];
     
-    // 🔥 비동기 조회를 위해 for...of 루프 사용
+    // ⚡ 1. 동시 수정을 안전하게 보존하기 위해 필요한 서버 문서를 '한 번에 병렬'로 조회
+    const groupEventFetchList = [];
+    const groupScheduleFetchList = [];
+
+    for (const item of snapshot) {
+        for (const g of myGroups) {
+            groupEventFetchList.push({
+                key: `${g.id}_${item.dateStr}`,
+                ref: doc(getGroupCol(g.id, 'events'), item.dateStr)
+            });
+        }
+        for (const fId of (activeUnifiedFilters || ['personal'])) {
+            if (fId !== 'personal') {
+                groupScheduleFetchList.push({
+                    key: `${fId}_${item.dateStr}`,
+                    ref: doc(getGroupCol(fId, 'schedules'), item.dateStr)
+                });
+            }
+        }
+    }
+
+    const [eventSnapResults, scheduleSnapResults] = await Promise.all([
+        Promise.all(groupEventFetchList.map(async ({ key, ref }) => {
+            try {
+                const snap = await getDoc(ref);
+                return { key, snap };
+            } catch (e) {
+                return { key, snap: null };
+            }
+        })),
+        Promise.all(groupScheduleFetchList.map(async ({ key, ref }) => {
+            try {
+                const snap = await getDoc(ref);
+                return { key, snap };
+            } catch (e) {
+                return { key, snap: null };
+            }
+        }))
+    ]);
+
+    const serverEventMap = new Map();
+    eventSnapResults.forEach(r => { if (r?.snap) serverEventMap.set(r.key, r.snap); });
+
+    const serverScheduleMap = new Map();
+    scheduleSnapResults.forEach(r => { if (r?.snap) serverScheduleMap.set(r.key, r.snap); });
+
+    // ⚡ 2. 메모리 상의 서버 데이터와 비교하여 동기식으로 batch.set 추가 (지연 0초)
     for (const item of snapshot) {
         const eventsByGroup = { 'personal': [] };
         myGroups.forEach(g => eventsByGroup[g.id] = []);
@@ -142,11 +185,11 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
         for (const g of myGroups) {
             const gEvents = eventsByGroup[g.id];
             const docRef = doc(getGroupCol(g.id, 'events'), item.dateStr);
-            const docSnap = await getDoc(docRef);
+            const docSnap = serverEventMap.get(`${g.id}_${item.dateStr}`);
 
             let mergedEvents = [...gEvents];
 
-            if (docSnap.exists()) {
+            if (docSnap && docSnap.exists()) {
                 const serverEvents = docSnap.data().eventList || [];
                 mergedEvents = [];
                 const serverEventsMap = new Map(serverEvents.map(e => [e.id, e]));
@@ -199,9 +242,8 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
             let mergedPeriods = { ...periods };
 
             if (fId !== 'personal') {
-                const scRef = doc(scheduleCol, item.dateStr);
-                const scSnap = await getDoc(scRef);
-                if (scSnap.exists()) {
+                const scSnap = serverScheduleMap.get(`${fId}_${item.dateStr}`);
+                if (scSnap && scSnap.exists()) {
                     const serverPeriods = scSnap.data().periods || {};
                     // 교시별로 다르면 합쳐서 메모로 남김
                     for (let p in periods) {
@@ -236,8 +278,5 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
 
     if (opCount > 0) batchPromises.push(batch.commit());
     
-    await Promise.race([
-        Promise.all(batchPromises),
-        new Promise(r => setTimeout(r, 800)) // 데이터 안정성을 위해 약간의 대기 시간 부여
-    ]).catch(e => console.warn(e));
+    await Promise.all(batchPromises).catch(e => console.warn(e));
 };

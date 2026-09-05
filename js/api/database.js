@@ -103,16 +103,21 @@ export const dbAPI = {
         const docRef = groupId ? doc(getGroupCol(groupId, 'evaluations'), dateStr) : doc(getUserCol('evaluations'), dateStr);
         await setDoc(docRef, { evalList, updatedAt: Date.now() }, { merge: true });
     },
-    loadMyGroups: async () => {
+    loadMyGroups: async (forceRefresh = false) => {
         const user = auth.currentUser;
         if (!user) return [];
+        if (!forceRefresh && cachedMyGroups && (Date.now() - lastMyGroupsFetchTime < MY_GROUPS_CACHE_TTL)) {
+            return cachedMyGroups;
+        }
         try {
             const q = query(collection(db, 'groups'), where('members', 'array-contains', user.uid));
             const snapshot = await getDocs(q);
             const groups = [];
             snapshot.forEach(docSnap => groups.push({ id: docSnap.id, ...docSnap.data() }));
+            cachedMyGroups = groups;
+            lastMyGroupsFetchTime = Date.now();
             return groups;
-        } catch(e) { console.warn("오프라인이거나 그룹 목록 로드 실패", e); return []; }
+        } catch(e) { console.warn("오프라인이거나 그룹 목록 로드 실패", e); return cachedMyGroups || []; }
     },
     createGroup: async (groupName) => {
         const user = auth.currentUser;
@@ -125,6 +130,7 @@ export const dbAPI = {
             inviteCode: inviteCode, createdAt: Date.now()
         };
         const docRef = await addDoc(collection(db, 'groups'), groupData);
+        invalidateGroupsCache();
         return { id: docRef.id, ...groupData };
     },
     joinGroup: async (inviteCode) => {
@@ -149,6 +155,7 @@ export const dbAPI = {
                 [`memberDetails.${user.uid}`]: { name: user.displayName || '이름 없음', joinedAt: Date.now(), photoURL: user.photoURL || '' }
             }, { merge: true });
 
+            invalidateGroupsCache();
             return { id: groupId, name: groupData.name || '공유 그룹' };
         } catch (error) {
             if (error.code === 'permission-denied') throw new Error("권한이 없습니다. 데이터베이스 규칙을 확인해주세요.");
@@ -163,6 +170,7 @@ export const dbAPI = {
         if (groupSnap.exists()) {
             if (groupSnap.data().ownerId === user.uid) throw new Error("그룹장은 탈퇴할 수 없습니다.");
             await updateDoc(groupRef, { members: arrayRemove(user.uid) });
+            invalidateGroupsCache();
         }
     },
     deleteGroup: async (groupId) => {
@@ -170,7 +178,21 @@ export const dbAPI = {
         if (!user) throw new Error("로그인이 필요합니다.");
         const groupRef = doc(db, 'groups', groupId);
         const groupSnap = await getDoc(groupRef);
-        if (groupSnap.exists() && groupSnap.data().ownerId === user.uid) await deleteDoc(groupRef);
-        else throw new Error("그룹 삭제 권한이 없습니다.");
+        if (groupSnap.exists() && groupSnap.data().ownerId === user.uid) {
+            await deleteDoc(groupRef);
+            invalidateGroupsCache();
+        } else {
+            throw new Error("그룹 삭제 권한이 없습니다.");
+        }
     }
 };
+
+let cachedMyGroups = null;
+let lastMyGroupsFetchTime = 0;
+const MY_GROUPS_CACHE_TTL = 30000;
+
+export const invalidateGroupsCache = () => {
+    cachedMyGroups = null;
+    lastMyGroupsFetchTime = 0;
+};
+window.invalidateGroupsCache = invalidateGroupsCache;

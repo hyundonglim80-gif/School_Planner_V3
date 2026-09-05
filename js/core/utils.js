@@ -31,7 +31,18 @@ export const generateTempId = (prefix = 'id') => {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
 };
 
+let _cachedEventLabels = null;
+let _cachedJournalLabels = null;
+
+export const invalidateLabelCache = () => {
+    _cachedEventLabels = null;
+    _cachedJournalLabels = null;
+};
+window.invalidateLabelCache = invalidateLabelCache;
+
 export const getEventLabels = () => {
+    if (_cachedEventLabels) return _cachedEventLabels;
+
     let labels = JSON.parse(localStorage.getItem('workCalendar_eventLabels_v4'));
     let changed = false;
 
@@ -85,10 +96,13 @@ export const getEventLabels = () => {
             setDoc(doc(getUserCol('settings'), 'labels'), { eventLabels: labels }, { merge: true });
         }
     }
+    _cachedEventLabels = labels;
     return labels;
 };
 
 export const getJournalLabels = () => {
+    if (_cachedJournalLabels) return _cachedJournalLabels;
+
     let labels = JSON.parse(localStorage.getItem('workCalendar_journalLabels_v4'));
     let changed = false;
 
@@ -117,6 +131,7 @@ export const getJournalLabels = () => {
             doc(window.getUserCol('settings'), 'labels').set({ journalLabels: labels }, { merge: true }).catch(e => console.warn(e));
         }
     }
+    _cachedJournalLabels = labels;
     return labels;
 };
 
