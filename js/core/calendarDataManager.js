@@ -6,7 +6,20 @@ import { query, where, documentId, getDocs, getDoc, doc, writeBatch } from "fire
 import { getEventLabels } from './utils.js';
 import { parseRawEventTextToEventList, formatEventListToText } from '../core/eventManager.js';
 
+let requestCache = new Map();
+
+export const invalidateCalendarCache = () => {
+    requestCache.clear();
+};
+
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
+    const groupKey = myGroups.map(g => g.id).sort().join('_');
+    const cacheKey = `${startStr}_${endStr}_${groupKey}`;
+
+    if (requestCache.has(cacheKey)) {
+        return requestCache.get(cacheKey);
+    }
+
     const eMap = {}, sMap = {}, jMap = {}, vMap = {};
     const promises = [];
 
@@ -106,7 +119,10 @@ export const fetchCalendarData = async (startStr, endStr, myGroups) => {
     }
 
     await Promise.all(promises);
-    return { eMap, sMap, jMap, vMap };
+    
+    const result = { eMap, sMap, jMap, vMap };
+    requestCache.set(cacheKey, result);
+    return result;
 };
 
 export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters) => {
@@ -279,4 +295,7 @@ export const saveCalendarData = async (snapshot, myGroups, activeUnifiedFilters)
     if (opCount > 0) batchPromises.push(batch.commit());
     
     await Promise.all(batchPromises).catch(e => console.warn(e));
+    
+    // ⚡ 캐시 초기화: 저장 완료 후 다음 조회 시 새 데이터를 가져오도록 함
+    invalidateCalendarCache();
 };
