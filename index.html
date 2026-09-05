@@ -79,14 +79,14 @@
         </div>
 
         <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-            <button class="nav-btn" id="btn-search" title="단축키: / (슬래시) 또는 Ctrl + `" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
+            <button class="nav-btn" id="btn-search" title="단축키: Shift + ` (또는 /)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
 
             <div class="btn-group" title="보기 이동 단축키: Shift + ← / →" style="flex-wrap: wrap;">
-                <button class="btn-scope" data-scope="day" title="단축키: Ctrl + 1">하루</button>
-                <button class="btn-scope" data-scope="week" title="단축키: Ctrl + 2">주간</button>
-                <button class="btn-scope" data-scope="month" title="단축키: Ctrl + 3">월간</button>
-                <button class="btn-scope" data-scope="year" title="단축키: Ctrl + 4">년간</button>
-                <button class="btn-scope" data-scope="memo" title="단축키: Ctrl + 5">메모</button>
+                <button class="btn-scope" data-scope="day" title="단축키: Shift + 1">하루</button>
+                <button class="btn-scope" data-scope="week" title="단축키: Shift + 2">주간</button>
+                <button class="btn-scope" data-scope="month" title="단축키: Shift + 3">월간</button>
+                <button class="btn-scope" data-scope="year" title="단축키: Shift + 4">년간</button>
+                <button class="btn-scope" data-scope="memo" title="단축키: Shift + 5">메모</button>
             </div>
 
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -113,13 +113,13 @@
 
     <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px; flex-wrap: nowrap; gap: 10px; overflow-x: auto;">
         <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex: 0 0 auto;">
-            <button class="nav-btn" id="btn-toggle-weekend" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe; white-space: nowrap;">주말 숨기기</button>
-            <button class="nav-btn" id="btn-toggle-class" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold; white-space: nowrap;">수업 숨기기</button>
+            <button class="nav-btn" id="btn-toggle-weekend" title="단축키: Shift + ↑/↓" style="background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe; white-space: nowrap;">주말 숨기기</button>
+            <button class="nav-btn" id="btn-toggle-class" title="단축키: Alt + ↑/↓" style="background-color: #f1f5f9; color: #10b981; border-color: #a7f3d0; font-weight:bold; white-space: nowrap;">수업 숨기기</button>
         </div>
 
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; justify-content: center; flex: 1 1 auto; min-width: 150px;" id="date-nav-group">
             <button class="nav-btn" id="btn-prev-date" title="단축키: Ctrl + ←">&lt;</button>
-            <span class="current-range" id="date-range-text" style="cursor:pointer; transition: color 0.2s; text-align: center; font-size: 1.15rem; white-space: nowrap;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + 스페이스바)">...</span>
+            <span class="current-range" id="date-range-text" style="cursor:pointer; transition: color 0.2s; text-align: center; font-size: 1.15rem; white-space: nowrap;" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#0f172a'" title="오늘 날짜로 돌아가기 (단축키: Ctrl + Space)">...</span>
             <button class="nav-btn" id="btn-next-date" title="단축키: Ctrl + →">&gt;</button>
         </div>
 
