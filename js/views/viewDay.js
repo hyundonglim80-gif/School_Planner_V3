@@ -321,25 +321,32 @@ export class DayView extends BaseView {
                     ? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
                     : '';
 
+                const rId = Math.random().toString(36).substr(2,9);
+                const toggleId = j.id ? 'journal-extras-' + j.id : 'journal-extras-' + rId;
+                const textId = j.id ? 'journal-text-' + j.id : 'journal-text-' + rId;
+                const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='block'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#64748b; padding:0 4px; margin-right:4px; outline:none;" title="접기/펼치기">▼</button>`;
+
                 return `
                     <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
-                        <div style="margin-top:1px; flex-shrink:0;">${chipsHtml}${linkBadgeHtml}</div>
-                        <div style="font-size:1rem; color:#1e293b; white-space:pre-wrap; word-break:break-all; flex:1; margin-left:6px;">${j.content || ''}${attachmentsHtml ? '\n' + attachmentsHtml : ''}</div>
+                        <div style="margin-top:1px; flex-shrink:0; display:flex; align-items:center;">
+                            ${toggleBtnHtml}${chipsHtml}${linkBadgeHtml}
+                        </div>
+                        <div style="font-size:1rem; color:#1e293b; flex:1; margin-left:6px; min-width:0; overflow:hidden;">
+                            <div id="${textId}" style="white-space:pre-wrap; word-break:break-all; display:block;">${j.content || ''}</div>
+                            <div id="${toggleId}" style="display:block; margin-top:4px;">${attachmentsHtml}</div>
+                        </div>
                     </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 
             journalsHtml += `
             <div class="day-journal-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; cursor:pointer;" onclick="const contentDiv = this.nextElementSibling; const isHidden = contentDiv.style.display === 'none'; contentDiv.style.display = isHidden ? 'block' : 'none'; const icon = this.querySelector('.toggle-icon'); if(icon) icon.innerText = isHidden ? '▲' : '▼';">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                   <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
-                  <span class="toggle-icon" style="color:${isPersonal ? '#be185d' : '#9d174d'}; font-size:1.2rem;">▲</span>
               </div>
-              <div class="journal-content-collapse" style="display:block;">
-                  <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
-                      ${this.generateEvalBadgesHtml('journal', null, fId)}
-                  </div>
-                  <div style="display:flex; flex-direction:column;">${jListHtml}</div>
+              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                  ${this.generateEvalBadgesHtml('journal', null, fId)}
               </div>
+              <div style="display:flex; flex-direction:column;">${jListHtml}</div>
             </div>`;
         });
 
@@ -531,17 +538,15 @@ export class DayView extends BaseView {
 
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; cursor:pointer;" onclick="if(event.target.tagName === 'BUTTON') return; const contentDiv = this.nextElementSibling; const isHidden = contentDiv.style.display === 'none'; contentDiv.style.display = isHidden ? 'block' : 'none'; const icon = this.querySelector('.toggle-icon'); if(icon) icon.innerText = isHidden ? '▲' : '▼';">
-                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold; display:flex; align-items:center; gap:8px;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span><span class="toggle-icon" style="color:${isPersonal ? '#be185d' : '#9d174d'}; font-size:1.2rem;">▲</span></h3>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
                 <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
               </div>
-              <div class="journal-content-collapse" style="display:block;">
-                  <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
-                      ${this.generateEvalBadgesHtml('journal', null, fId)}
-                  </div>
-                  <div id="journal-entries-container-${fId}" style="width: 100%;"></div>
-                  <button onclick="window.dayViewInstance.addJournalEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${jBgColor}; color:${jThemeColor}; border:2px dashed ${jBColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 기록 추가</button>
+              <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
+                  ${this.generateEvalBadgesHtml('journal', null, fId)}
               </div>
+              <div id="journal-entries-container-${fId}" style="width: 100%;"></div>
+              <button onclick="window.dayViewInstance.addJournalEntry('${fId}')" style="width:100%; padding:10px; margin-top:5px; background:${jBgColor}; color:${jThemeColor}; border:2px dashed ${jBColor}; border-radius:8px; cursor:pointer; font-weight:bold; font-size:1rem; transition:0.2s;">+ 기록 추가</button>
             </div>`;
         });
 
@@ -950,6 +955,11 @@ export class DayView extends BaseView {
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
                 : '';
 
+            const rId = Math.random().toString(36).substr(2,9);
+            const toggleId = j.id ? 'journal-edit-extras-' + j.id : 'journal-edit-extras-' + rId;
+            const textId = j.id ? 'journal-edit-text-' + j.id : 'journal-edit-text-' + rId;
+            const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='flex'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#be185d; padding:0 4px; margin-right:8px; outline:none;" title="접기/펼치기">▼</button>`;
+
             return `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
                 <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
@@ -957,14 +967,19 @@ export class DayView extends BaseView {
                     ${authorBadge}
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
-                <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px;">${chipsHtml}</div>
-                <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                    <textarea class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
-                    
-                    <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                    <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
+                <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+                    ${toggleBtnHtml}
+                    ${chipsHtml}
                 </div>
-                ${isUploading}${attachmentsHtml}
+                <div id="${toggleId}" style="display:flex; flex-direction:column; width:100%; gap:8px;">
+                    <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
+                        <textarea id="${textId}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                        
+                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
+                    </div>
+                    ${isUploading}${attachmentsHtml}
+                </div>
             </div>`;
         }).join('');
 

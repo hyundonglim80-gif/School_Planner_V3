@@ -475,6 +475,10 @@ export class MemoView extends BaseView {
         ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자">👤 ${item.authorName || item.authorId.substring(0, 6)}</div>`
         : '';
 
+    const toggleId = `memo-extras-${item.firestoreId}`;
+    const textId = `memo-span-${item.firestoreId}`;
+    const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='block'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.8rem; color:#64748b; padding:0 4px; margin-top:5px; outline:none;" title="접기/펼치기">▼</button>`;
+
     return `
       <div id="memo-card-${item.firestoreId}" class="memo-item-row" style="position:relative; padding-top:12px;" ${dragAttributes}>
         ${isAuthor ? `<div style="position:absolute; top:8px; right:8px;">${deleteBtnHtml}</div>` : ''}
@@ -497,11 +501,14 @@ export class MemoView extends BaseView {
         
         <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
+          <div style="padding-top:2px;">${toggleBtnHtml}</div>
           <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
-          <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-             <span id="memo-span-${item.firestoreId}" ${editableAttr} class="memo-text-content ${textStatusClass}" style="outline:none;">${item.text}</span>
-             ${isUploadingHtml}
-             ${attachmentsHtml}
+          <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow:hidden;">
+             <span id="${textId}" ${editableAttr} class="memo-text-content ${textStatusClass}" style="outline:none; display:block; white-space:pre-wrap; word-break:break-all;">${item.text}</span>
+             <div id="${toggleId}" style="display:block;">
+                 ${isUploadingHtml}
+                 ${attachmentsHtml}
+             </div>
           </div>
         </div>
       </div>
