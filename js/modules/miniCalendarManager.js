@@ -8,30 +8,31 @@ export const MiniCalendarManager = {
     viewMonth: new Date().getMonth(), // 0 ~ 11
     closeTimer: null,
 
-    onButtonMouseEnter: function() {
+    clearCloseTimer: function() {
         if (this.closeTimer) {
             clearTimeout(this.closeTimer);
             this.closeTimer = null;
         }
+    },
+
+    startCloseTimer: function() {
+        this.clearCloseTimer();
+        this.closeTimer = setTimeout(() => {
+            if (this.isOpen) {
+                this.close();
+            }
+        }, 350);
+    },
+
+    handleMouseEnter: function() {
+        this.clearCloseTimer();
         if (!this.isOpen) {
             this.open();
         }
     },
 
-    onContainerMouseEnter: function() {
-        if (this.closeTimer) {
-            clearTimeout(this.closeTimer);
-            this.closeTimer = null;
-        }
-    },
-
-    onContainerMouseLeave: function() {
-        if (this.closeTimer) clearTimeout(this.closeTimer);
-        this.closeTimer = setTimeout(() => {
-            if (this.isOpen) {
-                this.close();
-            }
-        }, 250);
+    handleMouseLeave: function() {
+        this.startCloseTimer();
     },
 
     init: function() {
@@ -41,23 +42,25 @@ export const MiniCalendarManager = {
 
         if (!btn || !popover) return;
 
-        // 마우스 호버 시 자동 팝업 및 스타일
+        // 마우스 호버 시 자동 팝업 및 안전한 지연 닫힘 처리
         btn.addEventListener('mouseenter', () => {
             btn.style.backgroundColor = '#e2e8f0';
-            this.onButtonMouseEnter();
+            this.handleMouseEnter();
         });
         btn.addEventListener('mouseleave', () => {
             if (!this.isOpen) {
                 btn.style.backgroundColor = '#f8fafc';
             }
+            this.handleMouseLeave();
         });
 
         if (container) {
-            container.addEventListener('mouseenter', () => this.onContainerMouseEnter());
-            container.addEventListener('mouseleave', () => this.onContainerMouseLeave());
+            container.addEventListener('mouseenter', () => this.handleMouseEnter());
+            container.addEventListener('mouseleave', () => this.handleMouseLeave());
         }
 
-        popover.addEventListener('mouseenter', () => this.onContainerMouseEnter());
+        popover.addEventListener('mouseenter', () => this.handleMouseEnter());
+        popover.addEventListener('mouseleave', () => this.handleMouseLeave());
 
         // 클릭으로도 토글 가능하게 유지
         btn.addEventListener('click', (e) => {
@@ -65,14 +68,14 @@ export const MiniCalendarManager = {
             this.toggle();
         });
 
-        // 팝오버 내부 클릭 시 이벤트 버블링 방지
+        // 팝오버 내부 클릭 시 닫히지 않도록 이벤트 버블링 방지
         popover.addEventListener('click', (e) => {
             e.stopPropagation();
         });
 
         // 외부 클릭 시 팝오버 닫기
         document.addEventListener('click', (e) => {
-            if (this.isOpen && container && !container.contains(e.target)) {
+            if (this.isOpen && !btn.contains(e.target) && !popover.contains(e.target)) {
                 this.close();
             }
         });
@@ -83,6 +86,40 @@ export const MiniCalendarManager = {
                 this.close();
             }
         });
+
+        // 화면 리사이즈 및 스크롤 시 위치 갱신
+        window.addEventListener('resize', () => {
+            if (this.isOpen) this.updatePosition();
+        });
+        window.addEventListener('scroll', () => {
+            if (this.isOpen) this.updatePosition();
+        }, { passive: true });
+    },
+
+    updatePosition: function() {
+        const btn = document.getElementById('btn-calendar-picker');
+        const popover = document.getElementById('mini-calendar-popover');
+        if (!btn || !popover || !this.isOpen) return;
+
+        const rect = btn.getBoundingClientRect();
+        const popoverWidth = 280;
+
+        let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+
+        // 화면 밖으로 나가지 않도록 좌우 마진 10px 보호
+        const minLeft = 10;
+        const maxLeft = Math.max(minLeft, window.innerWidth - popoverWidth - 10);
+        if (left < minLeft) left = minLeft;
+        if (left > maxLeft) left = maxLeft;
+
+        const top = rect.bottom + 6;
+
+        popover.style.position = 'fixed';
+        popover.style.top = `${top}px`;
+        popover.style.left = `${left}px`;
+        popover.style.transform = 'none';
+        popover.style.margin = '0';
+        popover.style.zIndex = '99999';
     },
 
     toggle: function() {
@@ -91,12 +128,10 @@ export const MiniCalendarManager = {
     },
 
     open: function() {
-        if (this.closeTimer) {
-            clearTimeout(this.closeTimer);
-            this.closeTimer = null;
-        }
+        this.clearCloseTimer();
 
         const popover = document.getElementById('mini-calendar-popover');
+        const btn = document.getElementById('btn-calendar-picker');
         if (!popover) return;
 
         const curDate = store.currentDate || new Date();
@@ -107,8 +142,9 @@ export const MiniCalendarManager = {
         popover.classList.remove('hidden');
         this.isOpen = true;
 
+        this.updatePosition();
+
         // 버튼 강조 스타일
-        const btn = document.getElementById('btn-calendar-picker');
         if (btn) {
             btn.style.backgroundColor = '#e0f2fe';
             btn.style.borderColor = '#7dd3fc';
@@ -116,10 +152,7 @@ export const MiniCalendarManager = {
     },
 
     close: function() {
-        if (this.closeTimer) {
-            clearTimeout(this.closeTimer);
-            this.closeTimer = null;
-        }
+        this.clearCloseTimer();
 
         const popover = document.getElementById('mini-calendar-popover');
         if (popover) {
@@ -202,15 +235,15 @@ export const MiniCalendarManager = {
         let headerHtml = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <div style="display:flex; align-items:center; gap:2px;">
-                    <button type="button" onclick="window.MiniCalendarManager.changeYear(-1)" style="background:none; border:none; padding:4px 5px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#64748b; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="이전 연도">«</button>
-                    <button type="button" onclick="window.MiniCalendarManager.changeMonth(-1)" style="background:none; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#475569; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="이전 달">◀</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.changeYear(-1)" style="background:none; border:none; padding:4px 5px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#64748b; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="이전 연도">«</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.changeMonth(-1)" style="background:none; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#475569; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="이전 달">◀</button>
                     <span style="font-weight:bold; font-size:0.95rem; color:#0f172a; letter-spacing:-0.3px; padding:0 2px;">${year}년 ${month + 1}월</span>
-                    <button type="button" onclick="window.MiniCalendarManager.changeMonth(1)" style="background:none; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#475569; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="다음 달">▶</button>
-                    <button type="button" onclick="window.MiniCalendarManager.changeYear(1)" style="background:none; border:none; padding:4px 5px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#64748b; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="다음 연도">»</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.changeMonth(1)" style="background:none; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#475569; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="다음 달">▶</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.changeYear(1)" style="background:none; border:none; padding:4px 5px; border-radius:4px; cursor:pointer; font-size:0.8rem; color:#64748b; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'" title="다음 연도">»</button>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px;">
-                    <button type="button" onclick="window.MiniCalendarManager.goToday()" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:2px 6px; font-size:0.75rem; font-weight:bold; cursor:pointer; transition:0.15s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">오늘</button>
-                    <button type="button" onclick="window.MiniCalendarManager.close()" style="background:none; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.95rem; color:#94a3b8; font-weight:bold; transition:0.15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'" title="닫기">✕</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.goToday()" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; padding:2px 6px; font-size:0.75rem; font-weight:bold; cursor:pointer; transition:0.15s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">오늘</button>
+                    <button type="button" onclick="event.stopPropagation(); window.MiniCalendarManager.close()" style="background:none; border:none; padding:2px 6px; border-radius:4px; cursor:pointer; font-size:0.95rem; color:#94a3b8; font-weight:bold; transition:0.15s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'" title="닫기">✕</button>
                 </div>
             </div>
         `;
@@ -234,7 +267,7 @@ export const MiniCalendarManager = {
             const pDay = daysInPrevMonth - i;
             const pDateStr = `${pYear}-${String(pMonth + 1).padStart(2, '0')}-${String(pDay).padStart(2, '0')}`;
             daysHtml += `
-                <div onclick="window.MiniCalendarManager.selectDate('${pDateStr}')" 
+                <div onclick="event.stopPropagation(); window.MiniCalendarManager.selectDate('${pDateStr}')" 
                      style="height:32px; display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:#cbd5e1; cursor:pointer; border-radius:6px; transition:all 0.15s;" 
                      onmouseover="this.style.background='#f8fafc'; this.style.color='#64748b';" 
                      onmouseout="this.style.background='none'; this.style.color='#cbd5e1';">
@@ -261,7 +294,7 @@ export const MiniCalendarManager = {
             }
 
             daysHtml += `
-                <div onclick="window.MiniCalendarManager.selectDate('${dStr}')" 
+                <div onclick="event.stopPropagation(); window.MiniCalendarManager.selectDate('${dStr}')" 
                      style="height:32px; display:flex; align-items:center; justify-content:center; font-size:0.85rem; color:${dayColor}; ${bgStyle} ${borderStyle} border-radius:6px; cursor:pointer; transition:all 0.15s;" 
                      onmouseover="if(!${isSelected}){ this.style.background='#eff6ff'; this.style.color='#1e40af'; }" 
                      onmouseout="if(!${isSelected}){ this.style.background='none'; this.style.color='${dayColor}'; }">
@@ -277,7 +310,7 @@ export const MiniCalendarManager = {
         for (let nextDay = 1; nextDay <= remainingCells; nextDay++) {
             const nDateStr = `${nYear}-${String(nMonth + 1).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
             daysHtml += `
-                <div onclick="window.MiniCalendarManager.selectDate('${nDateStr}')" 
+                <div onclick="event.stopPropagation(); window.MiniCalendarManager.selectDate('${nDateStr}')" 
                      style="height:32px; display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:#cbd5e1; cursor:pointer; border-radius:6px; transition:all 0.15s;" 
                      onmouseover="this.style.background='#f8fafc'; this.style.color='#64748b';" 
                      onmouseout="this.style.background='none'; this.style.color='#cbd5e1';">
@@ -292,7 +325,7 @@ export const MiniCalendarManager = {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px solid #f1f5f9;">
                 <label style="position:relative; background:#f8fafc; color:#475569; border:1px solid #cbd5e1; border-radius:6px; padding:3px 8px; font-size:0.75rem; font-weight:bold; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                     <span>📅 날짜 직접 선택</span>
-                    <input type="date" value="${curDate.toISOString().split('T')[0]}" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" onchange="window.MiniCalendarManager.selectDate(this.value)">
+                    <input type="date" value="${curDate.toISOString().split('T')[0]}" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" onchange="event.stopPropagation(); window.MiniCalendarManager.selectDate(this.value)">
                 </label>
                 <span style="font-size:0.75rem; color:#94a3b8;">선택 시 바로 이동</span>
             </div>

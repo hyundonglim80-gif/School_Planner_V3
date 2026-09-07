@@ -370,6 +370,32 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
    ========================================================================== */
 .hidden { display: none !important; }
 
+/* 미니 달력 팝오버 호버 브릿지 및 부드러운 표시 */
+#mini-calendar-popover:not(.hidden) {
+  animation: miniCalendarFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#mini-calendar-popover::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  width: 100%;
+  height: 12px;
+  background: transparent;
+}
+
+@keyframes miniCalendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0, 0, 0, 0.5); z-index: 10005;
