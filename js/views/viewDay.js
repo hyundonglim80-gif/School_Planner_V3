@@ -628,6 +628,106 @@ export class DayView extends BaseView {
         window.dayViewInstance.draggedFilterId = null;
     }
 
+    // ===== 일정 (Event) Drag & Drop 순서 변경 =====
+    handleEventDragStart(event, index, filterId) {
+        window.dayViewInstance.draggedEventIdx = index;
+        window.dayViewInstance.draggedEventFilterId = filterId;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+        setTimeout(() => {
+            const card = document.getElementById(`event-card-${filterId}-${index}`);
+            if (card) card.style.opacity = '0.4';
+        }, 0);
+    }
+
+    handleEventDragEnd(event, filterId) {
+        const container = document.getElementById(`event-entries-container-${filterId}`);
+        if (container) {
+            container.querySelectorAll('[id^="event-card-"]').forEach(card => {
+                card.style.opacity = '1';
+                card.style.backgroundColor = '';
+                card.removeAttribute('draggable');
+            });
+        }
+        window.dayViewInstance.draggedEventIdx = null;
+        window.dayViewInstance.draggedEventFilterId = null;
+    }
+
+    handleEventDrop(event, targetIdx, filterId) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        let sourceIdxStr = '';
+        try { sourceIdxStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
+        const sourceIdx = sourceIdxStr !== '' ? parseInt(sourceIdxStr, 10) : window.dayViewInstance.draggedEventIdx;
+
+        if (sourceIdx === null || sourceIdx === undefined || isNaN(sourceIdx) || sourceIdx === targetIdx || window.dayViewInstance.draggedEventFilterId !== filterId) {
+            return;
+        }
+
+        this.syncEventInputs(filterId);
+        const events = this.dayData[filterId].events;
+        if (!events || !events[sourceIdx] || !events[targetIdx]) return;
+
+        const movedItem = events.splice(sourceIdx, 1)[0];
+        events.splice(targetIdx, 0, movedItem);
+
+        this.renderEventEntries(filterId);
+        store.hasUnsavedChanges = true;
+        window.dayViewInstance.draggedEventIdx = null;
+        window.dayViewInstance.draggedEventFilterId = null;
+    }
+
+    // ===== 기록 (Journal) Drag & Drop 순서 변경 =====
+    handleJournalDragStart(event, index, filterId) {
+        window.dayViewInstance.draggedJournalIdx = index;
+        window.dayViewInstance.draggedJournalFilterId = filterId;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+        setTimeout(() => {
+            const card = document.getElementById(`journal-card-${filterId}-${index}`);
+            if (card) card.style.opacity = '0.4';
+        }, 0);
+    }
+
+    handleJournalDragEnd(event, filterId) {
+        const container = document.getElementById(`journal-entries-container-${filterId}`);
+        if (container) {
+            container.querySelectorAll('[id^="journal-card-"]').forEach(card => {
+                card.style.opacity = '1';
+                card.style.backgroundColor = '';
+                card.removeAttribute('draggable');
+            });
+        }
+        window.dayViewInstance.draggedJournalIdx = null;
+        window.dayViewInstance.draggedJournalFilterId = null;
+    }
+
+    handleJournalDrop(event, targetIdx, filterId) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        let sourceIdxStr = '';
+        try { sourceIdxStr = event.dataTransfer.getData('text/plain'); } catch(e) {}
+        const sourceIdx = sourceIdxStr !== '' ? parseInt(sourceIdxStr, 10) : window.dayViewInstance.draggedJournalIdx;
+
+        if (sourceIdx === null || sourceIdx === undefined || isNaN(sourceIdx) || sourceIdx === targetIdx || window.dayViewInstance.draggedJournalFilterId !== filterId) {
+            return;
+        }
+
+        this.syncJournalInputs(filterId);
+        const journals = this.dayData[filterId].journals;
+        if (!journals || !journals[sourceIdx] || !journals[targetIdx]) return;
+
+        const movedItem = journals.splice(sourceIdx, 1)[0];
+        journals.splice(targetIdx, 0, movedItem);
+
+        this.renderJournalEntries(filterId);
+        store.hasUnsavedChanges = true;
+        window.dayViewInstance.draggedJournalIdx = null;
+        window.dayViewInstance.draggedJournalFilterId = null;
+    }
+
     executeClassInsert(sourceP, targetP, fId) {
         if (sourceP === targetP) return;
         
@@ -787,24 +887,7 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
-        if (store.mode !== 'editor') {
-            events.sort((a, b) => {
-                let aRank = 9999, bRank = 9999;
-                (a.labelIds || []).forEach(id => {
-                    const r = allLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < aRank) aRank = r;
-                });
-                (b.labelIds || []).forEach(id => {
-                    const r = allLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < bRank) bRank = r;
-                });
-                if (aRank !== bRank) return aRank - bRank;
-                return (a.id || '').localeCompare(b.id || '');
-            });
-        } else {
-            events.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-        }
-
+        // 🚨 최하단 추가 및 드래그앤드롭 순서 유지를 위해 강제 sort 제거
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             const eLabelIds = ev.labelIds || [];
@@ -867,7 +950,14 @@ export class DayView extends BaseView {
                 : '';
 
             return `
-            <div style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition:0.2s;">
+            <div id="event-card-${fId}-${idx}" data-event-idx="${idx}"
+                 ondragstart="window.dayViewInstance.handleEventDragStart(event, ${idx}, '${fId}')"
+                 ondragend="window.dayViewInstance.handleEventDragEnd(event, '${fId}')"
+                 ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                 ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                 ondragleave="this.style.backgroundColor='';"
+                 ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleEventDrop(event, ${idx}, '${fId}');"
+                 style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition: background-color 0.2s, opacity 0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
                         ${chipsHtml}${forwardedBadge}
@@ -879,6 +969,13 @@ export class DayView extends BaseView {
                     </div>
                 </div>
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                    <div class="event-drag-handle" 
+                         onmouseenter="document.getElementById('event-card-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         onmouseleave="document.getElementById('event-card-${fId}-${idx}').removeAttribute('draggable')"
+                         style="cursor:grab; padding:4px 2px; color:#94a3b8; font-size:1.2rem; line-height:1; user-select:none; display:flex; align-items:center;"
+                         title="이곳을 드래그하여 일정 순서 변경">
+                        ≡
+                    </div>
                     ${checkboxHtml}
                     <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent('${fId}', ${idx}, this.value)">${pureContent}</textarea>
                 </div>
@@ -895,24 +992,7 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        if (store.mode !== 'editor') {
-            journals.sort((a, b) => {
-                let aRank = 9999, bRank = 9999;
-                (a.labelIds || []).forEach(id => {
-                    const r = allLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < aRank) aRank = r;
-                });
-                (b.labelIds || []).forEach(id => {
-                    const r = allLabelsObj.findIndex(l => l.id === id);
-                    if (r !== -1 && r < bRank) bRank = r;
-                });
-                if (aRank !== bRank) return aRank - bRank;
-                return (a.id || '').localeCompare(b.id || '');
-            });
-        } else {
-            journals.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-        }
-
+        // 🚨 최하단 추가 및 드래그앤드롭 순서 유지를 위해 강제 sort 제거
         const uid = auth?.currentUser?.uid;
 
         container.innerHTML = journals.map((j, idx) => {
@@ -961,13 +1041,27 @@ export class DayView extends BaseView {
             const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='flex'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#be185d; padding:0 4px; margin-right:8px; outline:none;" title="접기/펼치기">▼</button>`;
 
             return `
-            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative;">
+            <div id="journal-card-${fId}-${idx}" data-journal-idx="${idx}"
+                 ondragstart="window.dayViewInstance.handleJournalDragStart(event, ${idx}, '${fId}')"
+                 ondragend="window.dayViewInstance.handleJournalDragEnd(event, '${fId}')"
+                 ondragenter="event.preventDefault(); this.style.backgroundColor='#fce7f3';"
+                 ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                 ondragleave="this.style.backgroundColor='';"
+                 ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleJournalDrop(event, ${idx}, '${fId}');"
+                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative; transition: background-color 0.2s, opacity 0.2s;">
                 <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
                     ${linkBtnHtml} 
                     ${authorBadge}
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+                    <div class="journal-drag-handle" 
+                         onmouseenter="document.getElementById('journal-card-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         onmouseleave="document.getElementById('journal-card-${fId}-${idx}').removeAttribute('draggable')"
+                         style="cursor:grab; padding:0 4px; color:#be185d; font-size:1.1rem; line-height:1; user-select:none; display:inline-flex; align-items:center;"
+                         title="이곳을 드래그하여 기록 순서 변경">
+                        ≡
+                    </div>
                     ${toggleBtnHtml}
                     ${chipsHtml}
                 </div>
