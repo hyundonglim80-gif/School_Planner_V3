@@ -1208,9 +1208,13 @@ export class DayView extends BaseView {
 
     removeEventEntry(fId, index) {
         this.syncEventInputs(fId);
+        const item = this.dayData[fId].events[index];
+        if (item) window.TrashManager.moveToTrash('event', fId, this.lockedDateStr || this.dateStr, item);
+        
         this.dayData[fId].events.splice(index, 1);
         this.renderEventEntries(fId);
         store.hasUnsavedChanges = true;
+        if (window.showToast) window.showToast('일정이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
     }
 
     addJournalEntry(fId) {
@@ -1224,19 +1228,23 @@ export class DayView extends BaseView {
 
     removeJournalEntry(fId, index) {
         this.syncJournalInputs(fId);
-        if (confirm("이 기록을 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
-            const j = this.dayData[fId].journals[index];
-            
-            if (j && j.attachments && j.attachments.length > 0) {
-                j.attachments.forEach(a => {
-                    if (a && a.id) driveAPI.deleteFile(a.id).catch(e => console.warn(e));
-                });
-            }
-            
-            this.dayData[fId].journals.splice(index, 1);
-            this.renderJournalEntries(fId);
-            store.hasUnsavedChanges = true;
+        const j = this.dayData[fId].journals[index];
+        if (j) window.TrashManager.moveToTrash('journal', fId, this.lockedDateStr || this.dateStr, j);
+        
+        // 첨부파일 삭제 로직은 복구를 위해 주석처리 하거나 여기서 유지하되, 드라이브 파일은 유지하는게 나을 수 있음
+        // 만약 즉시 지워야한다면 아래 로직 유지, 복구하려면 아래 로직 주석처리
+        /*
+        if (j && j.attachments && j.attachments.length > 0) {
+            j.attachments.forEach(a => {
+                if (a && a.id) driveAPI.deleteFile(a.id).catch(e => console.warn(e));
+            });
         }
+        */
+        
+        this.dayData[fId].journals.splice(index, 1);
+        this.renderJournalEntries(fId);
+        store.hasUnsavedChanges = true;
+        if (window.showToast) window.showToast('기록이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
     }
 
     syncEventInputs(fId) {

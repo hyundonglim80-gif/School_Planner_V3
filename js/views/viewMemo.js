@@ -608,17 +608,20 @@ export class MemoView extends BaseView {
   }
 
   deleteMemoItem(firestoreId) {
-    if(confirm("이 메모를 완전히 삭제하시겠습니까?\n(첨부된 구글 드라이브 파일도 함께 영구 삭제됩니다)")) {
       const target = this.memoItems.find(m => m.firestoreId === firestoreId);
+      if (target) window.TrashManager.moveToTrash('memo', target.groupId || 'personal', null, target);
       
+      // 첨부파일 삭제 로직은 복구를 위해 일단 주석처리 하거나 여기서 유지
+      /*
       if (target && target.attachments && target.attachments.length > 0) {
           target.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
       }
+      */
       
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
       dbAPI.deleteMemo(firestoreId, target ? target.groupId : null).catch(e=>console.warn(e)); 
-    }
+      if (window.showToast) window.showToast('메모가 삭제되었습니다. (상단 휴지통에서 복구 가능)');
   }
 
   clearCompletedMemos() {

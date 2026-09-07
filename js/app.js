@@ -29,6 +29,7 @@ import './modules/roster.js';
 import './modules/evaluation.js';
 import './modules/sync.js';
 import './modules/linker.js';
+import './modules/trashManager.js';
 
 import './views/viewDay.js';
 import './views/viewWeek.js';

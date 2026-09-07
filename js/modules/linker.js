@@ -606,11 +606,20 @@ export const LinkManager = {
                         <div style="display:flex; gap:6px;">
                             <button onclick="window.LinkManager.deleteLinkConnection('${type}', '${dateStr}', '${id}', '${period}', '${fId}', '${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#fef2f2; border:1px solid #fca5a5; color:#ef4444; padding:4px 8px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;" title="이 연결을 삭제합니다">🗑️ 삭제</button>
                             <button onclick="window.LinkManager.navigateAndClose('${link.targetDate}', '${link.targetType}')" style="background:#fef08a; border:1px solid #fde047; color:#854d0e; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s; display:flex; align-items:center; gap:4px;" title="해당 페이지로 이동">📌 이동</button>
+                            <button onclick="document.getElementById('view-mode-${link.targetId}').style.display='none'; document.getElementById('edit-mode-${link.targetId}').style.display='block';" style="background:#e0e7ff; border:1px solid #c7d2fe; color:#3730a3; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;">✏️ 수정</button>
                         </div>
                     </div>
-                    <textarea id="edit-link-${link.targetId}" style="width:100%; min-height:60px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; outline:none; resize:vertical; font-size:0.95rem; line-height:1.4;" onfocus="this.style.height=this.scrollHeight+'px'">${text}</textarea>
-                    <div style="text-align:right; margin-top:8px;">
-                        <button onclick="window.LinkManager.updateItemText('${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#10b981; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:0.9rem; cursor:pointer; font-weight:bold; transition:0.2s;">수정 내용 반영</button>
+                    
+                    <div id="view-mode-${link.targetId}">
+                        <div style="padding:10px; background:#fff; border:1px solid #e2e8f0; border-radius:6px; min-height:40px; font-size:0.95rem; line-height:1.4; white-space:pre-wrap; word-break:break-all; text-align:left;">${text}</div>
+                    </div>
+
+                    <div id="edit-mode-${link.targetId}" style="display:none;">
+                        <textarea id="edit-link-${link.targetId}" style="width:100%; min-height:60px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; box-sizing:border-box; outline:none; resize:vertical; font-size:0.95rem; line-height:1.4;" onfocus="this.style.height=this.scrollHeight+'px'">${text}</textarea>
+                        <div style="text-align:right; margin-top:8px;">
+                            <button onclick="window.LinkManager.updateItemText('${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}'); setTimeout(() => { document.getElementById('view-mode-${link.targetId}').style.display='block'; document.getElementById('edit-mode-${link.targetId}').style.display='none'; }, 500);" style="background:#10b981; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:0.9rem; cursor:pointer; font-weight:bold; transition:0.2s;">수정 내용 반영</button>
+                            <button onclick="document.getElementById('view-mode-${link.targetId}').style.display='block'; document.getElementById('edit-mode-${link.targetId}').style.display='none';" style="background:#94a3b8; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:0.9rem; cursor:pointer; font-weight:bold; transition:0.2s; margin-left:4px;">취소</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -839,6 +848,10 @@ export const LinkManager = {
                 await setDoc(ref, { text: newVal, updatedAt: Date.now() }, { merge: true });
             }
             if (window.showToast) window.showToast('✅ 수정된 내용이 저장되었습니다.');
+            
+            // 뷰 모드 텍스트도 업데이트
+            const viewDiv = document.querySelector(`#view-mode-${id} > div`);
+            if (viewDiv) viewDiv.innerText = newVal;
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }
     },
 
