@@ -206,7 +206,9 @@ export class DayView extends BaseView {
 
         filters.forEach(fId => {
             const isPersonal = fId === 'personal';
+            const hasGroups = (this.myGroups && this.myGroups.length > 0);
             const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+            const gBadge = hasGroups ? `<span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span>` : '';
             const themeColor = isPersonal ? '#2563eb' : '#10b981';
             const jThemeColor = isPersonal ? '#be185d' : '#9d174d';
 
@@ -220,7 +222,10 @@ export class DayView extends BaseView {
             eventsHtml += `
             <div class="day-event-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${themeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#1e40af' : '#047857'}; margin:0; font-weight:bold;">📌 오늘 할 일 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                      <h3 style="font-size:1.2rem; color:${isPersonal ? '#1e40af' : '#047857'}; margin:0; font-weight:bold;">📌 오늘 할 일 ${gBadge}</h3>
+                      <button type="button" onclick="window.DetailEditManager.open('event', '${dateStr}', 'new', '${fId}')" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:1.1rem; font-weight:bold; width:26px; height:26px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.2s;" title="오늘 할 일 추가" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">+</button>
+                  </div>
               </div>
               ${eventBadges}
             </div>`;
@@ -235,15 +240,15 @@ export class DayView extends BaseView {
                 const linkCount = (pObj.linkedItems || []).length;
                 const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
-                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${dateStr}', ${p}, '${fId}')" style="margin-left:auto; flex-shrink:0;" title="${periodName} 수업 상세 및 수정">✏️</button>`;
+                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${dateStr}', ${p}, '${fId}')" style="margin-right:4px; flex-shrink:0;" title="${periodName} 수업 상세 및 수정">✏️</button>`;
 
                 return `
                 <tr data-period="${p}" class="hover-edit-item">
                     <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
                     <td style="width: 120px; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
-                            <span style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</span>
+                        <div style="display:flex; align-items:center; gap:4px;">
                             ${editBtn}
+                            <span style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</span>
                         </div>
                     </td>
                     <td style="vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div></td>
@@ -263,7 +268,7 @@ export class DayView extends BaseView {
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
-                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 ${gBadge}</h3>
               </div>
               <table style="text-align: center; border-collapse: collapse; width: 100%;">
                 <thead>
@@ -318,10 +323,11 @@ export class DayView extends BaseView {
                 const textId = j.id ? 'journal-text-' + j.id : 'journal-text-' + rId;
                 const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='block'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#64748b; padding:0 4px; margin-right:4px; outline:none;" title="접기/펼치기">▼</button>`;
 
-                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('journal', '${dateStr}', '${j.id}', '${fId}')" style="margin-left:auto; flex-shrink:0;" title="기록 상세 및 수정">✏️</button>`;
+                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('journal', '${dateStr}', '${j.id}', '${fId}')" style="margin-right:4px; margin-top:2px; flex-shrink:0;" title="기록 상세 및 수정">✏️</button>`;
 
                 return `
                     <div class="hover-edit-item" style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4; padding:4px 6px; border-radius:6px; border:1px solid transparent; box-sizing:border-box;">
+                        ${editBtn}
                         <div style="margin-top:1px; flex-shrink:0; display:flex; align-items:center;">
                             ${toggleBtnHtml}${chipsHtml}${linkBadgeHtml}
                         </div>
@@ -329,14 +335,16 @@ export class DayView extends BaseView {
                             <div id="${textId}" style="white-space:pre-wrap; word-break:break-all; display:block;">${j.content || ''}</div>
                             <div id="${toggleId}" style="display:block; margin-top:4px;">${attachmentsHtml}</div>
                         </div>
-                        ${editBtn}
                     </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 
             journalsHtml += `
             <div class="day-journal-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                      <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 ${gBadge}</h3>
+                      <button type="button" onclick="window.DetailEditManager.open('journal', '${dateStr}', 'new', '${fId}')" style="background:#fdf2f8; color:#db2777; border:1px solid #fbcfe8; border-radius:6px; font-size:1.1rem; font-weight:bold; width:26px; height:26px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.2s;" title="오늘 기록 추가" onmouseover="this.style.background='#fce7f3'" onmouseout="this.style.background='#fdf2f8'">+</button>
+                  </div>
               </div>
               <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">
                   ${this.generateEvalBadgesHtml('journal', null, fId)}
@@ -452,7 +460,9 @@ export class DayView extends BaseView {
 
         filters.forEach(fId => {
             const isPersonal = fId === 'personal';
+            const hasGroups = (this.myGroups && this.myGroups.length > 0);
             const gName = isPersonal ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹');
+            const gBadge = hasGroups ? `<span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span>` : '';
             const themeColor = isPersonal ? '#2563eb' : '#10b981';
             const bgColor = isPersonal ? '#eff6ff' : '#ecfdf5';
             const bColor = isPersonal ? '#bfdbfe' : '#a7f3d0';
@@ -463,7 +473,7 @@ export class DayView extends BaseView {
             eventsHtml += `
             <div class="day-event-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${themeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
-                <h3 style="font-size:1.2rem; color:${isPersonal ? '#1e40af' : '#047857'}; margin:0; font-weight:bold;">📌 오늘 할 일 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#1e40af' : '#047857'}; margin:0; font-weight:bold;">📌 오늘 할 일 ${gBadge}</h3>
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <button onclick="window.openEventLabelModal()" style="background:#f8fafc; border:1px solid #cbd5e1; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold;">⚙️ 설정</button>
                 </div>
@@ -519,7 +529,7 @@ export class DayView extends BaseView {
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
-                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                  <h3 style="font-size:1.2rem; color:${isPersonal ? '#0f766e' : '#059669'}; margin:0; font-weight:bold;">🏫 수업 및 시간표 ${gBadge}</h3>
                   <div style="font-size:0.8rem; color:#64748b;">💡 왼쪽 '≡' 영역을 잡아 끌어다 놓으세요.</div>
               </div>
               <table style="text-align: center; width: 100%;">
@@ -544,7 +554,7 @@ export class DayView extends BaseView {
             journalsHtml += `
             <div class="day-journal-editor-section" style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 5px solid ${jThemeColor};">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 <span style="font-size:0.95rem; color:#64748b; font-weight:normal;">(${isPersonal ? '🔒 ' : '👥 '}${gName})</span></h3>
+                <h3 style="font-size:1.2rem; color:${isPersonal ? '#be185d' : '#9d174d'}; margin:0; font-weight:bold;">📔 오늘 기록 ${gBadge}</h3>
                 <button onclick="window.openJournalLabelModal()" style="background:#fdf2f8; border:1px solid #fbcfe8; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:bold; color:#be185d;">⚙️ 설정</button>
               </div>
               <div class="journal-eval-badges-container-${fId}" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; ${this.generateEvalBadgesHtml('journal', null, fId) ? '' : 'display:none;'}">

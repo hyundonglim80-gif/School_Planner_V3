@@ -22,9 +22,10 @@ export const EvaluationManager = {
         const existingCreation = document.getElementById('eval-creation-modal');
         if (existingCreation) existingCreation.remove();
 
+        const hasAnyGroups = (window.myGroups && window.myGroups.length > 0) || (window.currentMyGroups && window.currentMyGroups.length > 0);
         this.creationModal = new window.Modal({
             id: 'eval-creation-modal',
-            title: this.currentGroupId ? '새 조사표 생성 (공유됨)' : '새 조사표 생성 (개인)',
+            title: this.currentGroupId ? '새 조사표 생성 (공유됨)' : (hasAnyGroups ? '새 조사표 생성 (개인)' : '새 조사표 생성'),
             width: '560px',
             content: this.getCreationHtml(defaultSubject)
         });
@@ -364,7 +365,8 @@ export const EvaluationManager = {
         }
         applyAllHtml += `</tr>`;
 
-        const titleText = actualGroupId ? `${ev.title} (공유됨${isAuthor ? '' : ' - 읽기전용'})` : `${ev.title} (개인)`;
+        const hasAnyGroupsViewer = (window.myGroups && window.myGroups.length > 0) || (window.currentMyGroups && window.currentMyGroups.length > 0);
+        const titleText = actualGroupId ? `${ev.title} (공유됨${isAuthor ? '' : ' - 읽기전용'})` : (hasAnyGroupsViewer ? `${ev.title} (개인)` : ev.title);
         const deleteBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.deleteEvaluation('${ev.id}')" class="modal-delete-btn" style="padding:10px 16px; border:1px solid #fca5a5; border-radius:6px;">삭제</button>` : `<div></div>`;
         const saveBtnHtml = isAuthor ? `<button onclick="window.EvaluationManager.saveViewerData('${ev.id}')" class="modal-btn-primary">저장</button>` : ''; 
 

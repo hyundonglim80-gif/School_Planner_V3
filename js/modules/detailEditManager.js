@@ -15,10 +15,11 @@ export const DetailEditManager = {
             this.cachedInputs = null;
         }
 
+        const isNew = itemId === 'new';
         let title = '상세 정보 및 수정';
-        if (type === 'event') title = `📌 일정 상세 및 수정 [${dateStr}]`;
+        if (type === 'event') title = isNew ? `📌 새 일정 추가 [${dateStr}]` : `📌 일정 상세 및 수정 [${dateStr}]`;
         else if (type === 'schedule') title = `🏫 ${itemId}교시 수업 상세 및 수정 [${dateStr}]`;
-        else if (type === 'journal') title = `📔 오늘 기록 상세 및 수정 [${dateStr}]`;
+        else if (type === 'journal') title = isNew ? `📔 새 기록 추가 [${dateStr}]` : `📔 오늘 기록 상세 및 수정 [${dateStr}]`;
 
         if (this.modal) {
             this.modal.close();
@@ -135,8 +136,14 @@ export const DetailEditManager = {
         const container = document.getElementById('detail-edit-modal-body');
         if (!container) return;
 
+        const isNew = itemId === 'new';
+
         try {
             if (type === 'event') {
+                if (isNew) {
+                    this.renderEventForm({ id: 'new', content: '', labelIds: [], time: '', completed: false, linkedItems: [] });
+                    return;
+                }
                 let eventItem = null;
                 // 메모리 우선 검색
                 if (window.dayViewInstance?.dayData?.[fId]?.events) {
@@ -181,6 +188,10 @@ export const DetailEditManager = {
                 this.renderScheduleForm(scheduleItem);
             }
             else if (type === 'journal') {
+                if (isNew) {
+                    this.renderJournalForm({ id: 'new', content: '', labelIds: [], linkedItems: [] });
+                    return;
+                }
                 let journalItem = null;
                 // 메모리 우선 검색
                 if (window.dayViewInstance?.dayData?.[fId]?.journals) {
@@ -286,10 +297,10 @@ export const DetailEditManager = {
 
                 <!-- 하단 액션 버튼 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0;">
-                    <button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>
+                    ${itemId === 'new' ? '<div></div>' : '<button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>'}
                     <div style="display:flex; gap:8px;">
                         <button type="button" onclick="window.DetailEditManager.close()" style="padding:8px 16px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">취소</button>
-                        <button type="button" onclick="window.DetailEditManager.saveEvent()" style="padding:8px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">💾 저장</button>
+                        <button type="button" onclick="window.DetailEditManager.saveEvent()" style="padding:8px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">${itemId === 'new' ? '➕ 일정 추가' : '💾 저장'}</button>
                     </div>
                 </div>
             </div>
@@ -400,10 +411,10 @@ export const DetailEditManager = {
 
                 <!-- 하단 액션 버튼 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0;">
-                    <button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>
+                    ${itemId === 'new' ? '<div></div>' : '<button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>'}
                     <div style="display:flex; gap:8px;">
                         <button type="button" onclick="window.DetailEditManager.close()" style="padding:8px 16px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">취소</button>
-                        <button type="button" onclick="window.DetailEditManager.saveJournal()" style="padding:8px 20px; background:#be185d; color:#fff; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">💾 저장</button>
+                        <button type="button" onclick="window.DetailEditManager.saveJournal()" style="padding:8px 20px; background:#be185d; color:#fff; border:none; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">${itemId === 'new' ? '➕ 기록 추가' : '💾 저장'}</button>
                     </div>
                 </div>
             </div>
@@ -458,7 +469,12 @@ export const DetailEditManager = {
 
     saveEvent: async function() {
         const { dateStr, itemId, fId } = this.currentData;
-        const content = document.getElementById('detail-edit-content')?.value || '';
+        const isNew = itemId === 'new';
+        const content = (document.getElementById('detail-edit-content')?.value || '').trim();
+        if (!content) {
+            alert("일정 내용을 입력해주세요.");
+            return;
+        }
         const completed = !!document.getElementById('detail-edit-completed')?.checked;
         const tInput = document.getElementById('detail-edit-time')?.value || '';
 
@@ -485,8 +501,9 @@ export const DetailEditManager = {
             const snap = await getDoc(docRef);
             let list = snap.exists() ? (snap.data().eventList || []) : [];
 
-            let item = list.find(e => String(e.id) === String(itemId));
-            if (!item && list[Number(itemId)]) item = list[Number(itemId)];
+            let targetId = isNew ? ('ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5)) : itemId;
+            let item = isNew ? null : list.find(e => String(e.id) === String(itemId));
+            if (!isNew && !item && list[Number(itemId)]) item = list[Number(itemId)];
 
             if (item) {
                 item.content = content;
@@ -496,13 +513,14 @@ export const DetailEditManager = {
                 item.alarmTriggered = false;
             } else {
                 item = {
-                    id: itemId || ('ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5)),
+                    id: targetId,
                     content,
                     completed,
                     labelIds,
                     time: finalTime,
                     alarmTriggered: false,
-                    sharedGroupId: fId === 'personal' ? null : fId
+                    sharedGroupId: fId === 'personal' ? null : fId,
+                    linkedItems: []
                 };
                 list.push(item);
             }
@@ -515,29 +533,35 @@ export const DetailEditManager = {
 
             // 메모리 동기화
             if (window.dayViewInstance?.dayData?.[fId]?.events) {
-                const memItem = window.dayViewInstance.dayData[fId].events.find(e => String(e.id) === String(itemId));
+                const memList = window.dayViewInstance.dayData[fId].events;
+                const memItem = memList.find(e => String(e.id) === String(targetId));
                 if (memItem) {
                     memItem.content = content;
                     memItem.completed = completed;
                     memItem.labelIds = labelIds;
                     memItem.time = finalTime;
                     memItem.alarmTriggered = false;
+                } else {
+                    memList.push(item);
                 }
             }
             if (window[`tempEvents_${dateStr}`]) {
-                const memItem = window[`tempEvents_${dateStr}`].find(e => String(e.id) === String(itemId));
+                const memList = window[`tempEvents_${dateStr}`];
+                const memItem = memList.find(e => String(e.id) === String(targetId));
                 if (memItem) {
                     memItem.content = content;
                     memItem.completed = completed;
                     memItem.labelIds = labelIds;
                     memItem.time = finalTime;
                     memItem.alarmTriggered = false;
+                } else {
+                    memList.push(item);
                 }
             }
 
             this.cachedInputs = null;
             this.close();
-            if (window.showToast) window.showToast('✅ 일정이 수정되었습니다.');
+            if (window.showToast) window.showToast(isNew ? '✅ 새 일정이 추가되었습니다.' : '✅ 일정이 수정되었습니다.');
             if (typeof window.render === 'function') window.render();
         } catch(e) {
             console.error("일정 저장 오류:", e);
@@ -609,7 +633,12 @@ export const DetailEditManager = {
 
     saveJournal: async function() {
         const { dateStr, itemId, fId } = this.currentData;
-        const content = document.getElementById('detail-edit-content')?.value || '';
+        const isNew = itemId === 'new';
+        const content = (document.getElementById('detail-edit-content')?.value || '').trim();
+        if (!content) {
+            alert("기록 내용을 입력해주세요.");
+            return;
+        }
         const selectedChips = document.querySelectorAll('#detail-journal-labels .detail-label-chip.active');
         const labelIds = Array.from(selectedChips).map(c => c.dataset.id);
 
@@ -619,17 +648,19 @@ export const DetailEditManager = {
             const snap = await getDoc(docRef);
             let list = snap.exists() ? (snap.data().entries || []) : [];
 
-            let item = list.find(j => String(j.id) === String(itemId));
-            if (!item && list[Number(itemId)]) item = list[Number(itemId)];
+            let targetId = isNew ? ('jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5)) : itemId;
+            let item = isNew ? null : list.find(j => String(j.id) === String(itemId));
+            if (!isNew && !item && list[Number(itemId)]) item = list[Number(itemId)];
 
             if (item) {
                 item.content = content;
                 item.labelIds = labelIds;
             } else {
                 item = {
-                    id: itemId || ('jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5)),
+                    id: targetId,
                     content,
-                    labelIds
+                    labelIds,
+                    linkedItems: []
                 };
                 list.push(item);
             }
@@ -638,16 +669,19 @@ export const DetailEditManager = {
 
             // 메모리 동기화
             if (window.dayViewInstance?.dayData?.[fId]?.journals) {
-                const memItem = window.dayViewInstance.dayData[fId].journals.find(j => String(j.id) === String(itemId));
+                const memList = window.dayViewInstance.dayData[fId].journals;
+                const memItem = memList.find(j => String(j.id) === String(targetId));
                 if (memItem) {
                     memItem.content = content;
                     memItem.labelIds = labelIds;
+                } else {
+                    memList.push(item);
                 }
             }
 
             this.cachedInputs = null;
             this.close();
-            if (window.showToast) window.showToast('✅ 기록이 수정되었습니다.');
+            if (window.showToast) window.showToast(isNew ? '✅ 새 기록이 추가되었습니다.' : '✅ 기록이 수정되었습니다.');
             if (typeof window.render === 'function') window.render();
         } catch(e) {
             console.error("기록 저장 오류:", e);

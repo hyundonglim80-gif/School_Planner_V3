@@ -339,9 +339,11 @@ export class MemoView extends BaseView {
                         <span>${lObj.name}</span><span style="background:rgba(0,0,0,0.1); padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:bold; color:inherit;">${labelCounts[lObj.name]}</span>
                     </div>`).join('')}
 
+                ${this.myGroups.length > 0 ? `
                 <div style="font-weight:bold; color:#0f766e; border-bottom:2px solid #f1f5f9; padding-bottom:8px; margin-top:12px; margin-bottom:4px;">👥 그룹 필터</div>
                 ${personalGroupHtml}
                 ${myGroupsHtml}
+                ` : ''}
             </div>
 
             <div class="memo-main-area">
