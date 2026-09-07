@@ -62,18 +62,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
-
-    eventList.sort((a, b) => {
-        const getIdx = (ev) => {
-            const id = ev.labelIds?.[0];
-            const name = ev.labels?.[0] || ev.label;
-            if (id) { const idx = masterLabels.findIndex(l => l.id === id); if (idx !== -1) return idx; }
-            if (name) { const idx = masterLabels.findIndex(l => l.name === name); if (idx !== -1) return idx; }
-            return 999;
-        };
-        return getIdx(a) - getIdx(b);
-    });
-
+    // 작성 페이지의 순서를 보기 페이지에서도 그대로 유지하기 위해 라벨 기준 강제 sort 제거
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
 
     eventList.forEach((e, index) => {

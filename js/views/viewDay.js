@@ -950,7 +950,8 @@ export class DayView extends BaseView {
                     <div class="event-drag-handle" 
                          onmouseenter="document.getElementById('event-card-${fId}-${idx}').setAttribute('draggable', 'true')"
                          onmouseleave="document.getElementById('event-card-${fId}-${idx}').removeAttribute('draggable')"
-                         style="cursor:grab; padding:4px 2px; color:#94a3b8; font-size:1.2rem; line-height:1; user-select:none; display:flex; align-items:center;"
+                         onmousedown="document.getElementById('event-card-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         style="cursor:grab; padding:6px 4px; color:#64748b; font-size:1.3rem; line-height:1; user-select:none; display:flex; align-items:center; flex-shrink:0;"
                          title="이곳을 드래그하여 일정 순서 변경">
                         ≡
                     </div>
@@ -1033,24 +1034,27 @@ export class DayView extends BaseView {
                     <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
-                    <div class="journal-drag-handle" 
-                         onmouseenter="document.getElementById('journal-card-${fId}-${idx}').setAttribute('draggable', 'true')"
-                         onmouseleave="document.getElementById('journal-card-${fId}-${idx}').removeAttribute('draggable')"
-                         style="cursor:grab; padding:0 4px; color:#be185d; font-size:1.1rem; line-height:1; user-select:none; display:inline-flex; align-items:center;"
-                         title="이곳을 드래그하여 기록 순서 변경">
-                        ≡
-                    </div>
                     ${toggleBtnHtml}
                     ${chipsHtml}
                 </div>
-                <div id="${toggleId}" style="display:flex; flex-direction:column; width:100%; gap:8px;">
-                    <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                        <textarea id="${textId}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
-                        
-                        <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
-                        <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
+                <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
+                    <div class="journal-drag-handle" 
+                         onmouseenter="document.getElementById('journal-card-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         onmouseleave="document.getElementById('journal-card-${fId}-${idx}').removeAttribute('draggable')"
+                         onmousedown="document.getElementById('journal-card-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         style="cursor:grab; padding:6px 4px; color:#be185d; font-size:1.3rem; line-height:1; user-select:none; display:flex; align-items:center; flex-shrink:0;"
+                         title="이곳을 드래그하여 기록 순서 변경">
+                        ≡
                     </div>
-                    ${isUploading}${attachmentsHtml}
+                    <div id="${toggleId}" style="display:flex; flex-direction:column; flex:1; min-width:0; gap:8px;">
+                        <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
+                            <textarea id="${textId}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                            
+                            <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                            <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
+                        </div>
+                        ${isUploading}${attachmentsHtml}
+                    </div>
                 </div>
             </div>`;
         }).join('');
@@ -1182,6 +1186,19 @@ export class DayView extends BaseView {
         this.dayData[fId].events.push(this.createEmptyEvent(fId));
         this.renderEventEntries(fId);
         store.hasUnsavedChanges = true;
+
+        // 새로 추가된 최하단 항목으로 포커스 및 스크롤 이동
+        setTimeout(() => {
+            const container = document.getElementById(`event-entries-container-${fId}`);
+            if (container) {
+                const textareas = container.querySelectorAll('textarea');
+                if (textareas.length > 0) {
+                    const lastTa = textareas[textareas.length - 1];
+                    lastTa.focus();
+                    lastTa.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }, 50);
     }
 
     removeEventEntry(fId, index) {
@@ -1202,6 +1219,19 @@ export class DayView extends BaseView {
         this.dayData[fId].journals.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
         this.renderJournalEntries(fId);
         store.hasUnsavedChanges = true;
+
+        // 새로 추가된 최하단 항목으로 포커스 및 스크롤 이동
+        setTimeout(() => {
+            const container = document.getElementById(`journal-entries-container-${fId}`);
+            if (container) {
+                const textareas = container.querySelectorAll('textarea');
+                if (textareas.length > 0) {
+                    const lastTa = textareas[textareas.length - 1];
+                    lastTa.focus();
+                    lastTa.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }, 50);
     }
 
     removeJournalEntry(fId, index) {
@@ -1396,27 +1426,26 @@ export class DayView extends BaseView {
                         if (evSnap.exists()) {
                             const remoteEvents = evSnap.data().eventList || [];
                             const originalEvents = this.originalEventsBackup?.[fId]?.events || [];
-                            
-                            const remoteMap = new Map(remoteEvents.map(e => [e.id, e]));
                             const originalMap = new Map(originalEvents.map(e => [e.id, e]));
-                            const localMap = new Map(pEvents.map(e => [e.id, e]));
                             
-                            const mergedMap = new Map();
+                            // 🌟 작성 페이지에서 사용자가 지정한 pEvents 순서를 100% 최우선 유지
+                            const mergedEvents = [];
+                            const seenIds = new Set();
                             
+                            pEvents.forEach(le => {
+                                mergedEvents.push(le);
+                                seenIds.add(le.id);
+                            });
+                            
+                            // 다른 사용자가 원격에 새로 추가한 일정만 뒤에 병합
                             remoteEvents.forEach(re => {
-                                if (originalMap.has(re.id) && !localMap.has(re.id)) {
-                                } else if (localMap.has(re.id)) {
-                                    mergedMap.set(re.id, localMap.get(re.id)); 
-                                } else {
-                                    mergedMap.set(re.id, re); 
+                                if (!seenIds.has(re.id) && !originalMap.has(re.id)) {
+                                    mergedEvents.push(re);
+                                    seenIds.add(re.id);
                                 }
                             });
                             
-                            pEvents.forEach(le => {
-                                if (!mergedMap.has(le.id)) mergedMap.set(le.id, le);
-                            });
-                            
-                            finalEvents = Array.from(mergedMap.values());
+                            finalEvents = mergedEvents;
                         }
                     } catch(err) { console.warn("일정 병합 오류:", err); }
 
@@ -1433,18 +1462,26 @@ export class DayView extends BaseView {
                         if (jrSnap.exists()) {
                             const remoteJournals = jrSnap.data().entries || [];
                             const originalJournals = this.originalEventsBackup?.[fId]?.journals || [];
-                            
                             const originalMap = new Map(originalJournals.map(j => [j.id, j]));
-                            const localMap = new Map(pJournals.map(j => [j.id, j]));
-                            const mergedMap = new Map();
                             
-                            remoteJournals.forEach(rj => {
-                                if (originalMap.has(rj.id) && !localMap.has(rj.id)) { }
-                                else if (localMap.has(rj.id)) mergedMap.set(rj.id, localMap.get(rj.id));
-                                else mergedMap.set(rj.id, rj); 
+                            // 🌟 작성 페이지에서 사용자가 지정한 pJournals 순서를 100% 최우선 유지
+                            const mergedJournals = [];
+                            const seenJournalIds = new Set();
+                            
+                            pJournals.forEach(lj => {
+                                mergedJournals.push(lj);
+                                seenJournalIds.add(lj.id);
                             });
-                            pJournals.forEach(lj => { if (!mergedMap.has(lj.id)) mergedMap.set(lj.id, lj); });
-                            finalJournals = Array.from(mergedMap.values());
+                            
+                            // 다른 사용자가 원격에 새로 추가한 기록만 뒤에 병합
+                            remoteJournals.forEach(rj => {
+                                if (!seenJournalIds.has(rj.id) && !originalMap.has(rj.id)) {
+                                    mergedJournals.push(rj);
+                                    seenJournalIds.add(rj.id);
+                                }
+                            });
+                            
+                            finalJournals = mergedJournals;
                         }
                     } catch(err) { console.warn("기록 병합 오류:", err); }
 
