@@ -295,7 +295,7 @@ export const LinkManager = {
                 <div style="display:flex; gap:8px; align-items:center;">
                     <span style="font-size:0.85rem; font-weight:bold; color:#475569;">조회 범위:</span>
                     <select id="linker-period-select" onchange="window.LinkManager.updateDateRangeUI()" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155;">
-                        <option value="today">링크 생성 날 (오늘)</option>
+                        <option value="today">현재 페이지 날짜</option>
                         <option value="1week">±1주일</option>
                         <option value="1month">±1개월</option>
                         <option value="sem1">1학기 전체</option>
