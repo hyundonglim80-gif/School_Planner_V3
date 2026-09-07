@@ -123,7 +123,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             `display:flex; align-items:center; gap:6px; font-size:0.95rem; line-height:1.3; width:100%;`;
 
         html += `
-        <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="${layoutStyle}; border-radius:3px; padding:1px 2px;">
+        <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="${layoutStyle}; border: 1px solid transparent; border-radius:4px; padding:2px 4px; margin: 1px 0; box-sizing: border-box;">
             <div style="display:flex; align-items:center; gap:4px; width:100%; min-width:0;">
                 ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
                 <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>

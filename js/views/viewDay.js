@@ -319,7 +319,7 @@ export class DayView extends BaseView {
                 const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('journal', '${dateStr}', '${j.id}', '${fId}')" style="margin-left:auto; flex-shrink:0;" title="기록 상세 및 수정">✏️</button>`;
 
                 return `
-                    <div class="hover-edit-item" style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4; padding:2px 4px; border-radius:4px;">
+                    <div class="hover-edit-item" style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4; padding:4px 6px; border-radius:6px; border:1px solid transparent; box-sizing:border-box;">
                         <div style="margin-top:1px; flex-shrink:0; display:flex; align-items:center;">
                             ${toggleBtnHtml}${chipsHtml}${linkBadgeHtml}
                         </div>

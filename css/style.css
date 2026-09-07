@@ -498,28 +498,65 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .eval-table td input[type="text"]:focus, .eval-table td select:focus { border-color: #94a3b8; }
 .eval-table td input[readonly], .eval-table td select[disabled] { background: #f1f5f9; cursor: not-allowed; color: #94a3b8; }
 
-/* 7. 항목 호버 시 수정 버튼 (.hover-edit-item & .hover-edit-btn) */
+/* 7. 항목 호버 시 배경색/테두리 변경 및 수정 버튼 (.hover-edit-item & .hover-edit-btn) */
 .hover-edit-item {
     position: relative;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+/* 일반 div 항목 (일정, 기록 등) 호버 시 */
+div.hover-edit-item {
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+div.hover-edit-item:hover {
+    background-color: #eff6ff !important;
+    border-color: #60a5fa !important;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.15);
+}
+
+/* 테이블 셀 (주간 보기 수업 등) 호버 시 */
+td.hover-edit-item:hover,
+td.week-period-cell.hover-edit-item:hover {
+    background-color: #e0f2fe !important;
+    border: 1px solid #38bdf8 !important;
+    box-shadow: inset 0 0 0 1px #38bdf8;
+}
+
+/* 테이블 행 (하루 보기 수업 행 등) 호버 시 */
+tr.hover-edit-item:hover td {
+    background-color: #eff6ff !important;
+    border-top: 1px solid #60a5fa !important;
+    border-bottom: 1px solid #60a5fa !important;
+}
+
+/* 월간 보기 수업 교시 블록 호버 시 */
+.hover-edit-item.month-class-box:hover,
+div.month-class-box:hover {
+    background-color: #bbf7d0 !important;
+    border: 1px solid #16a34a !important;
+}
+
 .hover-edit-btn {
     display: none !important;
     align-items: center;
     justify-content: center;
-    padding: 1px 4px;
+    padding: 1px 5px;
     font-size: 0.75rem;
     line-height: 1;
     background: #ffffff;
     border: 1px solid #cbd5e1;
     border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
     cursor: pointer;
     color: #475569;
     transition: all 0.15s ease;
-    z-index: 10;
+    z-index: 20;
 }
 .hover-edit-item:hover .hover-edit-btn,
-.hover-edit-item:hover > .hover-edit-btn {
+.hover-edit-item:hover > .hover-edit-btn,
+tr.hover-edit-item:hover .hover-edit-btn,
+td.hover-edit-item:hover .hover-edit-btn {
     display: inline-flex !important;
 }
 .hover-edit-btn:hover {

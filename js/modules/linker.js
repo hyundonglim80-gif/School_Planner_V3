@@ -107,6 +107,11 @@ export const LinkManager = {
         if (typeof window.render === 'function') {
             window.render(); 
         }
+        if (typeof this.onModalCloseCallback === 'function') {
+            const cb = this.onModalCloseCallback;
+            this.onModalCloseCallback = null;
+            setTimeout(() => cb(), 60);
+        }
     },
 
     switchTab: function(tab) {
@@ -600,6 +605,10 @@ export const LinkManager = {
         if (typeof window.render === 'function') {
             setTimeout(() => window.render(), 100);
         }
+
+        if (typeof this.onModalCloseCallback === 'function') {
+            this.closeModal();
+        }
     },
 
     addReverseLink: async function(targetLink, sourceMeta, sourceFId) {
@@ -837,6 +846,11 @@ export const LinkManager = {
         }
         if (typeof window.render === 'function') {
             window.render();
+        }
+        if (typeof this.onModalCloseCallback === 'function') {
+            const cb = this.onModalCloseCallback;
+            this.onModalCloseCallback = null;
+            setTimeout(() => cb(), 60);
         }
     },
 
