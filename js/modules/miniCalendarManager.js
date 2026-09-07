@@ -6,6 +6,33 @@ export const MiniCalendarManager = {
     isOpen: false,
     viewYear: new Date().getFullYear(),
     viewMonth: new Date().getMonth(), // 0 ~ 11
+    closeTimer: null,
+
+    onButtonMouseEnter: function() {
+        if (this.closeTimer) {
+            clearTimeout(this.closeTimer);
+            this.closeTimer = null;
+        }
+        if (!this.isOpen) {
+            this.open();
+        }
+    },
+
+    onContainerMouseEnter: function() {
+        if (this.closeTimer) {
+            clearTimeout(this.closeTimer);
+            this.closeTimer = null;
+        }
+    },
+
+    onContainerMouseLeave: function() {
+        if (this.closeTimer) clearTimeout(this.closeTimer);
+        this.closeTimer = setTimeout(() => {
+            if (this.isOpen) {
+                this.close();
+            }
+        }, 250);
+    },
 
     init: function() {
         const btn = document.getElementById('btn-calendar-picker');
@@ -14,6 +41,17 @@ export const MiniCalendarManager = {
 
         if (!btn || !popover) return;
 
+        // 마우스 호버 시 자동 팝업
+        btn.addEventListener('mouseenter', () => this.onButtonMouseEnter());
+
+        if (container) {
+            container.addEventListener('mouseenter', () => this.onContainerMouseEnter());
+            container.addEventListener('mouseleave', () => this.onContainerMouseLeave());
+        }
+
+        popover.addEventListener('mouseenter', () => this.onContainerMouseEnter());
+
+        // 클릭으로도 토글 가능하게 유지
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggle();
@@ -45,6 +83,11 @@ export const MiniCalendarManager = {
     },
 
     open: function() {
+        if (this.closeTimer) {
+            clearTimeout(this.closeTimer);
+            this.closeTimer = null;
+        }
+
         const popover = document.getElementById('mini-calendar-popover');
         if (!popover) return;
 
@@ -65,6 +108,11 @@ export const MiniCalendarManager = {
     },
 
     close: function() {
+        if (this.closeTimer) {
+            clearTimeout(this.closeTimer);
+            this.closeTimer = null;
+        }
+
         const popover = document.getElementById('mini-calendar-popover');
         if (popover) {
             popover.classList.add('hidden');
