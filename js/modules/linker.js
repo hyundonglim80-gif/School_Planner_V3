@@ -594,9 +594,10 @@ export const LinkManager = {
             const text = await this.fetchItemText(link.targetType, link.targetDate, link.targetId, link.targetPeriod, tFId);
             const icon = link.targetType === 'event' ? '📌' : (link.targetType === 'journal' ? '📔' : (link.targetType === 'memo' ? '📝' : '🏫'));
             
-            let displayTitle = link.title || '';
-            if (!displayTitle.includes('[')) {
-                displayTitle = `[${link.targetDate || '날짜없음'}] ${displayTitle}`;
+            const typeLabel = link.targetType === 'event' ? '일정' : (link.targetType === 'journal' ? '기록' : (link.targetType === 'memo' ? '메모' : '수업'));
+            let displayTitle = `[${link.targetDate || '날짜없음'}] ${typeLabel}`;
+            if (link.targetType === 'schedule' && link.targetPeriod) {
+                displayTitle += ` (${link.targetPeriod}교시)`;
             }
 
             html += `

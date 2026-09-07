@@ -75,11 +75,11 @@
                     </div>
                 </div>
                 <button class="nav-btn" onclick="window.quickGoogleSync()" style="background-color: #f0f9ff; color: #0284c7; border-color: #bae6fd; font-weight: bold; width: 36px; height: 36px; padding: 0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size: 1.2rem; transition:0.2s;" onmouseover="this.style.backgroundColor='#e0f2fe'" onmouseout="this.style.backgroundColor='#f0f9ff'" title="현재 화면 구글 캘린더 동기화">📅</button>
+                <button class="nav-btn" id="btn-trash" onclick="window.TrashManager.openTrashModal()" title="휴지통" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; cursor:pointer;">🗑️ 휴지통 (<span id="trash-btn-count">0</span>)</button>
             </div>
         </div>
 
         <div class="control-panel" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-            <button class="nav-btn" id="btn-trash" onclick="window.TrashManager.openTrashModal()" title="휴지통" style="background-color: #fef2f2; color: #ef4444; border-color: #fca5a5; font-weight: bold; cursor:pointer;">🗑️ 휴지통 (<span id="trash-btn-count">0</span>)</button>
             <button class="nav-btn" id="btn-search" title="단축키: Shift + ` (또는 /)" style="background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1;">검색</button>
 
             <div class="btn-group" title="보기 이동 단축키: Shift + ← / →" style="flex-wrap: wrap;">
