@@ -9,6 +9,12 @@ export const DetailEditManager = {
     currentData: null,
     cachedInputs: null,
 
+    autoResize: function(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = (el.scrollHeight + 2) + 'px';
+    },
+
     open: async function(type, dateStr, itemId, fId = 'personal', isReturningFromLink = false) {
         this.currentData = { type, dateStr, itemId, fId };
         if (!isReturningFromLink) {
@@ -280,7 +286,7 @@ export const DetailEditManager = {
                 <!-- 일정 내용 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">일정 내용</label>
-                    <textarea id="detail-edit-content" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:vertical; line-height:1.4;">${contentVal}</textarea>
+                    <textarea id="detail-edit-content" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${contentVal}</textarea>
                 </div>
 
                 <!-- 알람 시간 -->
@@ -305,6 +311,11 @@ export const DetailEditManager = {
                 </div>
             </div>
         `;
+
+        setTimeout(() => {
+            const ta = container.querySelector('#detail-edit-content');
+            if (ta) this.autoResize(ta);
+        }, 0);
     },
 
     renderScheduleForm: function(sc) {
@@ -346,13 +357,13 @@ export const DetailEditManager = {
                 <!-- 수업 메모 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">📝 수업 메모 / 학습 활동</label>
-                    <textarea id="detail-edit-memo" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:vertical; line-height:1.4;">${memoVal}</textarea>
+                    <textarea id="detail-edit-memo" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${memoVal}</textarea>
                 </div>
 
                 <!-- 비고 / 준비물 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#d97706; margin-bottom:6px;">📌 비고 / 준비물</label>
-                    <input type="text" id="detail-edit-supplies" value="${suppliesVal}" placeholder="예: 가위, 풀, 리코더 등" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:0.95rem; box-sizing:border-box;">
+                    <textarea id="detail-edit-supplies" oninput="window.DetailEditManager.autoResize(this)" placeholder="예: 가위, 풀, 리코더 등" style="width:100%; min-height:42px; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:0.95rem; box-sizing:border-box; resize:none; overflow-y:hidden; line-height:1.4;">${suppliesVal}</textarea>
                 </div>
 
                 <!-- 하단 액션 버튼 -->
@@ -365,6 +376,10 @@ export const DetailEditManager = {
                 </div>
             </div>
         `;
+
+        setTimeout(() => {
+            container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta));
+        }, 0);
     },
 
     renderJournalForm: function(j) {
@@ -406,7 +421,7 @@ export const DetailEditManager = {
                 <!-- 기록 내용 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">기록 내용</label>
-                    <textarea id="detail-edit-content" style="width:100%; min-height:100px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:vertical; line-height:1.4;">${contentVal}</textarea>
+                    <textarea id="detail-edit-content" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:100px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${contentVal}</textarea>
                 </div>
 
                 <!-- 하단 액션 버튼 -->
@@ -419,6 +434,11 @@ export const DetailEditManager = {
                 </div>
             </div>
         `;
+
+        setTimeout(() => {
+            const ta = container.querySelector('#detail-edit-content');
+            if (ta) this.autoResize(ta);
+        }, 0);
     },
 
     toggleEventLabelChip: function(btn) {
