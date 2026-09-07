@@ -442,7 +442,24 @@ export const CompactEventHelper = {
                 let text = clone.innerText?.trim() || "";
                 let subject = '', memo = '', supplies = '';
 
-                if (text !== '') {
+                // 주간 뷰: 태그 구조(.cell-subject-val, .cell-memo-val, .cell-supplies-val 또는 .badge-tag, .clean-cell-memo)가 살아있는 경우
+                const subjEl = cell.querySelector('.cell-subject-val, .badge-tag');
+                const memoEl = cell.querySelector('.cell-memo-val, .clean-cell-memo');
+                const supEl = cell.querySelector('.cell-supplies-val');
+
+                if (subjEl || memoEl || supEl) {
+                    subject = subjEl ? subjEl.innerText.trim() : '';
+                    supplies = supEl ? supEl.innerText.trim() : '';
+                    if (memoEl) {
+                        memo = memoEl.innerText.trim();
+                    } else {
+                        // 사용자가 메모 태그를 지우고 셀에 직접 타이핑한 경우 태그 외의 텍스트 추출
+                        const subClone = cell.cloneNode(true);
+                        subClone.querySelectorAll('button, .hover-edit-btn, .cell-subject-val, .badge-tag, .cell-supplies-val').forEach(el => el.remove());
+                        memo = subClone.innerText?.trim() || "";
+                    }
+                } else if (text !== '') {
+                    // 월간/연간 뷰 또는 전체를 텍스트로 타이핑한 경우: [과목] 메모 [비고] 포맷 파싱
                     const allBrackets = text.match(/\[.*?\]/g);
                     if (allBrackets && allBrackets.length >= 2) {
                         const lastMatch = text.match(/\[([^\]]+)\]\s*$/);

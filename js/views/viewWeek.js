@@ -349,13 +349,13 @@ export class WeekView extends BaseView {
 
                       const editBtn = `<button type="button" contenteditable="false" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${d.dateStr}', ${p}, '${fId}')" style="position:absolute; top:4px; left:4px;" title="${p}교시 수업 상세 및 수정">✏️</button>`;
 
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag">${pObj.subject}</span></div>`;
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag cell-subject-val">${pObj.subject}</span></div>`;
                       else if (linkCount > 0) content += `<div style="margin-bottom: 4px;">${linkBadge}</div>`;
 
-                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                      if (pObj.memo) content += `<div class="clean-cell-memo cell-memo-val" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                      if (pObj.supplies) content += `<div class="cell-supplies-val" style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
                       
-                      return `<td class="editable-cell week-period-cell hover-edit-item" data-p="${p}" data-fid="${fId}" contenteditable="true" style="position:relative; vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${editBtn}${content}</td>`;
+                      return `<td class="week-period-cell hover-edit-item" data-p="${p}" data-fid="${fId}" style="position:relative; vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;">${editBtn}${content}</td>`;
                   }).join('');
 
                   // 🚨 뷰어 모드: +링크 버튼 숨김 처리됨
@@ -475,11 +475,11 @@ export class WeekView extends BaseView {
 
                       const editBtn = `<button type="button" contenteditable="false" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${d.dateStr}', ${p}, '${fId}')" style="position:absolute; top:4px; left:4px;" title="${p}교시 수업 상세 및 수정">✏️</button>`;
 
-                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag">${pObj.subject}</span></div>`;
+                      if (pObj.subject && pObj.subject.toUpperCase() !== 'X') content += `<div style="margin-bottom: 4px; font-weight:bold; color:#0f172a;">${linkBadge}<span class="badge-tag cell-subject-val">${pObj.subject}</span></div>`;
                       else if (linkCount > 0) content += `<div style="margin-bottom: 4px;">${linkBadge}</div>`;
 
-                      if (pObj.memo) content += `<div class="clean-cell-memo" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
-                      if (pObj.supplies) content += `<div style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
+                      if (pObj.memo) content += `<div class="clean-cell-memo cell-memo-val" style="font-size:0.95rem; color:#334155; white-space:pre-wrap;">${pObj.memo}</div>`;
+                      if (pObj.supplies) content += `<div class="cell-supplies-val" style="margin-top:4px; font-size:0.85rem; color:#b91c1c; font-weight:bold; background:#fef2f2; padding:2px 4px; border-radius:4px; white-space:pre-wrap;">${pObj.supplies}</div>`;
                       
                       return `<td class="editable-cell week-period-cell hover-edit-item" data-p="${p}" data-fid="${fId}" contenteditable="true" style="position:relative; vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${editBtn}${content}</td>`;
                   }).join('');
