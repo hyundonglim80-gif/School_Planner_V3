@@ -51,8 +51,138 @@ const zIndexObserver = new MutationObserver((mutations) => {
             }
         });
     });
+    updateBodyModalOpenState();
 });
 zIndexObserver.observe(document.body, { childList: true });
+
+// ==========================================================================
+// 🔒 최상위 팝업창(모달) 탐색 및 스크롤 격리 엔진
+// ==========================================================================
+export function getTopmostVisibleModal() {
+    const selector = '.modal-overlay, #help-modal, #link-modal, #image-viewer-modal, [id*="modal-overlay"], .super-alarm-overlay';
+    const elements = Array.from(document.querySelectorAll(selector)).filter(el => {
+        if (el.id === 'login-screen' || el.id === 'main-view') return false;
+        if (el.classList.contains('hidden')) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    });
+    if (elements.length === 0) return null;
+
+    elements.sort((a, b) => {
+        const za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
+        const zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
+        if (za !== zb) return za - zb;
+        return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    return elements[elements.length - 1];
+}
+window.getTopmostVisibleModal = getTopmostVisibleModal;
+
+export function updateBodyModalOpenState() {
+    const topModal = getTopmostVisibleModal();
+    const hasModal = !!topModal;
+    document.body.classList.toggle('modal-open', hasModal);
+    document.documentElement.classList.toggle('modal-open', hasModal);
+}
+window.updateBodyModalOpenState = updateBodyModalOpenState;
+
+function findScrollableParent(target, boundaryEl) {
+    let curr = target;
+    while (curr && curr !== document.body && curr !== document.documentElement) {
+        const style = window.getComputedStyle(curr);
+        const overflowY = style.overflowY;
+        const canScrollY = (overflowY === 'auto' || overflowY === 'scroll') && (curr.scrollHeight > curr.clientHeight);
+        if (canScrollY) {
+            return curr;
+        }
+        if (curr === boundaryEl) break;
+        curr = curr.parentElement;
+    }
+    if (boundaryEl) {
+        const style = window.getComputedStyle(boundaryEl);
+        const overflowY = style.overflowY;
+        if ((overflowY === 'auto' || overflowY === 'scroll') && (boundaryEl.scrollHeight > boundaryEl.clientHeight)) {
+            return boundaryEl;
+        }
+    }
+    return null;
+}
+
+window.addEventListener('wheel', (e) => {
+    const topModal = getTopmostVisibleModal();
+    if (!topModal) return;
+
+    // 마우스가 최상위 모달 외부(배경, 하위 모달 등)에 있으면 스크롤 차단
+    if (!topModal.contains(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    // 최상위 모달 내부에서 스크롤 가능한 요소 검색
+    const scrollable = findScrollableParent(e.target, topModal);
+    if (!scrollable) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    // 스크롤 상/하단 한계 도달 시 스크롤 체이닝 차단
+    const delta = e.deltaY;
+    const isAtTop = scrollable.scrollTop <= 0;
+    const isAtBottom = Math.ceil(scrollable.scrollTop + scrollable.clientHeight) >= scrollable.scrollHeight - 1;
+
+    if (delta < 0 && isAtTop) {
+        e.preventDefault();
+        e.stopPropagation();
+    } else if (delta > 0 && isAtBottom) {
+        e.preventDefault();
+        e.stopPropagation();
+    } else {
+        e.stopPropagation();
+    }
+}, { passive: false, capture: true });
+
+let touchStartYPos = 0;
+window.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length > 0) {
+        touchStartYPos = e.touches[0].clientY;
+    }
+}, { passive: true, capture: true });
+
+window.addEventListener('touchmove', (e) => {
+    const topModal = getTopmostVisibleModal();
+    if (!topModal) return;
+
+    if (!topModal.contains(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    const scrollable = findScrollableParent(e.target, topModal);
+    if (!scrollable) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    const currentY = e.touches[0].clientY;
+    const deltaY = touchStartYPos - currentY;
+    const isAtTop = scrollable.scrollTop <= 0;
+    const isAtBottom = Math.ceil(scrollable.scrollTop + scrollable.clientHeight) >= scrollable.scrollHeight - 1;
+
+    if (deltaY < 0 && isAtTop) {
+        e.preventDefault();
+        e.stopPropagation();
+    } else if (deltaY > 0 && isAtBottom) {
+        e.preventDefault();
+        e.stopPropagation();
+    } else {
+        e.stopPropagation();
+    }
+}, { passive: false, capture: true });
+
 
 // ==========================================================================
 // 🌐 전역 팝업(모달) 안전 종료 엔진
@@ -176,6 +306,7 @@ export class Modal {
         this.element.style.display = 'flex';
         
         if (window.increaseModalCount) window.increaseModalCount();
+        updateBodyModalOpenState();
     }
 
     close() {
@@ -187,6 +318,7 @@ export class Modal {
         ModalManager.pop(this);
         
         if (window.decreaseModalCount) window.decreaseModalCount();
+        updateBodyModalOpenState();
     }
 }
 

@@ -565,3 +565,51 @@ td.hover-edit-item:hover .hover-edit-btn {
     color: #1d4ed8;
     transform: scale(1.1);
 }
+
+/* ==========================================================================
+   🔒 팝업(모달) 오픈 시 배경 스크롤 격리 및 체이닝 차단
+   ========================================================================== */
+body.modal-open, html.modal-open {
+    overflow: hidden !important;
+    height: 100% !important;
+    touch-action: none;
+}
+
+.modal-overlay,
+.modal-content,
+.modal-body,
+#day-modal-body,
+#linker-tab-content,
+.super-alarm-overlay,
+.super-alarm-content {
+    overscroll-behavior: contain !important;
+}
+
+/* ==========================================================================
+   ✨ 작성 페이지 일정/기록 선택식 표시 (접힌 컴팩트 행 vs 펼쳐진 카드)
+   ========================================================================== */
+.event-entry-collapsed,
+.journal-entry-collapsed,
+.compact-event-collapsed {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.event-entry-collapsed:hover {
+    border-color: #3b82f6 !important;
+    background-color: #f8fafc !important;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.08);
+}
+
+.journal-entry-collapsed:hover {
+    border-color: #db2777 !important;
+    background-color: #fdf2f8 !important;
+    box-shadow: 0 2px 4px rgba(219, 39, 119, 0.08);
+}
+
+.compact-event-collapsed:hover {
+    border-color: #3b82f6 !important;
+    background-color: #f8fafc !important;
+    box-shadow: 0 1px 3px rgba(59, 130, 246, 0.1);
+}

@@ -20,6 +20,8 @@ export class DayView extends BaseView {
         this.myGroups = [];
         this.dayData = {}; 
         this.lockedDateStr = null; 
+        this.selectedEventId = null;
+        this.selectedJournalId = null;
     }
 
     autoResize(textarea) {
@@ -638,7 +640,7 @@ export class DayView extends BaseView {
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', String(index));
         setTimeout(() => {
-            const card = document.getElementById(`event-card-${filterId}-${index}`);
+            const card = document.getElementById(`event-card-${filterId}-${index}`) || document.getElementById(`event-collapsed-${filterId}-${index}`);
             if (card) card.style.opacity = '0.4';
         }, 0);
     }
@@ -646,7 +648,7 @@ export class DayView extends BaseView {
     handleEventDragEnd(event, filterId) {
         const container = document.getElementById(`event-entries-container-${filterId}`);
         if (container) {
-            container.querySelectorAll('[id^="event-card-"]').forEach(card => {
+            container.querySelectorAll('[id^="event-card-"], [id^="event-collapsed-"]').forEach(card => {
                 card.style.opacity = '1';
                 card.style.backgroundColor = '';
                 card.removeAttribute('draggable');
@@ -688,7 +690,7 @@ export class DayView extends BaseView {
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', String(index));
         setTimeout(() => {
-            const card = document.getElementById(`journal-card-${filterId}-${index}`);
+            const card = document.getElementById(`journal-card-${filterId}-${index}`) || document.getElementById(`journal-collapsed-${filterId}-${index}`);
             if (card) card.style.opacity = '0.4';
         }, 0);
     }
@@ -696,7 +698,7 @@ export class DayView extends BaseView {
     handleJournalDragEnd(event, filterId) {
         const container = document.getElementById(`journal-entries-container-${filterId}`);
         if (container) {
-            container.querySelectorAll('[id^="journal-card-"]').forEach(card => {
+            container.querySelectorAll('[id^="journal-card-"], [id^="journal-collapsed-"]').forEach(card => {
                 card.style.opacity = '1';
                 card.style.backgroundColor = '';
                 card.removeAttribute('draggable');
@@ -977,6 +979,22 @@ export class DayView extends BaseView {
         setTimeout(() => document.getElementById('day-alarm-popup-time').focus(), 50);
     }
 
+    selectEvent(fId, evId, idx) {
+        this.syncEventInputs(fId);
+        this.selectedEventId = evId;
+        this.renderEventEntries(fId);
+        setTimeout(() => {
+            const card = document.getElementById(`event-card-${fId}-${idx}`);
+            if (card) {
+                const ta = card.querySelector('textarea');
+                if (ta) {
+                    ta.focus();
+                    this.autoResize(ta);
+                }
+            }
+        }, 40);
+    }
+
     renderEventEntries(fId) {
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(!container) return;
@@ -991,6 +1009,7 @@ export class DayView extends BaseView {
             const eLabelIds = ev.labelIds || [];
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
+            const isSelected = (this.selectedEventId === ev.id);
 
             let forwardedBadge = '';
             if (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr)) {
@@ -1001,22 +1020,8 @@ export class DayView extends BaseView {
                 ? `<button class="modal-delete-btn" onclick="window.dayViewInstance.requestRemoveEvent('${fId}', ${idx})" title="일정 삭제" style="margin:0; background:transparent; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer;">✖</button>`
                 : '';
 
-            const chipsHtml = allLabelsObj.map(lObj => {
-                const isActive = eLabelIds.includes(lObj.id);
-                const style = getLabelStyle(lObj.id, 'event'); 
-                
-                const chipClickAttr = isAuthor ? `onclick="window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
-                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
-                
-                const dynamicStyle = isActive 
-                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
-                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
-
-                return `<div class="label-chip ${isActive ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; ${chipCursorStyle} ${dynamicStyle}">${lObj.name}</div>`;
-            }).join('');
-
             const checkboxHtml = canComplete 
-                ? `<div style="padding-top:8px;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.dayViewInstance.updateEventStatus('${fId}', ${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
+                ? `<div style="padding-top:${isSelected ? '8px' : '0'}; display:flex; align-items:center;"><input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onclick="event.stopPropagation();" onchange="window.dayViewInstance.updateEventStatus('${fId}', ${idx}, this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크"></div>`
                 : '';
 
             const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -1029,23 +1034,82 @@ export class DayView extends BaseView {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="event.stopPropagation(); window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
 
-            // 🚨 수정됨: 하루 일정 카드에 링크 생성(🔗 연결)과 확인(📑) 버튼 완벽 분리 적용
             const linkCount = (ev.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 
-                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
                 : '';
             const linkBtnHtml = isAuthor
-                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
                   : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && ev.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
                 : '';
+
+            // 💡 [비선택 상태]: 보기 페이지와 같이 부여된 라벨만 왼쪽에 보이는 컴팩트 형식
+            if (!isSelected) {
+                const selectedBadges = eLabelIds.map(id => {
+                    const lObj = allLabelsObj.find(l => l.id === id);
+                    if (!lObj) return '';
+                    const style = getLabelStyle(id, 'event');
+                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; white-space:nowrap; vertical-align:middle;">${lObj.name}</span>`;
+                }).join('');
+
+                return `
+                <div id="event-collapsed-${fId}-${idx}" class="event-entry-collapsed" data-event-idx="${idx}"
+                     onclick="window.dayViewInstance.selectEvent('${fId}', '${ev.id}', ${idx})"
+                     ondragstart="window.dayViewInstance.handleEventDragStart(event, ${idx}, '${fId}')"
+                     ondragend="window.dayViewInstance.handleEventDragEnd(event, '${fId}')"
+                     ondragenter="event.preventDefault(); this.style.backgroundColor='#e2e8f0';"
+                     ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                     ondragleave="this.style.backgroundColor='';"
+                     ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleEventDrop(event, ${idx}, '${fId}');"
+                     style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#fff; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:8px; cursor:pointer; transition:all 0.15s ease;"
+                     title="클릭하여 일정 편집">
+                    <div class="event-drag-handle" 
+                         onmouseenter="document.getElementById('event-collapsed-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         onmouseleave="document.getElementById('event-collapsed-${fId}-${idx}').removeAttribute('draggable')"
+                         onmousedown="document.getElementById('event-collapsed-${fId}-${idx}').setAttribute('draggable', 'true'); event.stopPropagation();"
+                         style="cursor:grab; padding:2px 4px; color:#94a3b8; font-size:1.2rem; line-height:1; user-select:none; display:flex; align-items:center; flex-shrink:0;"
+                         title="이곳을 드래그하여 일정 순서 변경">
+                        ≡
+                    </div>
+                    ${checkboxHtml}
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0; align-items:center;">
+                        ${selectedBadges || '<span style="font-size:0.75rem; color:#94a3b8; background:#f1f5f9; padding:2px 6px; border-radius:4px;">(라벨 없음)</span>'}
+                        ${forwardedBadge}
+                    </div>
+                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">
+                        ${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                        ${timeVal ? timeHtml : ''}
+                        ${linkBadgeHtml}
+                        ${authorBadge}
+                        <span style="font-size:0.85rem; color:#94a3b8; margin-left:4px;" title="편집하려면 클릭">✏️</span>
+                    </div>
+                </div>`;
+            }
+
+            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 시간, 링크, 삭제 버튼, 입력창 펼침)
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = eLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'event'); 
+                
+                const chipClickAttr = isAuthor ? `onclick="event.stopPropagation(); window.dayViewInstance.toggleEventLabel('${fId}', ${idx}, '${lObj.id}')"` : '';
+                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; ${chipCursorStyle} ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
 
             return `
             <div id="event-card-${fId}-${idx}" data-event-idx="${idx}"
@@ -1055,7 +1119,7 @@ export class DayView extends BaseView {
                  ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
                  ondragleave="this.style.backgroundColor='';"
                  ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleEventDrop(event, ${idx}, '${fId}');"
-                 style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:12px; transition: background-color 0.2s, opacity 0.2s;">
+                 style="display:flex; flex-direction:column; padding:10px; background:#f8fafc; border:2px solid #3b82f6; border-radius:6px; margin-bottom:12px; transition: background-color 0.2s, opacity 0.2s; box-shadow:0 2px 8px rgba(59,130,246,0.15);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1;">
                         ${chipsHtml}${forwardedBadge}
@@ -1076,12 +1140,28 @@ export class DayView extends BaseView {
                         ≡
                     </div>
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent('${fId}', ${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" data-event-id="${ev.id}" data-idx="${idx}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent('${fId}', ${idx}, this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
 
         setTimeout(() => { container.querySelectorAll('textarea').forEach(ta => this.autoResize(ta)); }, 0);
+    }
+
+    selectJournal(fId, jId, idx) {
+        this.syncJournalInputs(fId);
+        this.selectedJournalId = jId;
+        this.renderJournalEntries(fId);
+        setTimeout(() => {
+            const card = document.getElementById(`journal-card-${fId}-${idx}`);
+            if (card) {
+                const ta = card.querySelector('textarea');
+                if (ta) {
+                    ta.focus();
+                    this.autoResize(ta);
+                }
+            }
+        }, 40);
     }
 
     renderJournalEntries(fId) {
@@ -1097,21 +1177,12 @@ export class DayView extends BaseView {
         container.innerHTML = journals.map((j, idx) => {
             const isAuthor = !j.authorId || !uid || j.authorId === uid;
             const jLabelIds = j.labelIds || [];
-            const chipsHtml = allLabelsObj.map(lObj => {
-                const isActive = jLabelIds.includes(lObj.id);
-                const style = getLabelStyle(lObj.id, 'journal'); 
-                
-                const dynamicStyle = isActive 
-                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
-                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
-
-                return `<div class="label-chip ${isActive ? 'active' : ''}" onclick="window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; cursor:pointer; ${dynamicStyle}">${lObj.name}</div>`;
-            }).join('');
+            const isSelected = (this.selectedJournalId === j.id);
 
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
                 return `
-                <div onclick="window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
+                <div onclick="event.stopPropagation(); window.handleAttachmentClick('${a.name}', '${a.webViewLink}', '${downloadUrl}')" style="display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; font-size:0.85rem; color:#be185d; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">
                     <img src="${a.iconLink || 'https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg'}" style="width:16px; height:16px;">
                     <span style="font-weight:bold; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${a.name}</span>
                     <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalAttachment('${fId}', ${idx}, ${aIdx})" style="margin-left:4px; padding:0; color:#ef4444; font-size:1.1rem; line-height:1;" title="첨부 링크 삭제">✖</button>
@@ -1121,23 +1192,81 @@ export class DayView extends BaseView {
             const uploadId = `journal-upload-${fId}-${idx}`;
             const isUploading = j.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
-            // 🚨 수정됨: 기록 영역의 링크 생성(🔗 연결)과 확인(📑) 버튼 분리
             const linkCount = (j.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 
-                ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
                 : '';
             const linkBtnHtml = isAuthor
-                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
                 : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && j.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
                 : '';
 
+            // 💡 [비선택 상태]: 보기 페이지와 같이 부여된 라벨만 왼쪽에 보이는 컴팩트 형식
+            if (!isSelected) {
+                const selectedBadges = jLabelIds.map(id => {
+                    const lObj = allLabelsObj.find(l => l.id === id);
+                    if (!lObj) return '';
+                    const style = getLabelStyle(id, 'journal') || { bg: '#fdf2f8', text: '#9d174d', border: '#fbcfe8' };
+                    return `<span style="display:inline-block; padding:2px 6px; font-size:0.8rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; white-space:nowrap; vertical-align:middle;">${lObj.name}</span>`;
+                }).join('');
+
+                const attachBadge = (j.attachments && j.attachments.length > 0)
+                    ? `<span style="font-size:0.75rem; background:#fdf2f8; color:#be185d; padding:2px 6px; border-radius:4px; font-weight:bold; border:1px solid #fbcfe8;">📎 ${j.attachments.length}</span>`
+                    : '';
+
+                return `
+                <div id="journal-collapsed-${fId}-${idx}" class="journal-entry-collapsed" data-journal-idx="${idx}"
+                     onclick="window.dayViewInstance.selectJournal('${fId}', '${j.id}', ${idx})"
+                     ondragstart="window.dayViewInstance.handleJournalDragStart(event, ${idx}, '${fId}')"
+                     ondragend="window.dayViewInstance.handleJournalDragEnd(event, '${fId}')"
+                     ondragenter="event.preventDefault(); this.style.backgroundColor='#fce7f3';"
+                     ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
+                     ondragleave="this.style.backgroundColor='';"
+                     ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleJournalDrop(event, ${idx}, '${fId}');"
+                     style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:#fff; border:1px solid #fbcfe8; border-radius:6px; margin-bottom:8px; cursor:pointer; transition:all 0.15s ease;"
+                     title="클릭하여 기록 편집">
+                    <div class="journal-drag-handle" 
+                         onmouseenter="document.getElementById('journal-collapsed-${fId}-${idx}').setAttribute('draggable', 'true')"
+                         onmouseleave="document.getElementById('journal-collapsed-${fId}-${idx}').removeAttribute('draggable')"
+                         onmousedown="document.getElementById('journal-collapsed-${fId}-${idx}').setAttribute('draggable', 'true'); event.stopPropagation();"
+                         style="cursor:grab; padding:2px 4px; color:#be185d; font-size:1.2rem; line-height:1; user-select:none; display:flex; align-items:center; flex-shrink:0;"
+                         title="이곳을 드래그하여 기록 순서 변경">
+                        ≡
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0; align-items:center;">
+                        ${selectedBadges || '<span style="font-size:0.75rem; color:#be185d; background:#fdf2f8; padding:2px 6px; border-radius:4px;">(라벨 없음)</span>'}
+                    </div>
+                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; color:#1e293b;">
+                        ${j.content ? j.content : '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                        ${attachBadge}
+                        ${linkBadgeHtml}
+                        ${authorBadge}
+                        <span style="font-size:0.85rem; color:#be185d; margin-left:4px;" title="편집하려면 클릭">✏️</span>
+                    </div>
+                </div>`;
+            }
+
+            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 파일 첨부, 링크, 삭제 버튼, 입력창 펼침)
+            const chipsHtml = allLabelsObj.map(lObj => {
+                const isActive = jLabelIds.includes(lObj.id);
+                const style = getLabelStyle(lObj.id, 'journal'); 
+                
+                const dynamicStyle = isActive 
+                    ? `background:${style.text}; color:#ffffff; border:1px solid ${style.text};` 
+                    : `background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; opacity:0.6;`;
+
+                return `<div class="label-chip ${isActive ? 'active' : ''}" onclick="event.stopPropagation(); window.dayViewInstance.toggleJournalLabel('${fId}', ${idx}, '${lObj.id}')" style="padding:2px 8px; font-size:0.8rem; font-weight:bold; border-radius:4px; min-width:auto; cursor:pointer; ${dynamicStyle}">${lObj.name}</div>`;
+            }).join('');
+
             const rId = Math.random().toString(36).substr(2,9);
             const toggleId = j.id ? 'journal-edit-extras-' + j.id : 'journal-edit-extras-' + rId;
             const textId = j.id ? 'journal-edit-text-' + j.id : 'journal-edit-text-' + rId;
-            const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='flex'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#be185d; padding:0 4px; margin-right:8px; outline:none;" title="접기/펼치기">▼</button>`;
+            const toggleBtnHtml = `<button onclick="event.stopPropagation(); const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='flex'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#be185d; padding:0 4px; margin-right:8px; outline:none;" title="접기/펼치기">▼</button>`;
 
             return `
             <div id="journal-card-${fId}-${idx}" data-journal-idx="${idx}"
@@ -1147,11 +1276,11 @@ export class DayView extends BaseView {
                  ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move';"
                  ondragleave="this.style.backgroundColor='';"
                  ondrop="event.preventDefault(); this.style.backgroundColor=''; window.dayViewInstance.handleJournalDrop(event, ${idx}, '${fId}');"
-                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:1px solid #fbcfe8; border-radius:6px; position:relative; transition: background-color 0.2s, opacity 0.2s;">
+                 style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:10px; background:#fdf2f8; border:2px solid #db2777; border-radius:6px; position:relative; transition: background-color 0.2s, opacity 0.2s; box-shadow:0 2px 8px rgba(219,39,119,0.15);">
                 <div style="position:absolute; top:8px; right:8px; display:flex; align-items:center;">
                     ${linkBtnHtml} 
                     ${authorBadge}
-                    <button class="modal-delete-btn" onclick="window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
+                    <button class="modal-delete-btn" onclick="event.stopPropagation(); window.dayViewInstance.removeJournalEntry('${fId}',${idx})" title="기록 삭제" style="margin:0; color:#be185d;">✖</button>
                 </div>
                 <div class="label-chip-container" style="margin:0; padding-right:24px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
                     ${toggleBtnHtml}
@@ -1168,9 +1297,9 @@ export class DayView extends BaseView {
                     </div>
                     <div id="${toggleId}" style="display:flex; flex-direction:column; flex:1; min-width:0; gap:8px;">
                         <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                            <textarea id="${textId}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                            <textarea id="${textId}" data-journal-id="${j.id}" data-idx="${idx}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
                             
-                            <button onclick="document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
+                            <button onclick="event.stopPropagation(); document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
                             <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
                         </div>
                         ${isUploading}${attachmentsHtml}
@@ -1303,7 +1432,9 @@ export class DayView extends BaseView {
 
     addEventEntry(fId) {
         this.syncEventInputs(fId);
-        this.dayData[fId].events.push(this.createEmptyEvent(fId));
+        const newEv = this.createEmptyEvent(fId);
+        this.dayData[fId].events.push(newEv);
+        this.selectedEventId = newEv.id;
         this.renderEventEntries(fId);
         store.hasUnsavedChanges = true;
 
@@ -1336,12 +1467,14 @@ export class DayView extends BaseView {
         this.syncJournalInputs(fId);
         const masterJournalLabels = getJournalLabels();
         const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
-        this.dayData[fId].journals.push({ 
+        const newJr = { 
             id: 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
             labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], 
             content: '', 
             attachments: [] 
-        });
+        };
+        this.dayData[fId].journals.push(newJr);
+        this.selectedJournalId = newJr.id;
         this.renderJournalEntries(fId);
         store.hasUnsavedChanges = true;
 
@@ -1384,8 +1517,16 @@ export class DayView extends BaseView {
         if (store.mode !== 'editor') return;
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(container) {
-            container.querySelectorAll('textarea').forEach((ta, idx) => {
-                if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].content = ta.value; 
+            container.querySelectorAll('textarea').forEach(ta => {
+                const evId = ta.getAttribute('data-event-id');
+                const idxAttr = ta.getAttribute('data-idx');
+                if (evId) {
+                    const ev = (this.dayData[fId]?.events || []).find(e => e.id === evId);
+                    if (ev) ev.content = ta.value;
+                } else if (idxAttr !== null) {
+                    const idx = parseInt(idxAttr, 10);
+                    if (this.dayData[fId]?.events[idx]) this.dayData[fId].events[idx].content = ta.value;
+                }
             });
         }
     }
@@ -1394,8 +1535,16 @@ export class DayView extends BaseView {
         if (store.mode !== 'editor') return;
         const container = document.getElementById(`journal-entries-container-${fId}`);
         if(container) {
-            container.querySelectorAll('textarea').forEach((ta, idx) => {
-                if (this.dayData[fId].journals[idx]) this.dayData[fId].journals[idx].content = ta.value; 
+            container.querySelectorAll('textarea').forEach(ta => {
+                const jId = ta.getAttribute('data-journal-id');
+                const idxAttr = ta.getAttribute('data-idx');
+                if (jId) {
+                    const j = (this.dayData[fId]?.journals || []).find(item => item.id === jId);
+                    if (j) j.content = ta.value;
+                } else if (idxAttr !== null) {
+                    const idx = parseInt(idxAttr, 10);
+                    if (this.dayData[fId]?.journals[idx]) this.dayData[fId].journals[idx].content = ta.value;
+                }
             });
         }
     }

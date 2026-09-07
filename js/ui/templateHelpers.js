@@ -265,6 +265,21 @@ export const CompactEventHelper = {
         setTimeout(() => document.getElementById('alarm-popup-time').focus(), 50);
     },
 
+    selectCompactEvent(dateStr, eventId, fId) {
+        this.syncCompactEventInputs(dateStr);
+        window.selectedCompactEventKey = `${dateStr}_${eventId}`;
+        const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
+        if (container) {
+            container.innerHTML = this.generateCompactEventEditor(dateStr, fId);
+            const ta = container.querySelector(`textarea[data-id="${eventId}"]`);
+            if (ta) {
+                ta.focus();
+                ta.style.height = '40px';
+                ta.style.height = ta.scrollHeight + 'px';
+            }
+        }
+    },
+
     generateCompactEventEditor(dateStr, fId) {
         const allEvents = window[`tempEvents_${dateStr}`] || [];
         let list = allEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -296,6 +311,8 @@ export const CompactEventHelper = {
             const eLabelIds = e.labelIds || [];
             const isCompleted = !!e.completed;
             const canComplete = eLabelIds.some(id => labelObjs.find(l => l.id === id)?.isForward);
+            const itemKey = `${dateStr}_${e.id}`;
+            const isSelected = (window.selectedCompactEventKey === itemKey);
 
             let warningIcon = '';
             if (canComplete) {
@@ -303,14 +320,8 @@ export const CompactEventHelper = {
                 else if (e.originalDate && e.originalDate < dateStr) warningIcon = `<span style="color:#2563eb; font-weight:bold; font-size:0.8rem; margin-left:8px; align-self:center;">↪️ (이월됨)</span>`;
             }
 
-            const chipsHtml = labelObjs.map(lObj => {
-                const chipClickAttr = isAuthor ? `onclick="window.CompactEventHelper.handleCompactLabelClick('${dateStr}', '${e.id}', '${lObj.id}', '${fId}')"` : '';
-                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
-                return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
-            }).join('') + warningIcon;
-
             const checkboxHtml = canComplete 
-                ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'completed', this.checked); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = window.CompactEventHelper.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
+                ? `<input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onclick="event.stopPropagation();" onchange="window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'completed', this.checked); document.getElementById('compact-events-${dateStr}-${fId}').innerHTML = window.CompactEventHelper.generateCompactEventEditor('${dateStr}', '${fId}');" style="width:18px; height:18px; cursor:pointer; accent-color:#059669;" title="완료 체크">`
                 : '';
 
             const textBaseStyle = (isCompleted && canComplete) ? 'text-decoration:line-through; color:#94a3b8; background:#e2e8f0;' : 'background:#fff; color:#1e293b;';
@@ -318,7 +329,7 @@ export const CompactEventHelper = {
             const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
 
             const deleteBtnHtml = isAuthor 
-                  ? `<button onclick="window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
+                  ? `<button onclick="event.stopPropagation(); window.CompactEventHelper.requestRemoveCompactEvent('${dateStr}', '${e.id}', '${fId}')" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:0; line-height:1;" title="삭제">✖</button>`
                   : '';
             
             const timeVal = e.time || '';
@@ -327,26 +338,63 @@ export const CompactEventHelper = {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="event.stopPropagation(); window.CompactEventHelper.openAlarmModal('${dateStr}', '${e.id}', '${fId}')" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${this.formatAlarmTime(timeVal)}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${this.formatAlarmTime(timeVal)}</span>`;
 
-            // 🚨 수정됨: 일정의 링크 생성(🔗)과 확인(📑) 버튼 분리
-			const linkCount = (e.linkedItems || []).length;
-			const linkBadgeHtml = linkCount > 0 
-				? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${e.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
-				: '';
-			const linkBtnHtml = isAuthor
-				? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
-				: (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
+            const linkCount = (e.linkedItems || []).length;
+            const linkBadgeHtml = linkCount > 0 
+                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                : '';
+            const linkBtnHtml = isAuthor
+                ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('event', '${dateStr}', '${e.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && e.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
                 : '';
 
+            // 💡 [비선택 상태]: 보기 페이지와 같이 해당 항목의 라벨만 왼쪽에 보이는 컴팩트 형식
+            if (!isSelected) {
+                const selectedBadges = eLabelIds.map(id => {
+                    const lObj = labelObjs.find(l => l.id === id);
+                    if (!lObj) return '';
+                    const style = getLabelStyle(id, 'event');
+                    return `<span style="display:inline-block; padding:1px 5px; font-size:0.75rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; white-space:nowrap; vertical-align:middle;">${lObj.name}</span>`;
+                }).join('');
+
+                return `
+                <div class="compact-event-collapsed"
+                     onclick="window.CompactEventHelper.selectCompactEvent('${dateStr}', '${e.id}', '${fId}')"
+                     style="display:flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid #cbd5e1; border-radius:5px; margin-bottom:6px; background:#fff; cursor:pointer; transition:all 0.15s ease;"
+                     title="클릭하여 일정 편집">
+                    ${checkboxHtml}
+                    <div style="display:flex; flex-wrap:wrap; gap:3px; flex-shrink:0; align-items:center;">
+                        ${selectedBadges || '<span style="font-size:0.7rem; color:#94a3b8; background:#f1f5f9; padding:1px 4px; border-radius:3px;">(라벨 없음)</span>'}
+                        ${warningIcon}
+                    </div>
+                    <span style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; font-size:0.85rem; line-height:1.3; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">
+                        ${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
+                    </span>
+                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                        ${timeVal ? timeHtml : ''}
+                        ${linkBadgeHtml}
+                        ${authorBadge}
+                        <span style="font-size:0.75rem; color:#94a3b8; margin-left:2px;" title="편집하려면 클릭">✏️</span>
+                    </div>
+                </div>`;
+            }
+
+            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 시간, 링크, 삭제 버튼, 입력창 펼침)
+            const chipsHtml = labelObjs.map(lObj => {
+                const chipClickAttr = isAuthor ? `onclick="event.stopPropagation(); window.CompactEventHelper.handleCompactLabelClick('${dateStr}', '${e.id}', '${lObj.id}', '${fId}')"` : '';
+                const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
+                return `<div class="label-chip ${eLabelIds.includes(lObj.id) ? 'active' : ''}" ${chipClickAttr} style="padding:2px 8px; font-size:0.8rem; min-width:auto; ${chipCursorStyle}">${lObj.name}</div>`;
+            }).join('') + warningIcon;
+
             return `
-            <div class="compact-event-row" style="display:flex; border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s;">
+            <div class="compact-event-row" style="display:flex; border:2px solid #3b82f6; border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fafc; flex-direction:column; gap:6px; transition:0.2s; box-shadow:0 2px 6px rgba(59,130,246,0.15);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div class="label-chip-container" style="margin:0; display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex:1;">
                         ${chipsHtml}
@@ -357,7 +405,6 @@ export const CompactEventHelper = {
                         ${authorBadge}${deleteBtnHtml}
                     </div>
                 </div>
-                <!-- 🚨 아래의 텍스트 입력 영역이 누락되었던 부분입니다 -->
                 <div style="display:flex; align-items:flex-start; gap:8px; width:100%;">
                     ${checkboxHtml}
                     <textarea data-id="${e.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.CompactEventHelper.updateCompactEvent('${dateStr}', '${e.id}', 'content', this.value)">${pureContent}</textarea>
@@ -442,14 +489,25 @@ export const CompactEventHelper = {
         
         const masterLabels = getEventLabels();
         const defaultLabelId = masterLabels.length > 0 ? masterLabels[0].id : null;
+        const newId = 'ev_' + Date.now() + Math.random().toString(36).substr(2,5);
         
         window[`tempEvents_${dateStr}`].push({ 
-            id: 'ev_' + Date.now() + Math.random().toString(36).substr(2,5),
+            id: newId,
             authorId: window.auth?.currentUser?.uid,
             labelIds: defaultLabelId ? [defaultLabelId] : [], 
             content: '', completed: false, sharedGroupId: fId === 'personal' ? null : fId 
         });
-        document.getElementById(`compact-events-${dateStr}-${fId}`).innerHTML = this.generateCompactEventEditor(dateStr, fId);
+        window.selectedCompactEventKey = `${dateStr}_${newId}`;
+        const container = document.getElementById(`compact-events-${dateStr}-${fId}`);
+        if (container) {
+            container.innerHTML = this.generateCompactEventEditor(dateStr, fId);
+            const ta = container.querySelector(`textarea[data-id="${newId}"]`);
+            if (ta) {
+                ta.focus();
+                ta.style.height = '40px';
+                ta.style.height = ta.scrollHeight + 'px';
+            }
+        }
     },
 
     // 🌟 안전하게 분리된 삭제 함수
