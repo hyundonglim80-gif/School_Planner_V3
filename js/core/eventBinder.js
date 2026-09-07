@@ -13,6 +13,7 @@ export const initAppEvents = () => {
     document.getElementById('btn-prev-date')?.addEventListener('click', () => moveDate(-1));
     document.getElementById('btn-next-date')?.addEventListener('click', () => moveDate(1));
     document.getElementById('date-range-text')?.addEventListener('click', goToToday);
+    if (window.MiniCalendarManager?.init) window.MiniCalendarManager.init();
 
     document.getElementById('network-toggle-btn')?.addEventListener('click', () => toggleNetworkMode());
     document.getElementById('manual-sync-btn')?.addEventListener('click', () => executeManualSync());

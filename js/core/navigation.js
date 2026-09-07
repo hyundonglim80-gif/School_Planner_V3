@@ -144,6 +144,38 @@ export const goToToday = () => {
     else render(true); 
 };
 
+export const jumpToDate = (targetDate) => {
+    if (store.mode === 'editor' && store.hasUnsavedChanges && window.saveCurrentViewData) window.saveCurrentViewData(true);
+    if (!targetDate) return;
+
+    let d;
+    if (typeof targetDate === 'string') {
+        const parts = targetDate.split('-');
+        if (parts.length === 3) {
+            d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+            d = new Date(targetDate);
+        }
+    } else if (targetDate instanceof Date) {
+        d = new Date(targetDate.getTime());
+    } else {
+        d = new Date();
+    }
+
+    if (isNaN(d.getTime())) return;
+
+    store.currentDate = d;
+    
+    if (store.scope === 'memo') {
+        store.scope = 'day';
+        localStorage.setItem('workCalendar_scope', 'day');
+    }
+    
+    localStorage.setItem(`workCalendar_date_${store.scope}`, store.currentDate.toISOString());
+    updateTitle();
+    render(true);
+};
+
 export const toggleSwipeMode = () => {
     let mode = localStorage.getItem('workCalendar_swipeMode') || 'date';
     mode = mode === 'date' ? 'scope' : 'date';

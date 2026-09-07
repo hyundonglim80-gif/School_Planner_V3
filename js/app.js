@@ -8,7 +8,7 @@ import { setNetworkOnline, setNetworkOffline, toggleNetworkMode, executeManualSy
 import { loadSettings } from './core/settings.js';
 
 import { updateTitle, render, updateButtonUI, toggleMoreMenu, saveCurrentViewData, scrollToTodayIfExist, openNativeClock, installPWA } from './ui/uiManager.js';
-import { toggleWeekend, toggleClass, updateDateFromScroll, setScope, setMode, handleEditSaveClick, moveDate, goToToday, goToDay, toggleSwipeMode } from './core/navigation.js';
+import { toggleWeekend, toggleClass, updateDateFromScroll, setScope, setMode, handleEditSaveClick, moveDate, goToToday, goToDay, toggleSwipeMode, jumpToDate } from './core/navigation.js';
 import { initAppEvents } from './core/eventBinder.js';
 
 import { EventManager, parseRawEventTextToEventList, formatEventListToText, generateEventBadgesHTML } from './core/eventManager.js';
@@ -31,6 +31,7 @@ import './modules/sync.js';
 import './modules/linker.js';
 import './modules/trashManager.js';
 import './modules/detailEditManager.js';
+import './modules/miniCalendarManager.js';
 
 import './views/viewDay.js';
 import './views/viewWeek.js';
@@ -81,7 +82,7 @@ Object.assign(window, {
     setNetworkOnline, setNetworkOffline, toggleNetworkMode, executeManualSync,
     loadSettings,
     updateTitle, render, updateButtonUI, toggleMoreMenu, saveCurrentViewData, scrollToTodayIfExist, openNativeClock, installPWA,
-    toggleWeekend, toggleClass, updateDateFromScroll, setScope, setMode, handleEditSaveClick, moveDate, goToToday, goToDay, toggleSwipeMode,
+    toggleWeekend, toggleClass, updateDateFromScroll, setScope, setMode, handleEditSaveClick, moveDate, goToToday, goToDay, toggleSwipeMode, jumpToDate,
     
     EventManager,
     parseRawEventTextToEventList, 
