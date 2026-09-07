@@ -119,8 +119,9 @@ export const LinkManager = {
 
     updateDateRangeUI: function() {
         const val = document.getElementById('linker-period-select')?.value;
-        const customDiv = document.getElementById('linker-custom-date-div');
-        if (customDiv) customDiv.style.display = val === 'custom' ? 'flex' : 'none';
+        if (val !== 'custom') {
+            this.fetchDateRangeData();
+        }
     },
 
     fetchMemoData: async function() {
@@ -149,12 +150,19 @@ export const LinkManager = {
         const periodSelect = document.getElementById('linker-period-select');
         if (!periodSelect) return;
         const val = periodSelect.value;
-        const today = new Date();
+        const sourceDateStr = this.sourceData.date || formatDate(new Date());
+        const sourceDate = new Date(sourceDateStr);
         let startStr = '', endStr = '';
 
-        if (val === '1month') {
-            const past = new Date(); past.setDate(today.getDate() - 30);
-            const future = new Date(); future.setDate(today.getDate() + 30);
+        if (val === 'today') {
+            startStr = sourceDateStr; endStr = sourceDateStr;
+        } else if (val === '1week') {
+            const past = new Date(sourceDate); past.setDate(past.getDate() - 7);
+            const future = new Date(sourceDate); future.setDate(future.getDate() + 7);
+            startStr = formatDate(past); endStr = formatDate(future);
+        } else if (val === '1month') {
+            const past = new Date(sourceDate); past.setDate(past.getDate() - 30);
+            const future = new Date(sourceDate); future.setDate(future.getDate() + 30);
             startStr = formatDate(past); endStr = formatDate(future);
         } else if (val === 'sem1') {
             const dates = getSemesterDates(1, store.semesterConfig);
@@ -163,13 +171,19 @@ export const LinkManager = {
             const dates = getSemesterDates(2, store.semesterConfig);
             startStr = dates.start; endStr = dates.end;
         } else if (val === 'year') {
-            startStr = `${today.getFullYear()}-03-01`; endStr = `${today.getFullYear()+1}-02-28`;
+            startStr = `${sourceDate.getFullYear()}-03-01`; endStr = `${sourceDate.getFullYear()+1}-02-28`;
         } else if (val === 'custom') {
             startStr = document.getElementById('linker-custom-start').value;
             endStr = document.getElementById('linker-custom-end').value;
         }
 
         if (!startStr || !endStr) return;
+        
+        // Update custom dates visually
+        const customStart = document.getElementById('linker-custom-start');
+        const customEnd = document.getElementById('linker-custom-end');
+        if (customStart) customStart.value = startStr;
+        if (customEnd) customEnd.value = endStr;
 
         document.getElementById('linker-list-area').innerHTML = `<div style="text-align:center; padding:30px; color:#3b82f6; font-weight:bold;">데이터를 불러오는 중...⏳</div>`;
 
@@ -184,7 +198,7 @@ export const LinkManager = {
                 const fEvents = (eMap[dStr].eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
                 fEvents.forEach(e => {
                     const eId = e.id || ('ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5));
-                    if(e.content?.trim()) events.push({ id: eId, title: e.content, date: dStr, type: 'event', fId: fId });
+                    if(e.content?.trim()) events.push({ id: eId, title: e.content, date: dStr, type: 'event', fId: fId, labelIds: e.labelIds || [] });
                 });
             });
 
@@ -192,7 +206,7 @@ export const LinkManager = {
                 const fJournals = jMap[dStr]?.[fId] || []; 
                 fJournals.forEach(j => {
                     const jId = j.id || ('jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5));
-                    if(j.content?.trim()) journals.push({ id: jId, title: j.content, date: dStr, type: 'journal', fId: fId });
+                    if(j.content?.trim()) journals.push({ id: jId, title: j.content, date: dStr, type: 'journal', fId: fId, labelIds: j.labelIds || [] });
                 });
             });
 
@@ -232,27 +246,47 @@ export const LinkManager = {
         }
 
         const isMemo = this.currentTab === 'memo';
+        
+        // 라벨 필터 (메모는 V3에서 라벨이 없을 수 있으나, 일단 공통 UI에 추가)
+        const labels = this.currentTab === 'journal' ? (window.getJournalLabels ? window.getJournalLabels() : []) : (window.getEventLabels ? window.getEventLabels() : []);
+        const labelOptions = `<option value="all">모든 라벨</option>` + labels.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+
         const dateFilterHtml = isMemo ? '' : `
-            <div style="display:flex; gap:8px; align-items:center;">
-                <select id="linker-period-select" onchange="window.LinkManager.updateDateRangeUI()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155;">
-                    <option value="1month">최근 ±1개월</option>
-                    <option value="sem1">1학기 전체</option>
-                    <option value="sem2">2학기 전체</option>
-                    <option value="year">학년도 전체</option>
-                    <option value="custom">직접 지정</option>
-                </select>
-                <div id="linker-custom-date-div" style="display:none; gap:5px; align-items:center;">
-                    <input type="date" id="linker-custom-start" class="eval-input" style="padding:6px;"> ~ 
-                    <input type="date" id="linker-custom-end" class="eval-input" style="padding:6px;">
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.85rem; font-weight:bold; color:#475569;">조회 범위:</span>
+                    <select id="linker-period-select" onchange="window.LinkManager.updateDateRangeUI()" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155;">
+                        <option value="today">링크 생성 날 (오늘)</option>
+                        <option value="1week">±1주일</option>
+                        <option value="1month">±1개월</option>
+                        <option value="sem1">1학기 전체</option>
+                        <option value="sem2">2학기 전체</option>
+                        <option value="year">학년도 전체</option>
+                        <option value="custom">직접 지정</option>
+                    </select>
+                    <button onclick="window.LinkManager.fetchDateRangeData()" class="modal-btn-secondary" style="padding:6px 12px; margin-left:auto;">조회</button>
                 </div>
-                <button onclick="window.LinkManager.fetchDateRangeData()" class="modal-btn-secondary" style="padding:8px 12px;">조회</button>
+                <div id="linker-custom-date-div" style="display:flex; gap:5px; align-items:center;">
+                    <input type="date" id="linker-custom-start" class="eval-input" style="padding:6px;" onchange="document.getElementById('linker-period-select').value='custom'; window.LinkManager.fetchDateRangeData()"> 
+                    <span style="font-weight:bold; color:#94a3b8;">~</span> 
+                    <input type="date" id="linker-custom-end" class="eval-input" style="padding:6px;" onchange="document.getElementById('linker-period-select').value='custom'; window.LinkManager.fetchDateRangeData()">
+                </div>
+            </div>
+        `;
+
+        const labelFilterHtml = `
+            <div style="display:flex; gap:8px; align-items:center;">
+                <select id="linker-label-select" onchange="window.LinkManager.renderListArea()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155; flex-shrink:0;">
+                    ${labelOptions}
+                </select>
+                <input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;">
             </div>
         `;
 
         contentDiv.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; flex-direction:column; gap:10px; background:#f8fafc; padding:12px; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:10px;">
                 ${dateFilterHtml}
-                <div><input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;"></div>
+                ${labelFilterHtml}
             </div>
             <div id="linker-list-area" style="flex:1; display:flex; flex-direction:column; border:1px solid #e2e8f0; border-radius:6px; background:#fff; overflow:hidden;"></div>
         `;
@@ -264,7 +298,13 @@ export const LinkManager = {
         if (!area) return;
 
         const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
+        const labelFilter = document.getElementById('linker-label-select')?.value || 'all';
+        
         let items = this.tabData[this.currentTab] || [];
+        
+        if (labelFilter !== 'all') {
+            items = items.filter(i => i.labelIds && i.labelIds.includes(labelFilter));
+        }
         
         if (keyword) items = items.filter(i => (i.title || '').toLowerCase().includes(keyword));
 

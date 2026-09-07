@@ -205,19 +205,8 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
-            processedEvents.sort((a, b) => {
-                let aRank = 9999, bRank = 9999;
-                (a.labelIds || []).forEach(id => {
-                    const r = masterLabels.findIndex(l => l.id === id);
-                    if (r !== -1 && r < aRank) aRank = r;
-                });
-                (b.labelIds || []).forEach(id => {
-                    const r = masterLabels.findIndex(l => l.id === id);
-                    if (r !== -1 && r < bRank) bRank = r;
-                });
-                if (aRank !== bRank) return aRank - bRank;
-                return (a.id || '').localeCompare(b.id || '');
-            });
+            // 기존 뷰어 모드의 라벨/이름 기준 강제 정렬 제거
+            // 작성 페이지에서의 순서(드래그 앤 드롭 등)를 그대로 유지합니다.
             
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
 
@@ -285,19 +274,8 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
-            journals.sort((a, b) => {
-                let aRank = 9999, bRank = 9999;
-                (a.labelIds || []).forEach(id => {
-                    const r = masterJournalLabels.findIndex(l => l.id === id);
-                    if (r !== -1 && r < aRank) aRank = r;
-                });
-                (b.labelIds || []).forEach(id => {
-                    const r = masterJournalLabels.findIndex(l => l.id === id);
-                    if (r !== -1 && r < bRank) bRank = r;
-                });
-                if (aRank !== bRank) return aRank - bRank;
-                return (a.id || '').localeCompare(b.id || '');
-            });
+            // 기존 뷰어 모드의 라벨/이름 기준 강제 정렬 제거
+            // 작성 페이지에서의 순서(드래그 앤 드롭 등)를 그대로 유지합니다.
 
             const jListHtml = journals.length > 0 ? journals.map(j => {
                 const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
