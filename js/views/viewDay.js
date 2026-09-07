@@ -167,11 +167,16 @@ export class DayView extends BaseView {
                 eList.forEach(e => { e.sharedGroupId = fId === 'personal' ? null : fId; });
             }
 
+            let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
+            jList.forEach(j => {
+                if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+            });
+
             return {
                 fId,
                 events: eList,
                 schedules: (scDoc && scDoc.exists()) ? (scDoc.data().periods || {}) : {},
-                journals: (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : []
+                journals: jList
             };
         });
 
@@ -389,11 +394,21 @@ export class DayView extends BaseView {
             if (eList.length === 0) eList.push(this.createEmptyEvent(fId));
 
             let jList = (jrDoc && jrDoc.exists()) ? (jrDoc.data().entries || []) : [];
-            jList = jList.map(j => ({ ...j, labelIds: j.labelIds || [], attachments: j.attachments || [] }));
+            jList = jList.map(j => ({ 
+                ...j, 
+                id: j.id || ('jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5)),
+                labelIds: j.labelIds || [], 
+                attachments: j.attachments || [] 
+            }));
             if (jList.length === 0) {
                 const masterJournalLabels = getJournalLabels();
                 const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
-                jList.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
+                jList.push({ 
+                    id: 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
+                    labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], 
+                    content: '', 
+                    attachments: [] 
+                });
             }
 
             return {
@@ -1216,7 +1231,12 @@ export class DayView extends BaseView {
         this.syncJournalInputs(fId);
         const masterJournalLabels = getJournalLabels();
         const defaultJrLabelId = masterJournalLabels.length > 0 ? masterJournalLabels[0].id : null;
-        this.dayData[fId].journals.push({ labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], content: '', attachments: [] });
+        this.dayData[fId].journals.push({ 
+            id: 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5),
+            labelIds: defaultJrLabelId ? [defaultJrLabelId] : [], 
+            content: '', 
+            attachments: [] 
+        });
         this.renderJournalEntries(fId);
         store.hasUnsavedChanges = true;
 
@@ -1256,6 +1276,7 @@ export class DayView extends BaseView {
     }
 
     syncEventInputs(fId) {
+        if (store.mode !== 'editor') return;
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(container) {
             container.querySelectorAll('textarea').forEach((ta, idx) => {
@@ -1265,6 +1286,7 @@ export class DayView extends BaseView {
     }
 
     syncJournalInputs(fId) {
+        if (store.mode !== 'editor') return;
         const container = document.getElementById(`journal-entries-container-${fId}`);
         if(container) {
             container.querySelectorAll('textarea').forEach((ta, idx) => {
@@ -1274,6 +1296,7 @@ export class DayView extends BaseView {
     }
 
     syncScheduleInputs(fId) {
+        if (store.mode !== 'editor') return;
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
 
@@ -1285,9 +1308,14 @@ export class DayView extends BaseView {
         
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
             const p = row.getAttribute('data-period');
-            const subject = row.querySelector('.cell-subject').innerText.trim();
-            const memo = row.querySelector('.cell-memo').innerText.trim();
-            const supplies = row.querySelector('.cell-supplies').innerText.trim();
+            const subEl = row.querySelector('.cell-subject');
+            const memoEl = row.querySelector('.cell-memo');
+            const supEl = row.querySelector('.cell-supplies');
+            if (!subEl && !memoEl && !supEl) return;
+
+            const subject = subEl ? subEl.innerText.trim() : '';
+            const memo = memoEl ? memoEl.innerText.trim() : '';
+            const supplies = supEl ? supEl.innerText.trim() : '';
             
             const oldObj = this.dayData[fId].schedules[p] || {};
             if (subject || memo || supplies || (oldObj.linkedItems && oldObj.linkedItems.length > 0)) { 
@@ -1306,6 +1334,7 @@ export class DayView extends BaseView {
 
     async save() {
         if (this.isRendering) return; 
+        if (store.mode !== 'editor') return; 
         
         const dateStr = this.lockedDateStr || this.dateStr; 
         

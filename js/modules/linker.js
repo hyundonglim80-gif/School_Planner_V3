@@ -187,7 +187,7 @@ export const LinkManager = {
         const periodSelect = document.getElementById('linker-period-select');
         if (!periodSelect) return;
         const val = periodSelect.value;
-        const sourceDateStr = this.sourceData.date || formatDate(new Date());
+        const sourceDateStr = this.sourceData.dateStr || this.sourceData.date || formatDate(new Date());
         const sourceDate = new Date(sourceDateStr);
         let startStr = '', endStr = '';
 
@@ -464,39 +464,84 @@ export const LinkManager = {
             });
         };
 
-        // 1. 출발지(Source) 업데이트
-        if (this.sourceData.type === 'schedule_header') {
-            const sp = document.getElementById('linker-source-period').value;
-            if (window[`tempSchedules_${this.sourceData.dateStr}`]) {
-                const grp = window[`tempSchedules_${this.sourceData.dateStr}`][this.sourceData.fId] || {};
+        const sFId = this.sourceData.fId;
+        const sDateStr = this.sourceData.dateStr || this.sourceData.date;
+        const colFunc = sFId === 'personal' ? getUserCol : (col) => getGroupCol(sFId, col);
+
+        // 1. 출발지(Source) 업데이트 (메모리 및 Firestore DB 영구 저장)
+        if (this.sourceData.type === 'schedule_header' || this.sourceData.type === 'schedule') {
+            const sp = this.sourceData.type === 'schedule_header' 
+                ? (document.getElementById('linker-source-period')?.value || 1) 
+                : (this.sourceData.period || 1);
+            
+            if (window[`tempSchedules_${sDateStr}`]) {
+                const grp = window[`tempSchedules_${sDateStr}`][sFId] || {};
                 grp[sp] = grp[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
                 grp[sp].linkedItems = grp[sp].linkedItems || [];
                 updateLinks(grp[sp].linkedItems);
             }
-            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
+            const dData = window.dayViewInstance?.dayData?.[sFId];
             if (dData && dData.schedules) {
                 dData.schedules[sp] = dData.schedules[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
                 dData.schedules[sp].linkedItems = dData.schedules[sp].linkedItems || [];
                 updateLinks(dData.schedules[sp].linkedItems);
             }
+
+            try {
+                const docRef = doc(colFunc('schedules'), sDateStr);
+                const snap = await getDoc(docRef);
+                const periods = (snap.exists() ? snap.data().periods : {}) || {};
+                periods[sp] = periods[sp] || { subject:'', memo:'', supplies:'', linkedItems:[] };
+                periods[sp].linkedItems = periods[sp].linkedItems || [];
+                updateLinks(periods[sp].linkedItems);
+                await setDoc(docRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
+            } catch(e) { console.error("출발지 수업 DB 저장 오류:", e); }
         } 
         else if (this.sourceData.type === 'event') {
-            const evList = window[`tempEvents_${this.sourceData.dateStr}`] || [];
+            const evList = window[`tempEvents_${sDateStr}`] || [];
             const ev = evList.find(e => e.id === this.sourceData.id);
             if (ev) { ev.linkedItems = ev.linkedItems || []; updateLinks(ev.linkedItems); }
             
-            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
+            const dData = window.dayViewInstance?.dayData?.[sFId];
             if (dData && dData.events) {
                 const dev = dData.events.find(e => e.id === this.sourceData.id);
                 if (dev) { dev.linkedItems = dev.linkedItems || []; updateLinks(dev.linkedItems); }
             }
+
+            try {
+                const docRef = doc(colFunc('events'), sDateStr);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const list = snap.data().eventList || [];
+                    const item = list.find(e => e.id === this.sourceData.id);
+                    if (item) {
+                        item.linkedItems = item.linkedItems || [];
+                        updateLinks(item.linkedItems);
+                        await setDoc(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+                    }
+                }
+            } catch(e) { console.error("출발지 일정 DB 저장 오류:", e); }
         }
         else if (this.sourceData.type === 'journal') {
-            const dData = window.dayViewInstance?.dayData?.[this.sourceData.fId];
+            const dData = window.dayViewInstance?.dayData?.[sFId];
             if (dData && dData.journals) {
                 const jr = dData.journals.find(j => j.id === this.sourceData.id);
                 if (jr) { jr.linkedItems = jr.linkedItems || []; updateLinks(jr.linkedItems); }
             }
+
+            try {
+                const docRef = doc(colFunc('journals'), sDateStr);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const list = snap.data().entries || [];
+                    const item = list.find(j => j.id === this.sourceData.id);
+                    if (item) {
+                        item.linkedItems = item.linkedItems || [];
+                        updateLinks(item.linkedItems);
+                        await setDoc(docRef, { entries: list, updatedAt: Date.now() }, { merge: true });
+                    }
+                }
+            } catch(e) { console.error("출발지 기록 DB 저장 오류:", e); }
         }
         else if (this.sourceData.type === 'memo') {
             if (window.memoViewInstance?.memoItems) {
@@ -505,7 +550,7 @@ export const LinkManager = {
                     memo.linkedItems = memo.linkedItems || []; 
                     updateLinks(memo.linkedItems); 
                     if (window.dbAPI && window.dbAPI.updateMemo) {
-                        await window.dbAPI.updateMemo(this.sourceData.id, { linkedItems: memo.linkedItems }, this.sourceData.fId);
+                        await window.dbAPI.updateMemo(this.sourceData.id, { linkedItems: memo.linkedItems }, sFId);
                     }
                 }
             }
@@ -515,30 +560,34 @@ export const LinkManager = {
         let sourceTitleLabel = '연결된 항목';
         let safeTargetId = this.sourceData.id;
 
-        if (this.sourceData.type === 'schedule_header') {
-            const sp = document.getElementById('linker-source-period').value;
+        if (this.sourceData.type === 'schedule_header' || this.sourceData.type === 'schedule') {
+            const sp = this.sourceData.type === 'schedule_header' 
+                ? (document.getElementById('linker-source-period')?.value || 1) 
+                : (this.sourceData.period || 1);
             sourceTitleLabel = `${sp}교시 수업`;
-            safeTargetId = `class_${this.sourceData.dateStr}_${sp}`;
+            safeTargetId = `class_${sDateStr}_${sp}`;
         }
         else if (this.sourceData.type === 'event') sourceTitleLabel = '일정';
         else if (this.sourceData.type === 'journal') sourceTitleLabel = '기록';
         else if (this.sourceData.type === 'memo') sourceTitleLabel = '메모';
 
         const sourceMeta = {
-            targetType: this.sourceData.type === 'schedule_header' ? 'schedule' : this.sourceData.type,
+            targetType: (this.sourceData.type === 'schedule_header' || this.sourceData.type === 'schedule') ? 'schedule' : this.sourceData.type,
             targetId: safeTargetId,
-            targetDate: this.sourceData.dateStr || '',
-            targetPeriod: this.sourceData.type === 'schedule_header' ? document.getElementById('linker-source-period').value : (this.sourceData.period || ''),
-            title: `[${this.sourceData.dateStr || '메모'}] ${sourceTitleLabel}`,
-            targetFId: this.sourceData.fId 
+            targetDate: sDateStr || '',
+            targetPeriod: (this.sourceData.type === 'schedule_header' || this.sourceData.type === 'schedule') 
+                ? (this.sourceData.type === 'schedule_header' ? document.getElementById('linker-source-period')?.value : (this.sourceData.period || '')) 
+                : '',
+            title: `[${sDateStr || '메모'}] ${sourceTitleLabel}`,
+            targetFId: sFId 
         };
 
         for (const link of this.selectedLinks) {
-            await this.addReverseLink(link, sourceMeta, this.sourceData.fId);
+            await this.addReverseLink(link, sourceMeta, sFId);
         }
         
         window.store.hasUnsavedChanges = true;
-        if (typeof window.saveCurrentViewData === 'function') {
+        if (store.mode === 'editor' && typeof window.saveCurrentViewData === 'function') {
             await window.saveCurrentViewData(true); 
         }
 
@@ -547,6 +596,10 @@ export const LinkManager = {
         this.selectedLinks = [];
         this.renderListArea();
         this.renderTray();
+
+        if (typeof window.render === 'function') {
+            setTimeout(() => window.render(), 100);
+        }
     },
 
     addReverseLink: async function(targetLink, sourceMeta, sourceFId) {
@@ -564,7 +617,11 @@ export const LinkManager = {
                 }
             } else if (targetLink.targetType === 'journal') {
                 if (window.dayViewInstance?.dayData?.[tFId]?.journals) {
-                    const jr = window.dayViewInstance.dayData[tFId].journals.find(j => j.id === targetLink.targetId);
+                    let jr = window.dayViewInstance.dayData[tFId].journals.find(j => j.id === targetLink.targetId);
+                    if (!jr && targetLink.title) {
+                        jr = window.dayViewInstance.dayData[tFId].journals.find(j => (j.content || '').trim() === targetLink.title.trim());
+                        if (jr) jr.id = targetLink.targetId;
+                    }
                     if (jr) { jr.linkedItems = jr.linkedItems || []; if (!jr.linkedItems.some(l => l.targetId === sourceMeta.targetId)) jr.linkedItems.push(sourceMeta); }
                 }
             } else if (targetLink.targetType === 'schedule') {
@@ -609,7 +666,11 @@ export const LinkManager = {
                 const snap = await getDoc(docRef);
                 if (snap.exists()) {
                     const list = snap.data().entries || [];
-                    const item = list.find(e => e.id === targetLink.targetId);
+                    let item = list.find(e => e.id === targetLink.targetId);
+                    if (!item && targetLink.title) {
+                        item = list.find(e => (e.content || '').trim() === targetLink.title.trim());
+                        if (item) item.id = targetLink.targetId;
+                    }
                     if (item) {
                         item.linkedItems = item.linkedItems || [];
                         if (!item.linkedItems.some(l => l.targetId === sourceMeta.targetId)) {
@@ -650,19 +711,54 @@ export const LinkManager = {
         let linkedItems = [];
         if (type === 'event') {
             const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
-            const ev = evList.find(e => e.id === id);
+            let ev = evList.find(e => e.id === id);
+            if (!ev || !ev.linkedItems || ev.linkedItems.length === 0) {
+                try {
+                    const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
+                    const snap = await getDoc(doc(colFunc('events'), dateStr));
+                    if (snap.exists()) {
+                        ev = (snap.data().eventList || []).find(e => e.id === id);
+                    }
+                } catch(e) { console.warn(e); }
+            }
             if (ev) linkedItems = ev.linkedItems || [];
         } else if (type === 'journal') {
             const jList = window.dayViewInstance?.dayData?.[fId]?.journals || [];
-            const j = jList.find(e => e.id === id);
+            let j = jList.find(e => e.id === id);
+            if (!j || !j.linkedItems || j.linkedItems.length === 0) {
+                try {
+                    const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
+                    const snap = await getDoc(doc(colFunc('journals'), dateStr));
+                    if (snap.exists()) {
+                        j = (snap.data().entries || []).find(e => e.id === id);
+                    }
+                } catch(e) { console.warn(e); }
+            }
             if (j) linkedItems = j.linkedItems || [];
         } else if (type === 'schedule') {
             const sData = window[`tempSchedules_${dateStr}`]?.[fId] || window.dayViewInstance?.dayData?.[fId]?.schedules || {};
-            const pObj = sData[period];
+            let pObj = sData[period];
+            if (!pObj || !pObj.linkedItems || pObj.linkedItems.length === 0) {
+                try {
+                    const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
+                    const snap = await getDoc(doc(colFunc('schedules'), dateStr));
+                    if (snap.exists()) {
+                        const periods = snap.data().periods || {};
+                        pObj = periods[period];
+                    }
+                } catch(e) { console.warn(e); }
+            }
             if (pObj) linkedItems = pObj.linkedItems || [];
         } else if (type === 'memo') {
             const memoList = window.memoViewInstance?.memoItems || [];
-            const m = memoList.find(e => e.firestoreId === id);
+            let m = memoList.find(e => e.firestoreId === id);
+            if (!m || !m.linkedItems || m.linkedItems.length === 0) {
+                try {
+                    const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
+                    const snap = await getDoc(doc(colFunc('tasks'), id));
+                    if (snap.exists()) m = snap.data();
+                } catch(e) { console.warn(e); }
+            }
             if (m) linkedItems = m.linkedItems || [];
         }
 
@@ -870,9 +966,16 @@ export const LinkManager = {
             } else if (type === 'journal') {
                 const snap = await getDoc(doc(colFunc('journals'), dateStr));
                 if (snap.exists()) {
-                    const item = (snap.data().entries || []).find(e => e.id === id);
-                    return item ? item.content : '';
+                    const entries = snap.data().entries || [];
+                    let item = entries.find(e => e.id === id);
+                    if (!item && id) {
+                        const memJr = window.dayViewInstance?.dayData?.[fId]?.journals?.find(j => j.id === id);
+                        if (memJr) item = entries.find(e => (e.content || '').trim() === (memJr.content || '').trim());
+                    }
+                    if (item) return item.content || '';
                 }
+                const memFallback = window.dayViewInstance?.dayData?.[fId]?.journals?.find(j => j.id === id);
+                if (memFallback) return memFallback.content || '';
             } else if (type === 'schedule') {
                 const snap = await getDoc(doc(colFunc('schedules'), dateStr));
                 if (snap.exists()) {
