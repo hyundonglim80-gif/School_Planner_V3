@@ -41,8 +41,16 @@ export const MiniCalendarManager = {
 
         if (!btn || !popover) return;
 
-        // 마우스 호버 시 자동 팝업
-        btn.addEventListener('mouseenter', () => this.onButtonMouseEnter());
+        // 마우스 호버 시 자동 팝업 및 스타일
+        btn.addEventListener('mouseenter', () => {
+            btn.style.backgroundColor = '#e2e8f0';
+            this.onButtonMouseEnter();
+        });
+        btn.addEventListener('mouseleave', () => {
+            if (!this.isOpen) {
+                btn.style.backgroundColor = '#f8fafc';
+            }
+        });
 
         if (container) {
             container.addEventListener('mouseenter', () => this.onContainerMouseEnter());
