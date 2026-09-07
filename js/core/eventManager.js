@@ -113,14 +113,23 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
+        const linkCount = (e.linkedItems || []).length;
+        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-left:2px; flex-shrink:0;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+
+        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-left:auto; flex-shrink:0;">✏️</button>` : '';
+
         let layoutStyle = viewType === 'compact' ? 
-            `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3;` : 
-            `display:flex; align-items:flex-start; gap:6px; font-size:0.95rem; line-height:1.3;`;
+            `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3; width:100%;` : 
+            `display:flex; align-items:center; gap:6px; font-size:0.95rem; line-height:1.3; width:100%;`;
 
         html += `
-        <div id="evt-row-${dateStr}-${index}" style="${layoutStyle}">
-            ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-            <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+        <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="${layoutStyle}; border-radius:3px; padding:1px 2px;">
+            <div style="display:flex; align-items:center; gap:4px; width:100%; min-width:0;">
+                ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
+                <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+                ${linkBadge}
+                ${editBtn}
+            </div>
         </div>`;
     });
     html += `</div>`;

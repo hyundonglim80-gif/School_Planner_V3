@@ -1,9 +1,69 @@
 // js/ui/templateHelpers.js
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels } from '../core/utils.js';
+import { getUserCol, getGroupCol } from '../api/database.js';
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
-// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (크롬 알림 제거됨)
-window.showCustomAlarmPopup = function(messages) {
+// 🌟 화면 절반 이상을 차지하며 깜빡이는 대형 알람 팝업 (확인 시 알람 시간 영구 삭제)
+window._currentTriggeredAlarmEvents = [];
+
+window.handleAlarmDismiss = async function() {
+    const popup = document.getElementById('sp3-super-alarm-popup');
+    if (popup) popup.style.display = 'none';
+
+    if (window._currentTriggeredAlarmEvents && window._currentTriggeredAlarmEvents.length > 0) {
+        const eventsToClear = [...window._currentTriggeredAlarmEvents];
+        window._currentTriggeredAlarmEvents = [];
+
+        for (const item of eventsToClear) {
+            if (typeof item === 'string') continue;
+            
+            // 1. 메모리 객체 업데이트
+            if (item.evRef) {
+                item.evRef.time = '';
+                item.evRef.alarmTriggered = false;
+            }
+            if (window[`tempEvents_${item.dateStr}`]) {
+                const target = window[`tempEvents_${item.dateStr}`].find(e => e.id === item.id);
+                if (target) { target.time = ''; target.alarmTriggered = false; }
+            }
+            if (window.dayViewInstance?.dayData?.[item.fId]?.events) {
+                const target = window.dayViewInstance.dayData[item.fId].events.find(e => e.id === item.id);
+                if (target) { target.time = ''; target.alarmTriggered = false; }
+            }
+
+            // 2. Firestore DB 영구 삭제 처리
+            try {
+                const colFunc = item.fId === 'personal' ? getUserCol : (col) => getGroupCol(item.fId, col);
+                const docRef = doc(colFunc('events'), item.dateStr);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const list = snap.data().eventList || [];
+                    const dbItem = list.find(e => e.id === item.id);
+                    if (dbItem) {
+                        dbItem.time = '';
+                        dbItem.alarmTriggered = false;
+                        await setDoc(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+                    }
+                }
+            } catch (err) {
+                console.error("알람 DB 삭제 오류:", err);
+            }
+        }
+
+        // 3. 화면 최신화
+        store.hasUnsavedChanges = true;
+        if (typeof window.render === 'function') {
+            window.render();
+        }
+        if (window.showToast) {
+            window.showToast('⏰ 알람이 해제(삭제)되었습니다.');
+        }
+    }
+};
+
+window.showCustomAlarmPopup = function(items) {
+    window._currentTriggeredAlarmEvents = Array.isArray(items) ? items : [items];
     let popup = document.getElementById('sp3-super-alarm-popup');
     
     if (!popup) {
@@ -36,7 +96,7 @@ window.showCustomAlarmPopup = function(messages) {
                 <div style="font-size: 8rem; margin-bottom: 20px; text-shadow: 0 4px 10px rgba(0,0,0,0.5);">⏰</div>
                 <div id="sp3-super-alarm-text" style="font-size: 3rem; font-weight: 900; margin-bottom: 50px; line-height: 1.4; word-break: keep-all; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
                 </div>
-                <button onclick="document.getElementById('sp3-super-alarm-popup').style.display='none'" data-shortcut-added="true"
+                <button onclick="window.handleAlarmDismiss()" data-shortcut-added="true"
                         style="padding: 25px 80px; font-size: 2.5rem; font-weight: 900; border: 5px solid #fff; border-radius: 20px; background: #0f172a; color: #f8fafc; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: 0.2s;">
                     확 인 (알림 끄기)
                 </button>
@@ -47,7 +107,10 @@ window.showCustomAlarmPopup = function(messages) {
     
     const textContainer = document.getElementById('sp3-super-alarm-text');
     if (textContainer) {
-        textContainer.innerHTML = messages.map(m => `<div>🚨 ${m.replace(/\n/g, '<br>')}</div>`).join('<hr style="border:2px dashed rgba(255,255,255,0.5); margin:30px 0;">');
+        textContainer.innerHTML = window._currentTriggeredAlarmEvents.map(m => {
+            const msg = typeof m === 'string' ? m : (m.content || m.message || '예정된 일정이 있습니다.');
+            return `<div>🚨 ${msg.replace(/\n/g, '<br>')}</div>`;
+        }).join('<hr style="border:2px dashed rgba(255,255,255,0.5); margin:30px 0;">');
     }
     popup.style.display = 'block';
 };
@@ -70,7 +133,7 @@ if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
         }
         
         const uniqueEvents = Array.from(new Map(activeEvents.map(e => [e.id, e])).values());
-        let alarmMessages = [];
+        let triggeredItems = [];
 
         uniqueEvents.forEach(ev => {
             if (ev.time && ev.time <= currentYMDHM && !ev.completed && !ev.alarmTriggered) {
@@ -79,13 +142,19 @@ if (typeof window !== 'undefined' && !window.alarmCheckerInterval) {
                 
                 if (nowMs >= evTimeMs && nowMs - evTimeMs < 3600000) {
                     ev.alarmTriggered = true; 
-                    alarmMessages.push(ev.content || '예정된 일정이 있습니다.');
+                    triggeredItems.push({
+                        id: ev.id,
+                        dateStr: (ev.time.split('T')[0]) || currentYMD,
+                        fId: ev.sharedGroupId || 'personal',
+                        content: ev.content || '예정된 일정이 있습니다.',
+                        evRef: ev
+                    });
                 }
             }
         });
 
-        if (alarmMessages.length > 0) {
-            window.showCustomAlarmPopup(alarmMessages);
+        if (triggeredItems.length > 0) {
+            window.showCustomAlarmPopup(triggeredItems);
         }
     }, 20000); 
 }
@@ -321,7 +390,9 @@ export const CompactEventHelper = {
 
             row.querySelectorAll(`.${cellClass}`).forEach(cell => {
                 const p = cell.getAttribute("data-p");
-                let text = cell.innerText?.trim() || "";
+                const clone = cell.cloneNode(true);
+                clone.querySelectorAll('button, .hover-edit-btn').forEach(el => el.remove());
+                let text = clone.innerText?.trim() || "";
                 let subject = '', memo = '', supplies = '';
 
                 if (text !== '') {

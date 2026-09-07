@@ -233,10 +233,17 @@ export class DayView extends BaseView {
                 const linkCount = (pObj.linkedItems || []).length;
                 const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
+                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${dateStr}', ${p}, '${fId}')" style="margin-left:auto; flex-shrink:0;" title="${periodName} 수업 상세 및 수정">✏️</button>`;
+
                 return `
-                <tr data-period="${p}">
+                <tr data-period="${p}" class="hover-edit-item">
                     <td style="width: 60px; font-weight:900; color:#475569; background:#f8fafc; vertical-align:middle; border-bottom: 1px solid #cbd5e1;">${periodName}</td>
-                    <td style="width: 120px; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</div></td>
+                    <td style="width: 120px; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                            <span style="font-weight:bold; color:#0f172a;">${pObj.subject || ''}</span>
+                            ${editBtn}
+                        </div>
+                    </td>
                     <td style="vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;"><div style="text-align: left; color:#334155; white-space:pre-wrap;">${pObj.memo || ''}</div></td>
                     <td style="width: 25%; vertical-align:top; padding:10px 8px; border-bottom: 1px dashed #cbd5e1;">
                         <div style="color: #d97706; font-weight: 600; text-align: left; white-space:pre-wrap;">${pObj.supplies || ''}</div>
@@ -309,8 +316,10 @@ export class DayView extends BaseView {
                 const textId = j.id ? 'journal-text-' + j.id : 'journal-text-' + rId;
                 const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='block'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:#64748b; padding:0 4px; margin-right:4px; outline:none;" title="접기/펼치기">▼</button>`;
 
+                const editBtn = `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('journal', '${dateStr}', '${j.id}', '${fId}')" style="margin-left:auto; flex-shrink:0;" title="기록 상세 및 수정">✏️</button>`;
+
                 return `
-                    <div style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4;">
+                    <div class="hover-edit-item" style="display:flex; align-items:flex-start; margin-bottom:12px; line-height:1.4; padding:2px 4px; border-radius:4px;">
                         <div style="margin-top:1px; flex-shrink:0; display:flex; align-items:center;">
                             ${toggleBtnHtml}${chipsHtml}${linkBadgeHtml}
                         </div>
@@ -318,6 +327,7 @@ export class DayView extends BaseView {
                             <div id="${textId}" style="white-space:pre-wrap; word-break:break-all; display:block;">${j.content || ''}</div>
                             <div id="${toggleId}" style="display:block; margin-top:4px;">${attachmentsHtml}</div>
                         </div>
+                        ${editBtn}
                     </div>`;
             }).join('') : `<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 기록이 없습니다.</p>`;
 

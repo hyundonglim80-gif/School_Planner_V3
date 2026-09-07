@@ -497,3 +497,34 @@ td.period-cell { background-color: #fafafa; text-align: center; vertical-align: 
 .eval-table td input[type="text"], .eval-table td select { width: 90%; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; outline: none; transition: 0.2s; color: #334155; }
 .eval-table td input[type="text"]:focus, .eval-table td select:focus { border-color: #94a3b8; }
 .eval-table td input[readonly], .eval-table td select[disabled] { background: #f1f5f9; cursor: not-allowed; color: #94a3b8; }
+
+/* 7. 항목 호버 시 수정 버튼 (.hover-edit-item & .hover-edit-btn) */
+.hover-edit-item {
+    position: relative;
+}
+.hover-edit-btn {
+    display: none !important;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 4px;
+    font-size: 0.75rem;
+    line-height: 1;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    cursor: pointer;
+    color: #475569;
+    transition: all 0.15s ease;
+    z-index: 10;
+}
+.hover-edit-item:hover .hover-edit-btn,
+.hover-edit-item:hover > .hover-edit-btn {
+    display: inline-flex !important;
+}
+.hover-edit-btn:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    transform: scale(1.1);
+}
