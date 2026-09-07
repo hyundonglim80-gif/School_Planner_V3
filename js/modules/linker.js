@@ -43,7 +43,7 @@ export const LinkManager = {
         this.switchTab('event'); 
         
         const periodSelect = document.getElementById('linker-period-select');
-        if (periodSelect) periodSelect.value = '1month';
+        if (periodSelect) periodSelect.value = 'today';
         
         this.updateDateRangeUI();
         await this.fetchMemoData();
@@ -115,6 +115,43 @@ export const LinkManager = {
         document.querySelectorAll('.linker-tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById(`tab-${tab}`).classList.add('active');
         this.renderTabContent();
+    },
+
+    toggleLabelChip: function(el) {
+        const updateStyle = (chip, isActive) => {
+            if (isActive) {
+                chip.style.background = '#3b82f6';
+                chip.style.color = 'white';
+                chip.style.borderColor = '#2563eb';
+            } else {
+                chip.style.background = '#f1f5f9';
+                chip.style.color = '#475569';
+                chip.style.borderColor = '#cbd5e1';
+            }
+        };
+
+        if (el.dataset.val === 'all') {
+            const isActive = el.classList.contains('active');
+            const container = el.closest('.label-chip-container');
+            container.querySelectorAll('.label-chip').forEach(c => {
+                if (!isActive) { c.classList.add('active'); updateStyle(c, true); }
+                else { c.classList.remove('active'); updateStyle(c, false); }
+            });
+        } else {
+            el.classList.toggle('active');
+            updateStyle(el, el.classList.contains('active'));
+            
+            const container = el.closest('.label-chip-container');
+            const allBtn = container.querySelector('.label-chip[data-val="all"]');
+            const otherBtns = Array.from(container.querySelectorAll('.label-chip:not([data-val="all"])'));
+            if (otherBtns.every(b => b.classList.contains('active'))) {
+                allBtn.classList.add('active'); updateStyle(allBtn, true);
+            } else {
+                allBtn.classList.remove('active'); updateStyle(allBtn, false);
+            }
+        }
+        this.currentPage = 1;
+        this.renderListArea();
     },
 
     updateDateRangeUI: function() {
@@ -249,7 +286,9 @@ export const LinkManager = {
         
         // 라벨 필터 (메모는 V3에서 라벨이 없을 수 있으나, 일단 공통 UI에 추가)
         const labels = this.currentTab === 'journal' ? (window.getJournalLabels ? window.getJournalLabels() : []) : (window.getEventLabels ? window.getEventLabels() : []);
-        const labelOptions = `<option value="all">모든 라벨</option>` + labels.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+        const activeStyle = `background:#3b82f6; color:white; border-color:#2563eb;`;
+        const labelOptions = `<span class="label-chip active" data-val="all" onclick="window.LinkManager.toggleLabelChip(this)" style="padding:4px 10px; font-size:0.85rem; margin:0; white-space:nowrap; border-radius:15px; border:1px solid #cbd5e1; cursor:pointer; font-weight:bold; ${activeStyle}">전체</span>` + 
+                             labels.map(l => `<span class="label-chip active" data-val="${l.id}" onclick="window.LinkManager.toggleLabelChip(this)" style="padding:4px 10px; font-size:0.85rem; margin:0; white-space:nowrap; border-radius:15px; border:1px solid #cbd5e1; cursor:pointer; font-weight:bold; ${activeStyle}">${l.name}</span>`).join('');
 
         const dateFilterHtml = isMemo ? '' : `
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
@@ -275,11 +314,11 @@ export const LinkManager = {
         `;
 
         const labelFilterHtml = `
-            <div style="display:flex; gap:8px; align-items:center;">
-                <select id="linker-label-select" onchange="window.LinkManager.renderListArea()" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155; flex-shrink:0;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <div class="label-chip-container" id="linker-label-container" style="display:flex; gap:6px; flex-wrap:wrap;">
                     ${labelOptions}
-                </select>
-                <input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;">
+                </div>
+                <input type="text" id="linker-search" placeholder="키워드로 목록 내 검색..." onkeyup="window.LinkManager.currentPage=1; window.LinkManager.renderListArea()" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; box-sizing:border-box;">
             </div>
         `;
 
@@ -298,12 +337,27 @@ export const LinkManager = {
         if (!area) return;
 
         const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
-        const labelFilter = document.getElementById('linker-label-select')?.value || 'all';
+        
+        // 활성화된 라벨 칩들 (dataset.val === 'all' 제외)
+        const activeLabelChips = Array.from(document.querySelectorAll('#linker-label-container .label-chip.active:not([data-val="all"])')).map(c => c.dataset.val);
+        const isAllActive = document.querySelector('#linker-label-container .label-chip[data-val="all"]')?.classList.contains('active');
         
         let items = this.tabData[this.currentTab] || [];
         
-        if (labelFilter !== 'all') {
-            items = items.filter(i => i.labelIds && i.labelIds.includes(labelFilter));
+        if (!isAllActive) {
+            if (activeLabelChips.length === 0) {
+                items = []; // 선택된 라벨이 없으면 빈 배열
+            } else {
+                items = items.filter(i => {
+                    // 항목에 라벨이 하나라도 있으면 교집합 확인
+                    if (i.labelIds && i.labelIds.length > 0) {
+                        return i.labelIds.some(lId => activeLabelChips.includes(lId));
+                    }
+                    // 라벨이 지정되지 않은 항목은 '미분류' 등 특정 라벨이 선택됐을 때만 보이거나(이 로직에선 안 보임), 
+                    // 혹은 항상 제외. 여기서는 라벨이 없으면 일단 제외
+                    return false; 
+                });
+            }
         }
         
         if (keyword) items = items.filter(i => (i.title || '').toLowerCase().includes(keyword));
