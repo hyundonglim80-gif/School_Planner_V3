@@ -872,6 +872,101 @@ export class DayView extends BaseView {
         }
     }
 
+    openDayAlarmModal(fId, idx) {
+        this.syncEventInputs(fId);
+        const events = this.dayData[fId]?.events;
+        if (!events || !events[idx]) return;
+        const ev = events[idx];
+        const dateStr = this.lockedDateStr || this.dateStr;
+
+        let dVal = dateStr;
+        let tVal = '';
+        if (ev.time) {
+            const parts = ev.time.split('T');
+            dVal = parts[0] || dateStr;
+            tVal = parts[1] || '';
+        }
+
+        let modal = document.getElementById('sp3-alarm-modal-overlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'sp3-alarm-modal-overlay';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:999999; display:flex; align-items:center; justify-content:center;";
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div style="background:#fff; padding:25px; border-radius:12px; width:340px; box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+                <h3 style="margin-top:0; color:#1e40af; font-size:1.3rem; display:flex; align-items:center; gap:8px;">⏰ 알림 시간 설정</h3>
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">날짜 선택</label>
+                    <input type="date" id="day-alarm-popup-date" value="${dVal}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1rem; box-sizing:border-box; cursor:pointer;">
+                </div>
+                <div style="margin-bottom:25px;">
+                    <label style="display:block; font-size:0.9rem; font-weight:bold; color:#475569; margin-bottom:5px;">시간 입력 (24시간제 키보드 입력)</label>
+                    <input type="text" id="day-alarm-popup-time" value="${tVal}" placeholder="예: 1430 (오후 2시 30분)" maxlength="5" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:1.1rem; box-sizing:border-box; text-align:center; letter-spacing:2px; font-weight:bold;" autocomplete="off">
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:8px;">
+                    <button id="btn-day-alarm-off" data-shortcut-added="true" style="padding:10px 15px; background:#fef2f2; color:#ef4444; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">알림 끄기</button>
+                    <div style="display:flex; gap:8px;">
+                        <button id="btn-day-alarm-cancel" data-shortcut-added="true" style="padding:10px 15px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">취소</button>
+                        <button id="btn-day-alarm-save" data-shortcut-added="true" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.95rem;">저장</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+        if (window.increaseModalCount) window.increaseModalCount();
+
+        const closePopup = () => {
+            modal.style.display = 'none';
+            if (window.decreaseModalCount) window.decreaseModalCount();
+        };
+
+        modal.onclick = closePopup;
+        document.getElementById('btn-day-alarm-cancel').onclick = closePopup;
+
+        document.getElementById('btn-day-alarm-off').onclick = () => {
+            ev.time = '';
+            ev.alarmTriggered = false;
+            store.hasUnsavedChanges = true;
+            closePopup();
+            this.renderEventEntries(fId);
+            if (window.showToast) window.showToast('알림이 해제되었습니다.');
+        };
+
+        document.getElementById('btn-day-alarm-save').onclick = () => {
+            const dInput = document.getElementById('day-alarm-popup-date').value;
+            const tInput = document.getElementById('day-alarm-popup-time').value;
+            
+            if (!dInput && (!tInput || tInput.trim() === '')) {
+                ev.time = '';
+            } else {
+                let finalT = (tInput || '').trim().replace(/[^0-9:]/g, '');
+                if (/^\d{3,4}$/.test(finalT.replace(':', ''))) {
+                    let cleanNum = finalT.replace(':', '');
+                    if (cleanNum.length === 3) finalT = '0' + cleanNum[0] + ':' + cleanNum.substring(1);
+                    else finalT = cleanNum.substring(0, 2) + ':' + cleanNum.substring(2);
+                }
+                if (!finalT || finalT.length < 4) finalT = '09:00';
+                ev.time = `${dInput || dateStr}T${finalT}`;
+            }
+            ev.alarmTriggered = false;
+            store.hasUnsavedChanges = true;
+            closePopup();
+            this.renderEventEntries(fId);
+            if (window.showToast) window.showToast('⏰ 알림 시간이 설정되었습니다.');
+        };
+
+        document.getElementById('day-alarm-popup-time').onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('btn-day-alarm-save').click();
+            }
+        };
+        setTimeout(() => document.getElementById('day-alarm-popup-time').focus(), 50);
+    }
+
     renderEventEntries(fId) {
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(!container) return;
@@ -924,7 +1019,7 @@ export class DayView extends BaseView {
             const timeBorder = timeVal ? '#bfdbfe' : '#cbd5e1';
 
             const timeHtml = isAuthor 
-                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
+                  ? `<div onclick="window.dayViewInstance.openDayAlarmModal('${fId}',${idx})" style="display:inline-flex; align-items:center; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; cursor:pointer; margin-right:4px;" title="클릭하여 알림 설정">
                        <span style="font-size:0.75rem; font-weight:bold; color:${timeColor};">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>
                      </div>` 
                   : `<span style="font-size:0.75rem; color:${timeColor}; font-weight:bold; background:${timeBg}; padding:2px 6px; border-radius:4px; border:1px solid ${timeBorder}; margin-right:4px;">${window.CompactEventHelper ? window.CompactEventHelper.formatAlarmTime(timeVal) : ''}</span>`;
