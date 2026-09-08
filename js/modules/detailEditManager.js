@@ -590,7 +590,8 @@ export const DetailEditManager = {
                 delete periods[p];
             }
 
-            await setDoc(docRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
+            // 💡 [수정됨] merge: true 옵션 제거하여 빈 객체가 안전하게 덮어써지도록 개선
+            await setDoc(docRef, { periods: periods, updatedAt: Date.now() });
 
             invalidateCalendarCache();
 

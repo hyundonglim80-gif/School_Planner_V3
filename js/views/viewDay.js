@@ -1739,7 +1739,8 @@ export class DayView extends BaseView {
                 await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
 
                 const scRef = doc(scCol, dateStr);
-                await setDoc(scRef, { periods: pSchedules, updatedAt: Date.now() }, { merge: true });
+                // 💡 [수정됨] merge: true 옵션 제거하여 빈 객체가 안전하게 덮어써지도록 개선
+                await setDoc(scRef, { periods: pSchedules, updatedAt: Date.now() });
             });
             
             await Promise.all(promises);
