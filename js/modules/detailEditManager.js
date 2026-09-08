@@ -3,6 +3,7 @@ import { dbAPI, getUserCol, getGroupCol } from '../api/database.js';
 import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels } from '../core/utils.js';
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { invalidateCalendarCache } from '../core/calendarDataManager.js';
 
 export const DetailEditManager = {
     modal: null,
@@ -151,8 +152,9 @@ export const DetailEditManager = {
                     return;
                 }
                 let eventItem = null;
+                const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
                 // 메모리 우선 검색
-                if (window.dayViewInstance?.dayData?.[fId]?.events) {
+                if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.events) {
                     eventItem = window.dayViewInstance.dayData[fId].events.find(e => String(e.id) === String(itemId));
                 }
                 if (!eventItem && window[`tempEvents_${dateStr}`]) {
@@ -175,8 +177,9 @@ export const DetailEditManager = {
             else if (type === 'schedule') {
                 let scheduleItem = null;
                 const p = Number(itemId);
+                const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
                 // 메모리 우선 검색
-                if (window.dayViewInstance?.dayData?.[fId]?.schedules?.[p]) {
+                if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.schedules?.[p]) {
                     scheduleItem = window.dayViewInstance.dayData[fId].schedules[p];
                 }
                 if (!scheduleItem && window[`tempSchedules_${dateStr}`]?.[fId]?.[p]) {
@@ -199,8 +202,9 @@ export const DetailEditManager = {
                     return;
                 }
                 let journalItem = null;
+                const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
                 // 메모리 우선 검색
-                if (window.dayViewInstance?.dayData?.[fId]?.journals) {
+                if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.journals) {
                     journalItem = window.dayViewInstance.dayData[fId].journals.find(j => String(j.id) === String(itemId));
                 }
                 // DB 조회
@@ -551,8 +555,12 @@ export const DetailEditManager = {
                 updatedAt: Date.now() 
             }, { merge: true });
 
+            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
+            invalidateCalendarCache();
+
             // 메모리 동기화
-            if (window.dayViewInstance?.dayData?.[fId]?.events) {
+            const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
+            if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.events) {
                 const memList = window.dayViewInstance.dayData[fId].events;
                 const memItem = memList.find(e => String(e.id) === String(targetId));
                 if (memItem) {
@@ -614,8 +622,12 @@ export const DetailEditManager = {
 
             await setDoc(docRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
 
+            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
+            invalidateCalendarCache();
+
             // 메모리 동기화
-            if (window.dayViewInstance?.dayData?.[fId]?.schedules) {
+            const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
+            if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.schedules) {
                 if (subject || memo || supplies || oldLinked.length > 0) {
                     window.dayViewInstance.dayData[fId].schedules[p] = { subject, memo, supplies, linkedItems: oldLinked };
                 } else {
@@ -687,8 +699,12 @@ export const DetailEditManager = {
 
             await setDoc(docRef, { entries: list, updatedAt: Date.now() }, { merge: true });
 
+            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
+            invalidateCalendarCache();
+
             // 메모리 동기화
-            if (window.dayViewInstance?.dayData?.[fId]?.journals) {
+            const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
+            if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.journals) {
                 const memList = window.dayViewInstance.dayData[fId].journals;
                 const memItem = memList.find(j => String(j.id) === String(targetId));
                 if (memItem) {
@@ -757,6 +773,9 @@ export const DetailEditManager = {
                 await this.clearSchedule();
                 return;
             }
+
+            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
+            invalidateCalendarCache();
 
             this.cachedInputs = null;
             this.close();

@@ -1,6 +1,6 @@
 // sw.js (Service Worker)
-// 🌟 캐시 버전을 v6로 올려 브라우저가 새로운 서비스 워커를 설치하도록 유도
-const CACHE_NAME = 'sp3-offline-cache-v3.753';
+// 🌟 캐시 버전을 v3.754로 올려 브라우저가 새로운 서비스 워커를 설치하도록 유도
+const CACHE_NAME = 'sp3-offline-cache-v3.754';
 
 self.addEventListener('install', event => {
     self.skipWaiting();
@@ -43,7 +43,6 @@ self.addEventListener('fetch', event => {
             }).catch(() => {
                 // 🌟 인터넷이 끊겼을 때 캐시에서 HTML 꺼내오기
                 return caches.match(event.request).then(cachedResponse => {
-                    // 캐시도 비어있을 경우 에러 방지를 위해 임시 응답 객체 반환 (Failed to convert value to 'Response' 방어)
                     return cachedResponse || new Response('오프라인 상태이며 저장된 페이지가 없습니다. 인터넷을 연결해주세요.', { 
                         status: 503, 
                         headers: { 'Content-Type': 'text/plain; charset=utf-8' } 
@@ -54,25 +53,22 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // 나머지 파일(JS, CSS, 이미지 등)은 속도를 위해 기존처럼 캐시 우선 (Cache First 전략)
+    // 🌟 JS, CSS 등 정적 자원도 항상 네트워크 우선 (Network First 전략)
+    // 네트워크 연결 시 항상 최신 코드를 로드하여 F5 새로고침 시에도 최신 버전이 즉시 반영되며, 오프라인 시에만 캐시 사용
     event.respondWith(
-        caches.match(event.request).then(cachedResponse => {
-            if (cachedResponse) {
-                return cachedResponse;
-            }
-            return fetch(event.request).then(response => {
-                if (!response || response.status !== 200 || response.type !== 'basic') {
-                    return response;
-                }
+        fetch(event.request).then(response => {
+            if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
                 const clonedResponse = response.clone();
                 caches.open(CACHE_NAME).then(cache => {
                     cache.put(event.request, clonedResponse);
                 });
-                return response;
-            }).catch(() => {
-                // 🌟 인터넷도 없고 캐시도 없을 경우 에러 방지를 위해 빈 응답 반환
-                return new Response('', { status: 503, statusText: 'Offline' });
+            }
+            return response;
+        }).catch(() => {
+            // 오프라인 또는 네트워크 장애 시 캐시에서 꺼내 반환
+            return caches.match(event.request).then(cachedResponse => {
+                return cachedResponse || new Response('', { status: 503, statusText: 'Offline' });
             });
         })
     );
-});
+});
