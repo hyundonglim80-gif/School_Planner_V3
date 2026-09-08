@@ -31,7 +31,7 @@ export const openHelpModal = function() {
                     <ul style="padding-left:20px; margin:5px 0;">
                         <li style="margin-bottom:6px;"><b>네트워크 상태 (🌐/✈️):</b> 현재 온라인인지 오프라인인지 표시합니다. 클릭하여 모드를 전환할 수 있으며, 오프라인 모드일 때는 수동 동기화(🔄) 버튼이 나타나 원할 때만 클라우드와 데이터를 맞출 수 있습니다.</li>
                         <li style="margin-bottom:6px;"><b>D-Day 설정:</b> 학사 일정이나 중요 행사의 디데이를 설정하고 표시합니다.</li>
-                        <li style="margin-bottom:6px;"><b>빠른 동기화 (📅):</b> 현재 화면에 작성된 일정을 구글 캘린더와 즉시 연동합니다.</li>
+                        <li style="margin-bottom:6px;"><b>구글 캘린더 내보내기 (📅):</b> 현재 화면에 작성된 일정을 구글 캘린더와 즉시 연동합니다.</li>
                         <li style="margin-bottom:6px;"><b>검색 (🔍):</b> 과거의 메모나 일정을 빠르게 찾아볼 수 있습니다.</li>
                         <li style="margin-bottom:6px;"><b>보기 단위 전환:</b> 하루 / 주간 / 월간 / 년간 / 메모 버튼을 눌러 원하는 기간 단위로 화면을 이동합니다.</li>
                     </ul>
@@ -158,14 +158,14 @@ export const openHelpModal = function() {
                             </tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">모드 전환</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + ⬆️</td><td style="padding:6px; color:#64748b;">보기 모드로 전환</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">작성 및 저장</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + ⬇️</td><td style="padding:6px; color:#64748b;">작성 모드 전환 (또는 수정 내용 저장)</td></tr>
-                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">항목 추가/저장</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Enter</td><td style="padding:6px; color:#64748b;">저장 완료 (메모 페이지에서는 새 메모 추가)</td></tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">항목 추가/저장</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + S</td><td style="padding:6px; color:#64748b;">저장 완료 (메모 페이지에서는 새 메모 추가)</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">오늘로 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Space</td><td style="padding:6px; color:#64748b;">오늘 날짜의 화면으로 즉시 복귀</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">날짜 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + ⬅️ / ➡️</td><td style="padding:6px; color:#64748b;">이전 날짜(기간) / 다음 날짜(기간)로 이동</td></tr>
-                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">화면(탭) 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + 1 ~ 5</td><td style="padding:6px; color:#64748b;">하루(1), 주간(2), 월간(3), 년간(4), 메모(5)로 화면 이동</td></tr>
-                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">검색창 열기</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + &#96;</td><td style="padding:6px; color:#64748b;">검색창 활성화</td></tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">화면(탭) 이동</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + ⬅️ / ➡️</td><td style="padding:6px; color:#64748b;">하루, 주간, 월간, 년간, 메모 탭 간 화면 이동</td></tr>
+                            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">찾기</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + F</td><td style="padding:6px; color:#64748b;">검색창 활성화</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">주말 표시 토글</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Shift + ⬆️ / ⬇️</td><td style="padding:6px; color:#64748b;">주말 숨기기 / 보이기</td></tr>
                             <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:6px;">수업 표시 토글</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Alt + ⬆️ / ⬇️</td><td style="padding:6px; color:#64748b;">수업 숨기기 / 보이기</td></tr>
-                            <tr><td style="padding:6px;">빠른 동기화</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Shift + Enter</td><td style="padding:6px; color:#64748b;">구글 캘린더 즉시 연동</td></tr>
+                            <tr><td style="padding:6px;">구글 캘린더 내보내기</td><td style="padding:6px; font-weight:bold; color:#2563eb;">Ctrl + Shift + S</td><td style="padding:6px; color:#64748b;">구글 캘린더 즉시 연동</td></tr>
                         </table>
                     </div>
                 </div>

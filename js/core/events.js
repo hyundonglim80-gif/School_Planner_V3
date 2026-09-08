@@ -103,11 +103,26 @@ document.addEventListener('keydown', function(event) {
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
 
-  if (event.ctrlKey && event.key === 'Enter') {
+  // 구글 캘린더 내보내기 (빠른 동기화): Ctrl + Shift + S
+  if (event.ctrlKey && event.shiftKey && (event.key === 's' || event.key === 'S')) {
+    event.preventDefault();
+    if(window.quickGoogleSync) window.quickGoogleSync();
+    return;
+  }
+
+  // 항목 추가/저장: Ctrl + S
+  if (event.ctrlKey && !event.shiftKey && (event.key === 's' || event.key === 'S')) {
     event.preventDefault();
     if (store.mode === 'editor') {
       if(window.saveCurrentViewData) window.saveCurrentViewData();
     }
+    return;
+  }
+
+  // 찾기: Ctrl + F
+  if (event.ctrlKey && !event.shiftKey && (event.key === 'f' || event.key === 'F')) {
+    event.preventDefault();
+    if (typeof window.openSearchModal === 'function') window.openSearchModal();
     return;
   }
 
@@ -164,12 +179,6 @@ document.addEventListener('keydown', function(event) {
       if (currentIndex !== -1 && currentIndex < scopeOrder.length - 1 && window.setScope) {
           window.setScope(scopeOrder[currentIndex + 1]);
       }
-    }
-  }
-  else {
-    if (event.key === '/') { 
-      event.preventDefault();
-      if (typeof window.openSearchModal === 'function') window.openSearchModal();
     }
   }
 });
