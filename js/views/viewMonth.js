@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { formatDate, parseLocalDate, getEventLabels, getJournalLabels, getLabelStyle, isRedDay, getHolidayName } from '../core/utils.js';
 import { dbAPI, getUserCol, getGroupCol } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js';
-import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList } from '../core/eventManager.js';
+import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList, generateForwardEventsSectionHTML, isForwardEvent } from '../core/eventManager.js';
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
@@ -213,6 +213,26 @@ export class MonthView extends BaseView {
   async buildViewerChunk(y, m) {
       const { eMap, sMap, jMap, vMap, calendarStartDate, calendarEndDate } = await this.fetchMonthData(y, m);
       
+	  // 💡 이번 달 완료 속성(isForward: true) 일정 집계
+      const allForwardEvents = [];
+      renderDays.forEach(dateObj => {
+          const dateStr = formatDate(dateObj);
+          filters.forEach(fId => {
+              const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+              fEvents.forEach(e => {
+                  if (isForwardEvent(e, masterEventLabels)) {
+                      allForwardEvents.push({
+                          ...e,
+                          dateStr: dateStr,
+                          sharedGroupId: fId === 'personal' ? null : fId,
+                          groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
+                      });
+                  }
+              });
+          });
+      });
+      this.currentMonthForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, `${y}년 ${m + 1}월 완료 속성 일정`);
+	  
       const filters = window.activeUnifiedFilters || ['personal'];
       const filterCount = filters.length;
       const realTodayStr = formatDate(new Date());
@@ -529,6 +549,30 @@ export class MonthView extends BaseView {
                 </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
+			
+			const y = store.currentDate.getFullYear();
+			const m = store.currentDate.getMonth();
+			
+			this.container.innerHTML = `
+			  <div style="padding-top:15px;">
+				<table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-month-container">
+					<tbody id="lazy-month-tbody"><tr><td style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
+				</table>
+			  </div>
+			  <div id="month-forward-section-container"></div>`;
+			  
+			const chunkHtml = await this.buildViewerChunk(y, m);
+			requestAnimationFrame(() => {
+				const tbody = document.getElementById('lazy-month-tbody');
+				if (tbody) {
+					tbody.outerHTML = chunkHtml;
+				}
+				const fContainer = document.getElementById('month-forward-section-container');
+				if (fContainer && this.currentMonthForwardHtml) {
+					fContainer.innerHTML = this.currentMonthForwardHtml;
+				}
+			});
+			
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
 

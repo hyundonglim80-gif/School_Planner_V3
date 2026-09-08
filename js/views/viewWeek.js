@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getLabelStyle, isRedDay, getHolidayName } from '../core/utils.js';
 import { dbAPI } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js';
-import { generateEventBadgesHTML } from '../core/eventManager.js';
+import { generateEventBadgesHTML, generateForwardEventsSectionHTML, isForwardEvent } from '../core/eventManager.js';
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 
@@ -222,6 +222,24 @@ export class WeekView extends BaseView {
 
   async buildViewerChunk(baseDateStr) {
       const { eMap, sMap, jMap, vMap, weekDates } = await this.fetchWeekData(baseDateStr);
+	  const allForwardEvents = [];
+      const masterLabels = getEventLabels();
+      weekDates.forEach(d => {
+          filters.forEach(fId => {
+              const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+              fEvents.forEach(e => {
+                  if (isForwardEvent(e, masterLabels)) {
+                      allForwardEvents.push({
+                          ...e,
+                          dateStr: d.dateStr,
+                          sharedGroupId: fId === 'personal' ? null : fId,
+                          groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
+                      });
+                  }
+              });
+          });
+      });
+      this.currentWeekForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, '이번 주 완료 속성 일정');
       const realTodayStr = formatDate(new Date());
       const filters = window.activeUnifiedFilters || ['personal'];
       const filterCount = filters.length;
@@ -542,6 +560,26 @@ export class WeekView extends BaseView {
                 </div>
                 <div id="week-bottom-sentinel" style="height:20px; width:100%;"></div>
             `;
+			
+			const startOfWeekStr = this.getWeekDates()[0].dateStr;
+			this.container.innerHTML = `
+				<div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
+					<table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-week-container">
+						${colgroupHtml}
+						<tbody id="lazy-week-tbody"><tr><td colspan="${maxP + 2}" style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
+					</table>
+				</div>
+				<div id="week-forward-section-container"></div>`;
+			
+			const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
+			requestAnimationFrame(() => {
+				const tbody = document.getElementById('lazy-week-tbody');
+				if (tbody) tbody.outerHTML = chunkHtml;
+				const fContainer = document.getElementById('week-forward-section-container');
+				if (fContainer && this.currentWeekForwardHtml) fContainer.innerHTML = this.currentWeekForwardHtml;
+			});
+		
+		
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
 

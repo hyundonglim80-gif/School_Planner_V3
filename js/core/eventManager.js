@@ -5,6 +5,24 @@ import { formatDate, parseLocalDate, getEventLabels, getLabelStyle, getSemesterD
 import { getUserCol, getGroupCol, dbAPI } from '../api/database.js';
 import { auth, db } from '../api/firebaseInit.js';
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
+import { invalidateCalendarCache } from './calendarDataManager.js';
+
+// ============================================================================
+// 완료 속성 판별 및 공통 헬퍼
+// ============================================================================
+export const isForwardEvent = (e, masterLabels = null) => {
+    if (!e) return false;
+    const labels = masterLabels || getEventLabels();
+    const eLabelIds = e.labelIds || [];
+    if (eLabelIds.length > 0) {
+        return eLabelIds.some(id => labels.find(l => l.id === id)?.isForward);
+    }
+    const legacyNames = e.labels || (e.label ? [e.label] : []);
+    if (legacyNames.length > 0) {
+        return legacyNames.some(name => labels.find(l => l.name === name)?.isForward);
+    }
+    return false;
+};
 
 // ============================================================================
 // 1. 데이터 변환 및 HTML 뱃지 생성 로직 (순수 함수)
@@ -62,7 +80,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
-    // 💡 월간/주간(compact) 보기에서 간격을 최소화하기 위해 gap과 margin 축소
     let html = `<div style="display:flex; flex-direction:column; gap:1px; margin-top:0;">`;
 
     eventList.forEach((e, index) => {
@@ -102,7 +119,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
-                // 💡 [수정] flex가 풀려도 인라인으로 자연스럽게 따라붙도록 display:inline-block 처리
                 return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; transition:0.2s; display:inline-block; margin-right:2px; vertical-align:middle;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
             }).join('');
         }
@@ -115,13 +131,11 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
         }
 
         const linkCount = (e.linkedItems || []).length;
-        // 💡 [수정] 링크 버튼 역시 인라인으로 자연스럽게 이어지도록 vertical-align 추가
         const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:0px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-right:2px; margin-left:2px; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
         const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:2px; vertical-align:middle; background:transparent; border:none; cursor:pointer;">✏️</button>` : '';
 
         if (viewType === 'compact') {
-            // 💡 [수정] flex를 풀고 inline 속성을 활용해 라벨, 뱃지, 링크, 텍스트가 왼쪽 끝부터 자연스럽게 줄바꿈(wrap) 되도록 구현
             html += `
             <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="border: 1px solid transparent; border-radius:4px; padding:2px; margin: 0; box-sizing: border-box; background: rgba(255,255,255,0.5); font-size:0.8rem; line-height:1.4;">
                 ${editBtn}${badgesHtml}${linkBadge}<span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; vertical-align:middle; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
@@ -140,6 +154,173 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     });
     html += `</div>`;
     return html;
+};
+
+// ============================================================================
+// 🌟 공통 완료 속성 일정 모아보기 섹션 HTML 렌더러
+// ============================================================================
+export const generateForwardEventsSectionHTML = (forwardEvents = [], title = '완료 속성 일정 모아보기') => {
+    const masterLabels = getEventLabels();
+
+    const pendingEvents = forwardEvents.filter(e => !e.completed);
+    const completedEvents = forwardEvents.filter(e => !!e.completed);
+
+    const totalCount = forwardEvents.length;
+    const pendingCount = pendingEvents.length;
+    const completedCount = completedEvents.length;
+
+    if (totalCount === 0) {
+        return `
+        <div class="forward-events-section" style="background:#fff; padding:15px; border-radius:8px; border:1px solid #cbd5e1; border-left:5px solid #10b981; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="font-size:1.1rem; color:#065f46; margin:0; font-weight:bold; display:flex; align-items:center; gap:6px;">
+                    <span>✅</span> ${title}
+                </h3>
+                <span style="font-size:0.85rem; color:#94a3b8;">등록된 완료 속성 일정이 없습니다.</span>
+            </div>
+        </div>`;
+    }
+
+    const renderEventItem = (e) => {
+        const isCompleted = !!e.completed;
+        const pureContent = (e.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+        const dateStr = e.dateStr || e.date || '';
+        const fId = e.sharedGroupId || 'personal';
+
+        let dateBadge = '';
+        if (dateStr) {
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                const dayName = ['일', '월', '화', '수', '목', '금', '토'][dObj.getDay()];
+                dateBadge = `<span style="font-size:0.75rem; font-weight:bold; color:#0369a1; background:#e0f2fe; padding:2px 6px; border-radius:4px; white-space:nowrap; cursor:pointer;" onclick="event.stopPropagation(); window.goToDay('${dateStr}');" title="${dateStr} 일 보기로 이동">📅 ${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)} (${dayName})</span>`;
+            }
+        }
+
+        let groupBadge = '';
+        if (e.sharedGroupId) {
+            const gName = e.groupName || (window.currentMyGroups?.find(g => g.id === e.sharedGroupId)?.name) || '그룹';
+            groupBadge = `<span style="font-size:0.75rem; font-weight:bold; color:#047857; background:#ecfdf5; padding:2px 6px; border-radius:4px; border:1px solid #a7f3d0; white-space:nowrap;">👥 ${gName}</span>`;
+        }
+
+        const labelIds = e.labelIds || [];
+        const labelChips = labelIds.map(id => {
+            const lObj = masterLabels.find(l => l.id === id);
+            if (!lObj) return '';
+            const style = getLabelStyle(id, 'event');
+            return `<span style="display:inline-block; padding:1px 5px; font-size:0.75rem; font-weight:bold; border-radius:4px; background:${style.bg}; color:${style.text}; border:1px solid ${style.border}; white-space:nowrap;">${lObj.name}</span>`;
+        }).join('');
+
+        const linkCount = (e.linkedItems || []).length;
+        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기">📑 ${linkCount}</button>` : '';
+
+        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id}', '${fId}')" title="일정 수정" style="margin-right:2px; flex-shrink:0;">✏️</button>` : '';
+
+        const textStyle = isCompleted 
+            ? 'color:#94a3b8; text-decoration:line-through; font-style:italic;' 
+            : 'color:#1e293b; font-weight:500;';
+
+        return `
+        <div class="hover-edit-item" style="display:flex; align-items:flex-start; gap:8px; padding:6px 8px; border-radius:6px; border:1px solid ${isCompleted ? '#e2e8f0' : '#cbd5e1'}; background:${isCompleted ? '#f8fafc' : '#ffffff'}; transition:all 0.15s ease;">
+            <div style="padding-top:2px; display:flex; align-items:center;">
+                <input type="checkbox" ${isCompleted ? 'checked' : ''} onclick="event.stopPropagation(); window.toggleForwardEventStatus('${dateStr}', '${e.id}', '${fId}', ${isCompleted});" style="width:17px; height:17px; cursor:pointer; accent-color:#059669;" title="완료 상태 변경">
+            </div>
+            ${editBtn}
+            <div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; flex-shrink:0;">
+                ${dateBadge}
+                ${groupBadge}
+                ${labelChips}
+            </div>
+            <div style="flex:1; min-width:0; font-size:0.9rem; line-height:1.4; word-break:break-all; ${textStyle}">
+                ${pureContent}
+            </div>
+            ${linkBadge}
+        </div>`;
+    };
+
+    const pendingListHtml = pendingEvents.length > 0 
+        ? pendingEvents.map(renderEventItem).join('') 
+        : '<div style="color:#94a3b8; font-size:0.85rem; padding:6px 4px;">진행 중인 일정이 없습니다.</div>';
+
+    const completedListHtml = completedEvents.length > 0 
+        ? completedEvents.map(renderEventItem).join('') 
+        : '<div style="color:#94a3b8; font-size:0.85rem; padding:6px 4px;">완료된 일정이 없습니다.</div>';
+
+    return `
+    <div class="forward-events-section" style="background:#fff; padding:16px 18px; border-radius:8px; border:1px solid #cbd5e1; border-left:5px solid #059669; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-top:25px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <h3 style="font-size:1.15rem; color:#047857; margin:0; font-weight:800; display:flex; align-items:center; gap:6px;">
+                    <span>✅</span> ${title}
+                </h3>
+                <span style="font-size:0.8rem; font-weight:bold; color:#065f46; background:#ecfdf5; padding:2px 8px; border-radius:12px; border:1px solid #a7f3d0;">
+                    미완료 ${pendingCount} / 완료 ${completedCount} (총 ${totalCount}개)
+                </span>
+            </div>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+                <div style="font-size:0.85rem; font-weight:bold; color:#047857; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+                    <span>📌 진행 중 (${pendingCount})</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    ${pendingListHtml}
+                </div>
+            </div>
+
+            ${completedCount > 0 ? `
+            <div style="border-top:1px dashed #e2e8f0; padding-top:10px;">
+                <div style="font-size:0.85rem; font-weight:bold; color:#64748b; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="const el=this.nextElementSibling; const isHidden = el.style.display==='none'; el.style.display = isHidden ? 'flex' : 'none'; this.querySelector('.toggle-arrow').textContent = isHidden ? '▲' : '▼';">
+                    <span>✓ 완료됨 (${completedCount})</span>
+                    <span class="toggle-arrow" style="font-size:0.75rem; color:#94a3b8;">▲</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    ${completedListHtml}
+                </div>
+            </div>` : ''}
+        </div>
+    </div>`;
+};
+
+// ============================================================================
+// 🌟 전역 완료 속성 체크 토글 핸들러
+// ============================================================================
+window.toggleForwardEventStatus = async function(dateStr, eventId, fId, currentStatus) {
+    const willBeComplete = !currentStatus;
+    const colFunc = (fId && fId !== 'personal') ? (col) => getGroupCol(fId, col) : getUserCol;
+    const docRef = doc(colFunc('events'), dateStr);
+
+    try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            const list = snap.data().eventList || [];
+            const ev = list.find(e => String(e.id) === String(eventId));
+            if (ev) {
+                ev.completed = willBeComplete;
+                await setDoc(docRef, {
+                    eventList: list,
+                    eventText: formatEventListToText(list),
+                    updatedAt: Date.now()
+                }, { merge: true });
+            }
+        }
+
+        if (window.dayViewInstance?.dayData?.[fId || 'personal']?.events) {
+            const ev = window.dayViewInstance.dayData[fId || 'personal'].events.find(e => String(e.id) === String(eventId));
+            if (ev) ev.completed = willBeComplete;
+        }
+        if (window[`tempEvents_${dateStr}`]) {
+            const ev = window[`tempEvents_${dateStr}`].find(e => String(e.id) === String(eventId));
+            if (ev) ev.completed = willBeComplete;
+        }
+
+        invalidateCalendarCache();
+        if (window.showToast) window.showToast(willBeComplete ? '✅ 일정을 완료했습니다.' : '일정을 미완료 상태로 변경했습니다.');
+        if (window.render) window.render();
+    } catch(e) {
+        console.error("완료 상태 변경 오류:", e);
+    }
 };
 
 // ============================================================================
@@ -339,7 +520,7 @@ export const EventManager = {
         while (curD <= endD) {
             if (isPeriod) {
                 const day = curD.getDay();
-                if (!(excludeWeekend && (day === 0 || day === 6))) datesToSave.push(formatDate(curD));
+                if (!(excludeWeekend && (day === 0 || day === 0 || day === 6))) datesToSave.push(formatDate(curD));
             } else {
                 if (curD.getDay() === targetDayOfWeek) datesToSave.push(formatDate(curD));
             }
