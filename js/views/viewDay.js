@@ -209,7 +209,7 @@ export class DayView extends BaseView {
         const masterLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
 
-        // 💡 [추가됨] 하루 페이지 당일 완료 속성(isForward) 일정 집계
+        // 💡 당일 완료 속성(isForward) 일정 집계
         const allForwardEvents = [];
         filters.forEach(fId => {
             const events = this.dayData[fId]?.events || [];
