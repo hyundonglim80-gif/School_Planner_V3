@@ -16,6 +16,7 @@ export class MonthView extends BaseView {
     this.scheduleGroupId = null; 
     this.isRendering = false; 
     this.renderId = 0; 
+    this.currentMonthForwardHtml = '';
     
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
@@ -213,26 +214,6 @@ export class MonthView extends BaseView {
   async buildViewerChunk(y, m) {
       const { eMap, sMap, jMap, vMap, calendarStartDate, calendarEndDate } = await this.fetchMonthData(y, m);
       
-	  // 💡 이번 달 완료 속성(isForward: true) 일정 집계
-      const allForwardEvents = [];
-      renderDays.forEach(dateObj => {
-          const dateStr = formatDate(dateObj);
-          filters.forEach(fId => {
-              const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
-              fEvents.forEach(e => {
-                  if (isForwardEvent(e, masterEventLabels)) {
-                      allForwardEvents.push({
-                          ...e,
-                          dateStr: dateStr,
-                          sharedGroupId: fId === 'personal' ? null : fId,
-                          groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
-                      });
-                  }
-              });
-          });
-      });
-      this.currentMonthForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, `${y}년 ${m + 1}월 완료 속성 일정`);
-	  
       const filters = window.activeUnifiedFilters || ['personal'];
       const filterCount = filters.length;
       const realTodayStr = formatDate(new Date());
@@ -252,6 +233,26 @@ export class MonthView extends BaseView {
           if (this.isWeekendVisible || (dayOfWeekNum !== 0 && dayOfWeekNum !== 6)) renderDays.push(new Date(currIterDate));
           currIterDate.setDate(currIterDate.getDate() + 1);
       }
+
+      // 💡 해당 월 완료 속성 일정 집계
+      const allForwardEvents = [];
+      renderDays.forEach(dateObj => {
+          const dateStr = formatDate(dateObj);
+          filters.forEach(fId => {
+              const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
+              fEvents.forEach(e => {
+                  if (isForwardEvent(e, masterEventLabels)) {
+                      allForwardEvents.push({
+                          ...e,
+                          dateStr: dateStr,
+                          sharedGroupId: fId === 'personal' ? null : fId,
+                          groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
+                      });
+                  }
+              });
+          });
+      });
+      this.currentMonthForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, `${y}년 ${m + 1}월 완료 속성 일정`);
 
       const daysHtml = renderDays.map(dateObj => {
           const dateStr = formatDate(dateObj);
@@ -422,25 +423,6 @@ export class MonthView extends BaseView {
           const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
           const todayClass = isToday ? 'month-today-cell' : '';
 
-          let totalJournals = 0;
-          let totalEvals = 0;
-          let totalAttachments = 0;
-
-          filters.forEach(fId => {
-              const jList = jMap[dateStr]?.[fId] || [];
-              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              totalJournals += validJournals.length;
-              validJournals.forEach(j => { if (j.attachments) totalAttachments += j.attachments.length; });
-              
-              const vList = vMap[dateStr]?.[fId] || [];
-              totalEvals += vList.length;
-          });
-
-          let totalMetaBadgesHtml = '';
-          if (totalJournals > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-top:4px;" title="기록">📔${totalJournals}</span>`;
-          if (totalEvals > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-top:2px;" title="조사표">📊${totalEvals}</span>`;
-          if (totalAttachments > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; border:1px solid #cbd5e1; margin-top:2px;" title="첨부파일">📎${totalAttachments}</span>`;
-
           let rowsHtmlForDate = '';
 
           filters.forEach((fId, idx) => {
@@ -452,28 +434,43 @@ export class MonthView extends BaseView {
               const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
               let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
+              
+              const jList = jMap[dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              const vList = vMap[dateStr]?.[fId] || [];
+
+              let attachmentCount = 0;
+              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
+
+              let metaBadges = '';
+              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
+              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
+              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
+
+              if (metaBadges) {
+                  eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
+              }
 
               const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-month-date="${dateStr}" class="month-row-${dateStr}">
-                    <td rowspan="${totalRows}" class="${todayClass}" style="padding:4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:90px;">
-                      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
+                      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                         <span onclick="window.goToDay('${dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${dateStr} 일 보기로 이동">${d}일</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
                         ${holidayHtml}
-                        <div style="display:flex; flex-direction:column; align-items:center;">${totalMetaBadgesHtml}</div>
                       </div>
                     </td>
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정<br>${badgeHtml}<br>${addBtnHtml}</td>
-                    <td colspan="${maxP}" style="text-align:left; padding:4px 6px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="month-row-${dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정<br>${badgeHtml}<br>${addBtnHtml}</td>
-                    <td colspan="${maxP}" style="text-align:left; padding:4px 6px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
@@ -496,7 +493,7 @@ export class MonthView extends BaseView {
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
                       if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-                      return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 4px 6px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+                      return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
                   rowsHtmlForDate += `<tr data-month-schedule-date="${dateStr}" data-fid="${fId}" class="month-row-${dateStr}">
@@ -509,7 +506,7 @@ export class MonthView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:10px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; text-align:center; border:1px solid #bfdbfe;">${y}년 ${m + 1}월</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:15px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; text-align:center; border:1px solid #bfdbfe;">${y}년 ${m + 1}월</td></tr>` : '';
       return `<tbody class="month-chunk" data-y="${y}" data-m="${m}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
@@ -530,12 +527,12 @@ export class MonthView extends BaseView {
 
             this.renderedDateStrings = [];
             this.loadedMonths = [];
-            let chunkHtml = '';
+            let infiniteChunkHtml = '';
 
             for (let i = 0; i < 5; i++) {
                 const y = currentTargetDate.getFullYear();
                 const m = currentTargetDate.getMonth();
-                chunkHtml += await this.buildViewerChunk(y, m);
+                infiniteChunkHtml += await this.buildViewerChunk(y, m);
                 this.loadedMonths.push({y, m});
                 currentTargetDate.setMonth(currentTargetDate.getMonth() + 1);
             }
@@ -544,35 +541,12 @@ export class MonthView extends BaseView {
                 <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
                 <div id="infinite-viewer-container" style="padding-top:10px;">
                   <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
-                    ${chunkHtml}
+                    ${infiniteChunkHtml}
                   </table>
                 </div>
                 <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>
+                <div id="month-forward-section-container">${this.currentMonthForwardHtml || ''}</div>
             `;
-			
-			const y = store.currentDate.getFullYear();
-			const m = store.currentDate.getMonth();
-			
-			this.container.innerHTML = `
-			  <div style="padding-top:15px;">
-				<table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-month-container">
-					<tbody id="lazy-month-tbody"><tr><td style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
-				</table>
-			  </div>
-			  <div id="month-forward-section-container"></div>`;
-			  
-			const chunkHtml = await this.buildViewerChunk(y, m);
-			requestAnimationFrame(() => {
-				const tbody = document.getElementById('lazy-month-tbody');
-				if (tbody) {
-					tbody.outerHTML = chunkHtml;
-				}
-				const fContainer = document.getElementById('month-forward-section-container');
-				if (fContainer && this.currentMonthForwardHtml) {
-					fContainer.innerHTML = this.currentMonthForwardHtml;
-				}
-			});
-			
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
 
@@ -592,17 +566,22 @@ export class MonthView extends BaseView {
             const m = store.currentDate.getMonth();
             
             this.container.innerHTML = `
-              <div style="padding-top:10px;">
+              <div style="padding-top:15px;">
                 <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-month-container">
                     <tbody id="lazy-month-tbody"><tr><td style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
                 </table>
-              </div>`;
+              </div>
+              <div id="month-forward-section-container"></div>`;
               
-            const chunkHtml = await this.buildViewerChunk(y, m);
+            const lazyChunkHtml = await this.buildViewerChunk(y, m);
             requestAnimationFrame(() => {
                 const tbody = document.getElementById('lazy-month-tbody');
                 if (tbody) {
-                    tbody.outerHTML = chunkHtml;
+                    tbody.outerHTML = lazyChunkHtml;
+                }
+                const fContainer = document.getElementById('month-forward-section-container');
+                if (fContainer && this.currentMonthForwardHtml) {
+                    fContainer.innerHTML = this.currentMonthForwardHtml;
                 }
             });
         }
@@ -623,8 +602,8 @@ export class MonthView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         const maxP = store.periodNames ? store.periodNames.length : 6;
-        const colgroupHtml = `<colgroup><col style="width: 90px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
-        const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
+        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
+        const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
 
         this.renderedDateStrings = [];
 
@@ -633,23 +612,23 @@ export class MonthView extends BaseView {
             currentTargetDate.setMonth(currentTargetDate.getMonth() - 2);
 
             this.loadedMonths = [];
-            let chunkHtml = '';
+            let infiniteChunkHtml = '';
 
             for (let i = 0; i < 5; i++) {
                 const y = currentTargetDate.getFullYear();
                 const m = currentTargetDate.getMonth();
-                chunkHtml += await this.buildEditorChunk(y, m);
+                infiniteChunkHtml += await this.buildEditorChunk(y, m);
                 this.loadedMonths.push({y, m});
                 currentTargetDate.setMonth(currentTargetDate.getMonth() + 1);
             }
 
             this.container.innerHTML = `
               <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-              <div class="table-container" style="background:#fff; padding:8px; border-radius:8px; overflow:visible;">
+              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
                 <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background: #fff;">${headerTr}</thead>
-                  <tbody id="infinite-editor-container" style="display:contents;">${chunkHtml}</tbody>
+                  <tbody id="infinite-editor-container" style="display:contents;">${infiniteChunkHtml}</tbody>
                 </table>
               </div>
               <div id="month-bottom-sentinel" style="height:20px; width:100%;"></div>`;
@@ -672,7 +651,7 @@ export class MonthView extends BaseView {
             const m = store.currentDate.getMonth();
             
             this.container.innerHTML = `
-              <div class="table-container" style="background:#fff; padding:8px; border-radius:8px; overflow:visible; margin-top:10px;">
+              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top:15px;">
                 <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="border-bottom: 2px solid #cbd5e1;">${headerTr}</thead>
@@ -680,11 +659,11 @@ export class MonthView extends BaseView {
                 </table>
               </div>`;
               
-            const chunkHtml = await this.buildEditorChunk(y, m);
+            const lazyChunkHtml = await this.buildEditorChunk(y, m);
             requestAnimationFrame(() => {
                 const tbody = document.getElementById('lazy-editor-tbody');
                 if (tbody) {
-                    tbody.outerHTML = chunkHtml;
+                    tbody.outerHTML = lazyChunkHtml;
                 }
             });
         }
