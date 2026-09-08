@@ -103,15 +103,34 @@ document.addEventListener('keydown', function(event) {
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
 
-  // 구글 캘린더 내보내기 (빠른 동기화): Ctrl + Shift + S
-  if (event.ctrlKey && event.shiftKey && (event.key === 's' || event.key === 'S')) {
-    event.preventDefault();
+  // Windows(Ctrl) 및 Mac(Cmd) 호환 지원
+  const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+  // 1. 구글 캘린더 내보내기 (빠른 동기화): Ctrl + Shift + S
+  if (isCtrlOrCmd && event.shiftKey && (event.key === 's' || event.key === 'S')) {
+    event.preventDefault(); // 브라우저 기본 동작 차단
     if(window.quickGoogleSync) window.quickGoogleSync();
     return;
   }
 
-  // 항목 추가/저장: Ctrl + S
-  if (event.ctrlKey && !event.shiftKey && (event.key === 's' || event.key === 'S')) {
+  // 2. 항목 추가/저장: Ctrl + S (크롬 '다른 이름으로 저장' 완벽 차단)
+  if (isCtrlOrCmd && !event.shiftKey && (event.key === 's' || event.key === 'S')) {
+    event.preventDefault(); // 🚨 핵심: 크롬 저장창 뜨는 것을 여기서 차단합니다.
+    if (store.mode === 'editor') {
+      if(window.saveCurrentViewData) window.saveCurrentViewData();
+    }
+    return;
+  }
+
+  // 3. 찾기: Ctrl + F (크롬 기본 검색 바 완벽 차단)
+  if (isCtrlOrCmd && !event.shiftKey && (event.key === 'f' || event.key === 'F')) {
+    event.preventDefault(); // 🚨 핵심: 크롬 기본 찾기 바 뜨는 것을 차단합니다.
+    if (typeof window.openSearchModal === 'function') window.openSearchModal();
+    return;
+  }
+
+  // (기존 하위 호환) 항목 추가/저장: Ctrl + Enter
+  if (isCtrlOrCmd && !event.shiftKey && event.key === 'Enter') {
     event.preventDefault();
     if (store.mode === 'editor') {
       if(window.saveCurrentViewData) window.saveCurrentViewData();
@@ -119,16 +138,10 @@ document.addEventListener('keydown', function(event) {
     return;
   }
 
-  // 찾기: Ctrl + F
-  if (event.ctrlKey && !event.shiftKey && (event.key === 'f' || event.key === 'F')) {
-    event.preventDefault();
-    if (typeof window.openSearchModal === 'function') window.openSearchModal();
-    return;
-  }
-
+  // 사용자가 텍스트 입력창에서 타이핑 중일 때는 일반 방향키 등은 무시
   if (isTyping) return;
 
-  if (event.ctrlKey) {
+  if (isCtrlOrCmd) {
     if (event.code === 'Space' || event.key === ' ') {
         event.preventDefault();
         
@@ -171,6 +184,7 @@ document.addEventListener('keydown', function(event) {
     const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
     const currentIndex = scopeOrder.indexOf(store.scope);
 
+    // 화면(탭) 이동: Shift + 좌/우 화살표
     if (event.key === 'ArrowLeft') { 
       event.preventDefault();
       if (currentIndex > 0 && window.setScope) window.setScope(scopeOrder[currentIndex - 1]);
