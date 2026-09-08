@@ -1565,14 +1565,10 @@ export class DayView extends BaseView {
     }
 
     syncScheduleInputs(fId) {
-        if (!this.isEditorMode()) return;
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
 
-        const wrapper = tbody.closest('.day-schedule-wrapper');
-        const wasHidden = wrapper && window.getComputedStyle(wrapper).display === 'none';
-        if (wasHidden) wrapper.style.display = 'flex';
-
+        this.dayData[fId] = this.dayData[fId] || {};
         this.dayData[fId].schedules = this.dayData[fId].schedules || {};
         
         tbody.querySelectorAll('tr[data-period]').forEach(row => {
@@ -1582,9 +1578,10 @@ export class DayView extends BaseView {
             const supEl = row.querySelector('.cell-supplies');
             if (!subEl && !memoEl && !supEl) return;
 
-            const subject = subEl ? subEl.innerText.trim() : '';
-            const memo = memoEl ? memoEl.innerText.trim() : '';
-            const supplies = supEl ? supEl.innerText.trim() : '';
+            // textContent로 안전하게 가져옴 (display:none 상태에서도 값 보존)
+            const subject = subEl ? (subEl.innerText || subEl.textContent || '').trim() : '';
+            const memo = memoEl ? (memoEl.innerText || memoEl.textContent || '').trim() : '';
+            const supplies = supEl ? (supEl.innerText || supEl.textContent || '').trim() : '';
             
             const oldObj = this.dayData[fId].schedules[p] || {};
             if (subject || memo || supplies || (oldObj.linkedItems && oldObj.linkedItems.length > 0)) { 
@@ -1596,28 +1593,32 @@ export class DayView extends BaseView {
                 delete this.dayData[fId].schedules[p];
             }
         });
-
-        if (wasHidden) wrapper.style.display = 'none';
         store.hasUnsavedChanges = true;
     }
 
     async save() {
         if (this.isRendering) return; 
-        if (!this.isEditorMode()) return; 
+        
+        // 💡 [수정] 모드와 상관없이 dayData에 변경 가능한 데이터가 있으면 저장을 허용
+        const hasDataToSave = this.dayData && Object.keys(this.dayData).length > 0;
+        if (!this.isEditorMode() && !hasDataToSave) return; 
         
         const dateStr = this.lockedDateStr || this.dateStr; 
         
-        window.activeUnifiedFilters.forEach(fId => {
+        // 1. DOM에 남아있는 실시간 입력값 동기화
+        const currentFilters = window.activeUnifiedFilters || ['personal'];
+        currentFilters.forEach(fId => {
             this.syncEventInputs(fId);
             this.syncJournalInputs(fId);
             this.syncScheduleInputs(fId);
         });
 
+        // 2. 그룹 이벤트 수정 확인 모달 처리
         if (!this.isGroupUpdateBypassed && window.EventManager && typeof window.EventManager.showGroupUpdateModal === 'function') {
             let changedGroupEvent = null;
             
-            for (const fId of window.activeUnifiedFilters) {
-                const currentEvents = this.dayData[fId].events;
+            for (const fId of currentFilters) {
+                const currentEvents = this.dayData[fId]?.events || [];
                 const origEvents = this.originalEventsBackup?.[fId]?.events || [];
                 
                 for (let i = 0; i < currentEvents.length; i++) {
@@ -1642,7 +1643,7 @@ export class DayView extends BaseView {
                         changedGroupEvent.cEv.content,
                         async () => { 
                             this.isGroupUpdateBypassed = true; 
-                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                            if(this.originalEventsBackup?.[changedGroupEvent.fId]) {
                                 const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
                                 if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
                             }
@@ -1651,7 +1652,7 @@ export class DayView extends BaseView {
                         },
                         async () => { 
                             this.isGroupUpdateBypassed = true;
-                            if(this.originalEventsBackup[changedGroupEvent.fId]) {
+                            if(this.originalEventsBackup?.[changedGroupEvent.fId]) {
                                 const backupEv = this.originalEventsBackup[changedGroupEvent.fId].events.find(e => e.id === changedGroupEvent.cEv.id);
                                 if(backupEv) backupEv.content = changedGroupEvent.cEv.content;
                             }
@@ -1669,6 +1670,7 @@ export class DayView extends BaseView {
         }
         this.isGroupUpdateBypassed = false; 
 
+        // 3. Firestore 저장용 데이터 스냅샷 빌드
         const snapshot = [{
             dateStr: dateStr,
             validEvents: [],
@@ -1676,11 +1678,11 @@ export class DayView extends BaseView {
             journalsData: {}
         }];
 
-        window.activeUnifiedFilters.forEach(fId => {
+        currentFilters.forEach(fId => {
             const dData = this.dayData[fId];
             if (!dData) return;
 
-            const validEvents = dData.events.filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0));
+            const validEvents = (dData.events || []).filter(e => (e.content || '').trim() !== '' || (e.labelIds && e.labelIds.length > 0));
             validEvents.forEach(e => {
                 if (!e.id) e.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!e.authorId && auth?.currentUser?.uid) e.authorId = auth.currentUser.uid;
@@ -1691,9 +1693,9 @@ export class DayView extends BaseView {
                 snapshot[0].validEvents.push(e);
             });
 
-            snapshot[0].schedulesData[fId] = dData.schedules;
+            snapshot[0].schedulesData[fId] = dData.schedules || {};
 
-            const validJournals = dData.journals.filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0) || (j.attachments && j.attachments.length > 0));
+            const validJournals = (dData.journals || []).filter(j => (j.content || '').trim() !== '' || (j.labelIds && j.labelIds.length > 0) || (j.attachments && j.attachments.length > 0));
             validJournals.forEach(j => {
                 if (!j.id) j.id = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
                 if (!j.authorId && auth?.currentUser?.uid) j.authorId = auth.currentUser.uid;
@@ -1705,113 +1707,84 @@ export class DayView extends BaseView {
             snapshot[0].journalsData[fId] = validJournals;
         });
 
+        // 4. Firestore 비동기 전송
         try {
-            const promises = [];
-            window.activeUnifiedFilters.forEach(fId => {
-                promises.push((async () => {
-                    const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
-                    const pJournals = snapshot[0].journalsData[fId] || [];
-                    const pSchedules = snapshot[0].schedulesData[fId] || {};
+            const promises = currentFilters.map(async (fId) => {
+                const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
+                const pJournals = snapshot[0].journalsData[fId] || [];
+                const pSchedules = snapshot[0].schedulesData[fId] || {};
 
-                    const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
-                    const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
-                    const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
+                const evCol = fId === 'personal' ? getUserCol('events') : getGroupCol(fId, 'events');
+                const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
+                const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
-                    let finalEvents = pEvents;
-                    const evRef = doc(evCol, dateStr);
-                    try {
-                        const evSnap = await getDoc(evRef);
-                        if (evSnap.exists()) {
-                            const remoteEvents = evSnap.data().eventList || [];
-                            const originalEvents = this.originalEventsBackup?.[fId]?.events || [];
-                            const originalMap = new Map(originalEvents.map(e => [e.id, e]));
-                            
-                            // 🌟 작성 페이지에서 사용자가 지정한 pEvents 순서를 100% 최우선 유지
-                            const mergedEvents = [];
-                            const seenIds = new Set();
-                            
-                            pEvents.forEach(le => {
-                                mergedEvents.push(le);
-                                seenIds.add(le.id);
-                            });
-                            
-                            // 다른 사용자가 원격에 새로 추가한 일정만 뒤에 병합
-                            remoteEvents.forEach(re => {
-                                if (!seenIds.has(re.id) && !originalMap.has(re.id)) {
-                                    mergedEvents.push(re);
-                                    seenIds.add(re.id);
-                                }
-                            });
-                            
-                            finalEvents = mergedEvents;
-                        }
-                    } catch(err) { console.warn("일정 병합 오류:", err); }
-
-                    await setDoc(evRef, { 
-                        eventList: finalEvents,
-                        eventText: window.formatEventListToText ? window.formatEventListToText(finalEvents) : '',
-                        updatedAt: Date.now() 
-                    }, { merge: true });
-
-                    let finalJournals = pJournals;
-                    const jrRef = doc(jrCol, dateStr);
-                    try {
-                        const jrSnap = await getDoc(jrRef);
-                        if (jrSnap.exists()) {
-                            const remoteJournals = jrSnap.data().entries || [];
-                            const originalJournals = this.originalEventsBackup?.[fId]?.journals || [];
-                            const originalMap = new Map(originalJournals.map(j => [j.id, j]));
-                            
-                            // 🌟 작성 페이지에서 사용자가 지정한 pJournals 순서를 100% 최우선 유지
-                            const mergedJournals = [];
-                            const seenJournalIds = new Set();
-                            
-                            pJournals.forEach(lj => {
-                                mergedJournals.push(lj);
-                                seenJournalIds.add(lj.id);
-                            });
-                            
-                            // 다른 사용자가 원격에 새로 추가한 기록만 뒤에 병합
-                            remoteJournals.forEach(rj => {
-                                if (!seenJournalIds.has(rj.id) && !originalMap.has(rj.id)) {
-                                    mergedJournals.push(rj);
-                                    seenJournalIds.add(rj.id);
-                                }
-                            });
-                            
-                            finalJournals = mergedJournals;
-                        }
-                    } catch(err) { console.warn("기록 병합 오류:", err); }
-
-                    await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
-
-                    let finalSchedules = { ...pSchedules };
-                    const scRef = doc(scCol, dateStr);
-                    try {
-                        const scSnap = await getDoc(scRef);
-                        if (scSnap.exists()) {
-                            const remotePeriods = scSnap.data().periods || {};
-                            const originalPeriods = this.originalEventsBackup?.[fId]?.schedules || {};
-                            
-                            for (let p in remotePeriods) {
-                                const rJson = JSON.stringify(remotePeriods[p] || {});
-                                const oJson = JSON.stringify(originalPeriods[p] || {});
-                                const lJson = JSON.stringify(pSchedules[p] || {});
-                                
-                                if (oJson === lJson && rJson !== oJson) {
-                                    finalSchedules[p] = remotePeriods[p]; 
-                                }
+                // A. 일정(Events) 저장
+                let finalEvents = pEvents;
+                const evRef = doc(evCol, dateStr);
+                try {
+                    const evSnap = await getDoc(evRef);
+                    if (evSnap.exists()) {
+                        const remoteEvents = evSnap.data().eventList || [];
+                        const originalEvents = this.originalEventsBackup?.[fId]?.events || [];
+                        const originalMap = new Map(originalEvents.map(e => [e.id, e]));
+                        
+                        const mergedEvents = [...pEvents];
+                        const seenIds = new Set(pEvents.map(e => e.id));
+                        
+                        remoteEvents.forEach(re => {
+                            if (!seenIds.has(re.id) && !originalMap.has(re.id)) {
+                                mergedEvents.push(re);
+                                seenIds.add(re.id);
                             }
-                        }
-                    } catch(err) { console.warn("수업 병합 오류:", err); }
+                        });
+                        finalEvents = mergedEvents;
+                    }
+                } catch(err) { console.warn("일정 원격 병합 경고:", err); }
 
-                    await setDoc(scRef, { periods: finalSchedules, updatedAt: Date.now() }, { merge: true });
+                await setDoc(evRef, { 
+                    eventList: finalEvents,
+                    eventText: window.formatEventListToText ? window.formatEventListToText(finalEvents) : '',
+                    updatedAt: Date.now() 
+                }, { merge: true });
 
-                })());
+                // B. 기록(Journals) 저장
+                let finalJournals = pJournals;
+                const jrRef = doc(jrCol, dateStr);
+                try {
+                    const jrSnap = await getDoc(jrRef);
+                    if (jrSnap.exists()) {
+                        const remoteJournals = jrSnap.data().entries || [];
+                        const originalJournals = this.originalEventsBackup?.[fId]?.journals || [];
+                        const originalMap = new Map(originalJournals.map(j => [j.id, j]));
+                        
+                        const mergedJournals = [...pJournals];
+                        const seenJournalIds = new Set(pJournals.map(j => j.id));
+                        
+                        remoteJournals.forEach(rj => {
+                            if (!seenJournalIds.has(rj.id) && !originalMap.has(rj.id)) {
+                                mergedJournals.push(rj);
+                                seenJournalIds.add(rj.id);
+                            }
+                        });
+                        finalJournals = mergedJournals;
+                    }
+                } catch(err) { console.warn("기록 원격 병합 경고:", err); }
+
+                await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
+
+                // C. 수업(Schedules) 저장
+                const scRef = doc(scCol, dateStr);
+                await setDoc(scRef, { periods: pSchedules, updatedAt: Date.now() }, { merge: true });
             });
             
             await Promise.all(promises);
-            invalidateCalendarCache();
+            
+            // 💡 [중요] 저장이 끝난 후 원본 백업본을 최신 데이터로 동기화
+            this.originalEventsBackup = JSON.parse(JSON.stringify(this.dayData));
+            
+            if (typeof invalidateCalendarCache === 'function') {
+                invalidateCalendarCache();
+            }
             
             store.hasUnsavedChanges = false;
         } catch(e) {
