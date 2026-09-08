@@ -1087,9 +1087,7 @@ export class DayView extends BaseView {
                         ${selectedBadges || '<span style="font-size:0.75rem; color:#94a3b8; background:#f1f5f9; padding:2px 6px; border-radius:4px;">(라벨 없음)</span>'}
                         ${forwardedBadge}
                     </div>
-                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">
-                        ${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
-                    </div>
+                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}</div>
                     <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                         ${timeVal ? timeHtml : ''}
                         ${linkBadgeHtml}
@@ -1239,9 +1237,7 @@ export class DayView extends BaseView {
                     <div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0; align-items:center;">
                         ${selectedBadges || '<span style="font-size:0.75rem; color:#be185d; background:#fdf2f8; padding:2px 6px; border-radius:4px;">(라벨 없음)</span>'}
                     </div>
-                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; color:#1e293b;">
-                        ${j.content ? j.content : '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
-                    </div>
+                    <div style="flex:1; min-width:0; white-space:pre-wrap; word-break:break-all; font-size:0.95rem; line-height:1.4; color:#1e293b;">${j.content ? j.content : '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}</div>
                     <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                         ${attachBadge}
                         ${linkBadgeHtml}
