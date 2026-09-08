@@ -240,7 +240,6 @@ export class MonthView extends BaseView {
 
           const finalEvents = eMap[dateStr]?.eventList || [];
           
-          // 💡 배지를 날짜 헤더 우측에 배치하기 위해 전체 집계
           let totalJournals = 0;
           let totalEvals = 0;
           let totalAttachments = 0;
@@ -269,7 +268,6 @@ export class MonthView extends BaseView {
               const iconColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
-              // 💡 내용이 빈 일정 숨기기 추가
               const fEvents = finalEvents.filter(e => {
                   if ((e.sharedGroupId || 'personal') !== fId) return false;
                   if (!e.content || e.content.trim() === '') return false; 
@@ -321,7 +319,6 @@ export class MonthView extends BaseView {
               }
 
               if (eventHtml || scheduleHtml) {
-                  // 💡 세로폭 절약을 위해 마진 패딩 축소
                   const topBorder = contentHtml !== '' ? 'border-top: 1px dashed #cbd5e1; padding-top: 2px; margin-top: 2px;' : 'margin-top: 2px;';
                   const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; font-size:0.75rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:2px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   contentHtml += `<div style="${topBorder} display:flex; flex-direction:column; align-items:stretch; width:100%;">${iconBadge}${scheduleHtml}${eventHtml}</div>`;
@@ -334,7 +331,6 @@ export class MonthView extends BaseView {
           const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
           const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
-          // 💡 날짜 헤더 우측에 배지들을 나란히 배치 (2단 구조로 활용 공간 극대화)
           return `
           <div class="cal-day ${todayClass}" data-date="${dateStr}" style="padding:4px; display:flex; flex-direction:column; gap:2px;">
               <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -406,6 +402,25 @@ export class MonthView extends BaseView {
           const holidayHtml = holidayName ? `<span style="font-size:0.75rem; color:#ef4444; font-weight:bold; margin-top:2px;">${holidayName}</span>` : '';
           const todayClass = isToday ? 'month-today-cell' : '';
 
+          let totalJournals = 0;
+          let totalEvals = 0;
+          let totalAttachments = 0;
+
+          filters.forEach(fId => {
+              const jList = jMap[dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              totalJournals += validJournals.length;
+              validJournals.forEach(j => { if (j.attachments) totalAttachments += j.attachments.length; });
+              
+              const vList = vMap[dateStr]?.[fId] || [];
+              totalEvals += vList.length;
+          });
+
+          let totalMetaBadgesHtml = '';
+          if (totalJournals > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-top:4px;" title="기록">📔${totalJournals}</span>`;
+          if (totalEvals > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-top:2px;" title="조사표">📊${totalEvals}</span>`;
+          if (totalAttachments > 0) totalMetaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; border:1px solid #cbd5e1; margin-top:2px;" title="첨부파일">📎${totalAttachments}</span>`;
+
           let rowsHtmlForDate = '';
 
           filters.forEach((fId, idx) => {
@@ -417,43 +432,28 @@ export class MonthView extends BaseView {
               const badgeHtml = filterCount > 1 ? `<div style="font-size:1.1rem; color:${badgeColor}; background:${badgeBg}; padding:2px 6px; border-radius:6px; display:inline-block; margin-top:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
 
               let eventContent = `<div id="compact-events-${dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(dateStr, fId)}</div>`;
-              
-              const jList = jMap[dateStr]?.[fId] || [];
-              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              const vList = vMap[dateStr]?.[fId] || [];
-
-              let attachmentCount = 0;
-              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
-
-              let metaBadges = '';
-              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
-              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
-              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
-
-              if (metaBadges) {
-                  eventContent += `<div style="margin-top:6px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
-              }
 
               const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
               if (idx === 0) {
                   rowsHtmlForDate += `
                   <tr data-month-date="${dateStr}" class="month-row-${dateStr}">
-                    <td rowspan="${totalRows}" class="${todayClass}" style="padding:8px 4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:110px;">
-                      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <td rowspan="${totalRows}" class="${todayClass}" style="padding:4px; border:1px solid #cbd5e1; background:#f8fafc; vertical-align:middle; width:90px;">
+                      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
                         <span onclick="window.goToDay('${dateStr}')" style="font-size:1.2rem; font-weight:900; color:${dateNumColor}; line-height:1.1; cursor:pointer;" title="${dateStr} 일 보기로 이동">${d}일</span>
                         <span style="font-size:0.95rem; font-weight:600; color:${dateColor}; line-height:1;">${dayOfWeek}</span>
                         ${holidayHtml}
+                        <div style="display:flex; flex-direction:column; align-items:center;">${totalMetaBadgesHtml}</div>
                       </div>
                     </td>
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정<br>${badgeHtml}<br>${addBtnHtml}</td>
-                    <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align:left; padding:4px 6px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               } else {
                   rowsHtmlForDate += `
                   <tr class="month-row-${dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#f0f9ff; color:#0369a1; font-weight:bold; font-size:0.9rem; vertical-align:middle; width:60px; text-align:center;">일정<br>${badgeHtml}<br>${addBtnHtml}</td>
-                    <td colspan="${maxP}" style="text-align:left; padding:6px 10px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
+                    <td colspan="${maxP}" style="text-align:left; padding:4px 6px; background:#f0f9ff; vertical-align:top; border:1px solid #cbd5e1;">${eventContent}</td>
                   </tr>`;
               }
           });
@@ -476,7 +476,7 @@ export class MonthView extends BaseView {
                       if (pObj.subject && pObj.subject.toUpperCase() !== 'X') cellText += `[${pObj.subject}] `;
                       if (pObj.memo) cellText += pObj.memo + " ";
                       if (pObj.supplies) cellText += `[${pObj.supplies}]`;
-                      return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
+                      return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 4px 6px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
                   rowsHtmlForDate += `<tr data-month-schedule-date="${dateStr}" data-fid="${fId}" class="month-row-${dateStr}">
@@ -489,7 +489,7 @@ export class MonthView extends BaseView {
           return rowsHtmlForDate;
       }).join('');
 
-      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:15px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; text-align:center; border:1px solid #bfdbfe;">${y}년 ${m + 1}월</td></tr>` : '';
+      let headerBanner = this.isInfiniteMode ? `<tr class="month-separator"><td colspan="${maxP + 2}" style="padding:10px; background:#eff6ff; color:#1e40af; font-size:1.2rem; font-weight:900; text-align:center; border:1px solid #bfdbfe;">${y}년 ${m + 1}월</td></tr>` : '';
       return `<tbody class="month-chunk" data-y="${y}" data-m="${m}">${headerBanner}${rowsHtml}</tbody>`;
   }
 
@@ -548,7 +548,7 @@ export class MonthView extends BaseView {
             const m = store.currentDate.getMonth();
             
             this.container.innerHTML = `
-              <div style="padding-top:15px;">
+              <div style="padding-top:10px;">
                 <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="lazy-month-container">
                     <tbody id="lazy-month-tbody"><tr><td style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
                 </table>
@@ -579,8 +579,8 @@ export class MonthView extends BaseView {
         if (window.FilterUI) window.FilterUI.renderUnifiedFilter(this.myGroups);
 
         const maxP = store.periodNames ? store.periodNames.length : 6;
-        const colgroupHtml = `<colgroup><col style="width: 110px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
-        const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
+        const colgroupHtml = `<colgroup><col style="width: 90px;"><col style="width: 60px;">${Array.from({length: maxP}).map(() => `<col>`).join('')}</colgroup>`;
+        const headerTr = `<tr style="background:#f1f5f9;"><th style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">날짜</th><th style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">구분</th><th colspan="${maxP}" style="padding:6px; border:1px solid #cbd5e1; font-weight:bold; color:#1e293b;">📌 내용 (직접 수정)</th></tr>`;
 
         this.renderedDateStrings = [];
 
@@ -601,7 +601,7 @@ export class MonthView extends BaseView {
 
             this.container.innerHTML = `
               <div id="month-top-sentinel" style="height:20px; width:100%;"></div>
-              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible;">
+              <div class="table-container" style="background:#fff; padding:8px; border-radius:8px; overflow:visible;">
                 <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background: #fff;">${headerTr}</thead>
@@ -628,7 +628,7 @@ export class MonthView extends BaseView {
             const m = store.currentDate.getMonth();
             
             this.container.innerHTML = `
-              <div class="table-container" style="background:#fff; padding:12px; border-radius:8px; overflow:visible; margin-top:15px;">
+              <div class="table-container" style="background:#fff; padding:8px; border-radius:8px; overflow:visible; margin-top:10px;">
                 <table id="month-editor-table" style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;">
                   ${colgroupHtml}
                   <thead style="border-bottom: 2px solid #cbd5e1;">${headerTr}</thead>

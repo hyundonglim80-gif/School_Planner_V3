@@ -11,8 +11,8 @@ import { store } from './store.js';
     let isMultiTouch = false;
     let lastSwipeTime = 0;
 
-    const SWIPE_THRESHOLD = 50;  // 스와이프 인식 최소 거리
-    const SWIPE_MAX_TIME = 800;  // 스와이프 허용 최대 시간
+    const SWIPE_THRESHOLD = 50;  
+    const SWIPE_MAX_TIME = 800;  
 
     function getHorizontalEdgeState() {
         const vv = window.visualViewport;
@@ -63,7 +63,7 @@ import { store } from './store.js';
         if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
             
             const now = Date.now();
-            if (now - lastSwipeTime < 600) return; // 🌟 0.6초 이내 중복 실행 완벽 방지
+            if (now - lastSwipeTime < 600) return; 
             
             const swipeMode = localStorage.getItem('workCalendar_swipeMode') || 'date';
 
@@ -80,7 +80,7 @@ import { store } from './store.js';
                 }
             } else if (swipeMode === 'scope') {
                 lastSwipeTime = now;
-                if (window.updateDateFromScroll) window.updateDateFromScroll(); // 스크롤 위치 기반 날짜 갱신
+                if (window.updateDateFromScroll) window.updateDateFromScroll(); 
                 
                 const scopes = ['memo', 'year', 'month', 'week', 'day']; 
                 const curIdx = scopes.indexOf(store.scope);
@@ -96,40 +96,38 @@ import { store } from './store.js';
 })();
 
 // ==========================================================================
-// ⌨️ 단축키(Keyboard Shortcuts) 이벤트 엔진
+// ⌨️ 단축키(Keyboard Shortcuts) 이벤트 엔진 (크롬 단축키 완벽 차단)
 // ==========================================================================
 document.addEventListener('keydown', function(event) {
   const isTyping = event.target.tagName === 'INPUT' || 
                    event.target.tagName === 'TEXTAREA' || 
                    event.target.isContentEditable;
 
-  // Windows(Ctrl) 및 Mac(Cmd) 호환 지원
   const isCtrlOrCmd = event.ctrlKey || event.metaKey;
 
-  // 1. 구글 캘린더 내보내기 (빠른 동기화): Ctrl + Shift + S
+  // 구글 캘린더 내보내기 (빠른 동기화): Ctrl + Shift + S
   if (isCtrlOrCmd && event.shiftKey && (event.key === 's' || event.key === 'S')) {
-    event.preventDefault(); // 브라우저 기본 동작 차단
+    event.preventDefault();
     if(window.quickGoogleSync) window.quickGoogleSync();
     return;
   }
 
-  // 2. 항목 추가/저장: Ctrl + S (크롬 '다른 이름으로 저장' 완벽 차단)
+  // 항목 추가/저장: Ctrl + S (크롬 다른이름으로 저장 차단)
   if (isCtrlOrCmd && !event.shiftKey && (event.key === 's' || event.key === 'S')) {
-    event.preventDefault(); // 🚨 핵심: 크롬 저장창 뜨는 것을 여기서 차단합니다.
+    event.preventDefault();
     if (store.mode === 'editor') {
       if(window.saveCurrentViewData) window.saveCurrentViewData();
     }
     return;
   }
 
-  // 3. 찾기: Ctrl + F (크롬 기본 검색 바 완벽 차단)
+  // 찾기: Ctrl + F (크롬 기본 검색창 차단)
   if (isCtrlOrCmd && !event.shiftKey && (event.key === 'f' || event.key === 'F')) {
-    event.preventDefault(); // 🚨 핵심: 크롬 기본 찾기 바 뜨는 것을 차단합니다.
+    event.preventDefault();
     if (typeof window.openSearchModal === 'function') window.openSearchModal();
     return;
   }
 
-  // (기존 하위 호환) 항목 추가/저장: Ctrl + Enter
   if (isCtrlOrCmd && !event.shiftKey && event.key === 'Enter') {
     event.preventDefault();
     if (store.mode === 'editor') {
@@ -138,13 +136,11 @@ document.addEventListener('keydown', function(event) {
     return;
   }
 
-  // 사용자가 텍스트 입력창에서 타이핑 중일 때는 일반 방향키 등은 무시
   if (isTyping) return;
 
   if (isCtrlOrCmd) {
     if (event.code === 'Space' || event.key === ' ') {
         event.preventDefault();
-        
         if (typeof window.goToToday === 'function') {
             window.goToToday();
         } else {
@@ -184,7 +180,6 @@ document.addEventListener('keydown', function(event) {
     const scopeOrder = ['memo', 'year', 'month', 'week', 'day'];
     const currentIndex = scopeOrder.indexOf(store.scope);
 
-    // 화면(탭) 이동: Shift + 좌/우 화살표
     if (event.key === 'ArrowLeft') { 
       event.preventDefault();
       if (currentIndex > 0 && window.setScope) window.setScope(scopeOrder[currentIndex - 1]);
