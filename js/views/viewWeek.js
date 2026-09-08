@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { formatDate, getEventLabels, getJournalLabels, getLabelStyle, isRedDay, getHolidayName } from '../core/utils.js';
 import { dbAPI } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js';
-import { generateEventBadgesHTML, generateForwardEventsSectionHTML, isForwardEvent } from '../core/eventManager.js';
+import { generateEventBadgesHTML } from '../core/eventManager.js';
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 
@@ -15,7 +15,6 @@ export class WeekView extends BaseView {
     this.scheduleGroupId = null; 
     this.isRendering = false; 
     this.renderId = 0; 
-    this.currentWeekForwardHtml = '';
 
     this.isInfiniteMode = localStorage.getItem('workCalendar_infiniteScroll') === 'true';
     window.isInfiniteScrollActive = this.isInfiniteMode; 
@@ -180,7 +179,7 @@ export class WeekView extends BaseView {
 
   insertChunkToDOM(html, mode, position, startOfWeekStr) {
       const container = document.getElementById(mode === 'editor' ? 'week-editor-table' : 'infinite-viewer-container');
-      if (!container) return; 
+      if (!container) return;
       
       if (mode === 'editor') {
           if (position === 'bottom') {
@@ -231,24 +230,6 @@ export class WeekView extends BaseView {
       
       const masterEventLabels = getEventLabels();
       const masterJournalLabels = getJournalLabels();
-
-      const allForwardEvents = [];
-      weekDates.forEach(d => {
-          filters.forEach(fId => {
-              const fEvents = (eMap[d.dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
-              fEvents.forEach(e => {
-                  if (isForwardEvent(e, masterEventLabels)) {
-                      allForwardEvents.push({
-                          ...e,
-                          dateStr: d.dateStr,
-                          sharedGroupId: fId === 'personal' ? null : fId,
-                          groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
-                      });
-                  }
-              });
-          });
-      });
-      this.currentWeekForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, '이번 주 완료 속성 일정');
 
       const rowsHtml = weekDates.map(d => {
           const isToday = (d.dateStr === realTodayStr);
@@ -362,6 +343,7 @@ export class WeekView extends BaseView {
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let content = '';
                       
+                      // 🚨 수정됨: 하루 페이지와 같은 팝업창(openViewer)을 여는 링크 버튼
                       const linkCount = (pObj.linkedItems || []).length;
                       const linkBadge = linkCount > 0 ? `<button type="button" contenteditable="false" onclick="event.stopPropagation(); window.LinkManager.openViewer('${d.dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:1px 5px; border-radius:4px; margin-right:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
@@ -376,6 +358,7 @@ export class WeekView extends BaseView {
                       return `<td class="week-period-cell hover-edit-item" data-p="${p}" data-fid="${fId}" style="position:relative; vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;">${editBtn}${content}</td>`;
                   }).join('');
 
+                  // 🚨 뷰어 모드: +링크 버튼 숨김 처리됨
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">수업${badgeHtml}</td>
@@ -444,6 +427,7 @@ export class WeekView extends BaseView {
 
               let eventContent = `<div id="compact-events-${d.dateStr}-${fId}" style="display:flex; flex-direction:column; gap:4px;">${CompactEventHelper.generateCompactEventEditor(d.dateStr, fId)}</div>`;
               
+              // 🚨 에디터 모드: +일정 추가 버튼 표시
               const addBtnHtml = `<button onclick="window.CompactEventHelper.addCompactEvent('${d.dateStr}', '${fId}')" style="margin-top:6px; background:#e0f2fe; color:#0369a1; border:1px dashed #7dd3fc; border-radius:4px; padding:2px 8px; cursor:pointer; font-weight:bold; font-size:1.1rem; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="일정 추가">+</button>`;
 
               if (idx === 0) {
@@ -485,6 +469,7 @@ export class WeekView extends BaseView {
                   const periodCellsHtml = Array.from({ length: this.maxPeriod }).map((_, i) => {
                       const p = i + 1; const pObj = periods[p] || {}; let content = '';
                       
+                      // 🚨 수정됨: 하루 페이지와 같은 팝업창(openViewer)을 여는 링크 버튼
                       const linkCount = (pObj.linkedItems || []).length;
                       const linkBadge = linkCount > 0 ? `<button type="button" contenteditable="false" onclick="event.stopPropagation(); window.LinkManager.openViewer('${d.dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:1px 5px; border-radius:4px; margin-right:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
@@ -499,6 +484,7 @@ export class WeekView extends BaseView {
                       return `<td class="editable-cell week-period-cell hover-edit-item" data-p="${p}" data-fid="${fId}" contenteditable="true" style="position:relative; vertical-align: top; height: var(--week-cell-height); text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.weekViewInstance.syncScheduleInputs()">${editBtn}${content}</td>`;
                   }).join('');
 
+                  // 🚨 에디터 모드: +링크 버튼 표시
                   rowsHtmlForDate += `
                   <tr data-week-schedule-date="${d.dateStr}" data-fid="${fId}" class="week-row-${d.dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center; position: static !important; z-index: auto !important; transform: none !important;">
@@ -536,12 +522,12 @@ export class WeekView extends BaseView {
             
             this.renderedDateStrings = [];
             this.loadedWeeks = [];
-            let infiniteChunkHtml = '';
+            let chunkHtml = '';
             
             for (let i = 0; i < 5; i++) {
                 const wStr = formatDate(currentTargetDate);
                 const startOfWeekStr = this.getWeekDates(wStr)[0].dateStr;
-                infiniteChunkHtml += await this.buildViewerChunk(startOfWeekStr);
+                chunkHtml += await this.buildViewerChunk(startOfWeekStr);
                 this.loadedWeeks.push({ dateStr: startOfWeekStr });
                 currentTargetDate.setDate(currentTargetDate.getDate() + 7);
             }
@@ -551,11 +537,10 @@ export class WeekView extends BaseView {
                 <div class="clean-viewer-board" style="overflow: visible; margin-top: 15px;">
                     <table style="width:100%; border-collapse:collapse; text-align:center; table-layout:fixed;" id="infinite-viewer-container">
                         ${colgroupHtml}
-                        ${infiniteChunkHtml}
+                        ${chunkHtml}
                     </table>
                 </div>
                 <div id="week-bottom-sentinel" style="height:20px; width:100%;"></div>
-                <div id="week-forward-section-container">${this.currentWeekForwardHtml || ''}</div>
             `;
             this.setupInfiniteObserver('viewer');
             this.setupChunkObserver();
@@ -579,17 +564,12 @@ export class WeekView extends BaseView {
                         ${colgroupHtml}
                         <tbody id="lazy-week-tbody"><tr><td colspan="${maxP + 2}" style="padding:40px; color:#94a3b8; font-weight:bold;">데이터를 렌더링하고 있습니다...</td></tr></tbody>
                     </table>
-                </div>
-                <div id="week-forward-section-container"></div>`;
+                </div>`;
             
-            const lazyChunkHtml = await this.buildViewerChunk(startOfWeekStr);
+            const chunkHtml = await this.buildViewerChunk(startOfWeekStr);
             requestAnimationFrame(() => {
                 const tbody = document.getElementById('lazy-week-tbody');
-                if (tbody) tbody.outerHTML = lazyChunkHtml;
-                const fContainer = document.getElementById('week-forward-section-container');
-                if (fContainer && this.currentWeekForwardHtml) {
-                    fContainer.innerHTML = this.currentWeekForwardHtml;
-                }
+                if (tbody) tbody.outerHTML = chunkHtml;
             });
         }
     } finally {

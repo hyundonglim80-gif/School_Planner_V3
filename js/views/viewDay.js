@@ -6,7 +6,7 @@ import { formatDate, parseLocalDate, getEventLabels, getJournalLabels, getLabelS
 import { dbAPI, getUserCol, getGroupCol } from '../api/database.js'; 
 import { auth, db } from '../api/firebaseInit.js';
 import { driveAPI } from '../api/driveAPI.js';
-import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList, generateForwardEventsSectionHTML, isForwardEvent } from '../core/eventManager.js';
+import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList } from '../core/eventManager.js';
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData, invalidateCalendarCache } from '../core/calendarDataManager.js';
@@ -352,22 +352,6 @@ export class DayView extends BaseView {
               <div style="display:flex; flex-direction:column;">${jListHtml}</div>
             </div>`;
         });
-		
-		const allForwardEvents = [];
-        filters.forEach(fId => {
-            const events = this.dayData[fId]?.events || [];
-            events.forEach(e => {
-                if (isForwardEvent(e, masterLabels)) {
-                    allForwardEvents.push({
-                        ...e,
-                        dateStr: dateStr,
-                        sharedGroupId: fId === 'personal' ? null : fId,
-                        groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
-                    });
-                }
-            });
-        });
-        const forwardSectionHtml = generateForwardEventsSectionHTML(allForwardEvents, '오늘의 완료 속성 일정');
 
         this.container.innerHTML = `
           <div class="day-viewer-container">

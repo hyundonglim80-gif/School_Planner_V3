@@ -4,7 +4,7 @@ import { store } from '../core/store.js';
 import { formatDate, isRedDay, getHolidayName, getEventLabels } from '../core/utils.js'; // getEventLabels 추가됨
 import { dbAPI } from '../api/database.js'; 
 import { auth } from '../api/firebaseInit.js'; 
-import { generateEventBadgesHTML, generateForwardEventsSectionHTML, isForwardEvent } from '../core/eventManager.js';
+import { generateEventBadgesHTML } from '../core/eventManager.js';
 import { CompactEventHelper } from '../ui/templateHelpers.js';
 import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
 
@@ -177,34 +177,13 @@ export class YearView extends BaseView {
             </div>
             <style>@keyframes spin { 100% { transform:rotate(360deg); } }</style>
         `;
-		
-		// 💡 1년 전체 완료 속성(isForward: true) 일정 집계
-        const allForwardEvents = [];
-        const sortedDates = Array.from(allDates).sort();
-        sortedDates.forEach(dateStr => {
-            filters.forEach(fId => {
-                const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
-                fEvents.forEach(e => {
-                    if (isForwardEvent(e, masterEventLabels)) {
-                        allForwardEvents.push({
-                            ...e,
-                            dateStr: dateStr,
-                            sharedGroupId: fId === 'personal' ? null : fId,
-                            groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
-                        });
-                    }
-                });
-            });
-        });
-        const yearForwardHtml = generateForwardEventsSectionHTML(allForwardEvents, `${targetY}학년도 전체 완료 속성 일정`);
 
         this.container.innerHTML = `
             <div id="year-main-content" style="margin-top:15px;">
                 ${progressHtml}
                 <div class="year-grid" id="year-grid-container">
-                    ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px solid #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
+                    ${orderedMonths.map(m => `<div id="viewer-month-${m.year}-${m.month}" style="min-height:300px; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-weight:bold;">${m.label} 로딩 중...</div>`).join('')}
                 </div>
-                ${yearForwardHtml}
             </div>
         `;
         
