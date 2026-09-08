@@ -67,9 +67,14 @@ export const DetailEditManager = {
     openLinkModal: function() {
         this.captureFormInputs();
         const { type, dateStr, itemId, fId } = this.currentData;
-        window.LinkManager.onModalCloseCallback = () => {
+        
+        // 💡 링크 생성 후 창이 닫힐 때 백그라운드 렌더링 및 모달 재오픈 콜백
+        window.LinkManager.onModalCloseCallback = async () => {
+            if (store.hasUnsavedChanges && window.saveCurrentViewData) await window.saveCurrentViewData(true);
+            if (window.render) window.render();
             this.open(type, dateStr, itemId, fId, true);
         };
+
         if (this.modal) {
             this.modal.close();
             this.modal = null;
@@ -85,9 +90,13 @@ export const DetailEditManager = {
     openLinkViewer: function(targetDate, targetId) {
         this.captureFormInputs();
         const { type, dateStr, itemId, fId } = this.currentData;
-        window.LinkManager.onModalCloseCallback = () => {
+        
+        window.LinkManager.onModalCloseCallback = async () => {
+            if (store.hasUnsavedChanges && window.saveCurrentViewData) await window.saveCurrentViewData(true);
+            if (window.render) window.render();
             this.open(type, dateStr, itemId, fId, true);
         };
+
         if (this.modal) {
             this.modal.close();
             this.modal = null;
@@ -161,14 +170,18 @@ export const DetailEditManager = {
                     eventItem = window[`tempEvents_${dateStr}`].find(e => String(e.id) === String(itemId));
                 }
                 
-                if (!eventItem) {
-                    const snap = await getDoc(doc(colFunc('events'), dateStr));
-                    if (snap.exists()) {
-                        let list = snap.data().eventList;
-                        if (!list || list.length === 0) list = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(snap.data().eventText || '') : [];
-                        eventItem = list.find(e => String(e.id) === String(itemId)) || list[Number(itemId)];
+                // 💡 링크 매니저에서 닫고 돌아왔을 때 최신 링크를 반영하기 위해 DB 항상 조회
+                const snap = await getDoc(doc(colFunc('events'), dateStr));
+                if (snap.exists()) {
+                    let list = snap.data().eventList;
+                    if (!list || list.length === 0) list = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(snap.data().eventText || '') : [];
+                    const dbItem = list.find(e => String(e.id) === String(itemId)) || list[Number(itemId)];
+                    if (dbItem) {
+                        if (eventItem) eventItem.linkedItems = dbItem.linkedItems; // 메모리 갱신
+                        else eventItem = dbItem;
                     }
                 }
+                
                 if (!eventItem) {
                     container.innerHTML = `<div style="padding:30px; color:#ef4444; font-weight:bold;">일정 데이터를 찾을 수 없습니다.</div>`;
                     return;
@@ -187,14 +200,16 @@ export const DetailEditManager = {
                     scheduleItem = window[`tempSchedules_${dateStr}`][fId][p];
                 }
                 
-                if (!scheduleItem) {
-                    const snap = await getDoc(doc(colFunc('schedules'), dateStr));
-                    if (snap.exists()) {
-                        scheduleItem = (snap.data().periods || {})[p] || { subject: '', memo: '', supplies: '' };
-                    } else {
-                        scheduleItem = { subject: '', memo: '', supplies: '' };
+                const snap = await getDoc(doc(colFunc('schedules'), dateStr));
+                if (snap.exists()) {
+                    const dbItem = (snap.data().periods || {})[p];
+                    if (dbItem) {
+                        if (scheduleItem) scheduleItem.linkedItems = dbItem.linkedItems;
+                        else scheduleItem = dbItem;
                     }
                 }
+                if (!scheduleItem) scheduleItem = { subject: '', memo: '', supplies: '' };
+                
                 this.renderScheduleForm(scheduleItem);
             }
             else if (type === 'journal') {
@@ -209,13 +224,16 @@ export const DetailEditManager = {
                     journalItem = window.dayViewInstance.dayData[fId].journals.find(j => String(j.id) === String(itemId));
                 }
                 
-                if (!journalItem) {
-                    const snap = await getDoc(doc(colFunc('journals'), dateStr));
-                    if (snap.exists()) {
-                        const list = snap.data().entries || [];
-                        journalItem = list.find(j => String(j.id) === String(itemId)) || list[Number(itemId)];
+                const snap = await getDoc(doc(colFunc('journals'), dateStr));
+                if (snap.exists()) {
+                    const list = snap.data().entries || [];
+                    const dbItem = list.find(j => String(j.id) === String(itemId)) || list[Number(itemId)];
+                    if (dbItem) {
+                        if (journalItem) journalItem.linkedItems = dbItem.linkedItems;
+                        else journalItem = dbItem;
                     }
                 }
+                
                 if (!journalItem) {
                     container.innerHTML = `<div style="padding:30px; color:#ef4444; font-weight:bold;">기록 데이터를 찾을 수 없습니다.</div>`;
                     return;
@@ -228,6 +246,7 @@ export const DetailEditManager = {
         }
     },
 
+    // ... 기존 renderForm, toggleLabel 등 하위 메서드들은 동일 유지 ...
     renderEventForm: function(ev) {
         const { dateStr, itemId, fId } = this.currentData;
         const container = document.getElementById('detail-edit-modal-body');
@@ -590,7 +609,6 @@ export const DetailEditManager = {
                 delete periods[p];
             }
 
-            // 💡 [수정됨] merge: true 옵션 제거하여 빈 객체가 안전하게 덮어써지도록 개선
             await setDoc(docRef, { periods: periods, updatedAt: Date.now() });
 
             invalidateCalendarCache();

@@ -101,31 +101,28 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
-                return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
+                return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; transition:0.2s; display:inline-block; vertical-align:middle; margin-right:3px;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
             }).join('');
         }
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
-        let groupIcon = isGrouped ? `<span style="font-size:0.75rem; margin-right:2px;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
+        let groupIcon = isGrouped ? `<span style="font-size:0.75rem; margin-right:2px; vertical-align:middle;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
 
         if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
         const linkCount = (e.linkedItems || []).length;
-        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:0px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-left:2px; flex-shrink:0;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+        // 💡 팝업창 닫힐 때 백그라운드 갱신 콜백 포함
+        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.onModalCloseCallback = async () => { if (store.hasUnsavedChanges && window.saveCurrentViewData) await window.saveCurrentViewData(true); if(window.render) window.render(); }; window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:1px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-right:3px; vertical-align:middle; display:inline-block;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
-        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:2px; flex-shrink:0;">✏️</button>` : '';
+        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:3px; vertical-align:middle; display:inline-block; background:none; border:none; cursor:pointer; padding:0;">✏️</button>` : '';
 
+        // 💡 월간뷰(compact)에서 줄바꿈 시 왼쪽 끝으로 붙게끔 Inline Flow 적용
         if (viewType === 'compact') {
             html += `
-            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="display:flex; flex-direction:column; align-items:stretch; gap:2px; width:100%; border: 1px solid transparent; border-radius:4px; padding:2px; margin: 0; box-sizing: border-box; background: rgba(255,255,255,0.5);">
-                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:2px; width:100%;">
-                    ${editBtn}
-                    ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:2px;">${badgesHtml}</div>` : ''}
-                    ${linkBadge}
-                </div>
-                <div id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; width:100%; font-size:0.8rem; line-height:1.2; padding-left:2px; margin-top:1px; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</div>
+            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="font-size:0.8rem; line-height:1.4; width:100%; border: 1px solid transparent; border-radius:4px; padding:2px; margin: 1px 0; box-sizing: border-box; background: rgba(255,255,255,0.5); text-align: left; word-break: break-all; white-space: normal;">
+                ${editBtn}${badgesHtml}${linkBadge}<span id="evt-txt-${dateStr}-${index}" style="${textStyle}; vertical-align:middle;">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
             </div>`;
         } else {
             html += `
@@ -144,7 +141,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 };
 
 // ============================================================================
-// 2. 통합 Event Manager 코어
+// 2. 통합 Event Manager 코어 (생략 없이 원본 유지)
 // ============================================================================
 export const EventManager = {
     toggleEventCompletion: function(dateStr, index, currentStatus) {
