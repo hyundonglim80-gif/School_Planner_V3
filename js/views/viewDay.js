@@ -209,6 +209,23 @@ export class DayView extends BaseView {
         const masterLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
 
+        // 💡 [추가됨] 하루 페이지 당일 완료 속성(isForward) 일정 집계
+        const allForwardEvents = [];
+        filters.forEach(fId => {
+            const events = this.dayData[fId]?.events || [];
+            events.forEach(e => {
+                if (isForwardEvent(e, masterLabels)) {
+                    allForwardEvents.push({
+                        ...e,
+                        dateStr: dateStr,
+                        sharedGroupId: fId === 'personal' ? null : fId,
+                        groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
+                    });
+                }
+            });
+        });
+        const forwardSectionHtml = generateForwardEventsSectionHTML(allForwardEvents, '오늘의 완료 속성 일정');
+
         let eventsHtml = '';
         let schedulesHtml = '';
         let journalsHtml = '';
@@ -352,28 +369,13 @@ export class DayView extends BaseView {
               <div style="display:flex; flex-direction:column;">${jListHtml}</div>
             </div>`;
         });
-		
-		const allForwardEvents = [];
-        filters.forEach(fId => {
-            const events = this.dayData[fId]?.events || [];
-            events.forEach(e => {
-                if (isForwardEvent(e, masterLabels)) {
-                    allForwardEvents.push({
-                        ...e,
-                        dateStr: dateStr,
-                        sharedGroupId: fId === 'personal' ? null : fId,
-                        groupName: fId === 'personal' ? '개인' : (this.myGroups.find(g => g.id === fId)?.name || '그룹')
-                    });
-                }
-            });
-        });
-        const forwardSectionHtml = generateForwardEventsSectionHTML(allForwardEvents, '오늘의 완료 속성 일정');
 
         this.container.innerHTML = `
           <div class="day-viewer-container">
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${eventsHtml}</div>
             <div class="day-schedule-wrapper" style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px; ${store.showClass ? '' : 'display:none;'}">${schedulesHtml}</div>
             <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:25px;">${journalsHtml}</div>
+            ${forwardSectionHtml}
           </div>
         `;
     }
@@ -1751,7 +1753,6 @@ export class DayView extends BaseView {
                 await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
 
                 const scRef = doc(scCol, dateStr);
-                // 💡 [수정됨] merge: true 옵션 제거하여 빈 객체가 안전하게 덮어써지도록 개선
                 await setDoc(scRef, { periods: pSchedules, updatedAt: Date.now() });
             });
             
