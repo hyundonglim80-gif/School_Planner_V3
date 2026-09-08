@@ -286,7 +286,6 @@ export const CompactEventHelper = {
         
         const labelObjs = getEventLabels();
         
-        // 다중 라벨 순회 검색 정렬
         list.sort((a, b) => {
             let aRank = 9999, bRank = 9999;
             (a.labelIds || []).forEach(id => {
@@ -355,7 +354,7 @@ export const CompactEventHelper = {
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 4px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${e.authorName || e.authorId.substring(0, 6)}</span>`
                 : '';
 
-            // 💡 [비선택 상태]: 보기 페이지와 같이 해당 항목의 라벨만 왼쪽에 보이는 컴팩트 형식
+            // 💡 [비선택 상태]: 보기 페이지와 같이 해당 항목의 메타 정보가 윗줄에, 텍스트가 아랫줄에 분리되는 2단 레이아웃
             if (!isSelected) {
                 const selectedBadges = eLabelIds.map(id => {
                     const lObj = labelObjs.find(l => l.id === id);
@@ -367,26 +366,25 @@ export const CompactEventHelper = {
                 return `
                 <div class="compact-event-collapsed"
                      onclick="window.CompactEventHelper.selectCompactEvent('${dateStr}', '${e.id}', '${fId}')"
-                     style="display:flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid #cbd5e1; border-radius:5px; margin-bottom:6px; background:#fff; cursor:pointer; transition:all 0.15s ease;"
+                     style="display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; margin-bottom:6px; background:#fff; cursor:pointer; transition:all 0.15s ease;"
                      title="클릭하여 일정 편집">
-                    ${checkboxHtml}
-                    <div style="display:flex; flex-wrap:wrap; gap:3px; flex-shrink:0; align-items:center;">
-                        ${selectedBadges || '<span style="font-size:0.7rem; color:#94a3b8; background:#f1f5f9; padding:1px 4px; border-radius:3px;">(라벨 없음)</span>'}
-                        ${warningIcon}
+                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; width:100%;">
+                        ${checkboxHtml}
+                        <div style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">
+                            ${selectedBadges || '<span style="font-size:0.7rem; color:#94a3b8; background:#f1f5f9; padding:1px 4px; border-radius:3px;">(라벨 없음)</span>'}
+                            ${warningIcon}
+                        </div>
+                        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-left:auto;">
+                            ${timeVal ? timeHtml : ''}
+                            ${linkBadgeHtml}
+                            ${authorBadge}
+                            <span style="font-size:0.75rem; color:#94a3b8; margin-left:2px;" title="편집하려면 클릭">✏️</span>
+                        </div>
                     </div>
-                    <span style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; font-size:0.85rem; line-height:1.3; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">
-                        ${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}
-                    </span>
-                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                        ${timeVal ? timeHtml : ''}
-                        ${linkBadgeHtml}
-                        ${authorBadge}
-                        <span style="font-size:0.75rem; color:#94a3b8; margin-left:2px;" title="편집하려면 클릭">✏️</span>
-                    </div>
+                    <div style="white-space:pre-wrap; word-break:break-all; font-size:0.85rem; line-height:1.3; padding-left:2px; ${isCompleted && canComplete ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'}">${pureContent || '<span style="color:#94a3b8; font-style:italic;">(내용 없음)</span>'}</div>
                 </div>`;
             }
 
-            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 시간, 링크, 삭제 버튼, 입력창 펼침)
             const chipsHtml = labelObjs.map(lObj => {
                 const chipClickAttr = isAuthor ? `onclick="event.stopPropagation(); window.CompactEventHelper.handleCompactLabelClick('${dateStr}', '${e.id}', '${lObj.id}', '${fId}')"` : '';
                 const chipCursorStyle = isAuthor ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.8;';
@@ -442,7 +440,6 @@ export const CompactEventHelper = {
                 let text = clone.innerText?.trim() || "";
                 let subject = '', memo = '', supplies = '';
 
-                // 주간 뷰: 태그 구조(.cell-subject-val, .cell-memo-val, .cell-supplies-val 또는 .badge-tag, .clean-cell-memo)가 살아있는 경우
                 const subjEl = cell.querySelector('.cell-subject-val, .badge-tag');
                 const memoEl = cell.querySelector('.cell-memo-val, .clean-cell-memo');
                 const supEl = cell.querySelector('.cell-supplies-val');
@@ -453,13 +450,11 @@ export const CompactEventHelper = {
                     if (memoEl) {
                         memo = memoEl.innerText.trim();
                     } else {
-                        // 사용자가 메모 태그를 지우고 셀에 직접 타이핑한 경우 태그 외의 텍스트 추출
                         const subClone = cell.cloneNode(true);
                         subClone.querySelectorAll('button, .hover-edit-btn, .cell-subject-val, .badge-tag, .cell-supplies-val').forEach(el => el.remove());
                         memo = subClone.innerText?.trim() || "";
                     }
                 } else if (text !== '') {
-                    // 월간/연간 뷰 또는 전체를 텍스트로 타이핑한 경우: [과목] 메모 [비고] 포맷 파싱
                     const allBrackets = text.match(/\[.*?\]/g);
                     if (allBrackets && allBrackets.length >= 2) {
                         const lastMatch = text.match(/\[([^\]]+)\]\s*$/);
@@ -474,7 +469,6 @@ export const CompactEventHelper = {
                         memo = text;
                     }
                 }
-                // 🚨 수정됨: 타이핑 시 기존에 담겨있던 linkedItems 속성을 보존함
                 const oldObj = window[`tempSchedules_${dateStr}`][fId][p] || {};
                 window[`tempSchedules_${dateStr}`][fId][p] = { 
                     subject: subject.toUpperCase() === 'X' ? '' : subject, 
@@ -493,7 +487,6 @@ export const CompactEventHelper = {
             ev[field] = value;
         }
         
-        // 🔥 추가됨: 변경된 필드가 '완료 여부(completed)'일 때만 즉시 자동 저장
         if (field === 'completed' && typeof window.saveCurrentViewData === 'function') {
             window.saveCurrentViewData(true);
         }
@@ -527,7 +520,6 @@ export const CompactEventHelper = {
         }
     },
 
-    // 🌟 안전하게 분리된 삭제 함수
     requestRemoveCompactEvent(dateStr, eventId, fId) {
         this.syncCompactEventInputs(dateStr); 
         const evList = window[`tempEvents_${dateStr}`];
@@ -585,7 +577,6 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
-            // 🔥 추가됨: 라벨 해제 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }
@@ -637,7 +628,6 @@ export const CompactEventHelper = {
                 const container = document.getElementById(`compact-events-${dateStr}-${filterId}`);
                 if (container) container.innerHTML = this.generateCompactEventEditor(dateStr, filterId);
             });
-            // 🔥 추가됨: 라벨 추가 시 즉시 백그라운드 자동 저장
             if (typeof window.saveCurrentViewData === 'function') {
                 await window.saveCurrentViewData(true);
             }

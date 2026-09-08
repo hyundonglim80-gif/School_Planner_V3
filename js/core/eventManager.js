@@ -62,7 +62,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
-    // 작성 페이지의 순서를 보기 페이지에서도 그대로 유지하기 위해 라벨 기준 강제 sort 제거
     let html = `<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">`;
 
     eventList.forEach((e, index) => {
@@ -118,19 +117,28 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 
         const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:2px; flex-shrink:0;">✏️</button>` : '';
 
-        let layoutStyle = viewType === 'compact' ? 
-            `display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:0.9rem; line-height:1.3; width:100%;` : 
-            `display:flex; align-items:center; gap:6px; font-size:0.95rem; line-height:1.3; width:100%;`;
-
-        html += `
-        <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="${layoutStyle}; border: 1px solid transparent; border-radius:4px; padding:2px 4px; margin: 1px 0; box-sizing: border-box;">
-            <div style="display:flex; align-items:center; gap:4px; width:100%; min-width:0;">
-                ${editBtn}
-                ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
-                <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
-                ${linkBadge}
-            </div>
-        </div>`;
+        // 💡 뷰 타입에 따라 2단 가로/세로 배치를 다르게 적용합니다.
+        if (viewType === 'compact') {
+            html += `
+            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="display:flex; flex-direction:column; align-items:stretch; gap:4px; width:100%; border: 1px solid transparent; border-radius:4px; padding:4px; margin: 2px 0; box-sizing: border-box; background: rgba(255,255,255,0.5);">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; width:100%;">
+                    ${editBtn}
+                    ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px;">${badgesHtml}</div>` : ''}
+                    ${linkBadge}
+                </div>
+                <div id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; width:100%; font-size:0.85rem; line-height:1.4; padding-left:2px; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</div>
+            </div>`;
+        } else {
+            html += `
+            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="display:flex; align-items:center; gap:6px; font-size:0.95rem; line-height:1.3; width:100%; border: 1px solid transparent; border-radius:4px; padding:2px 4px; margin: 1px 0; box-sizing: border-box;">
+                <div style="display:flex; align-items:center; gap:4px; width:100%; min-width:0;">
+                    ${editBtn}
+                    ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
+                    <span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; flex:1; min-width:0; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+                    ${linkBadge}
+                </div>
+            </div>`;
+        }
     });
     html += `</div>`;
     return html;
@@ -273,7 +281,6 @@ export const EventManager = {
             
             if (opCount > 0) batchPromises.push(batch.commit());
             
-            // 💡 [버그 방어] 오프라인 타임아웃 0.3초 설정
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
@@ -364,7 +371,6 @@ export const EventManager = {
             batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
         }
 
-        // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
         await Promise.race([
             batch.commit(),
             new Promise(resolve => setTimeout(resolve, 300))
@@ -450,7 +456,6 @@ export const EventManager = {
             }
             if (count > 0) batchPromises.push(batch.commit());
             
-            // 💡 [버그 방어] 오프라인일 때 서버 응답 무한 대기로 멈추는 현상 해결 (타임아웃 적용)
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
@@ -462,7 +467,6 @@ export const EventManager = {
         if (onConfirm) onConfirm();
     },
 
-    // 🌟 [추가된 부분] 그룹 일정 내용 일괄 수정 모달
     showGroupUpdateModal: function(baseDateStr, groupId, oldContent, newContent, onConfirmGroup, onOnlyThisDay, onCancel) {
         const modalHtml = `
         <div id="group-update-modal" class="modal-overlay" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10002; justify-content:center; align-items:center;">
@@ -487,7 +491,6 @@ export const EventManager = {
         document.getElementById('btn-upd-cancel').onclick = () => { document.getElementById('group-update-modal').remove(); if (onCancel) onCancel(); };
     },
 
-    // 🌟 [추가된 부분] 일괄 수정 처리 로직
     executeGroupUpdate: async function(mode, baseDateStr, groupId, oldContent, newContent, onConfirm) {
         document.getElementById('group-update-modal').innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; font-weight:bold; color:#059669; text-align:center;">⏳ 일괄 수정 처리 중...</div>`;
 
@@ -781,7 +784,6 @@ export const EventManager = {
 
             if (opCount > 0) batchPromises.push(batch.commit());
             
-            // 💡 [버그 방어] 오프라인 무한 로딩 방어 (0.3초 타임아웃)
             await Promise.race([
                 Promise.all(batchPromises),
                 new Promise(resolve => setTimeout(resolve, 300))
