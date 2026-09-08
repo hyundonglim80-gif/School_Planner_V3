@@ -218,7 +218,6 @@ export class MonthView extends BaseView {
       const realTodayStr = formatDate(new Date());
 
       const masterEventLabels = getEventLabels();
-      const masterJournalLabels = getJournalLabels();
 
       const daysList = this.isWeekendVisible ? ['일','월','화','수','목','금','토'] : ['월','화','수','목','금'];
       const daysHeaderHtml = daysList.map(d => {
@@ -241,6 +240,26 @@ export class MonthView extends BaseView {
 
           const finalEvents = eMap[dateStr]?.eventList || [];
           
+          // 💡 배지를 날짜 헤더 우측에 배치하기 위해 전체 집계
+          let totalJournals = 0;
+          let totalEvals = 0;
+          let totalAttachments = 0;
+
+          filters.forEach(fId => {
+              const jList = jMap[dateStr]?.[fId] || [];
+              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
+              totalJournals += validJournals.length;
+              validJournals.forEach(j => { if (j.attachments) totalAttachments += j.attachments.length; });
+              
+              const vList = vMap[dateStr]?.[fId] || [];
+              totalEvals += vList.length;
+          });
+
+          let metaBadgesHtml = '';
+          if (totalJournals > 0) metaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold;" title="기록">📔${totalJournals}</span>`;
+          if (totalEvals > 0) metaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.65rem; font-weight:bold;" title="조사표">📊${totalEvals}</span>`;
+          if (totalAttachments > 0) metaBadgesHtml += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.65rem; font-weight:bold; border:1px solid #cbd5e1;" title="첨부파일">📎${totalAttachments}</span>`;
+
           let contentHtml = '';
           
           filters.forEach((fId) => {
@@ -250,15 +269,14 @@ export class MonthView extends BaseView {
               const iconColor = isPersonal ? '#2563eb' : '#059669';
               const badgeBg = isPersonal ? '#eff6ff' : '#ecfdf5';
 
-              // 💡 뷰어 필터링 처리: 달력 표시 옵션이 체크된 라벨만 보이게 합니다.
+              // 💡 내용이 빈 일정 숨기기 추가
               const fEvents = finalEvents.filter(e => {
                   if ((e.sharedGroupId || 'personal') !== fId) return false;
+                  if (!e.content || e.content.trim() === '') return false; 
                   
                   const eLabels = e.labelIds || [];
-                  // 라벨이 하나도 지정되지 않은 일정은 기본적으로 보이게 처리
                   if (eLabels.length === 0) return true;
                   
-                  // 지정된 라벨들 중 하나라도 showInCalendar 속성이 true(또는 undefined)인 경우가 있어야 표시
                   return eLabels.some(id => {
                       const match = masterEventLabels.find(l => l.id === id);
                       return match && match.showInCalendar !== false;
@@ -281,38 +299,7 @@ export class MonthView extends BaseView {
                   return (a.id || '').localeCompare(b.id || '');
               });
               
-              let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:2px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
-
-              const jList = jMap[dateStr]?.[fId] || [];
-              const validJournals = jList.filter(j => (j.content && j.content.trim() !== '') || (j.attachments && j.attachments.length > 0));
-              
-              validJournals.sort((a, b) => {
-                  let aRank = 9999, bRank = 9999;
-                  (a.labelIds || []).forEach(id => {
-                      const r = masterJournalLabels.findIndex(l => l.id === id);
-                      if (r !== -1 && r < aRank) aRank = r;
-                  });
-                  (b.labelIds || []).forEach(id => {
-                      const r = masterJournalLabels.findIndex(l => l.id === id);
-                      if (r !== -1 && r < bRank) bRank = r;
-                  });
-                  if (aRank !== bRank) return aRank - bRank;
-                  return (a.id || '').localeCompare(b.id || '');
-              });
-              
-              const vList = vMap[dateStr]?.[fId] || [];
-
-              let attachmentCount = 0;
-              validJournals.forEach(j => { if (j.attachments) attachmentCount += j.attachments.length; });
-
-              let metaBadges = '';
-              if (validJournals.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#fdf2f8; color:#be185d; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="기록">📔${validJournals.length}</span>`;
-              if (vList.length > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; padding:1px 4px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1;" title="조사표">📊${vList.length}</span>`;
-              if (attachmentCount > 0) metaBadges += `<span style="display:inline-flex; align-items:center; background:#f8fafc; color:#475569; padding:0 3px; border-radius:4px; font-size:0.7rem; font-weight:bold; margin-right:2px; line-height:1.2; border:1px solid #cbd5e1;" title="첨부파일">📎${attachmentCount}</span>`;
-
-              if (metaBadges) {
-                  eventHtml += `<div style="margin-top:4px; display:flex; flex-wrap:wrap;">${metaBadges}</div>`;
-              }
+              let eventHtml = processedEvents.length > 0 ? `<div style="margin-top:1px;">${generateEventBadgesHTML(processedEvents, dateStr, 'compact')}</div>` : '';
 
               let scheduleHtml = '';
               if (store.showClass) {
@@ -325,30 +312,35 @@ export class MonthView extends BaseView {
                           const text = subj.trim();
                           let fontSize = text.length >= 5 ? "0.45rem" : (text.length === 4 ? "0.55rem" : (text.length === 3 ? "0.65rem" : "0.75rem"));
                           let letterSpacing = text.length >= 5 ? "-1.5px" : (text.length === 4 ? "-1px" : (text.length === 3 ? "-0.5px" : "normal"));
-                          return `<div class="hover-edit-item month-class-box" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${dateStr}', ${p}, '${fId}')" style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden; cursor:pointer;" title="${text} (클릭하여 수정)">${text}</div>`;
+                          return `<div class="hover-edit-item month-class-box" onclick="event.stopPropagation(); window.DetailEditManager.open('schedule', '${dateStr}', ${p}, '${fId}')" style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:20px; box-sizing:border-box; border:1px solid #6ee7b7; border-radius:4px; background:#ecfdf5; color:#047857; font-size:${fontSize}; font-weight:700; letter-spacing:${letterSpacing}; white-space:nowrap; overflow:hidden; cursor:pointer;" title="${text} (클릭하여 수정)">${text}</div>`;
                       }
-                      return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:22px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
+                      return `<div style="display:flex; align-items:center; justify-content:center; flex:1; min-width:0; height:20px; box-sizing:border-box; border:1px solid #e2e8f0; border-radius:4px; background:#f8fafc; color:#94a3b8; font-size:0.75rem; font-weight:700;">&nbsp;</div>`;
                   }).join('');
 
-                  if (hasClass) scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:2px; width:100%; margin-top:2px; margin-bottom:2px;">${boxesHtml}</div>`;
+                  if (hasClass) scheduleHtml = `<div style="display:flex; flex-wrap:nowrap; gap:1px; width:100%; margin-top:2px; margin-bottom:2px;">${boxesHtml}</div>`;
               }
 
               if (eventHtml || scheduleHtml) {
-                  const topBorder = contentHtml !== '' ? 'border-top: 1px dashed #cbd5e1; padding-top: 6px; margin-top: 4px;' : 'margin-top: 4px;';
-                  const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:0.85rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:4px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
+                  // 💡 세로폭 절약을 위해 마진 패딩 축소
+                  const topBorder = contentHtml !== '' ? 'border-top: 1px dashed #cbd5e1; padding-top: 2px; margin-top: 2px;' : 'margin-top: 2px;';
+                  const iconBadge = filterCount > 1 ? `<div style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; font-size:0.75rem; border-radius:4px; background:${badgeBg}; color:${iconColor}; border:1px solid ${iconColor}; margin-bottom:2px; cursor:help;" title="${groupTitle}">${gIcon}</div>` : '';
                   contentHtml += `<div style="${topBorder} display:flex; flex-direction:column; align-items:stretch; width:100%;">${iconBadge}${scheduleHtml}${eventHtml}</div>`;
               }
           });
 
-          const isRed = isRedDay(dateStr, finalEvents); // 휴일 계산은 모든 일정을 대상으로 유지합니다.
+          const isRed = isRedDay(dateStr, finalEvents);
           const dateColor = isRed ? '#ef4444' : (dayOfWeekNum === 6 ? '#3b82f6' : '#334155');
           const holidayName = getHolidayName(dateStr);
           const holidayHtml = holidayName ? `<div style="font-size:0.65rem; color:#ef4444; margin-top:1px; line-height:1;">${holidayName}</div>` : '';
           const todayClass = (dateStr === realTodayStr) ? 'month-today-cell' : '';
 
+          // 💡 날짜 헤더 우측에 배지들을 나란히 배치 (2단 구조로 활용 공간 극대화)
           return `
-          <div class="cal-day ${todayClass}" data-date="${dateStr}">
-              <div style="font-weight:700; color:${dateColor}; font-size:1.1rem; display:inline-block; cursor:pointer;" onclick="window.goToDay('${dateStr}')" title="${dateStr} 일 보기로 이동">${d}${holidayHtml}</div>
+          <div class="cal-day ${todayClass}" data-date="${dateStr}" style="padding:4px; display:flex; flex-direction:column; gap:2px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                  <div style="font-weight:700; color:${dateColor}; font-size:1.05rem; cursor:pointer; line-height:1;" onclick="window.goToDay('${dateStr}')" title="${dateStr} 일 보기로 이동">${d}${holidayHtml}</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:2px; justify-content:flex-end;">${metaBadgesHtml}</div>
+              </div>
               ${contentHtml}
           </div>`;
       }).join('');
@@ -392,7 +384,6 @@ export class MonthView extends BaseView {
               const periods = sMap[dateStr]?.[fId] || {};
               window[`tempSchedules_${dateStr}`][fId] = periods;
 
-              // 💡 에디터에서는 수정 및 라벨 관리를 위해 필터링 없이 모든 일정을 불러와 줍니다. (숨겨서 데이터가 날아가는 것을 방지)
               const fEvents = (eMap[dateStr]?.eventList || []).filter(e => (e.sharedGroupId || 'personal') === fId);
               fEvents.forEach(e => {
                   let labelIds = e.labelIds || [];
@@ -488,7 +479,6 @@ export class MonthView extends BaseView {
                       return `<td class="editable-cell edit-class-cell" data-p="${p}" data-fid="${fId}" contenteditable="true" style="vertical-align: top; text-align: left; padding: 6px 8px; white-space: pre-wrap; border:1px solid #cbd5e1; font-size:1rem; color:#047857; background:#ecfdf5;" oninput="window.monthViewInstance.syncScheduleInputs()">${cellText.trim()}</td>`;
                   }).join('');
 
-                  // 🔥 [수정됨] 편집 모드에서도 +링크 버튼 표시
                   rowsHtmlForDate += `<tr data-month-schedule-date="${dateStr}" data-fid="${fId}" class="month-row-${dateStr}">
                     <td style="padding:4px; border:1px solid #cbd5e1; background:#ecfdf5; color:#047857; font-weight:bold; font-size:0.9rem; vertical-align:middle; text-align:center;">
                       수업<br>${badgeHtml}<br>
@@ -554,7 +544,6 @@ export class MonthView extends BaseView {
                 }
             }, 50);
         } else {
-            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const y = store.currentDate.getFullYear();
             const m = store.currentDate.getMonth();
             
@@ -635,7 +624,6 @@ export class MonthView extends BaseView {
                 }
             }, 50);
         } else {
-            // 🔥 [수정됨] 무한 스크롤 OFF 상태: 비동기 점진적(Lazy) 렌더링 적용
             const y = store.currentDate.getFullYear();
             const m = store.currentDate.getMonth();
             

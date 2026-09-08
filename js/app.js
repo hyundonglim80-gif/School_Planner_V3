@@ -270,45 +270,46 @@ function executeScrollNav(direction) {
 }
 
 // ==========================================================================
-// 3. 💡 맞춤형 키보드 단축키 이벤트 세트 (사용 설명서 완벽 대응)
+// 3. 💡 맞춤형 키보드 단축키 이벤트 세트
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
     if (isModalOpen()) return; // 모달창 열림 시 메인 화면 단축키 차단
 
     const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
     const isInput = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
     // --------------------------------------------------------------------------
     // A. 입력창(input/textarea) 편집 중에도 즉시 작동해야 하는 핵심 제어 단축키
     // --------------------------------------------------------------------------
 
-    // 1. 빠른 구글 동기화 (Ctrl + Shift + Enter)
-    if (e.ctrlKey && e.shiftKey && !e.altKey && e.key === 'Enter') {
-        e.preventDefault();
+    // 1. 구글 캘린더 내보내기 (Ctrl + Shift + S)
+    if (isCtrlOrCmd && e.shiftKey && !e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault(); // 브라우저 기본 동작 완벽 차단
         if (isInput && document.activeElement && document.activeElement.blur) document.activeElement.blur();
         if (window.quickGoogleSync) window.quickGoogleSync();
         return;
     }
 
     // 2. 모드 전환: 보기 모드로 전환 (Ctrl + ⬆️)
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowUp') {
+    if (isCtrlOrCmd && !e.shiftKey && !e.altKey && e.key === 'ArrowUp') {
         e.preventDefault();
         if (isInput && document.activeElement && document.activeElement.blur) document.activeElement.blur();
         if (window.setMode) window.setMode('viewer');
         return;
     }
 
-    // 3. 작성 및 저장: 작성 모드 전환 또는 수정 내용 저장 (Ctrl + ⬇️)
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {
+    // 3. 작성 및 저장: 작성 모드 전환 (Ctrl + ⬇️)
+    if (isCtrlOrCmd && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {
         e.preventDefault();
         if (isInput && document.activeElement && document.activeElement.blur) document.activeElement.blur();
         if (window.handleEditSaveClick) window.handleEditSaveClick();
         return;
     }
 
-    // 4. 항목 추가 / 저장 완료 (Ctrl + Enter)
-    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'Enter') {
-        e.preventDefault();
+    // 4. 항목 추가 / 저장 완료 (Ctrl + S)
+    if (isCtrlOrCmd && !e.shiftKey && !e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault(); // 🚨 크롬 '다른 이름으로 저장' 팝업 완벽 차단
         if (store.scope === 'memo') {
             if (window.memoViewInstance && typeof window.memoViewInstance.addMemoItem === 'function') {
                 window.memoViewInstance.addMemoItem();
@@ -328,19 +329,30 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
+    // 5. 검색창 열기 (Ctrl + F)
+    if (isCtrlOrCmd && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault(); // 🚨 크롬 기본 찾기(검색바) 완벽 차단
+        if (typeof window.openSearchModal === 'function') window.openSearchModal();
+        else {
+            const searchBtn = document.getElementById('btn-search') || document.querySelector('[onclick*="SearchUI"]');
+            if (searchBtn) searchBtn.click();
+        }
+        return;
+    }
+
     // --------------------------------------------------------------------------
     // B. 입력창에 텍스트 입력 중이 아닐 때만 동작해야 하는 탐색/토글 단축키 (!isInput)
     // --------------------------------------------------------------------------
     if (!isInput) {
-        // 5. 오늘 날짜로 즉시 복귀 (Ctrl + Space)
-        if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.code === 'Space' || e.key === ' ')) {
+        // 오늘 날짜로 즉시 복귀 (Ctrl + Space)
+        if (isCtrlOrCmd && !e.shiftKey && !e.altKey && (e.code === 'Space' || e.key === ' ')) {
             e.preventDefault();
             if (window.goToToday) window.goToToday();
             return;
         }
 
-        // 6. 날짜(기간) 이전/다음 이동 (Ctrl + ⬅️ / ➡️)
-        if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+        // 날짜(기간) 이전/다음 이동 (Ctrl + ⬅️ / ➡️)
+        if (isCtrlOrCmd && !e.shiftKey && !e.altKey) {
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 if (window.moveDate) window.moveDate(-1);
@@ -353,26 +365,8 @@ window.addEventListener('keydown', (e) => {
             }
         }
 
-        // 7. 화면(탭) 이동 (Shift + 1~5 및 Ctrl + 1~5 모두 완벽 지원)
-        const isShiftNumber = e.shiftKey && !e.ctrlKey && !e.altKey;
-        const isCtrlNumber = e.ctrlKey && !e.shiftKey && !e.altKey;
-        if (isShiftNumber || isCtrlNumber) {
-            let targetScope = null;
-            if (e.key === '1' || e.key === '!' || e.code === 'Digit1' || e.code === 'Numpad1') targetScope = 'day';
-            else if (e.key === '2' || e.key === '@' || e.code === 'Digit2' || e.code === 'Numpad2') targetScope = 'week';
-            else if (e.key === '3' || e.key === '#' || e.code === 'Digit3' || e.code === 'Numpad3') targetScope = 'month';
-            else if (e.key === '4' || e.key === '$' || e.code === 'Digit4' || e.code === 'Numpad4') targetScope = 'year';
-            else if (e.key === '5' || e.key === '%' || e.code === 'Digit5' || e.code === 'Numpad5') targetScope = 'memo';
-
-            if (targetScope) {
-                e.preventDefault();
-                if (window.setScope) window.setScope(targetScope);
-                return;
-            }
-        }
-
-        // 8. 화면(탭) 좌우 순환 이동 (Shift + ⬅️ / ➡️)
-        if (e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        // 화면(탭) 좌우 순환 이동 (Shift + ⬅️ / ➡️)
+        if (e.shiftKey && !isCtrlOrCmd && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
             e.preventDefault();
             const scopes = ['day', 'week', 'month', 'year', 'memo'];
             let currentIndex = scopes.indexOf(store.scope);
@@ -383,29 +377,15 @@ window.addEventListener('keydown', (e) => {
             return;
         }
 
-        // 9. 검색창 열기 (Shift + ` 또는 Ctrl + ` 또는 /)
-        const isShiftBackquote = e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === '`' || e.key === '~' || e.code === 'Backquote');
-        const isCtrlBackquote = e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === '`' || e.key === '~' || e.code === 'Backquote');
-        const isSlash = !e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === '/' || e.code === 'Slash');
-        if (isShiftBackquote || isCtrlBackquote || isSlash) {
-            e.preventDefault();
-            if (window.openSearchModal) window.openSearchModal();
-            else {
-                const searchBtn = document.getElementById('btn-search') || document.querySelector('[onclick*="SearchUI"]');
-                if (searchBtn) searchBtn.click();
-            }
-            return;
-        }
-
-        // 10. 주말 표시 토글 (Shift + ⬆️ / ⬇️)
-        if (e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        // 주말 표시 토글 (Shift + ⬆️ / ⬇️)
+        if (e.shiftKey && !isCtrlOrCmd && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             e.preventDefault();
             if (window.toggleWeekend) window.toggleWeekend();
             return;
         }
 
-        // 11. 수업 표시 토글 (Alt + ⬆️ / ⬇️)
-        if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        // 수업 표시 토글 (Alt + ⬆️ / ⬇️)
+        if (e.altKey && !isCtrlOrCmd && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             e.preventDefault();
             if (window.toggleClass) window.toggleClass();
             return;
