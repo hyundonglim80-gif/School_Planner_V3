@@ -1,6 +1,7 @@
 // js/views/viewMemo.js
 import { BaseView } from '../components/BaseView.js';
 import { store } from '../core/store.js';
+import { formatDate } from '../core/utils.js';
 import { dbAPI, getUserCol } from '../api/database.js'; 
 import { auth } from '../api/firebaseInit.js'; 
 import { driveAPI } from '../api/driveAPI.js'; 
@@ -194,7 +195,6 @@ export class MemoView extends BaseView {
         this.memoItems = data;
         this.loadMemoLabels(); this._drawHTML();
     } else {
-        // 🚨 버그 수정 핵심: 메모리 데이터가 증발하기 전에 화면을 우선 유지하도록 _drawHTML() 먼저 호출
         this._drawHTML(); 
         this.fetchAllMemos().then(data => {
             if (data === null) return; 
@@ -290,12 +290,14 @@ export class MemoView extends BaseView {
         }).join('') + `</div>`;
     }
 
-    const newMemoGroupChipsHtml = `
+    // 💡 공유그룹이 있을 때만 '공유 대상' 버튼 칩 표시
+    const hasGroups = this.myGroups && this.myGroups.length > 0;
+    const newMemoGroupChipsHtml = hasGroups ? `
         <div class="group-toggle-wrap" style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:0.85rem; font-weight:bold; color:#64748b;">공유 대상:</span>
             ${this.myGroups.map(g => `<button class="group-toggle-chip ${this.currentNewMemoGroupIds.includes(g.id) ? 'active' : ''}" data-value="${g.id}" onclick="window.memoViewInstance.toggleNewMemoShare('${g.id}')">👥 ${g.name}</button>`).join('')}
         </div>
-    `;
+    ` : '';
 
     let html = `
       <div class="memo-layout-container">
@@ -317,7 +319,7 @@ export class MemoView extends BaseView {
           </div>
           <div class="memo-add-controls">
             <textarea id="memo-input-text" class="memo-textarea" placeholder="새 할 일이나 공유할 메모를 추가하세요" 
-                   onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
+                   onkeydown="if(event.ctrlKey && (event.key === 's' || event.key === 'S' || event.key === 'Enter')) { event.preventDefault(); window.memoViewInstance.addMemoItem(); }"
                    oninput="window.memoViewInstance.autoResizeTextarea(this)"></textarea>
             
             <button onclick="document.getElementById('memo-file-upload').click()" class="memo-btn-icon" title="파일/문서 첨부">📎</button>
@@ -419,19 +421,22 @@ export class MemoView extends BaseView {
 
     unknownLabels.forEach(lName => { allLabelsHtml += `<div class="label-chip active" style="padding: 2px 8px; font-size: 0.8rem; min-width: auto; background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; font-weight: bold; cursor: default;">${lName}</div>`; });
 
+    // 💡 공유그룹이 있을 때만 각 카드에 '공유' 버튼 표시
     let groupButtonsHtml = '';
+    const hasGroups = this.myGroups && this.myGroups.length > 0;
     if (isAuthor) {
-        const sharedIds = item.sharedGroupIds || (item.groupId ? [item.groupId] : []);
-        groupButtonsHtml = `
-            <div class="group-toggle-wrap" style="margin:0; display:flex; align-items:center; gap:4px;">
-                <span style="font-size:0.75rem; font-weight:bold; color:#94a3b8; margin-right:4px;">공유:</span>
-                ${this.myGroups.map(g => `<button class="group-toggle-chip ${sharedIds.includes(g.id) ? 'active' : ''}" onclick="window.memoViewInstance.toggleMemoShare('${item.firestoreId}', '${g.id}')">👥 ${g.name}</button>`).join('')}
-            </div>`;
+        if (hasGroups) {
+            const sharedIds = item.sharedGroupIds || (item.groupId ? [item.groupId] : []);
+            groupButtonsHtml = `
+                <div class="group-toggle-wrap" style="margin:0; display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:0.75rem; font-weight:bold; color:#94a3b8; margin-right:4px;">공유:</span>
+                    ${this.myGroups.map(g => `<button class="group-toggle-chip ${sharedIds.includes(g.id) ? 'active' : ''}" onclick="window.memoViewInstance.toggleMemoShare('${item.firestoreId}', '${g.id}')">👥 ${g.name}</button>`).join('')}
+                </div>`;
+        }
     } else {
         groupButtonsHtml = `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">👥 ${item.groupName} (읽기전용)</div>`;
     }
     
-    // 🚨 메모 카드 생성 시 날짜를 정확히 추적하여 링크 매니저로 전달
     const memoDateStr = formatDate(new Date(item.createdAt || Date.now()));
     const linkCount = (item.linkedItems || []).length;
     const linkBadgeHtml = linkCount > 0 
@@ -467,7 +472,7 @@ export class MemoView extends BaseView {
     
     const editableAttr = (isCompleted || !isAuthor) 
         ? `onclick="const el=document.getElementById('memo-labels-${item.firestoreId}'); el.style.display=el.style.display==='none'?'flex':'none';"` 
-        : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.blur(); }"`;
+        : `contenteditable="true" onfocus="${focusHandler}" onblur="${blurHandler}" onkeydown="if(event.ctrlKey && (event.key === 's' || event.key === 'S' || event.key === 'Enter')) { event.preventDefault(); this.blur(); }"`;
 
     const uploadId = `memo-upload-${item.firestoreId}`;
     const isUploadingHtml = item.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
@@ -612,13 +617,6 @@ export class MemoView extends BaseView {
   deleteMemoItem(firestoreId) {
       const target = this.memoItems.find(m => m.firestoreId === firestoreId);
       if (target) window.TrashManager.moveToTrash('memo', target.groupId || 'personal', null, target);
-      
-      // 첨부파일 삭제 로직은 복구를 위해 일단 주석처리 하거나 여기서 유지
-      /*
-      if (target && target.attachments && target.attachments.length > 0) {
-          target.attachments.forEach(a => driveAPI.deleteFile(a.id).catch(e => console.warn(e)));
-      }
-      */
       
       this.memoItems = this.memoItems.filter(m => m.firestoreId !== firestoreId);
       this._drawHTML();
