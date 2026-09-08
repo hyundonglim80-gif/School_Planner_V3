@@ -2,6 +2,7 @@
 import { store } from './store.js';
 import { formatDate } from './utils.js';
 import { updateTitle, render, saveCurrentViewData, scrollToTodayIfExist, updateButtonUI } from '../ui/uiManager.js';
+import { invalidateCalendarCache } from './calendarDataManager.js';
 
 const toggleState = (key) => {
     if (store.mode === 'editor' && store.hasUnsavedChanges) saveCurrentViewData(true);
@@ -197,6 +198,11 @@ export const goToDay = (dateStr) => {
         return;
     }
 
+    const prevMode = window.isNavigatingDayModal && window._lastDayModalPrevMode !== undefined 
+        ? window._lastDayModalPrevMode 
+        : store.mode;
+    window._lastDayModalPrevMode = prevMode;
+    store.mode = 'editor';
     store.currentDate = new Date(dateStr); 
     
     const titleHtml = `
@@ -256,7 +262,15 @@ export const goToDay = (dateStr) => {
         width: '1100px',
         content: html,
         onClose: () => {
-            if (window.dayViewInstance) window.dayViewInstance.container = document.getElementById("main-view");
+            if (!window.isNavigatingDayModal) {
+                store.mode = window._lastDayModalPrevMode !== undefined ? window._lastDayModalPrevMode : prevMode;
+                delete window._lastDayModalPrevMode;
+            }
+            if (window.dayViewInstance) {
+                window.dayViewInstance.isModalEditor = false;
+                window.dayViewInstance.container = document.getElementById("main-view");
+            }
+            invalidateCalendarCache();
             document.removeEventListener('keydown', handleModalKeydown);
             
             if (window.isNavigatingDayModal) return;
@@ -375,8 +389,10 @@ export const goToDay = (dateStr) => {
                 pinBtn.onclick = async () => {
                     if (store.hasUnsavedChanges && window.dayViewInstance) { 
                         pinBtn.innerHTML = '⏳'; 
+                        window.dayViewInstance.isModalEditor = true;
                         await window.dayViewInstance.save(); 
                         if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+                        invalidateCalendarCache();
                     }
                     store.hasUnsavedChanges = false; dayModal.close();
                     localStorage.setItem('workCalendar_date_day', store.currentDate.toISOString());
@@ -390,8 +406,10 @@ export const goToDay = (dateStr) => {
             if (store.hasUnsavedChanges && window.dayViewInstance) {
                 const saveBtn = document.getElementById('day-modal-save-btn');
                 if(saveBtn) { saveBtn.innerHTML = '⏳'; saveBtn.style.opacity = '0.7'; }
+                window.dayViewInstance.isModalEditor = true;
                 await window.dayViewInstance.save();
                 if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+                invalidateCalendarCache();
             }
             store.hasUnsavedChanges = false;
 
@@ -451,10 +469,9 @@ export const goToDay = (dateStr) => {
         }
 
         if (modalContainer && window.dayViewInstance) {
-            const prevMode = store.mode;
-            store.mode = 'editor';
+            window.dayViewInstance.isModalEditor = true;
             window.dayViewInstance.container = modalContainer;
-            window.dayViewInstance.renderEditor().then(() => { store.mode = prevMode; });
+            window.dayViewInstance.renderEditor();
         }
 
         document.getElementById('day-modal-save-btn').onclick = async () => {
@@ -462,8 +479,10 @@ export const goToDay = (dateStr) => {
                 try {
                     const btn = document.getElementById('day-modal-save-btn');
                     btn.innerHTML = '💾 저장 중...'; btn.style.opacity = '0.7';
+                    window.dayViewInstance.isModalEditor = true;
                     await window.dayViewInstance.save();
                     if (window.autoForwardIncompleteEvents) await window.autoForwardIncompleteEvents();
+                    invalidateCalendarCache();
                     store.hasUnsavedChanges = false;
                     
                     btn.innerHTML = '✅ 저장됨';

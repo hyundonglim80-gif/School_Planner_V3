@@ -9,11 +9,12 @@ import { driveAPI } from '../api/driveAPI.js';
 import { generateEventBadgesHTML, formatEventListToText, parseRawEventTextToEventList } from '../core/eventManager.js';
 import { doc, getDoc, setDoc, query, where, documentId, getDocs, writeBatch } from "firebase/firestore";
 import { CompactEventHelper } from '../ui/templateHelpers.js';
-import { fetchCalendarData, saveCalendarData } from '../core/calendarDataManager.js';
+import { fetchCalendarData, saveCalendarData, invalidateCalendarCache } from '../core/calendarDataManager.js';
 
 export class DayView extends BaseView {
     constructor(container) {
         super(container);
+        this.isModalEditor = false;
         this.currentEvalList = []; 
         this.draggedPeriod = null; 
         this.draggedFilterId = null;
@@ -22,6 +23,10 @@ export class DayView extends BaseView {
         this.lockedDateStr = null; 
         this.selectedEventId = null;
         this.selectedJournalId = null;
+    }
+
+    isEditorMode() {
+        return store.mode === 'editor' || !!this.isModalEditor || (this.container && this.container.id === 'day-modal-body');
     }
 
     autoResize(textarea) {
@@ -1524,7 +1529,7 @@ export class DayView extends BaseView {
     }
 
     syncEventInputs(fId) {
-        if (store.mode !== 'editor') return;
+        if (!this.isEditorMode()) return;
         const container = document.getElementById(`event-entries-container-${fId}`);
         if(container) {
             container.querySelectorAll('textarea').forEach(ta => {
@@ -1542,7 +1547,7 @@ export class DayView extends BaseView {
     }
 
     syncJournalInputs(fId) {
-        if (store.mode !== 'editor') return;
+        if (!this.isEditorMode()) return;
         const container = document.getElementById(`journal-entries-container-${fId}`);
         if(container) {
             container.querySelectorAll('textarea').forEach(ta => {
@@ -1560,7 +1565,7 @@ export class DayView extends BaseView {
     }
 
     syncScheduleInputs(fId) {
-        if (store.mode !== 'editor') return;
+        if (!this.isEditorMode()) return;
         const tbody = document.getElementById(`schedule-tbody-${fId}`);
         if (!tbody) return;
 
@@ -1598,7 +1603,7 @@ export class DayView extends BaseView {
 
     async save() {
         if (this.isRendering) return; 
-        if (store.mode !== 'editor') return; 
+        if (!this.isEditorMode()) return; 
         
         const dateStr = this.lockedDateStr || this.dateStr; 
         
@@ -1805,10 +1810,8 @@ export class DayView extends BaseView {
                 })());
             });
             
-            await Promise.race([
-                Promise.all(promises),
-                new Promise(resolve => setTimeout(resolve, 300))
-            ]);
+            await Promise.all(promises);
+            invalidateCalendarCache();
             
             store.hasUnsavedChanges = false;
         } catch(e) {

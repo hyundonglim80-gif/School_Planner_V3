@@ -11,6 +11,9 @@ let requestCache = new Map();
 export const invalidateCalendarCache = () => {
     requestCache.clear();
 };
+if (typeof window !== 'undefined') {
+    window.invalidateCalendarCache = invalidateCalendarCache;
+}
 
 export const fetchCalendarData = async (startStr, endStr, myGroups) => {
     const groupKey = myGroups.map(g => g.id).sort().join('_');
