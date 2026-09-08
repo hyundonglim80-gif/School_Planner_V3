@@ -191,3 +191,63 @@ document.addEventListener('keydown', function(event) {
     }
   }
 });
+
+// ==========================================================================
+// 📋 클립보드 이미지 붙여넣기 (Ctrl + V) 이벤트 엔진
+// ==========================================================================
+document.addEventListener('paste', async (event) => {
+    const activeEl = document.activeElement;
+    
+    // 텍스트 입력창(textarea, input)에 포커스가 없으면 무시
+    if (!activeEl || (activeEl.tagName !== 'TEXTAREA' && activeEl.tagName !== 'INPUT')) return;
+
+    const items = (event.clipboardData || window.clipboardData).items;
+    let imageFile = null;
+
+    // 클립보드 데이터 중 이미지가 있는지 탐색
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            imageFile = items[i].getAsFile();
+            break;
+        }
+    }
+
+    // 클립보드에 이미지가 없다면 (일반 텍스트라면) 브라우저 기본 붙여넣기 동작 수행
+    if (!imageFile) return;
+
+    // 이미지가 확인되었으므로, 문자열로 변환되어 깨지는 기본 동작 방지
+    event.preventDefault();
+
+    // 1. 하루 페이지 '오늘 기록' 텍스트박스인 경우
+    const journalCard = activeEl.closest('[id^="journal-card-"]');
+    if (journalCard && window.dayViewInstance) {
+        const fId = journalCard.id.split('-')[2];
+        const idx = journalCard.getAttribute('data-journal-idx');
+        if (fId && idx !== null) {
+            // 기존 업로드 함수가 input 요소를 받으므로, 가짜 input 객체 생성
+            const fakeInput = { files: [imageFile], value: '' };
+            window.dayViewInstance.handleJournalAttachmentUpload(fId, parseInt(idx, 10), fakeInput);
+            return;
+        }
+    }
+
+    // 2. 메모 페이지 '새 메모 추가' 텍스트박스인 경우
+    if (activeEl.id === 'memo-input-text' && window.memoViewInstance) {
+        const fakeInput = { files: [imageFile], value: '' };
+        window.memoViewInstance.handleFileUpload(fakeInput);
+        return;
+    }
+
+    // 3. 메모 페이지 '기존 메모 수정' 텍스트박스인 경우
+    const memoRow = activeEl.closest('.memo-item-row');
+    if (memoRow && window.memoViewInstance) {
+        const firestoreId = memoRow.id.replace('memo-card-', '');
+        if (firestoreId) {
+            const fakeInput = { files: [imageFile], value: '' };
+            window.memoViewInstance.handleMemoItemAttachmentUpload(firestoreId, fakeInput);
+            return;
+        }
+    }
+
+    if (window.showToast) window.showToast('이 입력칸에서는 이미지 붙여넣기를 지원하지 않습니다.');
+});
