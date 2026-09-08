@@ -161,9 +161,6 @@ export class MemoView extends BaseView {
   }
 
   async fetchAllMemos() {
-      // 💡 [수정됨] 권한 없는 상태에서의 요청 원천 차단
-      if (!auth || !auth.currentUser) return [];
-
       try { this.myGroups = await dbAPI.loadMyGroups(); } catch(e) { this.myGroups = []; }
       let allMemos = [];
       try {
@@ -174,11 +171,6 @@ export class MemoView extends BaseView {
               allMemos = allMemos.concat(groupMemos);
           }
       } catch (e) {
-          // 💡 [수정됨] 권한 부족인 경우 오프라인 동기화 팝업 띄우지 않음 (루프 방지)
-          if (e.code === 'permission-denied') {
-              console.warn("메모 로드 권한 에러 무시");
-              return [];
-          }
           if (window.promptOfflineSync && await window.promptOfflineSync(this, 'renderViewer')) {
               return null; 
           }
@@ -298,6 +290,7 @@ export class MemoView extends BaseView {
         }).join('') + `</div>`;
     }
 
+    // 💡 공유그룹이 있을 때만 '공유 대상' 버튼 칩 표시
     const hasGroups = this.myGroups && this.myGroups.length > 0;
     const newMemoGroupChipsHtml = hasGroups ? `
         <div class="group-toggle-wrap" style="display:flex; align-items:center; gap:6px;">
@@ -428,6 +421,7 @@ export class MemoView extends BaseView {
 
     unknownLabels.forEach(lName => { allLabelsHtml += `<div class="label-chip active" style="padding: 2px 8px; font-size: 0.8rem; min-width: auto; background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; font-weight: bold; cursor: default;">${lName}</div>`; });
 
+    // 💡 공유그룹이 있을 때만 각 카드에 '공유' 버튼 표시
     let groupButtonsHtml = '';
     const hasGroups = this.myGroups && this.myGroups.length > 0;
     if (isAuthor) {
@@ -483,6 +477,11 @@ export class MemoView extends BaseView {
     const uploadId = `memo-upload-${item.firestoreId}`;
     const isUploadingHtml = item.isUploading ? `<div style="margin-top:8px; font-size:0.85rem; color:#2563eb; font-weight:bold; display:flex; align-items:center; gap:6px;">⏳ 구글 드라이브로 파일 업로드 중...</div>` : '';
 
+    const isSharedGroup = item.groupId && item.groupId !== 'personal';
+    const authorBadge = (isSharedGroup && item.authorId)
+        ? `<div style="padding:3px 8px; font-size:0.75rem; border-radius:4px; font-weight:bold; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;" title="작성자">👤 ${item.authorName || item.authorId.substring(0, 6)}</div>`
+        : '';
+
     const toggleId = `memo-extras-${item.firestoreId}`;
     const textId = `memo-span-${item.firestoreId}`;
     const toggleBtnHtml = `<button onclick="const xt = document.getElementById('${toggleId}'); const tx = document.getElementById('${textId}'); const isC = xt.style.display === 'none'; if(isC){ xt.style.display='block'; tx.style.display='block'; tx.style.whiteSpace='pre-wrap'; tx.style.overflow='visible'; tx.style.textOverflow='clip'; this.innerText='▼'; }else{ xt.style.display='none'; tx.style.display='block'; tx.style.whiteSpace='nowrap'; tx.style.overflow='hidden'; tx.style.textOverflow='ellipsis'; this.innerText='▶'; }" style="background:none; border:none; cursor:pointer; font-size:0.8rem; color:#64748b; padding:0 4px; margin-top:5px; outline:none;" title="접기/펼치기">▼</button>`;
@@ -499,6 +498,7 @@ export class MemoView extends BaseView {
             <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px;">
                 ${linkBtnHtml} 
                 ${groupButtonsHtml}
+                ${authorBadge}
                 ${isAuthor && !isCompleted ? `
                 <button onclick="document.getElementById('${uploadId}').click()" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" title="파일 첨부">📎 첨부</button>
                 <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.memoViewInstance.handleMemoItemAttachmentUpload('${item.firestoreId}', this)">
@@ -509,7 +509,7 @@ export class MemoView extends BaseView {
         <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
           <div style="padding-top:2px;">${dragHandleHtml}</div>
           <div style="padding-top:2px;">${toggleBtnHtml}</div>
-          <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', this.checked)" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
+          <input type="checkbox" ${isCompleted ? 'checked' : ''} ${!isAuthor ? 'disabled' : ''} onchange="window.memoViewInstance.toggleMemoItem('${item.firestoreId}', ${item.completed})" style="width:20px; height:20px; accent-color:var(--primary-color); flex-shrink: 0; margin-top: 4px; cursor:pointer;">
           <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; overflow:hidden;">
              <span id="${textId}" ${editableAttr} class="memo-text-content ${textStatusClass}" style="outline:none; display:block; white-space:pre-wrap; word-break:break-all;">${item.text}</span>
              <div id="${toggleId}" style="display:block;">
@@ -523,12 +523,13 @@ export class MemoView extends BaseView {
   }
 
   toggleMemoItem(firestoreId, currentStatus) {
+    const isNowCompleted = !currentStatus;
     const target = this.memoItems.find(m => m.firestoreId === firestoreId);
     if (target) {
-        target.completed = currentStatus;
-        target.completedAt = currentStatus ? Date.now() : null;
+        target.completed = isNowCompleted;
+        target.completedAt = isNowCompleted ? Date.now() : null;
         this._drawHTML();
-        dbAPI.updateMemo(firestoreId, { completed: currentStatus, completedAt: currentStatus ? Date.now() : null }, target.groupId).catch(e => console.warn(e));
+        dbAPI.updateMemo(firestoreId, { completed: isNowCompleted, completedAt: isNowCompleted ? Date.now() : null }, target.groupId).catch(e => console.warn(e));
     }
   }
 
