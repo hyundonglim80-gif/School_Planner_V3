@@ -148,23 +148,24 @@ export const DetailEditManager = {
         try {
             if (type === 'event') {
                 if (isNew) {
-                    this.renderEventForm({ id: 'new', content: '', labelIds: [], time: '', completed: false, linkedItems: [] });
+                    this.renderEventForm({ id: 'new', content: '', labelIds: [], time: '', completed: false, linkedItems: [], date: dateStr });
                     return;
                 }
                 let eventItem = null;
                 const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
-                // 메모리 우선 검색
+                
                 if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.events) {
                     eventItem = window.dayViewInstance.dayData[fId].events.find(e => String(e.id) === String(itemId));
                 }
                 if (!eventItem && window[`tempEvents_${dateStr}`]) {
                     eventItem = window[`tempEvents_${dateStr}`].find(e => String(e.id) === String(itemId));
                 }
-                // DB 조회
+                
                 if (!eventItem) {
                     const snap = await getDoc(doc(colFunc('events'), dateStr));
                     if (snap.exists()) {
-                        const list = snap.data().eventList || [];
+                        let list = snap.data().eventList;
+                        if (!list || list.length === 0) list = window.parseRawEventTextToEventList ? window.parseRawEventTextToEventList(snap.data().eventText || '') : [];
                         eventItem = list.find(e => String(e.id) === String(itemId)) || list[Number(itemId)];
                     }
                 }
@@ -178,14 +179,14 @@ export const DetailEditManager = {
                 let scheduleItem = null;
                 const p = Number(itemId);
                 const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
-                // 메모리 우선 검색
+                
                 if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.schedules?.[p]) {
                     scheduleItem = window.dayViewInstance.dayData[fId].schedules[p];
                 }
                 if (!scheduleItem && window[`tempSchedules_${dateStr}`]?.[fId]?.[p]) {
                     scheduleItem = window[`tempSchedules_${dateStr}`][fId][p];
                 }
-                // DB 조회
+                
                 if (!scheduleItem) {
                     const snap = await getDoc(doc(colFunc('schedules'), dateStr));
                     if (snap.exists()) {
@@ -198,16 +199,16 @@ export const DetailEditManager = {
             }
             else if (type === 'journal') {
                 if (isNew) {
-                    this.renderJournalForm({ id: 'new', content: '', labelIds: [], linkedItems: [] });
+                    this.renderJournalForm({ id: 'new', content: '', labelIds: [], linkedItems: [], date: dateStr });
                     return;
                 }
                 let journalItem = null;
                 const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
-                // 메모리 우선 검색
+                
                 if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.journals) {
                     journalItem = window.dayViewInstance.dayData[fId].journals.find(j => String(j.id) === String(itemId));
                 }
-                // DB 조회
+                
                 if (!journalItem) {
                     const snap = await getDoc(doc(colFunc('journals'), dateStr));
                     if (snap.exists()) {
@@ -241,7 +242,6 @@ export const DetailEditManager = {
             });
         }
 
-        // 임시 캐시된 입력값 복원
         let contentVal = ev.content || '';
         let completedVal = !!ev.completed;
         let timeVal = '';
@@ -255,10 +255,9 @@ export const DetailEditManager = {
             if (this.cachedInputs.completed !== undefined) completedVal = this.cachedInputs.completed;
             if (this.cachedInputs.time !== undefined) timeVal = this.cachedInputs.time;
             if (this.cachedInputs.labelIds !== undefined) selectedLabelIds = this.cachedInputs.labelIds;
-            this.cachedInputs = null; // 복원 완료 후 초기화
+            this.cachedInputs = null; 
         }
 
-        // 완료 속성(isForward: true)을 가진 라벨이 선택되어 있는지 확인
         const hasForwardLabel = selectedLabelIds.some(id => {
             const match = masterLabels.find(l => l.id === id);
             return match && match.isForward;
@@ -276,36 +275,25 @@ export const DetailEditManager = {
 
         container.innerHTML = `
             <div style="padding:15px; display:flex; flex-direction:column; gap:16px;">
-                <!-- 링크 관리 액션 바 -->
                 ${linkSectionHtml}
-
-                <!-- 라벨 선택 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">라벨 선택 (다중 선택 가능)</label>
                     <div id="detail-event-labels" style="display:flex; flex-wrap:wrap; gap:6px;">
                         ${labelChipsHtml}
                     </div>
                 </div>
-
-                <!-- 일정 내용 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">일정 내용</label>
                     <textarea id="detail-edit-content" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${contentVal}</textarea>
                 </div>
-
-                <!-- 알람 시간 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">⏰ 알림 시간 (예: 1430 또는 14:30 / 비우면 off)</label>
                     <input type="text" id="detail-edit-time" value="${timeVal}" placeholder="예: 0900 (오전 9시) / 비워두면 알림 없음" maxlength="5" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:0.95rem; box-sizing:border-box;">
                 </div>
-
-                <!-- 완료 속성 라벨일 경우에만 완료 체크 표시 -->
                 <div id="detail-edit-completed-wrap" style="display:${hasForwardLabel ? 'flex' : 'none'}; align-items:center; gap:8px;">
                     <input type="checkbox" id="detail-edit-completed" ${completedVal ? 'checked' : ''} style="width:18px; height:18px; accent-color:#059669; cursor:pointer;">
                     <label for="detail-edit-completed" style="font-size:0.9rem; font-weight:bold; color:#334155; cursor:pointer;">이 일정을 완료로 표시</label>
                 </div>
-
-                <!-- 하단 액션 버튼 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0;">
                     ${itemId === 'new' ? '<div></div>' : '<button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>'}
                     <div style="display:flex; gap:8px;">
@@ -325,7 +313,6 @@ export const DetailEditManager = {
     renderScheduleForm: function(sc) {
         const { dateStr, itemId, fId } = this.currentData;
         const container = document.getElementById('detail-edit-modal-body');
-        const p = Number(itemId);
 
         let subjectVal = sc.subject || '';
         let memoVal = sc.memo || '';
@@ -342,35 +329,24 @@ export const DetailEditManager = {
 
         container.innerHTML = `
             <div style="padding:15px; display:flex; flex-direction:column; gap:16px;">
-                <!-- 바로가기 액션 버튼 바 -->
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <button type="button" onclick="window.DetailEditManager.close(); window.EvaluationManager.currentGroupId = '${fId === 'personal' ? '' : fId}'; window.EvaluationManager.openCreationModal('${dateStr}', 'schedule');" style="padding:6px 12px; background:#e0f2fe; color:#0369a1; border:1px solid #7dd3fc; border-radius:6px; font-size:0.85rem; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:4px;">
                         📊 조사표 추가
                     </button>
                 </div>
-
-                <!-- 링크 관리 액션 바 -->
                 ${linkSectionHtml}
-
-                <!-- 과목명 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">과목명</label>
                     <input type="text" id="detail-edit-subject" value="${subjectVal}" placeholder="예: 국어, 수학, 체육 등" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:0.95rem; font-weight:bold; box-sizing:border-box;">
                 </div>
-
-                <!-- 수업 메모 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">📝 수업 메모 / 학습 활동</label>
                     <textarea id="detail-edit-memo" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:80px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${memoVal}</textarea>
                 </div>
-
-                <!-- 비고 / 준비물 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#d97706; margin-bottom:6px;">📌 비고 / 준비물</label>
                     <textarea id="detail-edit-supplies" oninput="window.DetailEditManager.autoResize(this)" placeholder="예: 가위, 풀, 리코더 등" style="width:100%; min-height:42px; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:0.95rem; box-sizing:border-box; resize:none; overflow-y:hidden; line-height:1.4;">${suppliesVal}</textarea>
                 </div>
-
-                <!-- 하단 액션 버튼 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0;">
                     <button type="button" onclick="window.DetailEditManager.clearSchedule()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">내용 지우기</button>
                     <div style="display:flex; gap:8px;">
@@ -411,24 +387,17 @@ export const DetailEditManager = {
 
         container.innerHTML = `
             <div style="padding:15px; display:flex; flex-direction:column; gap:16px;">
-                <!-- 링크 관리 액션 바 -->
                 ${linkSectionHtml}
-
-                <!-- 라벨 선택 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">라벨 선택 (다중 선택 가능)</label>
                     <div id="detail-journal-labels" style="display:flex; flex-wrap:wrap; gap:6px;">
                         ${labelChipsHtml}
                     </div>
                 </div>
-
-                <!-- 기록 내용 -->
                 <div>
                     <label style="display:block; font-size:0.85rem; font-weight:bold; color:#475569; margin-bottom:6px;">기록 내용</label>
                     <textarea id="detail-edit-content" oninput="window.DetailEditManager.autoResize(this)" style="width:100%; min-height:100px; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; outline:none; font-size:0.95rem; resize:none; overflow-y:hidden; line-height:1.4;">${contentVal}</textarea>
                 </div>
-
-                <!-- 하단 액션 버튼 -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0;">
                     ${itemId === 'new' ? '<div></div>' : '<button type="button" onclick="window.DetailEditManager.deleteItem()" style="padding:8px 16px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; font-weight:bold; font-size:0.9rem; cursor:pointer;">🗑️ 삭제</button>'}
                     <div style="display:flex; gap:8px;">
@@ -458,7 +427,6 @@ export const DetailEditManager = {
             btn.style.borderColor = '#1d4ed8';
         }
 
-        // 완료(isForward: true) 속성 라벨이 활성화되어 있는지 실시간 확인
         const masterLabels = getEventLabels();
         const activeChips = document.querySelectorAll('#detail-event-labels .detail-label-chip.active');
         const activeIds = Array.from(activeChips).map(c => c.dataset.id);
@@ -535,6 +503,7 @@ export const DetailEditManager = {
                 item.labelIds = labelIds;
                 item.time = finalTime;
                 item.alarmTriggered = false;
+                item.date = dateStr;
             } else {
                 item = {
                     id: targetId,
@@ -544,7 +513,8 @@ export const DetailEditManager = {
                     time: finalTime,
                     alarmTriggered: false,
                     sharedGroupId: fId === 'personal' ? null : fId,
-                    linkedItems: []
+                    linkedItems: [],
+                    date: dateStr
                 };
                 list.push(item);
             }
@@ -555,10 +525,8 @@ export const DetailEditManager = {
                 updatedAt: Date.now() 
             }, { merge: true });
 
-            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
             invalidateCalendarCache();
 
-            // 메모리 동기화
             const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
             if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.events) {
                 const memList = window.dayViewInstance.dayData[fId].events;
@@ -569,6 +537,7 @@ export const DetailEditManager = {
                     memItem.labelIds = labelIds;
                     memItem.time = finalTime;
                     memItem.alarmTriggered = false;
+                    memItem.date = dateStr;
                 } else {
                     memList.push(item);
                 }
@@ -582,6 +551,7 @@ export const DetailEditManager = {
                     memItem.labelIds = labelIds;
                     memItem.time = finalTime;
                     memItem.alarmTriggered = false;
+                    memItem.date = dateStr;
                 } else {
                     memList.push(item);
                 }
@@ -622,10 +592,8 @@ export const DetailEditManager = {
 
             await setDoc(docRef, { periods: periods, updatedAt: Date.now() }, { merge: true });
 
-            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
             invalidateCalendarCache();
 
-            // 메모리 동기화
             const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
             if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.schedules) {
                 if (subject || memo || supplies || oldLinked.length > 0) {
@@ -687,22 +655,22 @@ export const DetailEditManager = {
             if (item) {
                 item.content = content;
                 item.labelIds = labelIds;
+                item.date = dateStr;
             } else {
                 item = {
                     id: targetId,
                     content,
                     labelIds,
-                    linkedItems: []
+                    linkedItems: [],
+                    date: dateStr
                 };
                 list.push(item);
             }
 
             await setDoc(docRef, { entries: list, updatedAt: Date.now() }, { merge: true });
 
-            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
             invalidateCalendarCache();
 
-            // 메모리 동기화
             const isDayViewTargetDate = window.dayViewInstance && (window.dayViewInstance.lockedDateStr === dateStr || window.dayViewInstance.dateStr === dateStr);
             if (isDayViewTargetDate && window.dayViewInstance?.dayData?.[fId]?.journals) {
                 const memList = window.dayViewInstance.dayData[fId].journals;
@@ -710,6 +678,7 @@ export const DetailEditManager = {
                 if (memItem) {
                     memItem.content = content;
                     memItem.labelIds = labelIds;
+                    memItem.date = dateStr;
                 } else {
                     memList.push(item);
                 }
@@ -774,7 +743,6 @@ export const DetailEditManager = {
                 return;
             }
 
-            // ⚡ 캐시 무효화: 주간/월간/연간 등 캘린더 뷰에서 새 데이터를 즉시 조회하도록 보장
             invalidateCalendarCache();
 
             this.cachedInputs = null;

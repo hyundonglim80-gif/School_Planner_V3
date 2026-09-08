@@ -25,6 +25,10 @@ export class DayView extends BaseView {
         this.selectedJournalId = null;
     }
 
+    get targetDateStr() {
+        return this.lockedDateStr || this.dateStr || formatDate(store.currentDate);
+    }
+
     isEditorMode() {
         return store.mode === 'editor' || !!this.isModalEditor || (this.container && this.container.id === 'day-modal-body');
     }
@@ -84,7 +88,7 @@ export class DayView extends BaseView {
 
         if(evals.length === 0) return '';
         
-        const targetDate = this.lockedDateStr || this.dateStr;
+        const targetDate = this.targetDateStr;
 
         return evals.map(e => {
             let badgeType = '';
@@ -103,7 +107,7 @@ export class DayView extends BaseView {
     }
 
     async refreshEvalBadges() {
-        this.currentEvalList = await this.loadEvaluationsForDay(this.lockedDateStr || this.dateStr);
+        this.currentEvalList = await this.loadEvaluationsForDay(this.targetDateStr);
         (window.activeUnifiedFilters || []).forEach(fId => {
             const tbody = document.getElementById(`schedule-tbody-${fId}`);
             if (tbody) {
@@ -143,7 +147,7 @@ export class DayView extends BaseView {
             if (infBtn) infBtn.style.display = 'none';
         }
 
-        this.lockedDateStr = this.dateStr; 
+        this.lockedDateStr = this.dateStr || formatDate(store.currentDate); 
         this.showLoading('클라우드 데이터를 불러오는 중...');
         const dateStr = this.lockedDateStr;
 
@@ -219,9 +223,6 @@ export class DayView extends BaseView {
 
             const processedEvents = this.dayData[fId].events.filter(e => (e.content || '').trim() !== '').map(e => ({ ...e, content: e.content }));
             
-            // 기존 뷰어 모드의 라벨/이름 기준 강제 정렬 제거
-            // 작성 페이지에서의 순서(드래그 앤 드롭 등)를 그대로 유지합니다.
-            
             const eventBadges = window.generateEventBadgesHTML(processedEvents, dateStr, 'normal') || '<p style="color:#94a3b8; font-size:0.95rem; margin:0;">등록된 일정이 없습니다.</p>';
 
             eventsHtml += `
@@ -241,7 +242,6 @@ export class DayView extends BaseView {
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 
-                // 🚨 수정됨: 수업 뷰어의 링크 배지
                 const linkCount = (pObj.linkedItems || []).length;
                 const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
@@ -269,7 +269,6 @@ export class DayView extends BaseView {
                 </tr>`;
             }).join('');
 
-            // 🚨 수정됨: 누락되었던 <tbody> 와 </table> 정상 복구 및 머리글 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
@@ -298,9 +297,6 @@ export class DayView extends BaseView {
 
             const journals = this.dayData[fId].journals.filter(j => (j.content || '').trim() !== '' || (j.attachments && j.attachments.length > 0));
             
-            // 기존 뷰어 모드의 라벨/이름 기준 강제 정렬 제거
-            // 작성 페이지에서의 순서(드래그 앤 드롭 등)를 그대로 유지합니다.
-
             const jListHtml = journals.length > 0 ? journals.map(j => {
                 const lNames = j.labelIds?.map(id => getJournalLabels().find(l => l.id === id)?.name).filter(Boolean) || j.labels || (j.label ? [j.label] : []);
                 const chipsHtml = lNames.map(lName => {
@@ -317,7 +313,6 @@ export class DayView extends BaseView {
                     </div>`;
                 }).join('') + `</div>` : '';
 
-                // 🚨 수정됨: 기록 뷰어의 링크 배지
                 const linkCount = (j.linkedItems || []).length;
                 const linkBadgeHtml = linkCount > 0 
                     ? `<button onclick="window.LinkManager.openViewer('${dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
@@ -375,7 +370,7 @@ export class DayView extends BaseView {
             if (infBtn) infBtn.style.display = 'none';
         }
 
-        this.lockedDateStr = this.dateStr; 
+        this.lockedDateStr = this.dateStr || formatDate(store.currentDate); 
         this.showLoading('편집 화면을 다중 작업공간으로 준비 중...');
         const dateStr = this.lockedDateStr;
         
@@ -493,7 +488,6 @@ export class DayView extends BaseView {
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 
-                // 🚨 수정됨: 에디터 모드의 수업 링크 배지
                 const linkCount = (pObj.linkedItems || []).length;
                 const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 				
@@ -530,7 +524,6 @@ export class DayView extends BaseView {
                 </tr>`;
             }).join('');
 
-            // 🚨 수정됨: 머리글 📌 비고 칸 버튼 축소 적용
             schedulesHtml += `
             <div class="table-container" style="background:#fff; padding:15px; border-radius:8px; border: 1px solid #cbd5e1; border-left: 5px solid ${isPersonal ? '#0f766e' : '#059669'}; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
               <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
@@ -648,7 +641,6 @@ export class DayView extends BaseView {
         window.dayViewInstance.draggedFilterId = null;
     }
 
-    // ===== 일정 (Event) Drag & Drop 순서 변경 =====
     handleEventDragStart(event, index, filterId) {
         window.dayViewInstance.draggedEventIdx = index;
         window.dayViewInstance.draggedEventFilterId = filterId;
@@ -698,7 +690,6 @@ export class DayView extends BaseView {
         window.dayViewInstance.draggedEventFilterId = null;
     }
 
-    // ===== 기록 (Journal) Drag & Drop 순서 변경 =====
     handleJournalDragStart(event, index, filterId) {
         window.dayViewInstance.draggedJournalIdx = index;
         window.dayViewInstance.draggedJournalFilterId = filterId;
@@ -807,9 +798,8 @@ export class DayView extends BaseView {
                 const periodName = store.periodNames[i] || p + '교시';
                 const evalBadges = this.generateEvalBadgesHtml('schedule', p, fId);
                 
-                // 🚨 드래그 후 렌더링 시 링크 배지 재생성
                 const linkCount = (pObj.linkedItems || []).length;
-                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+                const linkBadge = linkCount > 0 ? `<button onclick="window.LinkManager.openViewer('${this.targetDateStr}', null, '${fId}', 'schedule', ${p})" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:2px 5px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
                 return `
                 <tr id="period-row-${fId}-${p}" data-period="${p}" 
@@ -850,9 +840,9 @@ export class DayView extends BaseView {
             const scheduleEvals = this.currentEvalList.filter(e => e.context?.source === 'schedule' && e.groupId === targetGid);
             const journalEvals = this.currentEvalList.filter(e => e.context?.source === 'journal' && e.groupId === targetGid);
             
-            dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, scheduleEvals, targetGid).catch(e => console.warn(e));
+            dbAPI.saveEvaluations(this.targetDateStr, scheduleEvals, targetGid).catch(e => console.warn(e));
             if (journalEvals.length > 0) {
-                dbAPI.saveEvaluations(this.lockedDateStr || this.dateStr, journalEvals, targetGid).catch(e => console.warn(e));
+                dbAPI.saveEvaluations(this.targetDateStr, journalEvals, targetGid).catch(e => console.warn(e));
             }
         }
         
@@ -873,7 +863,7 @@ export class DayView extends BaseView {
         const allLabelsObj = window.getEventLabels ? window.getEventLabels() : [];
         const forwardLabelId = (ev.labelIds || []).find(id => allLabelsObj.find(l => l.id === id)?.isForward);
         const forwardLabelName = forwardLabelId ? allLabelsObj.find(l=>l.id===forwardLabelId).name : '';
-        const targetDate = this.lockedDateStr || this.dateStr;
+        const targetDate = this.targetDateStr;
 
         if (isGrouped && ev.groupId.startsWith('group_')) {
             window.showGroupDeleteModal(targetDate, ev.labelIds[0] || '', ev.content, ev.groupId, 
@@ -904,7 +894,7 @@ export class DayView extends BaseView {
         const events = this.dayData[fId]?.events;
         if (!events || !events[idx]) return;
         const ev = events[idx];
-        const dateStr = this.lockedDateStr || this.dateStr;
+        const dateStr = this.targetDateStr;
 
         let dVal = dateStr;
         let tVal = '';
@@ -1018,16 +1008,15 @@ export class DayView extends BaseView {
         const uid = auth?.currentUser?.uid;
         const events = this.dayData[fId].events || [];
 
-        // 🚨 최하단 추가 및 드래그앤드롭 순서 유지를 위해 강제 sort 제거
         container.innerHTML = events.map((ev, idx) => {
             const isAuthor = !ev.authorId || !uid || ev.authorId === uid;
             const eLabelIds = ev.labelIds || [];
             const isCompleted = !!ev.completed;
             const canComplete = eLabelIds.some(id => allLabelsObj.find(l => l.id === id)?.isForward);
-            const isSelected = (this.selectedEventId === ev.id);
+            const isSelected = (String(this.selectedEventId) === String(ev.id));
 
             let forwardedBadge = '';
-            if (ev.forwardChainId && ev.originalDate && ev.originalDate !== (this.lockedDateStr || this.dateStr)) {
+            if (ev.forwardChainId && ev.originalDate && ev.originalDate !== this.targetDateStr) {
                 forwardedBadge = `<div style="font-size:0.75rem; font-weight:bold; color:#059669; background:#dcfce3; padding:2px 6px; border-radius:4px; border:1px solid #bbf7d0;">↪️ 이월됨</div>`;
             }
 
@@ -1056,17 +1045,16 @@ export class DayView extends BaseView {
 
             const linkCount = (ev.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 
-                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.targetDateStr}', '${ev.id}', '${fId}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
                 : '';
             const linkBtnHtml = isAuthor
-                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('event', '${this.lockedDateStr || this.dateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                  ? `<div style="display:flex; align-items:center; margin-right:4px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('event', '${this.targetDateStr}', '${ev.id}', '${fId}')" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
                   : (linkCount > 0 ? `<div style="margin-right:4px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && ev.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-left:4px;" title="작성자">👤 ${ev.authorName || ev.authorId.substring(0, 6)}</span>`
                 : '';
 
-            // 💡 [비선택 상태]: 보기 페이지와 같이 부여된 라벨만 왼쪽에 보이는 컴팩트 형식
             if (!isSelected) {
                 const selectedBadges = eLabelIds.map(id => {
                     const lObj = allLabelsObj.find(l => l.id === id);
@@ -1111,7 +1099,6 @@ export class DayView extends BaseView {
                 </div>`;
             }
 
-            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 시간, 링크, 삭제 버튼, 입력창 펼침)
             const chipsHtml = allLabelsObj.map(lObj => {
                 const isActive = eLabelIds.includes(lObj.id);
                 const style = getLabelStyle(lObj.id, 'event'); 
@@ -1155,7 +1142,7 @@ export class DayView extends BaseView {
                         ≡
                     </div>
                     ${checkboxHtml}
-                    <textarea class="modal-input-text" data-event-id="${ev.id}" data-idx="${idx}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용 입력...' : '권한이 없습니다.'}" style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:4px; outline:none; ${textStyle}" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateEventContent('${fId}', ${idx}, this.value)">${pureContent}</textarea>
+                    <textarea class="modal-input-text" data-event-id="${ev.id}" data-id="${ev.id}" ${!isAuthor ? 'readonly' : ''} placeholder="${isAuthor ? '일정 내용을 입력하세요.' : '권한이 없습니다.'}" style="flex:1; padding:6px 8px; font-size:0.95rem; border:1px solid #cbd5e1; border-radius:4px; outline:none; resize:none; min-height:40px; box-sizing:border-box; ${textStyle}" onfocus="this.style.height = this.scrollHeight + 'px';" oninput="this.style.height = '40px'; this.style.height = this.scrollHeight + 'px'; window.dayViewInstance.updateEventContent('${fId}', '${ev.id}', this.value)">${pureContent}</textarea>
                 </div>
             </div>`;
         }).join('');
@@ -1186,13 +1173,12 @@ export class DayView extends BaseView {
         const allLabelsObj = getJournalLabels();
         const journals = this.dayData[fId].journals || [];
         
-        // 🚨 최하단 추가 및 드래그앤드롭 순서 유지를 위해 강제 sort 제거
         const uid = auth?.currentUser?.uid;
 
         container.innerHTML = journals.map((j, idx) => {
             const isAuthor = !j.authorId || !uid || j.authorId === uid;
             const jLabelIds = j.labelIds || [];
-            const isSelected = (this.selectedJournalId === j.id);
+            const isSelected = (String(this.selectedJournalId) === String(j.id));
 
             const attachmentsHtml = (j.attachments && j.attachments.length > 0) ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">` + j.attachments.map((a, aIdx) => {
                 const downloadUrl = a.downloadLink || `https://drive.google.com/uc?export=download&id=${a.id}`;
@@ -1209,17 +1195,16 @@ export class DayView extends BaseView {
 
             const linkCount = (j.linkedItems || []).length;
             const linkBadgeHtml = linkCount > 0 
-                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
+                ? `<button onclick="event.stopPropagation(); window.LinkManager.openViewer('${this.targetDateStr}', '${j.id}', '${fId}', 'journal')" style="background:#fef08a; color:#854d0e; font-size:0.75rem; padding:2px 6px; border-radius:4px; margin-left:4px; font-weight:bold; border:1px solid #fde047; cursor:pointer;" title="연결된 내용 보기 및 수정">📑 ${linkCount}</button>` 
                 : '';
             const linkBtnHtml = isAuthor
-                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('journal', '${this.lockedDateStr || this.dateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
+                ? `<div style="display:flex; align-items:center; margin-right:8px;"><button onclick="event.stopPropagation(); window.LinkManager.openModal('journal', '${this.targetDateStr}', '${j.id}', '${fId}')" style="background:#fff; border:1px solid #fbcfe8; color:#be185d; font-size:0.75rem; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;" title="새 링크 연결">🔗 연결</button>${linkBadgeHtml}</div>`
                 : (linkCount > 0 ? `<div style="margin-right:8px;">${linkBadgeHtml}</div>` : '');
 
             const authorBadge = (fId !== 'personal' && j.authorId)
                 ? `<span style="font-size:0.7rem; background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; margin-right:8px;" title="작성자">👤 ${j.authorName || j.authorId.substring(0, 6)}</span>`
                 : '';
 
-            // 💡 [비선택 상태]: 보기 페이지와 같이 부여된 라벨만 왼쪽에 보이는 컴팩트 형식
             if (!isSelected) {
                 const selectedBadges = jLabelIds.map(id => {
                     const lObj = allLabelsObj.find(l => l.id === id);
@@ -1266,7 +1251,6 @@ export class DayView extends BaseView {
                 </div>`;
             }
 
-            // 💡 [선택된 상태]: 현재의 방식 (모든 라벨 칩, 파일 첨부, 링크, 삭제 버튼, 입력창 펼침)
             const chipsHtml = allLabelsObj.map(lObj => {
                 const isActive = jLabelIds.includes(lObj.id);
                 const style = getLabelStyle(lObj.id, 'journal'); 
@@ -1312,7 +1296,7 @@ export class DayView extends BaseView {
                     </div>
                     <div id="${toggleId}" style="display:flex; flex-direction:column; flex:1; min-width:0; gap:8px;">
                         <div style="display:flex; align-items:flex-start; width:100%; gap:8px;">
-                            <textarea id="${textId}" data-journal-id="${j.id}" data-idx="${idx}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', ${idx}, this.value)">${j.content || ''}</textarea>
+                            <textarea id="${textId}" data-journal-id="${j.id}" data-id="${j.id}" class="modal-input-text" placeholder="학급 기록, 상담, 업무 일지 등을 입력하세요..." style="flex:1; min-height:40px; resize:none; overflow:hidden; font-size:0.95rem; padding:8px; box-sizing:border-box; outline:none; border:1px solid #fbcfe8; border-radius:4px;" onfocus="window.dayViewInstance.autoResize(this)" oninput="window.dayViewInstance.autoResize(this); window.dayViewInstance.updateJournalContent('${fId}', '${j.id}', this.value)">${j.content || ''}</textarea>
                             
                             <button onclick="event.stopPropagation(); document.getElementById('${uploadId}').click()" style="background:#fce7f3; color:#be185d; border:1px solid #fbcfe8; padding:0; border-radius:4px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:0.2s;" onmouseover="this.style.background='#fbcfe8'" onmouseout="this.style.background='#fce7f3'" title="구글 드라이브 문서/파일 첨부">📎</button>
                             <input type="file" id="${uploadId}" multiple style="display:none;" onchange="window.dayViewInstance.handleJournalAttachmentUpload('${fId}',${idx}, this)">
@@ -1382,7 +1366,7 @@ export class DayView extends BaseView {
         if (ev.labelIds.includes(labelId)) {
             ev.labelIds = ev.labelIds.filter(id => id !== labelId);
             this.renderEventEntries(fId);
-            await this.save(); 
+            if (typeof window.saveCurrentViewData === 'function') await window.saveCurrentViewData(true); 
         } else {
             if (labelObj?.isPeriod || labelObj?.isRecur) {
                 const evContent = ev.content || '';
@@ -1407,14 +1391,14 @@ export class DayView extends BaseView {
                     if (typeof window.render === 'function') window.render();
                 };
 
-                if (labelObj.isPeriod) window.openPeriodModal(this.lockedDateStr || this.dateStr, labelObj.name, evContent, callback, labelId);
-                else if (labelObj.isRecur) window.openRecurringModal(this.lockedDateStr || this.dateStr, labelObj.name, evContent, callback, labelId);
+                if (labelObj.isPeriod) window.openPeriodModal(this.targetDateStr, labelObj.name, evContent, callback, labelId);
+                else if (labelObj.isRecur) window.openRecurringModal(this.targetDateStr, labelObj.name, evContent, callback, labelId);
                 return;
             }
 
             ev.labelIds.push(labelId);
             this.renderEventEntries(fId);
-            await this.save(); 
+            if (typeof window.saveCurrentViewData === 'function') await window.saveCurrentViewData(true); 
         }
     }
 
@@ -1422,12 +1406,15 @@ export class DayView extends BaseView {
         store.hasUnsavedChanges = true;
         if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].completed = isCompleted;
         this.renderEventEntries(fId);
-        this.save(); 
+        if (typeof window.saveCurrentViewData === 'function') window.saveCurrentViewData(true); 
     }
 
-    updateEventContent(fId, idx, val) {
+    updateEventContent(fId, evId, val) {
         store.hasUnsavedChanges = true;
-        if (this.dayData[fId].events[idx]) this.dayData[fId].events[idx].content = val;
+        if (this.dayData[fId]?.events) {
+            const ev = this.dayData[fId].events.find(e => String(e.id) === String(evId));
+            if (ev) ev.content = val;
+        }
     }
 
     toggleJournalLabel(fId, idx, labelId) {
@@ -1440,9 +1427,12 @@ export class DayView extends BaseView {
         this.renderJournalEntries(fId);
     }
 
-    updateJournalContent(fId, idx, val) {
+    updateJournalContent(fId, jId, val) {
         store.hasUnsavedChanges = true;
-        if (this.dayData[fId].journals[idx]) this.dayData[fId].journals[idx].content = val;
+        if (this.dayData[fId]?.journals) {
+            const j = this.dayData[fId].journals.find(item => String(item.id) === String(jId));
+            if (j) j.content = val;
+        }
     }
 
     addEventEntry(fId) {
@@ -1453,7 +1443,6 @@ export class DayView extends BaseView {
         this.renderEventEntries(fId);
         store.hasUnsavedChanges = true;
 
-        // 새로 추가된 최하단 항목으로 포커스 및 스크롤 이동
         setTimeout(() => {
             const container = document.getElementById(`event-entries-container-${fId}`);
             if (container) {
@@ -1470,7 +1459,7 @@ export class DayView extends BaseView {
     removeEventEntry(fId, index) {
         this.syncEventInputs(fId);
         const item = this.dayData[fId].events[index];
-        if (item) window.TrashManager.moveToTrash('event', fId, this.lockedDateStr || this.dateStr, item);
+        if (item) window.TrashManager.moveToTrash('event', fId, this.targetDateStr, item);
         
         this.dayData[fId].events.splice(index, 1);
         this.renderEventEntries(fId);
@@ -1493,7 +1482,6 @@ export class DayView extends BaseView {
         this.renderJournalEntries(fId);
         store.hasUnsavedChanges = true;
 
-        // 새로 추가된 최하단 항목으로 포커스 및 스크롤 이동
         setTimeout(() => {
             const container = document.getElementById(`journal-entries-container-${fId}`);
             if (container) {
@@ -1510,17 +1498,7 @@ export class DayView extends BaseView {
     removeJournalEntry(fId, index) {
         this.syncJournalInputs(fId);
         const j = this.dayData[fId].journals[index];
-        if (j) window.TrashManager.moveToTrash('journal', fId, this.lockedDateStr || this.dateStr, j);
-        
-        // 첨부파일 삭제 로직은 복구를 위해 주석처리 하거나 여기서 유지하되, 드라이브 파일은 유지하는게 나을 수 있음
-        // 만약 즉시 지워야한다면 아래 로직 유지, 복구하려면 아래 로직 주석처리
-        /*
-        if (j && j.attachments && j.attachments.length > 0) {
-            j.attachments.forEach(a => {
-                if (a && a.id) driveAPI.deleteFile(a.id).catch(e => console.warn(e));
-            });
-        }
-        */
+        if (j) window.TrashManager.moveToTrash('journal', fId, this.targetDateStr, j);
         
         this.dayData[fId].journals.splice(index, 1);
         this.renderJournalEntries(fId);
@@ -1529,39 +1507,33 @@ export class DayView extends BaseView {
     }
 
     syncEventInputs(fId) {
-        if (!this.isEditorMode()) return;
         const container = document.getElementById(`event-entries-container-${fId}`);
-        if(container) {
-            container.querySelectorAll('textarea').forEach(ta => {
-                const evId = ta.getAttribute('data-event-id');
-                const idxAttr = ta.getAttribute('data-idx');
-                if (evId) {
-                    const ev = (this.dayData[fId]?.events || []).find(e => e.id === evId);
-                    if (ev) ev.content = ta.value;
-                } else if (idxAttr !== null) {
-                    const idx = parseInt(idxAttr, 10);
-                    if (this.dayData[fId]?.events[idx]) this.dayData[fId].events[idx].content = ta.value;
+        if (!container) return;
+        
+        container.querySelectorAll('textarea').forEach(ta => {
+            const evId = ta.getAttribute('data-event-id') || ta.getAttribute('data-id');
+            if (evId && this.dayData[fId]?.events) {
+                const ev = this.dayData[fId].events.find(e => String(e.id) === String(evId));
+                if (ev) {
+                    ev.content = ta.value;
                 }
-            });
-        }
+            }
+        });
     }
 
     syncJournalInputs(fId) {
-        if (!this.isEditorMode()) return;
         const container = document.getElementById(`journal-entries-container-${fId}`);
-        if(container) {
-            container.querySelectorAll('textarea').forEach(ta => {
-                const jId = ta.getAttribute('data-journal-id');
-                const idxAttr = ta.getAttribute('data-idx');
-                if (jId) {
-                    const j = (this.dayData[fId]?.journals || []).find(item => item.id === jId);
-                    if (j) j.content = ta.value;
-                } else if (idxAttr !== null) {
-                    const idx = parseInt(idxAttr, 10);
-                    if (this.dayData[fId]?.journals[idx]) this.dayData[fId].journals[idx].content = ta.value;
+        if (!container) return;
+        
+        container.querySelectorAll('textarea').forEach(ta => {
+            const jId = ta.getAttribute('data-journal-id') || ta.getAttribute('data-id');
+            if (jId && this.dayData[fId]?.journals) {
+                const j = this.dayData[fId].journals.find(item => String(item.id) === String(jId));
+                if (j) {
+                    j.content = ta.value;
                 }
-            });
-        }
+            }
+        });
     }
 
     syncScheduleInputs(fId) {
@@ -1578,7 +1550,6 @@ export class DayView extends BaseView {
             const supEl = row.querySelector('.cell-supplies');
             if (!subEl && !memoEl && !supEl) return;
 
-            // textContent로 안전하게 가져옴 (display:none 상태에서도 값 보존)
             const subject = subEl ? (subEl.innerText || subEl.textContent || '').trim() : '';
             const memo = memoEl ? (memoEl.innerText || memoEl.textContent || '').trim() : '';
             const supplies = supEl ? (supEl.innerText || supEl.textContent || '').trim() : '';
@@ -1599,13 +1570,11 @@ export class DayView extends BaseView {
     async save() {
         if (this.isRendering) return; 
         
-        // 💡 [수정] 모드와 상관없이 dayData에 변경 가능한 데이터가 있으면 저장을 허용
         const hasDataToSave = this.dayData && Object.keys(this.dayData).length > 0;
         if (!this.isEditorMode() && !hasDataToSave) return; 
         
-        const dateStr = this.lockedDateStr || this.dateStr; 
+        const dateStr = this.targetDateStr; 
         
-        // 1. DOM에 남아있는 실시간 입력값 동기화
         const currentFilters = window.activeUnifiedFilters || ['personal'];
         currentFilters.forEach(fId => {
             this.syncEventInputs(fId);
@@ -1613,7 +1582,6 @@ export class DayView extends BaseView {
             this.syncScheduleInputs(fId);
         });
 
-        // 2. 그룹 이벤트 수정 확인 모달 처리
         if (!this.isGroupUpdateBypassed && window.EventManager && typeof window.EventManager.showGroupUpdateModal === 'function') {
             let changedGroupEvent = null;
             
@@ -1670,7 +1638,6 @@ export class DayView extends BaseView {
         }
         this.isGroupUpdateBypassed = false; 
 
-        // 3. Firestore 저장용 데이터 스냅샷 빌드
         const snapshot = [{
             dateStr: dateStr,
             validEvents: [],
@@ -1689,6 +1656,7 @@ export class DayView extends BaseView {
                 if (e.authorId === auth?.currentUser?.uid) {
                     e.authorName = localStorage.getItem('sp3_nickname') || e.authorName || '';
                 }
+                e.date = dateStr;
                 e.sharedGroupId = fId === 'personal' ? null : fId;
                 snapshot[0].validEvents.push(e);
             });
@@ -1702,12 +1670,12 @@ export class DayView extends BaseView {
                 if (j.authorId === auth?.currentUser?.uid) {
                     j.authorName = localStorage.getItem('sp3_nickname') || j.authorName || '';
                 }
+                j.date = dateStr;
                 delete j.isUploading;
             });
             snapshot[0].journalsData[fId] = validJournals;
         });
 
-        // 4. Firestore 비동기 전송
         try {
             const promises = currentFilters.map(async (fId) => {
                 const pEvents = snapshot[0].validEvents.filter(e => (e.sharedGroupId || 'personal') === fId);
@@ -1718,7 +1686,6 @@ export class DayView extends BaseView {
                 const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
                 const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
-                // A. 일정(Events) 저장
                 let finalEvents = pEvents;
                 const evRef = doc(evCol, dateStr);
                 try {
@@ -1747,7 +1714,6 @@ export class DayView extends BaseView {
                     updatedAt: Date.now() 
                 }, { merge: true });
 
-                // B. 기록(Journals) 저장
                 let finalJournals = pJournals;
                 const jrRef = doc(jrCol, dateStr);
                 try {
@@ -1772,14 +1738,12 @@ export class DayView extends BaseView {
 
                 await setDoc(jrRef, { entries: finalJournals, updatedAt: Date.now() }, { merge: true });
 
-                // C. 수업(Schedules) 저장
                 const scRef = doc(scCol, dateStr);
                 await setDoc(scRef, { periods: pSchedules, updatedAt: Date.now() }, { merge: true });
             });
             
             await Promise.all(promises);
             
-            // 💡 [중요] 저장이 끝난 후 원본 백업본을 최신 데이터로 동기화
             this.originalEventsBackup = JSON.parse(JSON.stringify(this.dayData));
             
             if (typeof invalidateCalendarCache === 'function') {
