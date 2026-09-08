@@ -1,10 +1,14 @@
 // js/core/eventManager.js
+
 import { store } from './store.js';
 import { formatDate, parseLocalDate, getEventLabels, getLabelStyle, getSemesterDates, isSkipLabel } from './utils.js';
 import { getUserCol, getGroupCol, dbAPI } from '../api/database.js';
 import { auth, db } from '../api/firebaseInit.js';
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
 
+// ============================================================================
+// 1. 데이터 변환 및 HTML 뱃지 생성 로직 (순수 함수)
+// ============================================================================
 export const parseRawEventTextToEventList = (rawText) => {
     if (!rawText || !rawText.trim()) return [];
     const lines = rawText.split('\n');
@@ -58,6 +62,7 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
+    // 💡 월간/주간(compact) 보기에서 간격을 최소화하기 위해 gap과 margin 축소
     let html = `<div style="display:flex; flex-direction:column; gap:1px; margin-top:0;">`;
 
     eventList.forEach((e, index) => {
@@ -97,28 +102,33 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
-                return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} display:inline-block; padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; margin-right:3px; vertical-align:middle; transition:0.2s;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
+                // 💡 [수정] flex가 풀려도 인라인으로 자연스럽게 따라붙도록 display:inline-block 처리
+                return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; transition:0.2s; display:inline-block; margin-right:2px; vertical-align:middle;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
             }).join('');
         }
 
         let textStyle = isSkip ? `color:#1e293b; font-weight:bold;` : 'color:#1e293b;';
-        let groupIcon = isGrouped ? `<span style="display:inline-block; font-size:0.75rem; margin-right:3px; vertical-align:middle;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
+        let groupIcon = isGrouped ? `<span style="font-size:0.75rem; margin-right:2px; vertical-align:middle;" title="반복/기간 일정으로 묶여있습니다">🔗</span>` : '';
 
         if (isCompleted && canComplete) {
             textStyle = 'color:#94a3b8; text-decoration:line-through; font-style:italic;';
         }
 
         const linkCount = (e.linkedItems || []).length;
-        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="display:inline-block; background:#fef08a; color:#854d0e; font-size:0.7rem; padding:0px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-right:3px; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
+        // 💡 [수정] 링크 버튼 역시 인라인으로 자연스럽게 이어지도록 vertical-align 추가
+        const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:0px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-right:2px; margin-left:2px; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
-        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="display:inline-block; margin-right:3px; vertical-align:middle; background:none; border:none; cursor:pointer; padding:0;">✏️</button>` : '';
+        const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:2px; vertical-align:middle; background:transparent; border:none; cursor:pointer;">✏️</button>` : '';
 
         if (viewType === 'compact') {
+            // 💡 [수정] flex를 풀고 inline 속성을 활용해 라벨, 뱃지, 링크, 텍스트가 왼쪽 끝부터 자연스럽게 줄바꿈(wrap) 되도록 구현
             html += `
-            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="border: 1px solid transparent; border-radius:4px; padding:2px; margin: 0; box-sizing: border-box; background: rgba(255,255,255,0.5); font-size:0.8rem; line-height:1.4; text-align:left; white-space:pre-wrap; word-break:break-all;">${editBtn}${badgesHtml}${linkBadge}<span id="evt-txt-${dateStr}-${index}" style="${textStyle} vertical-align:middle;">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span></div>`;
+            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="border: 1px solid transparent; border-radius:4px; padding:2px; margin: 0; box-sizing: border-box; background: rgba(255,255,255,0.5); font-size:0.8rem; line-height:1.4;">
+                ${editBtn}${badgesHtml}${linkBadge}<span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; vertical-align:middle; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
+            </div>`;
         } else {
             html += `
-            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="display:flex; align-items:center; gap:4px; font-size:0.9rem; line-height:1.2; width:100%; border: 1px solid transparent; border-radius:4px; padding:2px 4px; margin: 1px 0; box-sizing: border-box;">
+            <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="display:flex; align-items:center; gap:4px; font-size:0.9rem; line-height:1.3; width:100%; border: 1px solid transparent; border-radius:4px; padding:2px 4px; margin: 1px 0; box-sizing: border-box;">
                 <div style="display:flex; align-items:center; gap:4px; width:100%; min-width:0;">
                     ${editBtn}
                     ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:4px; flex-shrink:0;">${badgesHtml}</div>` : ''}
@@ -132,6 +142,9 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     return html;
 };
 
+// ============================================================================
+// 2. 통합 Event Manager 코어
+// ============================================================================
 export const EventManager = {
     toggleEventCompletion: function(dateStr, index, currentStatus) {
         const willBeComplete = !currentStatus;
