@@ -166,10 +166,11 @@ export class DayView extends BaseView {
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
+            // 💡 [수정됨] 권한 부족(permission-denied) 에러는 단순 무시하여 무한 동기화 루프 발생을 방지함
             const [evDoc, scDoc, jrDoc] = await Promise.all([
-                getDoc(doc(evCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
-                getDoc(doc(scCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
-                getDoc(doc(jrCol, dateStr)).catch(e => { hasCacheError = true; return null; })
+                getDoc(doc(evCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; }),
+                getDoc(doc(scCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; }),
+                getDoc(doc(jrCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; })
             ]);
 
             let eList = [];
@@ -209,7 +210,6 @@ export class DayView extends BaseView {
         const masterLabels = getEventLabels();
         const masterJournalLabels = getJournalLabels();
 
-        // 💡 당일 완료 속성(isForward) 일정 집계
         const allForwardEvents = [];
         filters.forEach(fId => {
             const events = this.dayData[fId]?.events || [];
@@ -408,10 +408,11 @@ export class DayView extends BaseView {
             const scCol = fId === 'personal' ? getUserCol('schedules') : getGroupCol(fId, 'schedules');
             const jrCol = fId === 'personal' ? getUserCol('journals') : getGroupCol(fId, 'journals');
 
+            // 💡 [수정됨] 권한 에러 무시 가드
             const [evDoc, scDoc, jrDoc] = await Promise.all([
-                getDoc(doc(evCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
-                getDoc(doc(scCol, dateStr)).catch(e => { hasCacheError = true; return null; }),
-                getDoc(doc(jrCol, dateStr)).catch(e => { hasCacheError = true; return null; })
+                getDoc(doc(evCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; }),
+                getDoc(doc(scCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; }),
+                getDoc(doc(jrCol, dateStr)).catch(e => { if(e.code !== 'permission-denied') hasCacheError = true; return null; })
             ]);
 
             let eList = [];
