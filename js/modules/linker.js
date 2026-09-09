@@ -18,7 +18,15 @@ export const LinkManager = {
     itemsPerPage: 8, 
 
     openModal: async function(sourceType, dateStr, sourceId, fId, sourcePeriod = '') {
-        this.sourceData = { type: sourceType, dateStr, id: sourceId, fId, period: sourcePeriod };
+        // 💡 [수정] 이월된 일정이라면 오늘(dateStr)이 아닌 originalDate를 출발지로 간주
+        let actualDateStr = dateStr;
+        if (sourceType === 'event') {
+            const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
+            const ev = evList.find(e => e.id === sourceId);
+            if (ev && ev.originalDate) actualDateStr = ev.originalDate;
+        }
+
+        this.sourceData = { type: sourceType, dateStr: actualDateStr, id: sourceId, fId, period: sourcePeriod };
         this.selectedLinks = [];
         this.tabData = { event: [], journal: [], memo: [] };
         this.currentPage = 1;
@@ -221,7 +229,6 @@ export const LinkManager = {
 
         if (!startStr || !endStr) return;
         
-        // Update custom dates visually
         const customStart = document.getElementById('linker-custom-start');
         const customEnd = document.getElementById('linker-custom-end');
         if (customStart) customStart.value = startStr;
@@ -288,8 +295,6 @@ export const LinkManager = {
         }
 
         const isMemo = this.currentTab === 'memo';
-        
-        // 라벨 필터 (메모는 V3에서 라벨이 없을 수 있으나, 일단 공통 UI에 추가)
         const labels = this.currentTab === 'journal' ? (window.getJournalLabels ? window.getJournalLabels() : []) : (window.getEventLabels ? window.getEventLabels() : []);
         const activeStyle = `background:#3b82f6; color:white; border-color:#2563eb;`;
         const labelOptions = `<span class="label-chip active" data-val="all" onclick="window.LinkManager.toggleLabelChip(this)" style="padding:4px 10px; font-size:0.85rem; margin:0; white-space:nowrap; border-radius:15px; border:1px solid #cbd5e1; cursor:pointer; font-weight:bold; ${activeStyle}">전체</span>` + 
@@ -300,7 +305,7 @@ export const LinkManager = {
                 <div style="display:flex; gap:8px; align-items:center;">
                     <span style="font-size:0.85rem; font-weight:bold; color:#475569;">조회 범위:</span>
                     <select id="linker-period-select" onchange="window.LinkManager.updateDateRangeUI()" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-weight:bold; color:#334155;">
-                        <option value="today">현재 페이지 날짜</option>
+                        <option value="today">현재 날짜</option>
                         <option value="1week">±1주일</option>
                         <option value="1month">±1개월</option>
                         <option value="sem1">1학기 전체</option>
@@ -343,7 +348,6 @@ export const LinkManager = {
 
         const keyword = (document.getElementById('linker-search')?.value || '').toLowerCase();
         
-        // 활성화된 라벨 칩들 (dataset.val === 'all' 제외)
         const activeLabelChips = Array.from(document.querySelectorAll('#linker-label-container .label-chip.active:not([data-val="all"])')).map(c => c.dataset.val);
         const isAllActive = document.querySelector('#linker-label-container .label-chip[data-val="all"]')?.classList.contains('active');
         
@@ -351,15 +355,12 @@ export const LinkManager = {
         
         if (!isAllActive) {
             if (activeLabelChips.length === 0) {
-                items = []; // 선택된 라벨이 없으면 빈 배열
+                items = []; 
             } else {
                 items = items.filter(i => {
-                    // 항목에 라벨이 하나라도 있으면 교집합 확인
                     if (i.labelIds && i.labelIds.length > 0) {
                         return i.labelIds.some(lId => activeLabelChips.includes(lId));
                     }
-                    // 라벨이 지정되지 않은 항목은 '미분류' 등 특정 라벨이 선택됐을 때만 보이거나(이 로직에선 안 보임), 
-                    // 혹은 항상 제외. 여기서는 라벨이 없으면 일단 제외
                     return false; 
                 });
             }
@@ -473,7 +474,6 @@ export const LinkManager = {
         const sDateStr = this.sourceData.dateStr || this.sourceData.date;
         const colFunc = sFId === 'personal' ? getUserCol : (col) => getGroupCol(sFId, col);
 
-        // 1. 출발지(Source) 업데이트 (메모리 및 Firestore DB 영구 저장)
         if (this.sourceData.type === 'schedule_header' || this.sourceData.type === 'schedule') {
             const sp = this.sourceData.type === 'schedule_header' 
                 ? (document.getElementById('linker-source-period')?.value || 1) 
@@ -561,7 +561,6 @@ export const LinkManager = {
             }
         }
 
-        // 2. 도착지(Target) 역방향 링크 주입
         let sourceTitleLabel = '연결된 항목';
         let safeTargetId = this.sourceData.id;
 
@@ -717,6 +716,16 @@ export const LinkManager = {
     },
 
     openViewer: async function(dateStr, id, fId, type, period = '') {
+        // 💡 [버그 해결 핵심] 
+        // 일정이 이월된 경우(현재 dateStr과 일치하지 않는 원본 날짜가 있는 경우),
+        // 무조건 '원본 날짜(originalDate)'를 기준으로 링크된 과거 데이터들을 불러오도록 강제 보정합니다.
+        let actualDateStr = dateStr;
+        if (type === 'event') {
+            const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
+            const ev = evList.find(e => e.id === id);
+            if (ev && ev.originalDate) actualDateStr = ev.originalDate;
+        }
+
         let linkedItems = [];
         if (type === 'event') {
             const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
@@ -724,7 +733,8 @@ export const LinkManager = {
             if (!ev || !ev.linkedItems || ev.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    const snap = await getDoc(doc(colFunc('events'), dateStr));
+                    // 💡 [수정] 원본 날짜로 Firestore 문서를 조회합니다.
+                    const snap = await getDoc(doc(colFunc('events'), actualDateStr));
                     if (snap.exists()) {
                         ev = (snap.data().eventList || []).find(e => e.id === id);
                     }
@@ -737,7 +747,7 @@ export const LinkManager = {
             if (!j || !j.linkedItems || j.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    const snap = await getDoc(doc(colFunc('journals'), dateStr));
+                    const snap = await getDoc(doc(colFunc('journals'), actualDateStr));
                     if (snap.exists()) {
                         j = (snap.data().entries || []).find(e => e.id === id);
                     }
@@ -750,7 +760,7 @@ export const LinkManager = {
             if (!pObj || !pObj.linkedItems || pObj.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    const snap = await getDoc(doc(colFunc('schedules'), dateStr));
+                    const snap = await getDoc(doc(colFunc('schedules'), actualDateStr));
                     if (snap.exists()) {
                         const periods = snap.data().periods || {};
                         pObj = periods[period];
@@ -804,7 +814,7 @@ export const LinkManager = {
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <span style="font-weight:bold; color:#1e40af; font-size:0.95rem;">${icon} ${displayTitle}</span>
                         <div style="display:flex; gap:6px;">
-                            <button onclick="window.LinkManager.deleteLinkConnection('${type}', '${dateStr}', '${id}', '${period}', '${fId}', '${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#fef2f2; border:1px solid #fca5a5; color:#ef4444; padding:4px 8px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;" title="이 연결을 삭제합니다">🗑️ 삭제</button>
+                            <button onclick="window.LinkManager.deleteLinkConnection('${type}', '${actualDateStr}', '${id}', '${period}', '${fId}', '${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#fef2f2; border:1px solid #fca5a5; color:#ef4444; padding:4px 8px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;" title="이 연결을 삭제합니다">🗑️ 삭제</button>
                             <button onclick="window.LinkManager.navigateAndClose('${link.targetDate}', '${link.targetType}')" style="background:#fef08a; border:1px solid #fde047; color:#854d0e; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s; display:flex; align-items:center; gap:4px;" title="해당 페이지로 이동">📌 이동</button>
                             <button onclick="document.getElementById('view-mode-${link.targetId}').style.display='none'; document.getElementById('edit-mode-${link.targetId}').style.display='block';" style="background:#e0e7ff; border:1px solid #c7d2fe; color:#3730a3; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;">✏️ 수정</button>
                         </div>
@@ -857,9 +867,6 @@ export const LinkManager = {
     deleteLinkConnection: async function(sType, sDate, sId, sPeriod, sFId, tType, tDate, tId, tPeriod, tFId) {
         if (!confirm("이 연결을 해제하시겠습니까? (양쪽 모두에서 연결이 끊어집니다)")) return;
 
-        // 💡 [버그 해결 핵심]
-        // 수업(schedule)의 경우 뷰어 오픈 시 id가 null 속성으로 넘어와 HTML 상에서 'null' 또는 'undefined' 문자열이 되는 현상 방지
-        // 정확한 고유 ID 포맷(class_YYYY-MM-DD_P)을 재조립하여 역방향 필터링 시 누락되지 않도록 보정합니다.
         const actualSourceId = (sType === 'schedule' || sType === 'schedule_header') && (sId === 'null' || sId === 'undefined' || !sId) 
             ? `class_${sDate}_${sPeriod}` : sId;
         const actualTargetId = (tType === 'schedule' || tType === 'schedule_header') && (tId === 'null' || tId === 'undefined' || !tId) 
@@ -880,7 +887,6 @@ export const LinkManager = {
             this.viewerModal = null;
         }
         
-        // 뷰어 창을 삭제된 상태로 리로드 (복원된 null ID를 유지하여 오픈)
         const restoreSId = (sType === 'schedule' || sType === 'schedule_header') ? null : actualSourceId;
         this.openViewer(sDate, restoreSId, sFId, sType, sPeriod);
     },
@@ -1033,7 +1039,6 @@ export const LinkManager = {
                         let newMemo = newVal.trim();
                         let newSubj = periods[period].subject || '';
                         
-                        // 💡 [버그 방지 추가] 사용자가 뷰어에서 텍스트를 수정할 때 [과목명]을 포함해서 수정한 경우를 대비한 파싱 로직
                         const match = newMemo.match(/^\[(.*?)\]/);
                         if (match) {
                             newSubj = match[1].trim();
@@ -1044,7 +1049,6 @@ export const LinkManager = {
                         periods[period].memo = newMemo; 
                         await setDoc(ref, { periods: periods }, { merge: true }); 
                         
-                        // 메모리 즉시 반영 (편집 중 데이터 유실 방지)
                         if (window[`tempSchedules_${dateStr}`]?.[fId]?.[period]) {
                             window[`tempSchedules_${dateStr}`][fId][period].subject = newSubj;
                             window[`tempSchedules_${dateStr}`][fId][period].memo = newMemo;
@@ -1061,7 +1065,6 @@ export const LinkManager = {
             }
             if (window.showToast) window.showToast('✅ 수정된 내용이 저장되었습니다.');
             
-            // 뷰 모드 텍스트도 업데이트
             const viewDiv = document.querySelector(`#view-mode-${id} > div`);
             if (viewDiv) viewDiv.innerText = newVal;
         } catch(e) { console.error(e); alert('저장에 실패했습니다.'); }

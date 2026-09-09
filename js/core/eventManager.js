@@ -6,9 +6,6 @@ import { getUserCol, getGroupCol, dbAPI } from '../api/database.js';
 import { auth, db } from '../api/firebaseInit.js';
 import { doc, getDoc, getDocs, setDoc, query, where, documentId, writeBatch } from "firebase/firestore";
 
-// ============================================================================
-// 1. 데이터 변환 및 HTML 뱃지 생성 로직 (순수 함수)
-// ============================================================================
 export const parseRawEventTextToEventList = (rawText) => {
     if (!rawText || !rawText.trim()) return [];
     const lines = rawText.split('\n');
@@ -62,7 +59,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     if (!eventList || eventList.length === 0) return '';
     
     const masterLabels = getEventLabels();
-    // 💡 월간/주간(compact) 보기에서 간격을 최소화하기 위해 gap과 margin 축소
     let html = `<div style="display:flex; flex-direction:column; gap:1px; margin-top:0;">`;
 
     eventList.forEach((e, index) => {
@@ -102,7 +98,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
 
                 const onClickAttr = (dateStr && canComplete) ? `onclick="event.stopPropagation(); window.EventManager.toggleEventCompletion('${dateStr}', ${index}, ${isCompleted})"` : '';
 
-                // 💡 [수정] flex가 풀려도 인라인으로 자연스럽게 따라붙도록 display:inline-block 처리
                 return `<span data-id="${id}" ${onClickAttr} style="${badgeStyle} padding:1px 4px; border-radius:4px; font-size:0.75rem; font-weight:bold; white-space:nowrap; transition:0.2s; display:inline-block; margin-right:2px; vertical-align:middle;" title="${canComplete ? '클릭하여 완료 상태 변경' : lObj.name}">${lObj.name}</span>`;
             }).join('');
         }
@@ -115,13 +110,11 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
         }
 
         const linkCount = (e.linkedItems || []).length;
-        // 💡 [수정] 링크 버튼 역시 인라인으로 자연스럽게 이어지도록 vertical-align 추가
         const linkBadge = linkCount > 0 ? `<button type="button" onclick="event.stopPropagation(); window.LinkManager.openViewer('${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}', 'event')" style="background:#fef08a; color:#854d0e; font-size:0.7rem; padding:0px 4px; border-radius:4px; font-weight:bold; cursor:pointer; border:1px solid #fde047; margin-right:2px; margin-left:2px; vertical-align:middle;" title="연결된 항목 보기 및 수정">📑 ${linkCount}</button>` : '';
 
         const editBtn = dateStr ? `<button type="button" class="hover-edit-btn" onclick="event.stopPropagation(); window.DetailEditManager.open('event', '${dateStr}', '${e.id || index}', '${e.sharedGroupId || 'personal'}')" title="일정 수정" style="margin-right:2px; vertical-align:middle; background:transparent; border:none; cursor:pointer;">✏️</button>` : '';
 
         if (viewType === 'compact') {
-            // 💡 [수정] flex를 풀고 inline 속성을 활용해 라벨, 뱃지, 링크, 텍스트가 왼쪽 끝부터 자연스럽게 줄바꿈(wrap) 되도록 구현
             html += `
             <div id="evt-row-${dateStr}-${index}" class="hover-edit-item" style="border: 1px solid transparent; border-radius:4px; padding:2px; margin: 0; box-sizing: border-box; background: rgba(255,255,255,0.5); font-size:0.8rem; line-height:1.4;">
                 ${editBtn}${badgesHtml}${linkBadge}<span id="evt-txt-${dateStr}-${index}" style="white-space:pre-wrap; word-break:break-all; vertical-align:middle; ${textStyle}">${isCompleted && canComplete ? '✓ ' : ''}${groupIcon}${pureContent}</span>
@@ -142,9 +135,6 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     return html;
 };
 
-// ============================================================================
-// 2. 통합 Event Manager 코어
-// ============================================================================
 export const EventManager = {
     toggleEventCompletion: function(dateStr, index, currentStatus) {
         const willBeComplete = !currentStatus;
@@ -233,8 +223,13 @@ export const EventManager = {
                     }
 
                     if (canComplete && !ev.completed) {
+                        // 💡 [수정] 이월될 때 원본의 체인ID는 삭제하되, 링크 추적을 위해 originalDate는 보존합니다.
+                        // 단, 이미 originalDate가 있다면(여러 번 이월된 경우) 최초의 날짜를 그대로 유지합니다.
+                        if (!ev.originalDate) {
+                            ev.originalDate = dateStr; 
+                        }
                         delete ev.forwardChainId; 
-                        delete ev.originalDate;
+                        
                         ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                         
                         eventsToMove.push({ ...ev }); 
