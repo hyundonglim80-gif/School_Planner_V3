@@ -496,7 +496,7 @@ function applyShortcutTooltips() {
         const isClickable = tag === 'button' || tag === 'a' || tag === 'label' || el.hasAttribute('onclick') || idClass.includes('nav-item');
 
         if (attr.includes("setMode('viewer')") || attr.includes('setMode("viewer")') || (isClickable && text === '보기')) attach(el, 'Ctrl + ⬆️');
-        else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + ⬇️ (또는 Ctrl+Enter)');
+        else if (attr.includes('handleEditSaveClick') || (isClickable && (text === '작성' || text.includes('저장')))) attach(el, 'Ctrl + S️');
         else if (isClickable && (text === '추가' || text.includes('메모 추가') || text === '+ 추가')) attach(el, 'Ctrl + Enter');
         else if (attr.includes('SearchUI') || idClass.includes('search') || (isClickable && text === '검색')) attach(el, 'Shift + ` (또는 /)');
         else if (attr.includes('goToToday') || idClass.includes('date-range-text') || idClass.includes('date-display') || idClass.includes('current-date') || (isClickable && text.includes('년') && text.includes('월') && text.length < 20)) attach(el, 'Ctrl + Space');
