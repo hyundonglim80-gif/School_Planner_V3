@@ -1,4 +1,5 @@
 // js/modules/linker.js
+
 import { dbAPI, getUserCol, getGroupCol } from '../api/database.js';
 import { store } from '../core/store.js';
 import { formatDate, getSemesterDates } from '../core/utils.js';
@@ -18,7 +19,6 @@ export const LinkManager = {
     itemsPerPage: 8, 
 
     openModal: async function(sourceType, dateStr, sourceId, fId, sourcePeriod = '') {
-        // 💡 [수정] 이월된 일정이라면 오늘(dateStr)이 아닌 originalDate를 출발지로 간주
         let actualDateStr = dateStr;
         if (sourceType === 'event') {
             const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
@@ -716,14 +716,13 @@ export const LinkManager = {
     },
 
     openViewer: async function(dateStr, id, fId, type, period = '') {
-        // 💡 [버그 해결 핵심] 
-        // 일정이 이월된 경우(현재 dateStr과 일치하지 않는 원본 날짜가 있는 경우),
-        // 무조건 '원본 날짜(originalDate)'를 기준으로 링크된 과거 데이터들을 불러오도록 강제 보정합니다.
-        let actualDateStr = dateStr;
+        // 💡 [수정] 이월된 일정이라면, 실제 DB 검색을 위해 원본 날짜를 추적합니다.
+        // 단, 뷰어 팝업의 헤더에서는 '오늘'의 날짜를 보여주기 위해 dateStr을 유지합니다.
+        let fetchDateStr = dateStr;
         if (type === 'event') {
             const evList = window[`tempEvents_${dateStr}`] || window.dayViewInstance?.dayData?.[fId]?.events || [];
             const ev = evList.find(e => e.id === id);
-            if (ev && ev.originalDate) actualDateStr = ev.originalDate;
+            if (ev && ev.originalDate) fetchDateStr = ev.originalDate;
         }
 
         let linkedItems = [];
@@ -733,8 +732,8 @@ export const LinkManager = {
             if (!ev || !ev.linkedItems || ev.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    // 💡 [수정] 원본 날짜로 Firestore 문서를 조회합니다.
-                    const snap = await getDoc(doc(colFunc('events'), actualDateStr));
+                    // DB 접근 시에는 이월되기 전의 원본 날짜인 fetchDateStr을 사용합니다.
+                    const snap = await getDoc(doc(colFunc('events'), fetchDateStr));
                     if (snap.exists()) {
                         ev = (snap.data().eventList || []).find(e => e.id === id);
                     }
@@ -747,7 +746,7 @@ export const LinkManager = {
             if (!j || !j.linkedItems || j.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    const snap = await getDoc(doc(colFunc('journals'), actualDateStr));
+                    const snap = await getDoc(doc(colFunc('journals'), dateStr));
                     if (snap.exists()) {
                         j = (snap.data().entries || []).find(e => e.id === id);
                     }
@@ -760,7 +759,7 @@ export const LinkManager = {
             if (!pObj || !pObj.linkedItems || pObj.linkedItems.length === 0) {
                 try {
                     const colFunc = fId === 'personal' ? getUserCol : (col) => getGroupCol(fId, col);
-                    const snap = await getDoc(doc(colFunc('schedules'), actualDateStr));
+                    const snap = await getDoc(doc(colFunc('schedules'), dateStr));
                     if (snap.exists()) {
                         const periods = snap.data().periods || {};
                         pObj = periods[period];
@@ -814,7 +813,7 @@ export const LinkManager = {
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <span style="font-weight:bold; color:#1e40af; font-size:0.95rem;">${icon} ${displayTitle}</span>
                         <div style="display:flex; gap:6px;">
-                            <button onclick="window.LinkManager.deleteLinkConnection('${type}', '${actualDateStr}', '${id}', '${period}', '${fId}', '${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#fef2f2; border:1px solid #fca5a5; color:#ef4444; padding:4px 8px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;" title="이 연결을 삭제합니다">🗑️ 삭제</button>
+                            <button onclick="window.LinkManager.deleteLinkConnection('${type}', '${dateStr}', '${id}', '${period}', '${fId}', '${link.targetType}', '${link.targetDate}', '${link.targetId}', '${link.targetPeriod}', '${tFId}')" style="background:#fef2f2; border:1px solid #fca5a5; color:#ef4444; padding:4px 8px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;" title="이 연결을 삭제합니다">🗑️ 삭제</button>
                             <button onclick="window.LinkManager.navigateAndClose('${link.targetDate}', '${link.targetType}')" style="background:#fef08a; border:1px solid #fde047; color:#854d0e; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s; display:flex; align-items:center; gap:4px;" title="해당 페이지로 이동">📌 이동</button>
                             <button onclick="document.getElementById('view-mode-${link.targetId}').style.display='none'; document.getElementById('edit-mode-${link.targetId}').style.display='block';" style="background:#e0e7ff; border:1px solid #c7d2fe; color:#3730a3; padding:4px 10px; border-radius:6px; font-size:0.85rem; cursor:pointer; font-weight:bold; transition:0.2s;">✏️ 수정</button>
                         </div>

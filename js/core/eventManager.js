@@ -197,6 +197,7 @@ export const EventManager = {
     },
 
     autoForwardIncompleteEvents: async function() {
+        if (!auth || !auth.currentUser) return;
         const todayStr = formatDate(new Date()); 
         try {
             const eventsSnap = await getDocs(getUserCol('events'));
@@ -204,6 +205,7 @@ export const EventManager = {
             let eventsToMove = [];
             let changedPastDocs = new Set();
             let eventsMap = {};
+            let batchPromises = []; 
 
             eventsSnap.forEach(docSnap => {
                 const dateStr = docSnap.id;
@@ -223,14 +225,17 @@ export const EventManager = {
                     }
 
                     if (canComplete && !ev.completed) {
-                        // 💡 [수정] 이월될 때 원본의 체인ID는 삭제하되, 링크 추적을 위해 originalDate는 보존합니다.
-                        // 단, 이미 originalDate가 있다면(여러 번 이월된 경우) 최초의 날짜를 그대로 유지합니다.
-                        if (!ev.originalDate) {
-                            ev.originalDate = dateStr; 
-                        }
-                        delete ev.forwardChainId; 
+                        const pureContent = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
                         
-                        ev.content = (ev.content || '').replace(/➡️\s*\(미완료\)/g, '').replace(/➡️\s*\(다음 날로 이월됨\)/g, '').replace(/↪️\s*/g, '').trim();
+                        // 🚨 1. 빈 내용의 일정은 이월하지 않고 무시 (빈 이월 일정 생성 버그 해결)
+                        if (!pureContent) {
+                            newList.push(ev);
+                            return; 
+                        }
+
+                        if (!ev.originalDate) ev.originalDate = dateStr; 
+                        delete ev.forwardChainId; 
+                        ev.content = pureContent;
                         
                         eventsToMove.push({ ...ev }); 
                         docChanged = true;
@@ -249,7 +254,6 @@ export const EventManager = {
 
             let batch = writeBatch(db);
             let opCount = 0;
-            let batchPromises = []; 
 
             changedPastDocs.forEach(dateStr => {
                 const list = eventsMap[dateStr];
@@ -266,7 +270,67 @@ export const EventManager = {
             
             eventsToMove.forEach(movedEv => {
                 const isDup = todayList.some(tEv => tEv.content === movedEv.content && JSON.stringify(tEv.labelIds) === JSON.stringify(movedEv.labelIds));
-                if (!isDup) todayList.push(movedEv);
+                if (!isDup) {
+                    todayList.push(movedEv);
+                    
+                    // 🚨 2. 일정 이월 시 역방향 링크 자동 갱신 (링크 먹통 버그 해결)
+                    // 일정이 '오늘'로 이동했으므로, 이 일정을 바라보던 과거의 기록/수업/메모 링크의 날짜도 '오늘'로 업데이트
+                    if (movedEv.linkedItems && movedEv.linkedItems.length > 0) {
+                        movedEv.linkedItems.forEach(link => {
+                            const tFId = link.targetFId || movedEv.sharedGroupId || 'personal';
+                            const colFunc = tFId === 'personal' ? getUserCol : (col) => getGroupCol(tFId, col);
+                            
+                            let targetPromise = null;
+                            if (link.targetType === 'journal') {
+                                const ref = doc(colFunc('journals'), link.targetDate);
+                                targetPromise = getDoc(ref).then(s => {
+                                    if(s.exists()) {
+                                        let entries = s.data().entries || [];
+                                        let j = entries.find(x => x.id === link.targetId);
+                                        if (j && j.linkedItems) {
+                                            let rLink = j.linkedItems.find(l => l.targetId === movedEv.id && l.targetType === 'event');
+                                            if (rLink) {
+                                                rLink.targetDate = todayStr;
+                                                rLink.title = `[${todayStr}] 일정`;
+                                                setDoc(ref, { entries }, { merge: true });
+                                            }
+                                        }
+                                    }
+                                });
+                            } else if (link.targetType === 'schedule') {
+                                const ref = doc(colFunc('schedules'), link.targetDate);
+                                targetPromise = getDoc(ref).then(s => {
+                                    if(s.exists()) {
+                                        let periods = s.data().periods || {};
+                                        let p = periods[link.targetPeriod];
+                                        if (p && p.linkedItems) {
+                                            let rLink = p.linkedItems.find(l => l.targetId === movedEv.id && l.targetType === 'event');
+                                            if (rLink) {
+                                                rLink.targetDate = todayStr;
+                                                rLink.title = `[${todayStr}] 일정`;
+                                                setDoc(ref, { periods }, { merge: true });
+                                            }
+                                        }
+                                    }
+                                });
+                            } else if (link.targetType === 'memo') {
+                                const ref = doc(colFunc('tasks'), link.targetId);
+                                targetPromise = getDoc(ref).then(s => {
+                                    if(s.exists()) {
+                                        let linkedItems = s.data().linkedItems || [];
+                                        let rLink = linkedItems.find(l => l.targetId === movedEv.id && l.targetType === 'event');
+                                        if (rLink) {
+                                            rLink.targetDate = todayStr;
+                                            rLink.title = `[${todayStr}] 일정`;
+                                            setDoc(ref, { linkedItems }, { merge: true });
+                                        }
+                                    }
+                                });
+                            }
+                            if (targetPromise) batchPromises.push(targetPromise.catch(e => console.warn(e)));
+                        });
+                    }
+                }
             });
             
             batch.set(todayDocRef, { eventList: todayList, eventText: formatEventListToText(todayList), updatedAt: Date.now() }, { merge: true });
