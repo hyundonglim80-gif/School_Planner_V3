@@ -272,6 +272,18 @@ export class MonthView extends BaseView {
                   if ((e.sharedGroupId || 'personal') !== fId) return false;
                   if (!e.content || e.content.trim() === '') return false; 
                   
+                  // 공휴일 이름은 날짜 옆에 빨간 글씨로 이미 나오므로,
+                  // 같은 내용의 공휴일 일정은 목록에서 숨겨 중복을 없앤다
+                  if (getHolidayName(dateStr)) {
+                      const lNames = [];
+                      if (e.label) lNames.push(...String(e.label).split(',').map(x => x.trim()));
+                      (e.labelIds || []).forEach(id => {
+                          const m = masterEventLabels.find(l => l.id === id || l.name === id);
+                          lNames.push(m ? m.name : id);
+                      });
+                      if (lNames.some(n => n === '공휴일' || n === '휴일')) return false;
+                  }
+
                   const eLabels = e.labelIds || [];
                   if (eLabels.length === 0) return true;
                   
