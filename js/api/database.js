@@ -204,6 +204,15 @@ export const dbAPI = {
         const groupSnap = await getDoc(groupRef);
         if (groupSnap.exists() && groupSnap.data().ownerId === user.uid) {
             const code = groupSnap.data().inviteCode;
+            // Firestore는 문서를 지워도 하위 컬렉션을 함께 지우지 않는다.
+            // 먼저 비우지 않으면 일정/수업/기록/메모가 접근도 삭제도 불가능한
+            // 상태로 영영 남는다. (V4와 동일한 처리)
+            for (const colName of ["events", "schedules", "journals", "tasks", "evaluations"]) {
+                const subSnap = await getDocs(collection(db, "groups", groupId, colName));
+                for (const d of subSnap.docs) {
+                    await deleteDoc(d.ref);
+                }
+            }
             await deleteDoc(groupRef);
             if (code) {
                 try { await deleteDoc(inviteCodeRef(code)); }
