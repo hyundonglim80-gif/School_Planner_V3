@@ -75,6 +75,12 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
             });
         }
 
+        // V4가 labelIds에 ID 대신 라벨 이름을 저장한 데이터가 있어, 이름도 ID로 풀어준다
+        labelIdsToRender = labelIdsToRender.map(x => {
+            const m = masterLabels.find(l => l.id === x) || masterLabels.find(l => l.name === x);
+            return m ? m.id : x;
+        });
+
         const isCompleted = !!e.completed;
         const canComplete = labelIdsToRender.some(id => {
             const match = masterLabels.find(l => l.id === id);
