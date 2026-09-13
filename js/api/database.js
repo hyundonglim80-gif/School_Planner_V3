@@ -15,6 +15,12 @@ export const getGroupCol = (groupId, collectionName) => {
     return collection(db, 'groups', groupId, collectionName);
 };
 
+// 💡 초대 코드로 참여할 때 groups 컬렉션 전체를 inviteCode로 조회하면,
+// 보안 규칙에서 groups 목록 조회를 열어야 해서 로그인한 사람 누구나
+// 모든 그룹의 이름과 초대 코드를 읽을 수 있게 된다.
+// 코드 -> 그룹 ID 매핑 문서를 따로 두고 그 한 건만 읽는다. (V4와 동일한 구조)
+const inviteCodeRef = (code) => doc(db, 'inviteCodes', code);
+
 export const dbAPI = {
     loadMemos: async () => {
         try {
@@ -134,6 +140,11 @@ export const dbAPI = {
             inviteCode: inviteCode, createdAt: Date.now()
         };
         const docRef = await addDoc(collection(db, 'groups'), groupData);
+        try {
+            await setDoc(inviteCodeRef(inviteCode), {
+                groupId: docRef.id, ownerId: user.uid, createdAt: Date.now()
+            });
+        } catch (e) { console.warn('초대 코드 매핑 생성 실패:', e); }
         invalidateGroupsCache();
         return { id: docRef.id, ...groupData };
     },
@@ -144,13 +155,22 @@ export const dbAPI = {
         if (!cleanCode) throw new Error("초대 코드를 올바르게 입력해주세요.");
 
         try {
-            const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
-            const snapshot = await getDocs(q);
-            if (snapshot.empty) throw new Error("유효하지 않거나 존재하지 않는 초대 코드입니다.");
+            // 코드 -> 그룹 ID 매핑 문서 한 건만 읽는다
+            let groupId = null;
+            const mapSnap = await getDoc(inviteCodeRef(cleanCode));
+            if (mapSnap.exists()) {
+                groupId = mapSnap.data().groupId || null;
+            } else {
+                // 매핑이 아직 없는 예전 그룹을 위한 폴백
+                const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) groupId = snapshot.docs[0].id;
+            }
+            if (!groupId) throw new Error("유효하지 않거나 존재하지 않는 초대 코드입니다.");
 
-            const groupDoc = snapshot.docs[0];
-            const groupId = groupDoc.id;
-            const groupData = groupDoc.data();
+            const groupSnap = await getDoc(doc(db, 'groups', groupId));
+            if (!groupSnap.exists()) throw new Error("삭제되었거나 존재하지 않는 그룹입니다.");
+            const groupData = groupSnap.data();
 
             if ((groupData.members || []).includes(user.uid)) throw new Error("이미 가입된 그룹입니다.");
 
@@ -183,7 +203,12 @@ export const dbAPI = {
         const groupRef = doc(db, 'groups', groupId);
         const groupSnap = await getDoc(groupRef);
         if (groupSnap.exists() && groupSnap.data().ownerId === user.uid) {
+            const code = groupSnap.data().inviteCode;
             await deleteDoc(groupRef);
+            if (code) {
+                try { await deleteDoc(inviteCodeRef(code)); }
+                catch (e) { console.warn('초대 코드 매핑 삭제 실패:', e); }
+            }
             invalidateGroupsCache();
         } else {
             throw new Error("그룹 삭제 권한이 없습니다.");
