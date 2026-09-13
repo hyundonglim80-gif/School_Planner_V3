@@ -45,9 +45,12 @@ export const formatEventListToText = (eventList) => {
 
     return eventList.map(e => {
         let labelStr = '';
-        if (e.labelIds && e.labelIds.length > 0) {
-            const lObj = masterLabels.find(l => l.id === e.labelIds[0]);
-            if (lObj) labelStr = `[${lObj.name}] `;
+        // labelIds를 ID/이름 어느 쪽으로도 찾아 보고, 못 찾으면 아래 이름 폴백으로 넘어간다
+        const idMatch = (e.labelIds || [])
+            .map(x => masterLabels.find(l => l.id === x) || masterLabels.find(l => l.name === x))
+            .find(Boolean);
+        if (idMatch) {
+            labelStr = `[${idMatch.name}] `;
         } else if (e.labels && e.labels.length > 0) { 
             labelStr = `[${e.labels[0]}] `;
         } else if (e.label) {
@@ -65,21 +68,26 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     let html = `<div style="display:flex; flex-direction:column; gap:1px; margin-top:0;">`;
 
     eventList.forEach((e, index) => {
-        let labelIdsToRender = [...(e.labelIds || [])];
+        // labelIds를 먼저 실제 라벨로 풀어 본다.
+        // ID로도 이름으로도 못 찾는 값(라벨을 다시 만들면서 ID가 바뀐 경우 등)은 버린다.
+        let labelIdsToRender = [...(e.labelIds || [])]
+            .map(x => {
+                const m = masterLabels.find(l => l.id === x) || masterLabels.find(l => l.name === x);
+                return m ? m.id : null;
+            })
+            .filter(Boolean);
+
+        // 💡 labelIds가 없거나 하나도 풀리지 않으면 label(이름)으로 찾는다.
+        // 예전에는 labelIds가 비어 있을 때만 이름을 봤기 때문에, ID가 어긋난
+        // 일정은 label에 이름이 멀쩡히 있어도 라벨 칩이 나오지 않았다.
         if (labelIdsToRender.length === 0 && (e.labels || e.label)) {
             // V4는 여러 라벨을 label에 콤마로 이어 붙인다
-            let legacyNames = e.labels || String(e.label).split(',').map(x => x.trim()).filter(Boolean);
+            const legacyNames = e.labels || String(e.label).split(',').map(x => x.trim()).filter(Boolean);
             legacyNames.forEach(name => {
                 const match = masterLabels.find(l => l.name === name);
                 if (match && match.id) labelIdsToRender.push(match.id);
             });
         }
-
-        // V4가 labelIds에 ID 대신 라벨 이름을 저장한 데이터가 있어, 이름도 ID로 풀어준다
-        labelIdsToRender = labelIdsToRender.map(x => {
-            const m = masterLabels.find(l => l.id === x) || masterLabels.find(l => l.name === x);
-            return m ? m.id : x;
-        });
 
         const isCompleted = !!e.completed;
         const canComplete = labelIdsToRender.some(id => {
