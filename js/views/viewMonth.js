@@ -276,8 +276,12 @@ export class MonthView extends BaseView {
                   if (eLabels.length === 0) return true;
                   
                   return eLabels.some(id => {
-                      const match = masterEventLabels.find(l => l.id === id);
-                      return match && match.showInCalendar !== false;
+                      // V4가 만든 항목은 labelIds에 ID 대신 이름이 들어 있을 수 있다
+                      const match = masterEventLabels.find(l => l.id === id || l.name === id);
+                      // 못 찾는 라벨 때문에 일정이 통째로 사라지면 안 된다
+                      if (!match) return true;
+                      // V3는 showInCalendar, V4는 calendar 필드를 쓴다
+                      return match.showInCalendar !== false && match.calendar !== false;
                   });
               });
 

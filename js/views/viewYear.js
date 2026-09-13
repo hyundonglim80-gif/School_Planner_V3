@@ -111,8 +111,10 @@ export class YearView extends BaseView {
                     if (eLabels.length === 0) return true; // 라벨이 없는 경우 기본적으로 표시
                     
                     return eLabels.some(id => {
-                        const match = masterEventLabels.find(l => l.id === id);
-                        return match && match.showInCalendar !== false;
+                        // V4가 만든 항목은 labelIds에 ID 대신 이름이 들어 있을 수 있다
+                        const match = masterEventLabels.find(l => l.id === id || l.name === id);
+                        if (!match) return true; // 못 찾는 라벨 때문에 일정이 사라지면 안 된다
+                        return match.showInCalendar !== false && match.calendar !== false;
                     });
                 });
                 

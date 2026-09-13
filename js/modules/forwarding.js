@@ -47,6 +47,10 @@ export const autoForwardIncompleteEvents = async () => {
 
                 const isOrigin = !ev.originalDate || ev.originalDate === curStr;
 
+                // 이월된(미완료) 일정은 지난 날짜에 남기지 않는다.
+                // 아래에서 다음 날로 넘겨 주므로, 결국 오늘 날짜에만 남는다.
+                const movesForward = (isPast) => isPast;
+
                 if (isOrigin) {
                     if (canComplete) {
                         if (!ev.forwardChainId) { ev.forwardChainId = 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); curChanged = true; }
@@ -54,7 +58,12 @@ export const autoForwardIncompleteEvents = async () => {
 
                         if (ev.completed) activeChains.delete(ev.forwardChainId);
                         else { activeChains.add(ev.forwardChainId); chainEventData[ev.forwardChainId] = { ...ev }; }
-                        newCurList.push(ev);
+
+                        if (!ev.completed && movesForward(curStr < todayStr)) {
+                            curChanged = true; // 지난 날짜에서 제거
+                        } else {
+                            newCurList.push(ev);
+                        }
                     } else {
                         if (ev.forwardChainId) { delete ev.forwardChainId; delete ev.originalDate; curChanged = true; }
                         newCurList.push(ev);
@@ -63,7 +72,12 @@ export const autoForwardIncompleteEvents = async () => {
                     if (activeChains.has(ev.forwardChainId)) {
                         if (ev.completed) activeChains.delete(ev.forwardChainId);
                         else chainEventData[ev.forwardChainId] = { ...ev };
-                        newCurList.push(ev);
+
+                        if (!ev.completed && movesForward(curStr < todayStr)) {
+                            curChanged = true; // 지난 날짜에서 제거
+                        } else {
+                            newCurList.push(ev);
+                        }
                     } else { curChanged = true; }
                 }
             });
