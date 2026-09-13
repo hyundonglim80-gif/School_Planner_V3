@@ -52,8 +52,9 @@ export const dbAPI = {
         try {
             const eventDoc = await getDoc(doc(getUserCol('events'), dateStr));
             const scheduleDoc = await getDoc(doc(getUserCol('schedules'), dateStr));
-            return { eventText: eventDoc.exists() ? eventDoc.data().eventText : '', periods: scheduleDoc.exists() ? scheduleDoc.data().periods : {} };
-        } catch (error) { return { eventText: '', periods: {} }; }
+            const evData = eventDoc.exists() ? eventDoc.data() : {};
+            return { eventText: evData.eventText || '', eventList: evData.eventList || [], periods: scheduleDoc.exists() ? scheduleDoc.data().periods : {} };
+        } catch (error) { return { eventText: '', eventList: [], periods: {} }; }
     },
     loadGroupDayData: async (dateStr, groupId) => {
         try {
@@ -62,8 +63,11 @@ export const dbAPI = {
             return { eventText: eventDoc.exists() ? eventDoc.data().eventText : '', eventList: eventDoc.exists() ? (eventDoc.data().eventList || []) : [], periods: scheduleDoc.exists() ? (scheduleDoc.data().periods || {}) : {} };
         } catch (error) { return { eventText: '', eventList: [], periods: {} }; }
     },
-    saveEvent: async (dateStr, eventText) => { 
-        await setDoc(doc(getUserCol('events'), dateStr), { eventText, updatedAt: Date.now() }, { merge: true }); 
+    saveEvent: async (dateStr, eventText) => {
+        // eventText만 쓰면 eventList가 옛 내용으로 남아 V3/V4 양쪽에서 지운 일정이 되살아난다
+        const payload = { eventText, updatedAt: Date.now() };
+        if (window.parseRawEventTextToEventList) payload.eventList = window.parseRawEventTextToEventList(eventText);
+        await setDoc(doc(getUserCol('events'), dateStr), payload, { merge: true });
     },
     saveSchedule: async (dateStr, periodsData) => { 
         await setDoc(doc(getUserCol('schedules'), dateStr), { periods: periodsData, updatedAt: Date.now() }, { merge: true }); 

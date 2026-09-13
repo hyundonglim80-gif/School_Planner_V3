@@ -89,7 +89,9 @@ export const executeGroupSave = async (labelName, callback, mode, labelId) => {
             groupId: groupId, 
             sharedGroupId: sharedGroupId 
         });
-        batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+        const upd = { eventList: list, updatedAt: Date.now() };
+        if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+        batch.set(docRef, upd, { merge: true });
     }
 
     batch.commit().catch(e => console.warn(e)); 

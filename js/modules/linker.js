@@ -522,7 +522,9 @@ export const LinkManager = {
                     if (item) {
                         item.linkedItems = item.linkedItems || [];
                         updateLinks(item.linkedItems);
-                        await setDoc(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+                        const upd = { eventList: list, updatedAt: Date.now() };
+                        if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+                        await setDoc(docRef, upd, { merge: true });
                     }
                 }
             } catch(e) { console.error("출발지 일정 DB 저장 오류:", e); }
@@ -665,7 +667,9 @@ export const LinkManager = {
                         item.linkedItems = item.linkedItems || [];
                         if (!item.linkedItems.some(l => l.targetId === sourceMeta.targetId)) {
                             item.linkedItems.push(sourceMeta);
-                            await setDoc(docRef, { eventList: list }, { merge: true });
+                            const upd = { eventList: list };
+                            if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+                            await setDoc(docRef, upd, { merge: true });
                         }
                     }
                 }
@@ -937,7 +941,9 @@ export const LinkManager = {
                     const item = list.find(e => e.id === id);
                     if (item) {
                         item.linkedItems = (item.linkedItems || []).filter(l => l.targetId !== targetIdToRemove);
-                        await setDoc(docRef, { eventList: list }, { merge: true });
+                        const upd = { eventList: list };
+                        if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+                        await setDoc(docRef, upd, { merge: true });
                     }
                 }
             } else if (type === 'journal') {
@@ -1019,7 +1025,12 @@ export const LinkManager = {
                 if (snap.exists()) {
                     const list = snap.data().eventList || [];
                     const item = list.find(e => e.id === id);
-                    if (item) { item.content = newVal; await setDoc(ref, { eventList: list }, { merge: true }); }
+                    if (item) {
+                        item.content = newVal;
+                        const upd = { eventList: list };
+                        if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+                        await setDoc(ref, upd, { merge: true });
+                    }
                 }
             } else if (type === 'journal') {
                 const ref = doc(colFunc('journals'), dateStr);

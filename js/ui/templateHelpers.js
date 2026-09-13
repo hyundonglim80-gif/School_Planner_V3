@@ -43,7 +43,9 @@ window.handleAlarmDismiss = async function() {
                     if (dbItem) {
                         dbItem.time = '';
                         dbItem.alarmTriggered = false;
-                        await setDoc(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+                        const upd = { eventList: list, updatedAt: Date.now() };
+                        if (window.formatEventListToText) upd.eventText = window.formatEventListToText(list);
+                        await setDoc(docRef, upd, { merge: true });
                     }
                 }
             } catch (err) {

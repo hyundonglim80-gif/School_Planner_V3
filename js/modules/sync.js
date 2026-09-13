@@ -215,7 +215,9 @@ export const executeHolidayImport = async function(startStr, endStr, scope) {
                 let filteredList = evList.filter(e => e.source !== 'holiday'); // 구버전 휴일 제거
 
                 if (filteredList.length !== evList.length) {
-                    batch.set(docRef, { eventList: filteredList, updatedAt: Date.now() }, { merge: true });
+                    const upd = { eventList: filteredList, updatedAt: Date.now() };
+                    if (window.formatEventListToText) upd.eventText = window.formatEventListToText(filteredList);
+                    batch.set(docRef, upd, { merge: true });
                     count++;
                     if (count >= 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
                 }

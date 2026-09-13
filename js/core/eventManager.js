@@ -26,7 +26,7 @@ export const parseRawEventTextToEventList = (rawText) => {
         if (match) {
             let labelName = match[1].trim();
             let lObj = masterLabels.find(l => l.name === labelName);
-            eventList.push({ labelIds: lObj ? [lObj.id] : [], content: match[2].trim(), completed: completed });
+            eventList.push({ labelIds: lObj ? [lObj.id] : [], label: labelName, content: match[2].trim(), completed: completed });
         } else {
             let defaultLabelIds = [];
             if (t.includes('(휴일)') || t.includes('(행사)')) {
@@ -50,6 +50,9 @@ export const formatEventListToText = (eventList) => {
             if (lObj) labelStr = `[${lObj.name}] `;
         } else if (e.labels && e.labels.length > 0) { 
             labelStr = `[${e.labels[0]}] `;
+        } else if (e.label) {
+            // V4에서 만든 항목은 labelIds 없이 label(이름)만 갖는다
+            labelStr = `[${String(e.label).split(',')[0].trim()}] `;
         }
         return `${e.completed ? '[v] ' : ''}${labelStr}${e.content}`;
     }).join('\n');
@@ -62,9 +65,10 @@ export const generateEventBadgesHTML = (eventList, dateStr = null, viewType = 'n
     let html = `<div style="display:flex; flex-direction:column; gap:1px; margin-top:0;">`;
 
     eventList.forEach((e, index) => {
-        let labelIdsToRender = e.labelIds || [];
+        let labelIdsToRender = [...(e.labelIds || [])];
         if (labelIdsToRender.length === 0 && (e.labels || e.label)) {
-            let legacyNames = e.labels || [e.label];
+            // V4는 여러 라벨을 label에 콤마로 이어 붙인다
+            let legacyNames = e.labels || String(e.label).split(',').map(x => x.trim()).filter(Boolean);
             legacyNames.forEach(name => {
                 const match = masterLabels.find(l => l.name === name);
                 if (match && match.id) labelIdsToRender.push(match.id);
@@ -425,7 +429,7 @@ export const EventManager = {
                 content: isPeriod ? `${content} (${i+1}/${totalDays})` : content, 
                 completed: false, groupId: groupId, sharedGroupId: sharedGroupId 
             });
-            batch.set(docRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
+            batch.set(docRef, { eventList: list, eventText: formatEventListToText(list), updatedAt: Date.now() }, { merge: true });
         }
 
         await Promise.race([
