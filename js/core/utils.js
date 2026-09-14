@@ -128,7 +128,12 @@ export const getJournalLabels = () => {
     if (changed) {
         localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
         if (window.auth?.currentUser) {
-            doc(window.getUserCol('settings'), 'labels').set({ journalLabels: labels }, { merge: true }).catch(e => console.warn(e));
+            // 💡 옛 Firebase v8 문법(doc(...).set)이 남아 있어서 이 줄에서 예외가 났다.
+            // 그래서 기록 라벨이 클라우드(settings/labels)에 한 번도 저장되지 않았고,
+            // 다른 기기나 V4에서는 기록 라벨이 보이지 않았다.
+            // 바로 위 getEventLabels()와 같은 v9 문법으로 맞춘다.
+            setDoc(doc(getUserCol('settings'), 'labels'), { journalLabels: labels }, { merge: true })
+                .catch(e => console.warn('기록 라벨 클라우드 저장 실패:', e));
         }
     }
     _cachedJournalLabels = labels;
