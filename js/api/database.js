@@ -21,6 +21,26 @@ export const getGroupCol = (groupId, collectionName) => {
 // 코드 -> 그룹 ID 매핑 문서를 따로 두고 그 한 건만 읽는다. (V4와 동일한 구조)
 const inviteCodeRef = (code) => doc(db, 'inviteCodes', code);
 
+// 이미 만들어진 그룹에도 코드 -> 그룹 매핑 문서를 채워 준다 (그룹장 접속 시 1회).
+// V4에는 있었는데 V3에는 없었다. 매핑이 없는 그룹은 '그룹 목록을 훑는' 폴백에
+// 기대야 참여가 되는데, 보안 규칙을 조이면 그 폴백이 막힌다.
+const backfilledCodes = new Set();
+async function ensureInviteCodeDoc(group, uid) {
+    if (!group || !group.inviteCode || group.ownerId !== uid) return;
+    if (backfilledCodes.has(group.inviteCode)) return;
+    backfilledCodes.add(group.inviteCode);
+    try {
+        const snap = await getDoc(inviteCodeRef(group.inviteCode));
+        if (!snap.exists()) {
+            await setDoc(inviteCodeRef(group.inviteCode), {
+                groupId: group.id, ownerId: group.ownerId, createdAt: Date.now()
+            });
+        }
+    } catch (e) {
+        console.warn('초대 코드 매핑 생성 실패:', e);
+    }
+}
+
 export const dbAPI = {
     loadMemos: async () => {
         try {
@@ -126,6 +146,8 @@ export const dbAPI = {
             snapshot.forEach(docSnap => groups.push({ id: docSnap.id, ...docSnap.data() }));
             cachedMyGroups = groups;
             lastMyGroupsFetchTime = Date.now();
+            // 내가 만든 그룹의 초대 코드 매핑을 채운다 (실패해도 사용에는 지장 없음)
+            groups.forEach(g => ensureInviteCodeDoc(g, user.uid));
             return groups;
         } catch(e) { console.warn("오프라인이거나 그룹 목록 로드 실패", e); return cachedMyGroups || []; }
     },
@@ -161,26 +183,54 @@ export const dbAPI = {
             if (mapSnap.exists()) {
                 groupId = mapSnap.data().groupId || null;
             } else {
-                // 매핑이 아직 없는 예전 그룹을 위한 폴백
-                const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
-                const snapshot = await getDocs(q);
-                if (!snapshot.empty) groupId = snapshot.docs[0].id;
+                // 매핑이 아직 없는 예전 그룹을 위한 폴백.
+                // ⚠️ 이 조회는 그룹 목록을 훑는 것이라 규칙을 조이면 권한 거부가 난다.
+                //    여기서 예외가 터지면 참여 자체가 막히므로 반드시 감싸 둔다.
+                try {
+                    const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
+                    const snapshot = await getDocs(q);
+                    if (!snapshot.empty) groupId = snapshot.docs[0].id;
+                } catch (e) {
+                    console.warn('옛 그룹 폴백 조회 실패(매핑이 있으면 문제 없음):', e);
+                }
             }
             if (!groupId) throw new Error("유효하지 않거나 존재하지 않는 초대 코드입니다.");
 
-            const groupSnap = await getDoc(doc(db, 'groups', groupId));
-            if (!groupSnap.exists()) throw new Error("삭제되었거나 존재하지 않는 그룹입니다.");
-            const groupData = groupSnap.data();
+            // ⚠️ 참여하기 전에 그룹 문서를 읽을 수 있다고 가정하면 안 된다.
+            //    규칙을 조이면 아직 구성원이 아닌 사람은 그룹을 읽을 수 없다.
+            const groupRef = doc(db, 'groups', groupId);
+            let groupName = '공유 그룹';
+            try {
+                const groupSnap = await getDoc(groupRef);
+                if (groupSnap.exists()) {
+                    const groupData = groupSnap.data();
+                    groupName = groupData.name || groupName;
+                    if ((groupData.members || []).includes(user.uid)) {
+                        throw new Error("이미 가입된 그룹입니다.");
+                    }
+                }
+            } catch (e) {
+                if (e.message === "이미 가입된 그룹입니다.") throw e;
+                // 못 읽었다 = 아직 구성원이 아니다. 계속 진행한다.
+            }
 
-            if ((groupData.members || []).includes(user.uid)) throw new Error("이미 가입된 그룹입니다.");
-
-            await setDoc(doc(db, 'groups', groupId), {
+            // ⚠️ setDoc이 아니라 updateDoc을 써야 한다.
+            //    setDoc은 'memberDetails.<uid>'를 하위 필드가 아니라 그 이름의
+            //    필드로 통째로 만든다. 그러면 바뀐 필드 이름이 memberDetails가
+            //    아니게 되어, 참여만 허용하는 규칙을 통과하지 못한다.
+            await updateDoc(groupRef, {
                 members: arrayUnion(user.uid),
                 [`memberDetails.${user.uid}`]: { name: user.displayName || '이름 없음', joinedAt: Date.now(), photoURL: user.photoURL || '' }
-            }, { merge: true });
+            });
+
+            // 이제는 구성원이므로 이름을 읽을 수 있다
+            try {
+                const after = await getDoc(groupRef);
+                if (after.exists()) groupName = after.data().name || groupName;
+            } catch (e) { /* 이름을 못 읽어도 참여는 끝났다 */ }
 
             invalidateGroupsCache();
-            return { id: groupId, name: groupData.name || '공유 그룹' };
+            return { id: groupId, name: groupName };
         } catch (error) {
             if (error.code === 'permission-denied') throw new Error("권한이 없습니다. 데이터베이스 규칙을 확인해주세요.");
             throw new Error(error.message || "가입 처리 중 오류 발생.");
