@@ -40,6 +40,19 @@ export const invalidateLabelCache = () => {
 };
 window.invalidateLabelCache = invalidateLabelCache;
 
+// ⚠️ 라벨 정의를 '클라우드에 쓰는' 일은 클라우드를 한 번 확인한 뒤에만 한다.
+//
+// 아래 두 getter는 localStorage가 비어 있으면 기본 라벨을 새로 만들어 낸다
+// (새 id까지 새로 뽑는다). 그 결과를 곧바로 Firestore에 merge로 써 버리면,
+// 선생님이 쓰던 라벨 정의가 기본값으로 덮어써진다. 그러면 일정에 붙어 있던
+// 라벨이 어디에도 없는 것이 되어 V3·V4 양쪽에서 라벨 칩이 전부 사라진다.
+//
+// 사용기록(사이트 데이터)을 지우면 localStorage가 비므로 이 조건이 그대로 성립한다.
+// 클라우드를 아직 못 읽었으면 화면에만 기본값을 쓰고, 클라우드에는 손대지 않는다.
+let cloudLabelsChecked = false;
+export const markCloudLabelsChecked = () => { cloudLabelsChecked = true; };
+window.markCloudLabelsChecked = markCloudLabelsChecked;
+
 export const getEventLabels = () => {
     if (_cachedEventLabels) return _cachedEventLabels;
 
@@ -92,7 +105,7 @@ export const getEventLabels = () => {
 
     if (changed) {
         localStorage.setItem('workCalendar_eventLabels_v4', JSON.stringify(labels));
-        if (window.auth?.currentUser) {
+        if (window.auth?.currentUser && cloudLabelsChecked) {
             setDoc(doc(getUserCol('settings'), 'labels'), { eventLabels: labels }, { merge: true });
         }
     }
@@ -127,7 +140,7 @@ export const getJournalLabels = () => {
 
     if (changed) {
         localStorage.setItem('workCalendar_journalLabels_v4', JSON.stringify(labels));
-        if (window.auth?.currentUser) {
+        if (window.auth?.currentUser && cloudLabelsChecked) {
             // 💡 옛 Firebase v8 문법(doc(...).set)이 남아 있어서 이 줄에서 예외가 났다.
             // 그래서 기록 라벨이 클라우드(settings/labels)에 한 번도 저장되지 않았고,
             // 다른 기기나 V4에서는 기록 라벨이 보이지 않았다.
