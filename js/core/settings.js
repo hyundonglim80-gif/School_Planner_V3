@@ -3,8 +3,17 @@ import { store } from './store.js';
 import { getEventLabels, invalidateLabelCache, markCloudLabelsChecked } from './utils.js';
 import { getUserCol } from '../api/database.js';
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth } from '../api/firebaseInit.js';
 
-export const loadSettings = async () => { 
+export const loadSettings = async () => {
+    // V3와 V4는 Firebase 앱 이름이 달라 로그인 세션을 따로 갖는다. 계정 주소가
+    // 같아도 uid가 다르면 서로 다른 문서를 보게 되고, 한쪽에서 저장한 라벨이
+    // 다른 쪽에는 '없는' 것이 된다. 두 앱에서 이 값을 견줄 수 있게 찍어 둔다.
+    try {
+        const u = auth?.currentUser;
+        console.log(`[SP3] 로그인 계정: ${u?.email} / uid: ${u?.uid}`);
+    } catch (e) { /* 무시 */ }
+
     try { 
         const docSnap = await getDoc(doc(getUserCol('settings'), 'preferences')); 
         if (docSnap.exists()) { 
