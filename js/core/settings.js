@@ -81,7 +81,12 @@ export const loadSettings = async () => {
         invalidateLabelCache();
         markCloudLabelsChecked();
 
-        getEventLabels();
+        // 라벨을 결국 어디서 얻었는지 남긴다. V4와 견주어 어긋난 곳을 찾는다.
+        const finalLabels = getEventLabels();
+        const source = (cloud.eventLabels?.length > 0)
+            ? '클라우드'
+            : (Array.isArray(localEv) && localEv.length > 0) ? '이 기기 localStorage' : '기본값(새로 만듦)';
+        console.log(`[SP3] 라벨 출처: ${source} / ${finalLabels.length}개 — ${finalLabels.map(l => l.name).join(', ')}`);
         if (window.getJournalLabels) window.getJournalLabels();
     } catch (error) {
         // 못 읽었으면 클라우드에 쓰지 않는다. 화면에는 기본값이 보이더라도

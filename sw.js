@@ -12,7 +12,15 @@ self.addEventListener('activate', event => {
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
+                    // ⚠️ 내 것(sp3-)만 지운다.
+                    //    캐시 저장소는 경로가 아니라 '출처' 단위로 공유된다.
+                    //    V3와 V4는 같은 주소의 하위 경로에 있으므로, 이름을 가리지
+                    //    않고 지우면 V4의 캐시(sp4-offline-cache-*)까지 날아간다.
+                    //    그러면 열어 둔 V4 탭이 나중에 받아오는 화면(팝업 등)을 열 때
+                    //    파일을 못 찾아 404가 나고 화면이 하얗게 된다.
+                    //    실제로 콘솔에 '구버전 캐시 삭제 완료: sp4-offline-cache-v1'
+                    //    이 찍히고 있었다.
+                    if (cacheName.startsWith('sp3-') && cacheName !== CACHE_NAME) {
                         console.log('구버전 캐시 삭제 완료:', cacheName);
                         return caches.delete(cacheName);
                     }
@@ -71,4 +79,4 @@ self.addEventListener('fetch', event => {
             });
         })
     );
-});
+});
