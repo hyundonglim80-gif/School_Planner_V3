@@ -180,8 +180,8 @@ export const BackupData = {
             if (incEval && elMap[dStr] && elMap[dStr].evalList) {
                 rowObj.elText = JSON.stringify(elMap[dStr].evalList);
                 elMap[dStr].evalList.forEach(ev => {
-                    let sheetName = '명렬표_기타';
-                    if (ev.rosterMeta && ev.rosterMeta.year) sheetName = `명렬표_${ev.rosterMeta.year}-${ev.rosterMeta.grade}-${ev.rosterMeta.classNum}`;
+                    let sheetName = '조사표_기타';
+                    if (ev.rosterMeta && ev.rosterMeta.year) sheetName = `조사표_${ev.rosterMeta.year}-${ev.rosterMeta.grade}-${ev.rosterMeta.classNum}`;
                     if (!evalMapBySheet[sheetName]) evalMapBySheet[sheetName] = [];
                     if (!ev.dateStr) ev.dateStr = dStr;
                     evalMapBySheet[sheetName].push(ev);
