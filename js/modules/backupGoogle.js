@@ -11,6 +11,47 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { exportCalendarData } from './syncCalendar.js';
 import { exportTasksToGoogle } from './syncTasks.js';
 
+/**
+ * 스프레드시트에서 '조사표_'로 시작하는 탭을 모두 '명렬표_'로 바꾼다.
+ *
+ * 탭 이름만 고칠 뿐 칸 안의 값은 건드리지 않는다. 새 이름이 이미 있는 탭은
+ * 이름이 겹치므로 그냥 둔다. 내보내기 직전에 한 번 불러, 옛 이름 탭과 새 이름
+ * 탭이 같은 학급으로 둘 다 남는 일을 막는다.
+ */
+async function renameLegacyRosterSheets(token, spreadsheetId) {
+    try {
+        const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties(sheetId,title)`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!metaRes.ok) return 0;
+
+        const meta = await metaRes.json();
+        const sheets = meta.sheets || [];
+        const titles = new Set(sheets.map(s => s.properties && s.properties.title).filter(Boolean));
+
+        const requests = [];
+        for (const s of sheets) {
+            const title = (s.properties && s.properties.title) || '';
+            if (!title.startsWith('조사표_')) continue;
+            const newTitle = '명렬표_' + title.slice('조사표_'.length);
+            if (titles.has(newTitle)) continue;
+            titles.add(newTitle);
+            requests.push({ updateSheetProperties: { properties: { sheetId: s.properties.sheetId, title: newTitle }, fields: 'title' } });
+        }
+        if (requests.length === 0) return 0;
+
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests })
+        });
+        return res.ok ? requests.length : 0;
+    } catch (e) {
+        console.warn('옛 명렬표 탭 이름 바꾸기 실패:', e);
+        return 0;
+    }
+}
+
 export const BackupGoogle = {
     currentSpreadsheetId: null,
 
@@ -105,6 +146,9 @@ export const BackupGoogle = {
 
                 if (options.incEval) {
                     ProgressModal.update("조사표 및 명렬표 연동 데이터 업로드 중...", 70);
+                    // 옛 이름('조사표_') 탭이 남아 있으면 먼저 새 이름으로 바꾼다.
+                    // 그러지 않으면 같은 학급의 탭이 두 이름으로 갈라진다.
+                    await renameLegacyRosterSheets(token, spreadsheetId);
                     for (const [sName, rows] of Object.entries(finalData.evalSheetsData)) {
                         try {
                             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
@@ -196,7 +240,8 @@ export const BackupGoogle = {
                 let matrixUpdates = [];
                 const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const metaData = await metaRes.json();
-                const evalSheetNames = metaData.sheets.map(s => s.properties.title).filter(t => t.startsWith('조사표_'));
+                // 이름을 바꾸기 전에 만들어진 시트가 있을 수 있어 두 이름을 다 본다
+                const evalSheetNames = metaData.sheets.map(s => s.properties.title).filter(t => t.startsWith('명렬표_') || t.startsWith('조사표_'));
 
                 for (const sName of evalSheetNames) {
                     const sRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sName + '!A:Z')}`, { headers: { 'Authorization': `Bearer ${token}` } });

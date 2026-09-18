@@ -89,12 +89,24 @@ export const RosterManager = {
                 return alert("연결된 구글 시트 백업본이 없습니다.\n[더보기 > 내보내기/가져오기] 메뉴에서 구글 시트로 백업을 먼저 1회 진행해주세요.");
             }
             const spreadsheetId = docSnap.data().spreadsheetId;
-            const sheetName = `조사표_${year}-${grade}-${classNum}`;
+            // 학급 명단이 든 탭은 '명렬표_2026-3-1' 꼴이다. 예전에는 같은 탭을
+            // '조사표_'로 불렀으므로, 새 이름으로 못 찾으면 옛 이름으로도 찾아본다.
+            let sheetName = `명렬표_${year}-${grade}-${classNum}`;
+            const legacySheetName = `조사표_${year}-${grade}-${classNum}`;
 
             // 1. 해당 학급의 시트 데이터 요청
-            const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A:C`, { 
+            const readRosterSheet = (name) => fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(name)}!A:C`, { 
                 headers: { 'Authorization': `Bearer ${token}` } 
             });
+
+            let dataRes = await readRosterSheet(sheetName);
+            if (!dataRes.ok) {
+                const legacyRes = await readRosterSheet(legacySheetName);
+                if (legacyRes.ok) {
+                    sheetName = legacySheetName;
+                    dataRes = legacyRes;
+                }
+            }
 
             if (!dataRes.ok) {
                 // 시트가 없을 경우 자동 생성 및 안내
