@@ -135,7 +135,7 @@ export const EvaluationManager = {
 
             <div class="modal-footer-actions">
                 <button onclick="document.getElementById('eval-creation-modal').remove()" class="modal-btn-secondary" style="background:#f1f5f9; color:#475569; margin-right:10px;">취소</button>
-                <button onclick="window.EvaluationManager.createEvaluation()" class="modal-btn-primary">생성 완료</button>
+                <button onclick="window.EvaluationManager.createEvaluation()" class="modal-btn-primary">생성</button>
             </div>
         `;
     },

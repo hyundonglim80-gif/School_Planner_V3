@@ -328,7 +328,9 @@ export const BackupData = {
         const journalMetaIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록 메타")) : -1;
         const eventIdx = incEvent ? header.findIndex(h => typeof h === 'string' && h.includes("일정") && !h.includes("메타")) : -1;
         const journalIdx = incJournal ? header.findIndex(h => typeof h === 'string' && h.includes("기록") && !h.includes("메타")) : -1;
-        const evalIdx = incEval ? header.findIndex(h => typeof h === 'string' && h.includes("조사표")) : -1;
+        // 조사표를 안 가져올 때도 그 칸이 어디인지는 찾아 둔다. 빼놓지 않으면
+        // 아래에서 그 칸까지 교시로 세어 수업 과목이 한 칸씩 밀린다.
+        const evalIdx = header.findIndex(h => typeof h === 'string' && h.includes("조사표"));
 
         const doEvent = incEvent && eventIdx !== -1;
         const doJournal = incJournal && journalIdx !== -1;
